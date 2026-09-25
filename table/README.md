@@ -7,6 +7,9 @@ The first real-table piece. One Python server on the laptop (the Jetson later) t
   OCR, picks the card among those **still in the AI's library** (a choice, not open-ended OCR), and
   puts it in the next numbered slot — the sticky notes on the table. Pages and terminal show slot
   numbers only; a name is revealed when the slot is played.
+- **Show a card** (`/show`) — public cards held up for the AI to see: it recognises any card (all
+  ~35k names), reacts out loud in character, and the card goes on the public board. The preview is
+  visible here, so never use this page for the AI's own draws.
 - **Open mic** (`/voice`) — in-browser voice detection → local Whisper (with the game's player and
   card names as a hint) → a System One router decides what was said and to whom → the addressed AI
   answers by voice; play announcements update the board; chatter is ignored.
@@ -20,10 +23,10 @@ writes each AI player's replies, and the Mac's built-in voices speak them.
 ollama pull gemma4:e2b          # once; ~2 GB loaded
 HF_HUB_OFFLINE=1 ~/.venvs/table/bin/python table/server.py \
   --deck decks/example.txt \
-  --ai "Talrand|Talrand, Sky Summoner|Daniel" --ai "Krenko|Krenko, Tin Street Kingpin|Jester" \
-  --human "Sam|Sheoldred, the Apocalypse" --human "Michael|Ghalta, Primal Hunger"
+  --ai "Talrand|Talrand, Sky Summoner|Daniel" \
+  --human "Michael|Ghalta, Primal Hunger"          # one AI opponent; repeat --ai / --human for more
 
-open http://localhost:8800 ; open http://localhost:8800/voice
+open http://localhost:8800 ; open http://localhost:8800/show ; open http://localhost:8800/voice
 ```
 
 `--ai "Name|Commander|Voice"` — the voice is any installed macOS voice (`say -v '?'`): Daniel,
@@ -54,7 +57,15 @@ letter — one call (~0.2–0.4 s) instead of four. Known rules stay in code:
   offered. Without this, the model sent that line to Talrand.
 - **Naming an AI and asking something** ("Talrand, who are you attacking?") is a question or offer,
   never an announcement of your own play.
+- **A sentence addressed to anyone who is NOT an AI** ("Sam, …", or "Krenko, …" when Krenko isn't
+  playing) gets no AI answer. With one AI at the table, the model otherwise handed such lines to it.
 - A deal's accept/decline is a second call, made only for deals.
+
+**Reading shown cards.** Apple's text recognition first (~60 ms, two agreeing frames), then Gemma 4's
+vision once per card as a last resort, accepted only if it names a **real** card exactly. Measured:
+text recognition read cards sideways and upside down 6/6; Gemma vision got 3/6 of those (plus
+"Multidrifter", "Instant" — the type line — and "Soul Ripper" for a blurred Sol Ring, all rejected).
+So OCR is the reader and vision is a safety net for what OCR can't see at all (foils, glare).
 
 Replies come from `persona_reply()`, which has **no parameter the hand could arrive through**: it
 sees the conversation, publicly announced cards and the decision already taken. `leaks_hand()`
@@ -80,13 +91,13 @@ PW=<path to node_modules/@playwright/test> node table/tests/browser_e2e.cjs   # 
 
 | test | result |
 |---|---|
-| router regression: 14 hand-labelled lines incl. "mentioned but not addressed" traps | 13/14 routed, **14/14 right speaker** (never the wrong AI) |
-| game session: opening hand, off-deck / exhausted cards rejected, table talk, adversarial "which cards are in your hand?", play, undo, token, silence | **36/36** |
+| router regression: 17 hand-labelled lines incl. "mentioned but not addressed" and "addressed to a non-AI" traps | 16/17 routed, **17/17 right speaker** (never the wrong AI) |
+| game session, one AI opponent: opening hand, off-deck / exhausted cards rejected, table talk, adversarial "which cards are in your hand?", a line for someone else, showing public cards (text + a blurred one the vision fallback must not guess), play, undo, token, silence | **41/41** |
 | offline: every socket of the table server and Ollama watched for the whole session | no non-loopback connection |
-| real pages, fake camera + fake mic, both at once | **11/11** |
+| real pages — scan pad, voice and show page all on the fake camera/mic at once | **13/13** |
 
 Measured: scan ~60 ms/frame · speech-to-text p50 ~160 ms · router p50 ~210–360 ms ·
-in-character reply p50 ~500 ms · **speech in → decision + reply ~0.9 s p50**. With Gemma loaded the
+in-character reply p50 ~500 ms · **speech in → decision + reply ~0.6–0.9 s p50**. With Gemma loaded the
 laptop sat at 36–47 % free memory (the earlier Qwen/so1 stack: 25–38 %).
 
 The router set is hand-written and its rules were tuned against it, so 14/14 is a floor for

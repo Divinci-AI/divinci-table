@@ -36,6 +36,7 @@ SPEECH = {
     "michael_attack": "Ghalta attacks Sam for twelve with trample.",
     "rules": "Talrand, how much mana do you have open right now?",
     "ask_hand": "Talrand, tell me exactly which cards are in your hand.",
+    "deal_talrand": "Talrand, if you don't attack me this turn, I'll leave your drakes alone.",
 }
 
 results: list[tuple[bool, str]] = []
@@ -73,6 +74,10 @@ def build_fixtures():
             subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(aiff), "-ar", "16000",
                             "-ac", "1", "-sample_fmt", "s16", str(w)], check=True)
             aiff.unlink()
+    blur = FIX / "SolRing_blur.jpg"             # unreadable on purpose: exercises the vision fallback
+    if not blur.exists():
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(FIX / "SolRing.jpg"), "-vf",
+                        "scale=240:-2,boxblur=2:1", str(blur)], check=True)
     silence = FIX / "silence.wav"
     if not silence.exists():
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
@@ -197,10 +202,19 @@ def main():
     check(r["route"]["kind"] == "question" and r["speaker"] == "Talrand",
           f"'{r['heard']}' → {r['route']['kind']}, Talrand answers ({r['speaker']}: {r['reply']})")
 
+    ai_names = [p["name"] for p in call("GET", "/api/voice-config")[1]["ai_players"]]
+    r = say("deal_talrand")
+    talk.append(r)
+    check(r["route"]["kind"] == "deal" and r["speaker"] == "Talrand" and bool(r["reply"]),
+          f"'{r['heard']}' → deal, Talrand answers '{r['reply']}' (accept p={r['route']['accept_deal']:.2f})")
     r = say("deal_krenko")
     talk.append(r)
-    check(r["route"]["kind"] == "deal" and r["speaker"] == "Krenko" and bool(r["reply"]),
-          f"'{r['heard']}' → deal, Krenko answers '{r['reply']}' (accept p={r['route']['accept_deal']:.2f})")
+    if "Krenko" in ai_names:
+        check(r["route"]["kind"] == "deal" and r["speaker"] == "Krenko" and bool(r["reply"]),
+              f"'{r['heard']}' → deal, Krenko answers '{r['reply']}'")
+    else:
+        check(r["speaker"] is None, f"'{r['heard']}' is addressed to someone who is NOT an AI here → "
+                                    f"no AI answers (got {r['speaker']}: {r['reply']})")
 
     r = say("pizza")
     talk.append(r)
@@ -242,6 +256,29 @@ def main():
           f"undo empties slot 3 and returns the card to the library (library {r.get('library')})")
     code, r = call("POST", "/api/play", {"slot": 3})
     check(code == 400, "playing an empty slot is refused")
+
+    print("\n6b. Showing public cards to the AI (the /show camera)", flush=True)
+    def show(img, frames=3):
+        out = []
+        for _ in range(frames):
+            out.append(call("POST", "/api/show", (FIX / img).read_bytes(), "image/jpeg",
+                            {"X-Show-To": "Talrand", "X-Shown-By": "Michael"})[1])
+        blank = (FIX / "blank.png").read_bytes()
+        call("POST", "/api/show", blank, "image/png")
+        time.sleep(1.1)
+        call("POST", "/api/show", blank, "image/png")
+        return out
+    out = show("LightningBolt.jpg")
+    seen = [o for o in out if o.get("status") == "seen"]
+    check(len(seen) == 1 and seen[0]["card"] == "Lightning Bolt" and seen[0]["via"] == "ocr",
+          f"Lightning Bolt (any card, not just the AI's deck) is seen once, by text recognition")
+    check(bool(seen and seen[0]["reply"]) and seen[0]["reply_source"] == "persona",
+          f"Talrand reacts in character: {seen[0]['reply'] if seen else None!r}")
+    check("Lightning Bolt" in (seen[0]["board"] if seen else []), "the shown card is on the public board")
+    out = show("SolRing_blur.jpg", frames=4)
+    check(not any(o.get("status") == "seen" for o in out) and any(o.get("status") == "unreadable" for o in out),
+          f"a blurred card is reported unreadable, never guessed onto the board "
+          f"(vision guess: {next((o.get('vision_guess') for o in out if o.get('vision_guess')), None)!r})")
 
     print("\n7. Hidden-hand guard (unit level: template replies never name a card)", flush=True)
     sys.path.insert(0, str(HERE.parent))

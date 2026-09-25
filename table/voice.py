@@ -214,6 +214,26 @@ def spoken_to(text: str, names: list[str]) -> str | None:
     return None
 
 
+# Words that open a sentence with a comma without addressing anyone.
+_NOT_NAMES = {"yes", "no", "yeah", "yep", "nope", "ok", "okay", "alright", "well", "so", "and", "but",
+              "hey", "hi", "hello", "sure", "fine", "deal", "wait", "look", "listen", "now", "then",
+              "also", "actually", "honestly", "guys", "everyone", "everybody", "folks", "oh", "ah", "um",
+              "uh", "right", "cool", "nice", "great", "thanks", "sorry", "please", "first", "second"}
+
+
+def spoken_to_someone_else(text: str, ai_names: list[str]) -> str | None:
+    """A sentence opening by addressing a NON-AI name ("Sam, …", "Krenko, …" when Krenko is not an
+    AI here), or None. Such a line is for someone else, so no AI may answer it — measured
+    2026-09-24: with one AI at the table, "Krenko, if you leave me alone…" was answered by Talrand."""
+    m = re.match(r"^\s*(?:(?:hey|hi|ok|okay|so|alright|yo|and|but|well)[\s,]+)?([A-Za-z][A-Za-z'-]{1,20})\s*[,!:]", text, re.I)
+    if not m:
+        return None
+    word = m.group(1)
+    if word.lower() in _NOT_NAMES or any(word.lower() == n.lower() for n in ai_names):
+        return None
+    return word
+
+
 def route_local(text: str, recent: list[str], ai_players: list[dict], humans: list[dict] | None = None) -> dict:
     t0 = time.time()
     names = [p["name"] for p in ai_players]
@@ -230,6 +250,9 @@ def route_local(text: str, recent: list[str], ai_players: list[dict], humans: li
     # still decides WHAT it is, but can no longer hand it to a different AI (measured 2026-09-24:
     # "Krenko, truce this turn?" routed to Talrand without this).
     vocative = spoken_to(text, names)
+    elsewhere = None if vocative else spoken_to_someone_else(text, names)
+    if elsewhere:                                     # "Sam, …": for someone who isn't an AI
+        opts = {k: v for k, v in opts.items() if k in ("play", "chatter", "question:table")}
     if vocative:
         keep = [f"question:{vocative}", f"deal:{vocative}"]
         # Naming an AI player AND asking something ("Talrand, who are you attacking?") is a question
@@ -290,3 +313,24 @@ def persona_reply(ai: dict, kind: str, heard: str, recent: list[str], public_boa
     out = (d.get("message") or {}).get("content", "").strip().strip('"').replace("\n", " ")
     out = re.sub(r"\*[^*]*\*", "", out).strip()           # drop *stage directions* if any slip in
     return out[:240]
+
+
+# ── Vision: reading a public card when OCR can't ─────────────────────────────────────────────
+def gemma_read_card(image_bytes: bytes) -> str:
+    """Ask the local Gemma (it has vision) for the card's name. The caller must validate the answer
+    against the real card-name catalog: a model can name a card that does not exist."""
+    import base64
+    d = _ollama({"model": OLLAMA_MODEL, "stream": False, "think": False,
+                 "options": {"temperature": 0, "num_predict": 24},
+                 "messages": [{"role": "user", "images": [base64.b64encode(image_bytes).decode()],
+                               "content": "What is the exact name of this Magic: The Gathering card? "
+                                          "Reply with only the card's name, or NONE if no card is visible."}]},
+                timeout=30)
+    return (d.get("message") or {}).get("content", "").strip().strip('".')
+
+
+def persona_react(ai: dict, card: str, shown_by: str, recent: list[str], public_board: list[str]) -> str:
+    """The AI's spoken reaction to a card someone SHOWED it. The card is public, so the persona may
+    name it; it still never sees the AI's own hand."""
+    return persona_reply(ai, "show", f"{shown_by} shows you the card {card}.", recent, public_board,
+                         f"React to {card} in character — what you think of it, or of whoever plays it.")

@@ -142,6 +142,10 @@ def scan(image: bytes):
         return {"status": "added", "slot": slot, **T.public()}
 
 
+# The "show" camera: public cards held up for the AI to see. Separate state from the hidden hand.
+SHOW = {"armed": True, "pending": None, "n": 0, "last_seen": 0.0, "misses": 0, "vision_tried": False}
+SHOW_LOCK = threading.Lock()
+
 CONVO = {"recent": [], "announced": []}
 CONVO_LOCK = threading.Lock()
 
@@ -209,6 +213,73 @@ def handle_utterance(wav: bytes):
             "announced": CONVO["announced"][-10:]}
 
 
+def show_card(image: bytes, to: str, shown_by: str):
+    """A public card held up to the camera. OCR (fast) must agree on 2 frames; if a card is clearly in
+    view but OCR can't read it after 2 frames, ask Gemma's vision ONCE and accept its answer only if
+    it is a real card name. Re-arms after the card has been out of view for --clear-secs."""
+    import voice
+    from difflib import get_close_matches
+    t0 = time.time()
+    lines = [l.text for l in read_lines(image)]
+    name, _, _ = identify_any(lines, CATALOG)
+    via = "ocr"
+    now = time.time()
+    with SHOW_LOCK:
+        if name is None:
+            text_in_view = sum(len(x) for x in lines) >= 25          # something with print on it
+            if not text_in_view:
+                if not SHOW["armed"] and now - SHOW["last_seen"] >= args.clear_secs:
+                    SHOW.update(armed=True, vision_tried=False, misses=0)
+                SHOW.update(pending=None, n=0)
+                return {"status": "ready" if SHOW["armed"] else "remove card"}
+            SHOW["last_seen"] = now
+            if not SHOW["armed"]:
+                return {"status": "remove card"}
+            SHOW["misses"] += 1
+            if SHOW["vision_tried"]:                   # vision already had its one try on this card
+                return {"status": "unreadable"}
+            if SHOW["misses"] < 2:
+                return {"status": "reading"}
+            SHOW["vision_tried"] = True
+        else:
+            SHOW["last_seen"] = now
+            if not SHOW["armed"]:
+                return {"status": "remove card"}
+            SHOW["n"] = SHOW["n"] + 1 if name == SHOW["pending"] else 1
+            SHOW["pending"] = name
+            if SHOW["n"] < 2:
+                return {"status": "reading"}
+    if name is None:                                  # outside the lock: this call takes ~0.6 s
+        guess = voice.gemma_read_card(image)
+        norm_index = getattr(show_card, "idx", None) or {n.lower(): n for n in CATALOG}
+        show_card.idx = norm_index
+        hit = norm_index.get(guess.lower()) or next(
+            (norm_index[m] for m in get_close_matches(guess.lower(), list(norm_index), n=1, cutoff=0.9)), None)
+        if not hit:
+            return {"status": "unreadable", "vision_guess": guess[:60]}
+        name, via = hit, "vision"
+    with SHOW_LOCK:
+        SHOW.update(armed=False, pending=None, n=0, misses=0)
+    ai = next((p for p in AI_PLAYERS if p["name"] == to), AI_PLAYERS[0])
+    with CONVO_LOCK:
+        CONVO["announced"].append(name)
+        recent, board = list(CONVO["recent"]), list(CONVO["announced"])
+    reply, src = f"{name}. Noted.", "template"
+    try:
+        said = voice.persona_react(ai, name, shown_by, recent, board)
+        if said:
+            reply, src = said, "persona"
+    except Exception as e:
+        print(f"persona reaction failed, using template: {type(e).__name__}", flush=True)
+    with T.lock:
+        hidden = list(T.slots.values())
+    if voice.leaks_hand(reply, [c for c in hidden if c != name]):
+        reply, src = f"{name}. Noted.", "template"
+    print(f"shown to {ai['name']}: {name} (via {via})", flush=True)
+    return {"status": "seen", "card": name, "via": via, "speaker": ai["name"], "reply": reply,
+            "reply_source": src, "ms": round((time.time() - t0) * 1000), "board": board[-10:]}
+
+
 class H(BaseHTTPRequestHandler):
     def _send(self, code, obj=None, body=None, ctype="application/json"):
         data = body if body is not None else json.dumps(obj).encode()
@@ -226,6 +297,8 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/":
             return self._send(200, body=(HERE / "scan.html").read_bytes(), ctype="text/html; charset=utf-8")
+        if self.path == "/show":
+            return self._send(200, body=(HERE / "show.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path == "/voice":
             return self._send(200, body=(HERE / "voice.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path == "/api/voice-config":
@@ -249,6 +322,13 @@ class H(BaseHTTPRequestHandler):
                 if not 0 < n <= 8_000_000:
                     return self._send(413, {"error": "image must be 1 byte to 8 MB"})
                 return self._send(200, scan(self.rfile.read(n)))
+            if self.path.startswith("/api/show"):
+                n = int(self.headers.get("Content-Length", 0))
+                if not 0 < n <= 8_000_000:
+                    return self._send(413, {"error": "image must be 1 byte to 8 MB"})
+                to = self.headers.get("X-Show-To", "")
+                by = self.headers.get("X-Shown-By", "") or "Someone"
+                return self._send(200, show_card(self.rfile.read(n), to, by[:40]))
             if self.path == "/api/utterance":
                 n = int(self.headers.get("Content-Length", 0))
                 if not 0 < n <= 2_000_000:              # ~60 s of 16 kHz mono 16-bit
@@ -269,6 +349,8 @@ class H(BaseHTTPRequestHandler):
                 with CONVO_LOCK:
                     CONVO["recent"].clear()
                     CONVO["announced"].clear()
+                with SHOW_LOCK:
+                    SHOW.update(armed=True, pending=None, n=0, last_seen=0.0, misses=0, vision_tried=False)
                 print("table reset", flush=True)
                 return self._send(200, T.public())
             if self.path == "/api/undo":                   # mis-scan: card goes back to the library
@@ -298,6 +380,7 @@ def _warm():
 
 threading.Thread(target=_warm, daemon=True).start()   # first Whisper load takes seconds
 mode = f"TEST MODE, any of {len(CATALOG)} card names" if args.any_card else f"deck: {len(DECK)} cards, {len(set(DECK))} distinct"
-print(f"{mode}. Scan pad: http://localhost:{args.port}  Voice: http://localhost:{args.port}/voice", flush=True)
+print(f"{mode}. Scan pad (AI's hand): http://localhost:{args.port}  Show a card: http://localhost:{args.port}/show  "
+      f"Voice: http://localhost:{args.port}/voice", flush=True)
 print("AI players: " + ", ".join(p["name"] for p in AI_PLAYERS), flush=True)
 ThreadingHTTPServer(("127.0.0.1", args.port), H).serve_forever()

@@ -34,17 +34,20 @@ async function api(p, body) {
   const ctx = await browser.newContext({ permissions: ["camera", "microphone"] });
   const scan = await ctx.newPage();
   const voice = await ctx.newPage();
+  const showPg = await ctx.newPage();
   const errors = [];
-  for (const [name, pg] of [["scan", scan], ["voice", voice]]) {
+  for (const [name, pg] of [["scan", scan], ["voice", voice], ["show", showPg]]) {
     pg.on("pageerror", e => errors.push(`${name}: ${e.message}`));
     pg.on("console", m => { if (m.type() === "error") errors.push(`${name} console: ${m.text()}`); });
   }
 
   await scan.goto(BASE + "/");
   await voice.goto(BASE + "/voice");
+  await showPg.goto(BASE + "/show");
   const t0 = Date.now();
   await voice.click("#mic");          // start the mic first: the audio file plays once (%noloop)
   await scan.click("#cam");
+  await showPg.click("#cam");
 
   // Watch both pages. Record every status the scan pad shows and any hidden card name on either page.
   const statuses = new Set();
@@ -85,10 +88,24 @@ async function api(p, body) {
   check(items.length >= 4, `heard ${items.length} utterance(s) (want 4)`);
   const all = items.join("\n");
   check(/Talrand: /.test(all), "Talrand answered the question addressed to it");
-  check(/Krenko: \S/.test(all), "Krenko answered the deal (in character)");
+  const cfg = await api("/api/voice-config");
+  if (cfg.ai_players.some(p => p.name === "Krenko")) check(/Krenko: \S/.test(all), "Krenko answered the deal (in character)");
+  else {
+    const krenkoLine = items.find(t => /Krenko, /.test(t)) || "";
+    check(!/Krenko: /.test(all) && !/Talrand: /.test(krenkoLine),
+          "a line addressed to Krenko (not an AI here) gets no AI answer at all");
+  }
   check(/chatter/.test(all), "the pizza question was classed as chatter");
   check(/board: .*Sheoldred/.test(all), "Sam's Sheoldred went onto the board");
   for (const it of items.slice().reverse()) console.log("    · " + it.replace(/\s+/g, " ").slice(0, 150));
+
+  console.log("\nshow page (same camera, public)");
+  const shown = await showPg.$$eval("#history li", els => els.map(e => e.innerText));
+  const shownCards = shown.map(t => t.split(" — ")[0]).reverse();
+  check(["Island", "Sol Ring", "Mulldrifter", "Lightning Bolt"].every(c => shownCards.includes(c)),
+        `all four cards held up were recognised (${shownCards.join(", ")})`);
+  check(shown.every(t => /— Talrand: \S/.test(t)), "Talrand reacted to every card shown");
+  for (const t of shown.slice(0, 4).reverse()) console.log("    · " + t.slice(0, 150));
 
   console.log("\npage health");
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.slice(0, 3).join(" / ") : ""}`);

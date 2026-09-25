@@ -27,6 +27,9 @@ CASES=[
  ("I attack Talrand with Ghalta.", {"play"}, {"nobody in particular","the whole table"}, None),
  ("Talrand, want to team up against Sam?", {"deal"}, {"Talrand"}, "Talrand"),
  ("Can someone pass the dice?", {"chatter","question"}, {"the whole table","nobody in particular"}, None),
+ ("Sam, if you leave me alone this turn I won't attack you.", {"deal","question","chatter","play"}, {"the whole table","nobody in particular"}, None),
+ ("Michael, want to team up against Talrand?", {"deal","question","chatter"}, {"the whole table","nobody in particular"}, None),
+ ("Yes, deal!", {"deal","chatter","question","play"}, {"Talrand","Krenko","the whole table","nobody in particular"}, "ANY"),
 ]
 voice.route_local("warm up", [], AI, HU)
 ok=spk=0; ms=[]
@@ -34,7 +37,8 @@ for text, kinds, addrs, speaker in CASES:
     r=voice.route_local(text, [], AI, HU); ms.append(r["ms"])
     sp,_=voice.decide_reply(r,["Talrand","Krenko"])
     good=r["kind"] in kinds and r["addressee"] in addrs
-    ok+=good; spk+=(sp==speaker)
-    print(f"{'✓' if good else '✗'}{'✓' if sp==speaker else '✗'} {r['kind']:8} → {r['addressee']:20} speaks: {sp or '-':8} | {text}")
+    right_speaker = (speaker == "ANY") or (sp == speaker)   # "Yes, deal!" alone is ambiguous: any outcome is fine
+    ok+=good; spk+=right_speaker
+    print(f"{'✓' if good else '✗'}{'✓' if right_speaker else '✗'} {r['kind']:8} → {r['addressee']:20} speaks: {sp or '-':8} | {text}")
 print(f"route correct {ok}/{len(CASES)} | right AI speaks (or silence) {spk}/{len(CASES)} | router p50 {sorted(ms)[len(ms)//2]} ms, max {max(ms)} ms")
 sys.exit(0 if spk == len(CASES) and ok >= len(CASES) - 1 else 1)
