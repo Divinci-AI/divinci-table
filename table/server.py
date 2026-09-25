@@ -38,6 +38,9 @@ ap.add_argument("--ai", action="append", default=[],
                      'e.g. "Talrand|Talrand, Sky Summoner|Daniel"')
 ap.add_argument("--ai-deck", help="a virtual deck (decks/*.json) for the FIRST --ai player: it draws, "
                                    "plays and announces its own cards instead of using physical ones")
+ap.add_argument("--brain", choices=["gemma", "external"], default="gemma",
+                help="who decides for the virtual AI player: the local Gemma, or an EXTERNAL brain driving it "
+                     "through /api/brain (tablectl) — then the server never answers or plays for it")
 ap.add_argument("--human", action="append", default=[],
                 help='a human player, "Name|Commander card name" (repeatable); their names go into the speech hint')
 ap.add_argument("--confirm-frames", type=int, default=2, help="same card on N frames in a row")
@@ -77,12 +80,32 @@ if args.ai_deck:
     VP = VirtualPlayer(args.ai_deck, AI_PLAYERS[0]["name"])
     AI_PLAYERS[0]["has_deck"] = True
     AI_PLAYERS[0]["deck"] = VP.deck_name
-VP_LOCK = threading.Lock()
+VP_LOCK = threading.RLock()     # re-entrant: brain actions call helpers that lock again
+BRAIN_EXTERNAL = args.brain == "external"
+
+# ── public event stream: what the table has seen and heard (never the AI's hand) ─────────────
+EVENTS: list[dict] = []
+EV_LOCK = threading.Lock()
+_ev_id = [0]
+
+
+def emit(event_type: str, **fields) -> dict:
+    # (not "kind": heard/attention events carry their own "kind" field)
+    with EV_LOCK:
+        _ev_id[0] += 1
+        e = {"id": _ev_id[0], "ts": round(time.time(), 2), "type": event_type, **fields}
+        EVENTS.append(e)
+        del EVENTS[:-3000]
+    return e
+
+
+LIFE: dict[str, int] = {}             # filled once the human players are parsed, below
 REPLIES = os.environ.get("REPLIES", "ollama")    # "ollama": in-character via local Gemma; "template"
 HUMANS = []
 for spec in args.human:
     name, _, commander = spec.partition("|")
     HUMANS.append({"name": name.strip(), "commander": commander.strip() or None})
+LIFE.update({h["name"]: 40 for h in HUMANS})
 # Table nicknames: players say "Krenko", the card is "Krenko, Tin Street Kingpin". Only for cards
 # known to be in THIS game, because many legendary cards share a first name.
 NICKNAMES = {p["commander"].split(",")[0]: p["commander"] for p in AI_PLAYERS + HUMANS if p["commander"]}
@@ -201,6 +224,13 @@ def handle_utterance(wav: bytes):
         with CONVO_LOCK:
             CONVO["announced"] += cards
     speaker, reply = voice.decide_reply(r, [p["name"] for p in AI_PLAYERS])
+    emit("heard", text=text, kind=r["kind"], addressee=r["addressee"], cards=cards,
+         for_ai=bool(reply) and speaker is not None)
+    if BRAIN_EXTERNAL and reply and VP and speaker == VP.name:
+        emit("attention", kind=r["kind"], text=text, addressee=speaker)
+        return {"heard": text, "route": r, "cards": cards, "speaker": speaker, "reply": None,
+                "awaiting": "brain", "blocked": False, "stt_ms": t_stt,
+                "total_ms": round((time.time() - t0) * 1000), "announced": CONVO["announced"][-10:]}
     reply_source, reply_ms = "template", 0
     turn = None
     if reply == voice.TURN:
@@ -240,6 +270,11 @@ def handle_utterance(wav: bytes):
     return {"heard": text, "route": r, "cards": cards, "speaker": speaker, "reply": reply,
             "reply_source": reply_source, "reply_ms": reply_ms, "blocked": bool(blocked), "stt_ms": t_stt, "total_ms": round((time.time() - t0) * 1000),
             "announced": CONVO["announced"][-10:]}
+
+
+def voice_leak(text, hidden):
+    import voice
+    return voice.leaks_hand(text, hidden)
 
 
 def run_ai_turn():
@@ -304,6 +339,10 @@ def show_card(image: bytes, to: str, shown_by: str):
     with CONVO_LOCK:
         CONVO["announced"].append(name)
         recent, board = list(CONVO["recent"]), list(CONVO["announced"])
+    emit("shown", card=name, by=shown_by, to=ai["name"], via=via)
+    if BRAIN_EXTERNAL:
+        return {"status": "seen", "card": name, "via": via, "speaker": ai["name"], "reply": None,
+                "reply_source": "brain", "ms": round((time.time() - t0) * 1000), "board": board[-10:]}
     reply, src = f"{name}. Noted.", "template"
     try:
         said = voice.persona_react(ai, name, shown_by, recent, board)
@@ -344,7 +383,7 @@ class H(BaseHTTPRequestHandler):
         if self.path == "/voice":
             return self._send(200, body=(HERE / "voice.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path == "/api/voice-config":
-            return self._send(200, {"ai_players": AI_PLAYERS, "humans": HUMANS})
+            return self._send(200, {"ai_players": AI_PLAYERS, "humans": HUMANS, "brain": args.brain})
         if self.path == "/api/ai/state":
             if VP is None:
                 return self._send(404, {"error": "no virtual AI deck (start with --ai-deck)"})
@@ -355,6 +394,29 @@ class H(BaseHTTPRequestHandler):
                 return self._send(403, {"error": "brain token required"})
             with VP_LOCK:
                 return self._send(200, {"hand": VP.private_hand() if VP else []})
+        if self.path.startswith("/api/events"):
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            with EV_LOCK:
+                last = EVENTS[-1]["id"] if EVENTS else 0
+                since = last if q.get("since", ["0"])[0] == "latest" else int(q.get("since", ["0"])[0] or 0)
+                out = [e for e in EVENTS if e["id"] > since][:300]
+            return self._send(200, {"last": last, "events": out})
+        if self.path == "/api/life":
+            return self._send(200, self._life_table())
+        if self.path == "/api/brain/state":
+            if not self._brain_ok():
+                return self._send(403, {"error": "brain token required"})
+            from player import brain_view
+            with VP_LOCK:
+                v = brain_view(VP) if VP else {}
+            with CONVO_LOCK:
+                v["announced_by_others"] = list(CONVO["announced"][-30:])
+            v["life_table"] = self._life_table()
+            v["humans"] = HUMANS
+            with EV_LOCK:
+                v["recent_events"] = [e for e in EVENTS if e["type"] in ("heard", "shown", "attention", "life")][-15:]
+            return self._send(200, v)
         if self.path == "/api/state":
             with T.lock:
                 return self._send(200, T.public())
@@ -401,7 +463,17 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/api/ai/turn":
                 if VP is None:
                     return self._send(404, {"error": "no virtual AI deck (start with --ai-deck)"})
+                if BRAIN_EXTERNAL:                         # the button hands the turn to the brain
+                    emit("attention", kind="turn", text="(turn button)", addressee=VP.name)
+                    return self._send(200, {"awaiting": "brain"})
                 return self._send(200, run_ai_turn())
+            if self.path == "/api/life":                   # anyone at the table: {"player": name, "delta": -3}
+                b = self._json()
+                return self._send(200, self._change_life(str(b.get("player", "")), b.get("delta"), b.get("by", "table")))
+            if self.path.startswith("/api/brain/"):
+                if not self._brain_ok():
+                    return self._send(403, {"error": "brain token required"})
+                return self._brain(self.path.rsplit("/", 1)[-1], self._json())
             if self.path == "/api/reset":                  # new game: empty hand, full library, no history
                 with T.lock:
                     T = Table(DECK)
@@ -410,6 +482,9 @@ class H(BaseHTTPRequestHandler):
                     CONVO["announced"].clear()
                 with SHOW_LOCK:
                     SHOW.update(armed=True, pending=None, n=0, last_seen=0.0, misses=0, vision_tried=False)
+                for k in LIFE:
+                    LIFE[k] = 40
+                emit("new-game")
                 if VP is not None:
                     from player import VirtualPlayer
                     with VP_LOCK:
@@ -433,6 +508,105 @@ class H(BaseHTTPRequestHandler):
 
     def log_message(self, *a):
         pass
+
+    def _brain_ok(self):
+        return VP is not None and secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN)
+
+    def _life_table(self):
+        t = dict(LIFE)
+        if VP:
+            t[VP.name] = VP.life
+        return t
+
+    def _change_life(self, player, delta, by):
+        if not isinstance(delta, int) or isinstance(delta, bool):
+            return {"error": "delta must be an integer"}
+        if VP and player.lower() in (VP.name.lower(), "me"):
+            with VP_LOCK:
+                VP.life += delta
+            player = VP.name
+        elif player in LIFE:
+            LIFE[player] += delta
+        else:
+            return {"error": f"unknown player '{player}' (players: {list(self._life_table())})"}
+        emit("life", player=player, delta=delta, by=by, life=self._life_table()[player])
+        return self._life_table()
+
+    def _brain(self, action, b):
+        """The external brain's actions. Engine-checked; each announcement is spoken as the AI."""
+        from player import IllegalAction
+        speak = not b.get("quiet")
+        private = {}
+        try:
+            with VP_LOCK:
+                if action == "say":
+                    text = str(b.get("text", "")).strip()
+                    hidden = VP.private_hand()
+                    leak = voice_leak(text, hidden)
+                    if leak and not b.get("force"):
+                        return self._send(400, {"error": f"that names '{leak}', which is still in your hand "
+                                                         f"(pass force to say it anyway)"})
+                    said = [text]
+                elif action == "begin":
+                    said, drew = VP.begin_turn()
+                    private["drew"] = drew
+                elif action == "land":
+                    said = VP.manual_land(b["name"])
+                elif action == "cast":
+                    said = VP.manual_cast(b["name"], on=b.get("on"), role_on=b.get("role_on"), modes=b.get("modes"),
+                                          targets=b.get("targets"), commander=bool(b.get("commander")),
+                                          x=int(b.get("x") or 0), discount=int(b.get("discount") or 0))
+                elif action == "attack":
+                    said = VP.manual_attack(b["assign"], role_on=b.get("role_on"))
+                elif action == "end":
+                    said = [b.get("text") or "That's my turn."]
+                elif action in ("destroy", "exile", "bounce"):
+                    said = VP.move(b["ref"], {"destroy": "graveyard", "exile": "exile", "bounce": "hand"}[action])
+                elif action in ("tap", "untap"):
+                    p = VP.perm(b["ref"])
+                    p.tapped = action == "tap"
+                    said = [f"{p.name} is {action}ped."] if b.get("announce") else []
+                elif action == "counter":
+                    p = VP.perm(b["ref"])
+                    p.counters += int(b.get("n", 1))
+                    said = [f"{p.name} gets {int(b.get('n', 1)):+d}/{int(b.get('n', 1)):+d} counters."]
+                elif action == "token":
+                    said = VP.make_token(b["name"], int(b["power"]), int(b["toughness"]), b.get("keywords") or [])
+                elif action == "draw":
+                    before = len(VP.hand)
+                    VP.draw(int(b.get("n", 1)))
+                    private["drew"] = [c["name"] for c in VP.hand[before:]]
+                    said = [f"I draw {len(private['drew'])} card{'s' if len(private['drew']) != 1 else ''}."]
+                elif action == "discard":
+                    said = VP.discard(b["name"])
+                elif action == "mill":
+                    said = VP.mill(int(b.get("n", 1)))
+                elif action == "search":
+                    said = VP.search_library(b["name"], to=b.get("to", "hand"), tapped=bool(b.get("tapped")))
+                elif action == "life":
+                    r = self._change_life(str(b.get("player", "me")), b.get("delta"), VP.name)
+                    if "error" in r:
+                        return self._send(400, r)
+                    said = []
+                elif action == "new-game":
+                    from player import VirtualPlayer
+                    globals()["VP"] = VirtualPlayer(args.ai_deck, VP.name)
+                    for k in LIFE:
+                        LIFE[k] = 40
+                    emit("new-game")
+                    said = ["New game. I shuffle up and draw seven."]
+                else:
+                    return self._send(400, {"error": f"unknown action '{action}'"})
+        except IllegalAction as e:
+            return self._send(400, {"error": str(e)})
+        except KeyError as e:
+            return self._send(400, {"error": f"missing field {e}"})
+        for line in said:
+            if speak and line:
+                emit("say", speaker=VP.name, text=line, action=action)
+        with VP_LOCK:
+            state = VP.public()
+        return self._send(200, {"ok": True, "said": said, "private": private, "public": state})
 
 
 def _warm():
@@ -467,5 +641,6 @@ threading.Thread(target=_warm, daemon=True).start()   # first Whisper load takes
 mode = f"TEST MODE, any of {len(CATALOG)} card names" if args.any_card else f"deck: {len(DECK)} cards, {len(set(DECK))} distinct"
 print(f"{mode}. Table (camera + mic): http://localhost:{args.port}/table   "
       f"Scan pad (AI's hand): http://localhost:{args.port}/   Show: /show   Voice: /voice", flush=True)
-print("AI players: " + ", ".join(p["name"] for p in AI_PLAYERS), flush=True)
+print("AI players: " + ", ".join(p["name"] for p in AI_PLAYERS)
+      + (f" — brain: EXTERNAL (drive with table/tablectl.py)" if BRAIN_EXTERNAL else " — brain: local Gemma"), flush=True)
 ThreadingHTTPServer(("127.0.0.1", args.port), H).serve_forever()

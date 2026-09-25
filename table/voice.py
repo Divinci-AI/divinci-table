@@ -232,8 +232,9 @@ def _ollama_choice(context: str, question: str, options: dict[str, str]) -> dict
 
 def _context(text, recent, ai_players, humans):
     return ("A four-player Magic: The Gathering Commander game. AI players: "
-            + ", ".join(f"{p['name']} ({p['commander']})" for p in ai_players)
-            + ". Human players: " + (", ".join(f"{p['name']} ({p['commander']})" for p in humans or []) or "none")
+            + ", ".join(p["name"] + (f" ({p['commander']})" if p.get("commander") else "") for p in ai_players)
+            + ". Human players: " + (", ".join(p["name"] + (f" ({p['commander']})" if p.get("commander") else "")
+                                               for p in humans or []) or "none")
             + ".\nRecent conversation: " + (" / ".join(recent[-4:]) or "(none)")
             + f'\nSomeone at the table just said: "{text}"')
 

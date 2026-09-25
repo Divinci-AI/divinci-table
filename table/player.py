@@ -161,7 +161,7 @@ class VirtualPlayer:
         """A set of sources that pays the cost, or None. Coloured pips first from the sources that
         make the FEWEST colours (keep flexible lands for later), then generic from the rest."""
         generic, pips = parse_cost(mana_cost)
-        generic += extra_generic
+        generic = max(0, generic + extra_generic)
         pool = sorted(self.sources(), key=lambda s: len(s[1]))
         used = []
         for color, n in pips.items():
@@ -340,3 +340,233 @@ def modal_options(c) -> tuple[int, list[str]] | None:
 def _short_text(c):
     t = re.sub(r"\([^)]*\)", "", c.get("text") or "").replace("\n", " ").strip()
     return (t[:180] + "…") if len(t) > 180 else t
+
+
+# ── Manual play: an external brain (a person, or Claude via tablectl) drives the player ──────────
+# Every method validates what the engine can check (card in hand, one land a turn, mana and colours,
+# legal Aura targets) and raises IllegalAction otherwise. It returns the sentences the table hears.
+class IllegalAction(ValueError):
+    pass
+
+
+def _match(name: str, candidates, key):
+    """Case-insensitive exact, then unique prefix, then unique substring match."""
+    n = name.strip().lower().lstrip("#")
+    exact = [c for c in candidates if key(c).lower() == n]
+    if exact:
+        return exact[0]
+    for test in (lambda k: k.startswith(n), lambda k: n in k):
+        hits = [c for c in candidates if test(key(c).lower())]
+        if len(hits) == 1:
+            return hits[0]
+        if len(hits) > 1 and len({key(h) for h in hits}) == 1:
+            return hits[0]
+        if len(hits) > 1:
+            raise IllegalAction(f"'{name}' is ambiguous: {sorted({key(h) for h in hits})}")
+    return None
+
+
+def _manual(cls):
+    def hand_card(self, name):
+        c = _match(name, self.hand, lambda c: c["name"])
+        if not c:
+            raise IllegalAction(f"'{name}' is not in your hand")
+        return c
+
+    def perm(self, ref):
+        """A permanent by '#id' or name."""
+        if ref.strip().startswith("#") and ref.strip()[1:].isdigit():
+            p = next((p for p in self.battlefield if p.id == int(ref.strip()[1:])), None)
+        else:
+            p = _match(ref, self.battlefield, lambda p: p.name)
+        if not p:
+            raise IllegalAction(f"no permanent '{ref}' on your battlefield")
+        return p
+
+    def begin_turn(self):
+        self.turn += 1
+        self.land_played = False
+        for p in self.battlefield:
+            p.tapped = False
+            p.sick = False
+        before = len(self.hand)
+        self.draw()
+        drew = self.hand[-1]["name"] if len(self.hand) > before else None
+        return [f"{self.name}'s turn {self.turn}. I untap and draw a card."], drew
+
+    def manual_land(self, name):
+        c = self.hand_card(name)
+        if "Land" not in c["types"]:
+            raise IllegalAction(f"{c['name']} is not a land")
+        if self.land_played:
+            raise IllegalAction("you already played a land this turn")
+        return [self.play_land(c)]
+
+    def manual_cast(self, name, on=None, role_on=None, modes=None, targets=None, commander=False, x=0, discount=0):
+        """discount: generic cost reduction the brain knows applies (e.g. Jukai Naturalist makes
+        enchantment spells cost {1} less) — the engine does not read cost-reduction text."""
+        if commander or name.lower() in (self.commander["name"].lower(), "commander"):
+            if not self.cmdr_in_zone:
+                raise IllegalAction("your commander is not in the command zone")
+            c, is_cmdr = self.commander, True
+            extra = 2 * self.cmdr_casts + x
+        else:
+            c, is_cmdr, extra = self.hand_card(name), False, x
+        extra -= max(0, int(discount))
+        if "Land" in c["types"]:
+            raise IllegalAction(f"{c['name']} is a land — use land")
+        pay = self.plan_payment(c.get("manaCost", ""), extra)
+        if pay is None:
+            g, pips = parse_cost(c.get("manaCost", ""))
+            raise IllegalAction(f"can't pay {c.get('manaCost')}{f' + {extra}' if extra else ''} "
+                                f"(untapped sources: {', '.join(p.name for p, _ in self.sources()) or 'none'})")
+        aura = "Aura" in (c.get("subtypes") or [])
+        if aura and not is_hostile_aura(c):
+            if not on:
+                raise IllegalAction(f"{c['name']} is an Aura: say what it enchants with --on "
+                                    f"(legal: {[f'#{p.id} {p.name}' for p in self.aura_targets(c)]})")
+            target = self.perm(on)
+            if target not in self.aura_targets(c):
+                raise IllegalAction(f"{c['name']} can't enchant {target.name}")
+        if aura and is_hostile_aura(c) and not on:
+            raise IllegalAction(f"{c['name']} goes on an opponent's permanent: name it with --on")
+
+        def choose_target(card, creatures):
+            if creatures is None:
+                return on
+            if card is c and on:
+                return self.perm(on)
+            if role_on:
+                t = self.perm(role_on)
+                if t in creatures:
+                    return t
+            return max(creatures, key=lambda k: self.stats(k)[0])     # default: its biggest creature
+
+        def choose_modes(card, spec):
+            n, all_modes = spec
+            if not modes:
+                raise IllegalAction(f"{card['name']} is modal — choose {n} with --mode (1-based): "
+                                    + " | ".join(f"{i + 1}. {m}" for i, m in enumerate(all_modes)))
+            picked = [all_modes[int(m) - 1] for m in modes]
+            if len(picked) != n:
+                raise IllegalAction(f"{card['name']} needs exactly {n} modes")
+            return picked
+
+        # validate modes BEFORE paying, so a bad call doesn't tap anything
+        spec = modal_options(c)
+        if spec and ("Instant" in c["types"] or "Sorcery" in c["types"]):
+            choose_modes(c, spec)
+        said = self.cast(f"cast {c['name']}", c, pay, is_cmdr, choose_target, choose_modes)
+        if targets:
+            said += f" Targeting {targets}."
+        return [said]
+
+    def manual_attack(self, assignments: dict, role_on=None):
+        """assignments: {'#12' or creature name: player name}."""
+        by_player, said = {}, []
+        for ref, who in assignments.items():
+            c = self.perm(ref)
+            if not c.is_("Creature"):
+                raise IllegalAction(f"{c.name} is not a creature")
+            if c.tapped:
+                raise IllegalAction(f"{c.name} is tapped")
+            if c.sick and "Haste" not in (c.card.get("keywords") or []):
+                raise IllegalAction(f"{c.name} has summoning sickness")
+            by_player.setdefault(who, []).append(c)
+        for who, cs in by_player.items():
+            for c in cs:
+                if "Vigilance" not in (c.card.get("keywords") or []):
+                    c.tapped = True
+            for c in cs:
+                m = re.search(r"Whenever [^.]*?attacks[^,]*, ([^.]+)\.", c.card.get("text") or "")
+                if m and "Role token" in m.group(1):
+                    fake = Perm({**c.card, "text": f"When this enters, {m.group(1)}."})
+                    fake.id = c.id
+                    rt = self.perm(role_on) if role_on else None
+                    said += self.enter_effects(fake, lambda card, cands: rt if rt in cands else max(cands, key=lambda k: self.stats(k)[0]))
+            total = sum(self.stats(c)[0] for c in cs)
+            said.append(f"I attack {who} with " + ", ".join(self.describe(c).replace(" [tapped]", "") for c in cs)
+                        + f" — {total} damage if unblocked.")
+        return said
+
+    def move(self, ref, to):
+        """Your permanent leaves the battlefield: to graveyard / exile / hand. Attached Auras and Roles
+        fall off; tokens cease to exist; your commander goes to the command zone."""
+        p = self.perm(ref)
+        gone = [p] + [a for a in self.battlefield if a.attached_to == p.id]
+        for x in gone:
+            self.battlefield.remove(x)
+            if x.token:
+                continue
+            if x.card["name"] == self.commander["name"]:
+                self.cmdr_in_zone = True
+            elif to == "hand" and x is p:
+                self.hand.append(x.card)
+            elif to == "exile":
+                self.on_their_cards.append(f"{x.name} (exiled)")
+            else:
+                self.graveyard.append(x.card)
+        where = {"graveyard": "is destroyed", "exile": "is exiled", "hand": "returns to my hand"}[to]
+        return [f"{p.name} {where}" + (" (commander to the command zone)" if p.card["name"] == self.commander["name"] else "") + "."]
+
+    def search_library(self, name, to="hand", tapped=False):
+        c = _match(name, self.library, lambda c: c["name"])
+        if not c:
+            raise IllegalAction(f"no '{name}' in your library")
+        self.library.remove(c)
+        if to == "battlefield":
+            self.battlefield.append(Perm(c, sick=False, tapped=tapped))
+        else:
+            self.hand.append(c)
+        self.rng.shuffle(self.library)
+        return [f"I search my library for {c['name'] if to == 'battlefield' or 'Basic' in (c.get('supertypes') or []) else 'a card'}, "
+                f"put it {'onto the battlefield' + (' tapped' if tapped else '') if to == 'battlefield' else 'into my hand'}, and shuffle."]
+
+    def make_token(self, name, power, toughness, keywords=()):
+        tok = {"name": f"{name} token", "types": ["Creature"], "power": str(power), "toughness": str(toughness),
+               "text": "", "keywords": list(keywords)}
+        self.battlefield.append(Perm(tok, token=True))
+        return [f"I create a {power}/{toughness} {name} token."]
+
+    def discard(self, name):
+        c = self.hand_card(name)
+        self.hand.remove(c)
+        self.graveyard.append(c)
+        return [f"I discard {c['name']}."]
+
+    def mill(self, n):
+        milled = [self.library.pop() for _ in range(min(n, len(self.library)))]
+        self.graveyard += milled
+        return [f"I mill {len(milled)}: {', '.join(c['name'] for c in milled)}."]
+
+    for f in (hand_card, perm, begin_turn, manual_land, manual_cast, manual_attack, move, search_library,
+              make_token, discard, mill):
+        setattr(cls, f.__name__, f)
+    return cls
+
+
+_manual(VirtualPlayer)
+
+
+def brain_view(p: VirtualPlayer) -> dict:
+    """Everything the brain needs, including the PRIVATE hand. Never send this to a page."""
+    castable = {o[1]["name"]: o[1].get("manaCost") for o in p.castable()}
+    return {
+        **p.public(),
+        "hand": [{"name": c["name"], "cost": c.get("manaCost") or "", "type": c.get("type"),
+                  "text": c.get("text"), "pt": f"{c['power']}/{c['toughness']}" if c.get("power") else None,
+                  "castable_now": c["name"] in castable, "land": "Land" in c["types"],
+                  # for Auras: exactly where it may go ("#id name"), or "an opponent's permanent"
+                  "aura_targets": (["an opponent's permanent (--on 'their card')"] if is_hostile_aura(c) else
+                                   [f"#{t.id} {t.name}" for t in p.aura_targets(c)])
+                  if "Aura" in (c.get("subtypes") or []) else None} for c in p.hand],
+        "commander_card": {"name": p.commander["name"], "cost": p.commander["manaCost"], "text": p.commander["text"],
+                           "castable_now": p.commander["name"] in castable},
+        "permanents": [{"id": x.id, "name": x.name, "type": x.card.get("type"), "tapped": x.tapped, "sick": x.sick,
+                        "token": x.token, "attached_to": x.attached_to, "role": x.role,
+                        "pt": "%d/%d" % p.stats(x) if x.is_("Creature") else None,
+                        "text": (x.card.get("text") or "")[:300]} for x in p.battlefield],
+        "mana_sources": [f"{s.name} ({cols})" for s, cols in p.sources()],
+        "land_played": p.land_played,
+        "graveyard": [c["name"] for c in p.graveyard],
+    }

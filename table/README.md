@@ -50,6 +50,40 @@ open http://localhost:8800/table        # "▶ Ellivere's turn", or just say "El
 Simulated: 3 shuffles × 10 turns with zero rule violations (lands, mana, cards accounted for, Aura
 targets, no self-wipe); `tests/ai_turn_e2e.py` 14/14 against the live server. Turn ≈ 0.5–1.8 s.
 
+## An outside brain drives the virtual player (`--brain external`)
+
+With `--brain external` the server stops making the AI's decisions. It still keeps the deck, the
+private hand, the board, life totals and table talk, and it still checks the arithmetic (mana, one
+land a turn, legal Aura targets). Whoever runs `table/tablectl.py` makes the Magic decisions, and
+everything they do is announced at the table in the AI's voice. That can be a person, a script, or
+an agent such as Claude Code that knows the rules.
+
+```bash
+HF_HUB_OFFLINE=1 ~/.venvs/table/bin/python table/server.py --any-card --brain external \
+  --ai "Claude|Ellivere of the Wild Court|Moira" --ai-deck decks/ellivere.json \
+  --human "Michael|" --human "Sam|"
+open http://localhost:8800/table
+
+table/tablectl.py watch                      # one line per table event: plays heard, "⚑ FOR YOU", life
+table/tablectl.py state                      # private: hand with rules text, board with #ids, mana, life
+table/tablectl.py begin                      # untap + draw (the drawn card is shown only to the brain)
+table/tablectl.py land Forest
+table/tablectl.py cast commander --role-on "Paradise Druid"
+table/tablectl.py attack "Ellivere=Michael" "#14=Sam"
+table/tablectl.py end
+table/tablectl.py life Michael -5            # also: destroy/exile/bounce/tap/untap, token, draw, search…
+```
+
+- **Voice goes to the brain.** "Claude, your turn" and questions addressed to the AI become
+  `attention` events, and the server neither plays the turn nor answers. Plays the humans announce
+  arrive as `heard` events with the recognised cards.
+- **The page follows the brain.** `/table` polls `/api/events`: it speaks each `say` event in the
+  AI's voice and updates the AI panel and the life row, whose ± buttons edit life for everyone.
+- **The hand stays private.** `/api/brain/*` needs the token in `table/.brain-token`. `say` refuses
+  text that names a card still in the hand, unless `--force` is given.
+- **Board changes caused by opponents' cards** (a human's removal spell on the AI's creature) are
+  applied by the brain with `destroy`/`exile`/`bounce`, because the server cannot see the physical cards.
+
 ## Run it offline
 
 Everything runs on the laptop: Whisper (mlx-whisper) hears, **Gemma 4 on Ollama** routes and
@@ -126,6 +160,8 @@ still checks every reply before it is spoken.
 ```bash
 ~/.venvs/table/bin/python table/tests/route_eval.py            # router regression set (23 lines)
 ~/.venvs/table/bin/python table/tests/ai_turn_e2e.py           # virtual-deck AI opponent (Ellivere config)
+~/.venvs/table/bin/python table/tests/brain_e2e.py             # external brain via the API (--brain external)
+PW=<path to node_modules/@playwright/test> node table/tests/brain_page_e2e.cjs  # /table follows the brain
 ~/.venvs/table/bin/python table/tests/board_eval.py            # can one overhead frame be read? (see below)
 ~/.venvs/table/bin/python table/tests/e2e_offline.py           # API-level game session
 ~/.venvs/table/bin/python table/tests/make_fake_media.py       # fake camera + mic from the fixtures
@@ -140,6 +176,8 @@ PW=<path to node_modules/@playwright/test> node table/tests/table_e2e.cjs     # 
 | offline: every socket of the table server and Ollama watched for the whole session | no non-loopback connection |
 | real pages — scan pad, voice and show page all on the fake camera/mic at once | **13/13** |
 | `/table` — one page, fake camera and fake mic together: cards recognised and reacted to, table talk answered/ignored correctly, both kinds of board update, status transitions | **10/10** |
+| external brain: token gate, illegal plays refused (second land, unpayable spell, missing attacker, naming a hand card), 7 turns cast from the real hand, voice → attention instead of an answer, life | **20/20** |
+| `/table` in brain mode: brain speech appears and is spoken, panel and life row update, no hand card on the page | **7/7** |
 
 Measured: scan ~60 ms/frame · speech-to-text p50 ~160 ms · router p50 ~210–360 ms ·
 in-character reply p50 ~500 ms · **speech in → decision + reply ~0.6–0.9 s p50**. With Gemma loaded the

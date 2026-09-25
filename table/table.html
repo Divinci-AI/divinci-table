@@ -91,6 +91,8 @@ label{color:var(--muted);display:flex;gap:7px;align-items:center}
         <div class="eyebrow">its battlefield</div>
         <ul id="aiBoard"></ul>
         <div class="row" id="aiExtra"></div>
+        <div class="eyebrow">life</div>
+        <div class="row" id="lifeRow"></div>
       </section>
       <div class="cam"><video id="video" autoplay playsinline muted></video><div class="hint">Public camera: everyone can see this.</div></div>
       <div class="now"><span class="eyebrow">last card shown</span><span class="card" id="card">—</span><span class="eyebrow" id="via"></span></div>
@@ -137,7 +139,18 @@ async function post(path, body, headers){
 }
 
 // ── the virtual AI player ────────────────────────────────────────────────────────────────
+async function refreshLife(){
+  const r=await fetch("/api/life"); if(!r.ok) return;
+  const t=await r.text(); let lt; try{ lt=JSON.parse(t);}catch{ return; }
+  $("lifeRow").innerHTML=Object.entries(lt).map(([n,v])=>`<span>${esc(n)} <b>${esc(v)}</b>
+    <button class="b" data-p="${esc(n)}" data-d="-1" aria-label="${esc(n)} loses 1 life" style="padding:0 8px">−</button><button class="b" data-p="${esc(n)}" data-d="1" aria-label="${esc(n)} gains 1 life" style="padding:0 8px">+</button></span>`).join("");
+  $("lifeRow").querySelectorAll("button").forEach(b=>b.onclick=async ()=>{
+    try{ await post("/api/life", JSON.stringify({player:b.dataset.p, delta:+b.dataset.d, by:$("by").value}), {"Content-Type":"application/json"}); }
+    catch(e){ pill("micStatus","err",e.message); }
+  });
+}
 async function refreshAI(){
+  refreshLife();
   const r=await fetch("/api/ai/state"); if(!r.ok) return;
   const t=await r.text(); let s; try{ s=JSON.parse(t);}catch{ return; }
   $("aiPanel").hidden=false;
@@ -157,7 +170,8 @@ function showTurn(who, turn){
 }
 $("aiTurn").onclick=async ()=>{
   $("aiTurn").disabled=true;
-  try{ const d=await post("/api/ai/turn","{}",{"Content-Type":"application/json"}); showTurn(ai[0].name, d); }
+  try{ const d=await post("/api/ai/turn","{}",{"Content-Type":"application/json"});
+       if(d.awaiting) feed(`<span class="meta">turn handed to ${esc(ai[0].name)}…</span>`); else showTurn(ai[0].name, d); }
   catch(e){ pill("micStatus","err",e.message); }
   finally{ $("aiTurn").disabled=false; }
 };
@@ -169,6 +183,28 @@ $("newGameYes").onclick=async ()=>{
        $("feed").innerHTML=""; feed(`<span class="meta">new game — reshuffled</span>`); refreshAI(); }
   catch(e){ pill("micStatus","err",e.message); }
 };
+
+// ── follow the table's event stream: speak what the AI's brain says and does ──────────────
+let evSince=null, evBusy=false;
+async function pollEvents(){
+  if(evBusy) return; evBusy=true;
+  try{
+    const r=await fetch(`/api/events?since=${evSince===null?"latest":evSince}`);
+    const t=await r.text(); let d; try{ d=JSON.parse(t);}catch{ return; }
+    if(evSince===null){ evSince=d.last; return; }
+    let touched=false;
+    for(const e of d.events){
+      evSince=e.id;
+      if(e.type==="say"){
+        feed(`<span class="reply">${esc(e.speaker)}: ${esc(e.text)}</span>`, e.action && e.action!=="say" ? "turn" : "");
+        speak(e.speaker, e.text); touched=true;
+      } else if(e.type==="life"){ feed(`<span class="meta">life: ${esc(e.player)} ${e.delta>0?"+":""}${e.delta} → ${e.life} (${esc(e.by)})</span>`); touched=true; }
+      else if(e.type==="new-game"){ board.length=0; addBoard([]); touched=true; }
+    }
+    if(touched) refreshAI();
+  } finally { evBusy=false; }
+}
+setInterval(pollEvents, 1000);
 
 // ── camera: public cards ─────────────────────────────────────────────────────────────────
 async function camTick(){
@@ -248,6 +284,7 @@ async function sendUtterance(frames){
         ${d.blocked?`<span class="blocked">reply blocked: it named a card in the AI's hidden hand</span>`:""}`);
       if(d.turn) showTurn(d.speaker, d.turn);
       else if(d.reply) speak(d.speaker, d.reply);
+      else if(d.awaiting) feed(`<span class="meta">handed to ${esc(d.speaker)}…</span>`);
     }
     pill("micStatus", muted?"":"on", muted?"muted":"listening");
   }catch(e){ pill("micStatus","err",e.message); }
