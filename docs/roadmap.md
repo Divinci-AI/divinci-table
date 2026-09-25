@@ -14,6 +14,9 @@ Bar to beat, same 32 pairs with the land rule on: `jev-latest` 6/32 wins, outlas
 
 ## 2. The table (PWA + table server)
 
+**Status 2026-09-24:** the laptop version works end to end offline — see `table/README.md`
+(scan pad, open mic, local so1 router, 33/33 + 11/11 tests). The phone PWA is next.
+
 The phones are the AI's eyes, ears, and voice; the table server (a laptop now, the Jetson later) is
 its brain and holds the game state.
 

@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Table Voice</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@700&family=Alegreya+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+:root{
+  --bg:#10151a; --panel:#18202a; --ink:#e8ecf1; --muted:#93a0af; --line:#2a3542;
+  --brass:#d6b066; --ok:#6fbf73; --warn:#e2a84b; --bad:#e2715b; --blue:#6aa0e6;
+  --serif:"Alegreya SC",Palatino,Georgia,serif; --sans:"Alegreya Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 var(--sans);padding:24px 16px 40px}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px}
+h1{font:700 1.8rem/1 var(--serif);margin:0}
+.pill{font:500 .95rem var(--mono);padding:6px 12px;border-radius:999px;background:var(--panel);border:1px solid var(--line)}
+.pill.on{color:var(--ok);border-color:var(--ok)} .pill.speech{color:var(--bg);background:var(--warn);border-color:var(--warn)}
+.pill.think{color:var(--blue);border-color:var(--blue)} .pill.say{color:var(--bg);background:var(--brass);border-color:var(--brass)}
+.pill.err{color:var(--bad);border-color:var(--bad)}
+.meter{width:160px;height:8px;background:var(--panel);border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+.meter i{display:block;height:100%;width:0;background:var(--ok);transition:width .08s}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button.b{font:500 1rem var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 14px;cursor:pointer}
+button.b.primary{background:var(--brass);color:var(--bg);border-color:var(--brass)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.note{color:var(--muted);font-size:.95rem;margin:0;max-width:75ch}
+.players{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:500 .85rem var(--mono);padding:3px 9px;border-radius:6px;border:1px solid var(--line);background:var(--panel)}
+.chip.ai{border-color:var(--brass);color:var(--brass)}
+.feed{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.feed li{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;display:flex;flex-direction:column;gap:6px}
+.feed .heard{font-size:1.05rem}
+.feed .meta{display:flex;flex-wrap:wrap;gap:6px 12px;font:500 .8rem var(--mono);color:var(--muted)}
+.k{padding:1px 7px;border-radius:5px;border:1px solid var(--line)}
+.k.play{color:var(--ok);border-color:var(--ok)} .k.question,.k.rules{color:var(--blue);border-color:var(--blue)}
+.k.deal{color:var(--warn);border-color:var(--warn)} .k.chatter{color:var(--muted)}
+.reply{color:var(--brass);font-weight:700}
+.blocked{color:var(--bad)}
+.ignored{opacity:.55}
+@media (max-width:520px){.meter{width:100px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Table Voice</h1>
+    <span class="pill" id="status" role="status">mic off</span>
+    <div class="meter" aria-hidden="true"><i id="level"></i></div>
+  </header>
+
+  <p class="note">An open mic for the AI players. Speak normally; address an AI by name to get an answer. Audio stays on this laptop and is never stored. <b>What is said is transcribed here, then the text is sent to TypeSafe's Jev to decide what it was</b> — tell the table the mic is on.</p>
+
+  <div class="players" id="players"></div>
+
+  <div class="controls">
+    <button class="b primary" id="mic">Start listening</button>
+    <button class="b" id="mute">Mute</button>
+    <label class="note"><input type="checkbox" id="speak" checked> Speak replies</label>
+  </div>
+
+  <ol class="feed" id="feed" aria-live="polite"></ol>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let ctx=null, node=null, stream=null, muted=false, aiPlayers=[], voices={};
+
+// ---- voice activity detection (energy-based; Silero later) ----------------------------------
+const FRAME_MS=20, START_FRAMES=3, END_MS=700, PREROLL_MS=300, MAX_MS=15000;
+let floor=0.004, speaking=false, loud=0, quietMs=0, buf=[], pre=[], srcRate=48000, speechMs=0;
+
+function onFrame(f){                      // f: Float32Array, one 20 ms frame at srcRate
+  let s=0; for(const x of f) s+=x*x; const rms=Math.sqrt(s/f.length);
+  $("level").style.width=Math.min(100, rms*900)+"%";
+  if(muted) return;
+  const tts = !!(window.speechSynthesis && speechSynthesis.speaking);
+  const thr = Math.max(floor*3, 0.012) * (tts ? 3 : 1);     // the AI's own voice must not trigger it
+  if(!speaking){
+    floor = 0.97*floor + 0.03*Math.min(rms, 0.05);
+    pre.push(f); if(pre.length > PREROLL_MS/FRAME_MS) pre.shift();
+    loud = rms>thr ? loud+1 : 0;
+    if(loud>=START_FRAMES){
+      if(tts) speechSynthesis.cancel();                       // barge-in: people talk over the AI (tts implies it exists)
+      speaking=true; buf=[...pre]; pre=[]; quietMs=0; speechMs=0; setStatus("speech","hearing…");
+    }
+    return;
+  }
+  buf.push(f); speechMs+=FRAME_MS;
+  quietMs = rms<thr ? quietMs+FRAME_MS : 0;
+  if(quietMs>=END_MS || speechMs>=MAX_MS){ speaking=false; const b=buf; buf=[]; sendUtterance(b); }
+}
+
+function toWav16k(frames){
+  const n=frames.reduce((a,f)=>a+f.length,0), all=new Float32Array(n); let o=0;
+  for(const f of frames){ all.set(f,o); o+=f.length; }
+  const ratio=srcRate/16000, len=Math.floor(n/ratio), pcm=new Int16Array(len);
+  for(let i=0;i<len;i++){                       // box-filter downsample
+    let s=0,c=0; for(let j=Math.floor(i*ratio); j<Math.floor((i+1)*ratio) && j<n; j++){ s+=all[j]; c++; }
+    pcm[i]=Math.max(-1,Math.min(1,s/(c||1)))*32767;
+  }
+  const buf=new ArrayBuffer(44+pcm.length*2), v=new DataView(buf);
+  const w=(p,str)=>{for(let i=0;i<str.length;i++) v.setUint8(p+i,str.charCodeAt(i));};
+  w(0,"RIFF"); v.setUint32(4,36+pcm.length*2,true); w(8,"WAVE"); w(12,"fmt ");
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,16000,true);
+  v.setUint32(28,32000,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,"data");
+  v.setUint32(40,pcm.length*2,true); new Int16Array(buf,44).set(pcm);
+  return new Blob([buf],{type:"audio/wav"});
+}
+
+async function sendUtterance(frames){
+  if(frames.length*FRAME_MS < 250){ setStatus("on","listening"); return; }   // coughs, clicks
+  setStatus("think","thinking…");
+  try{
+    const r=await fetch("/api/utterance",{method:"POST",headers:{"Content-Type":"audio/wav"},body:toWav16k(frames)});
+    const text=await r.text(); let d; try{ d=JSON.parse(text);}catch{ throw new Error(`server returned non-JSON (HTTP ${r.status})`); }
+    if(!r.ok) throw new Error(d.error||`HTTP ${r.status}`);
+    addFeed(d);
+    if(d.reply){ say(d.speaker, d.reply); } else setStatus("on","listening");
+  }catch(e){ setStatus("err", e.message); }
+}
+
+// ---- output ---------------------------------------------------------------------------------
+function say(who, text){
+  if(!$("speak").checked || !window.speechSynthesis){ setStatus("on","listening"); return; }
+  const u=new SpeechSynthesisUtterance(text); if(voices[who]) u.voice=voices[who];
+  u.onend=()=>setStatus("on","listening"); setStatus("say", who+" speaking");
+  speechSynthesis.speak(u);
+}
+function setStatus(k,t){ const p=$("status"); p.className="pill "+k; p.textContent=t; }
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function addFeed(d){
+  const li=document.createElement("li");
+  if(d.ignored){ li.className="ignored"; li.innerHTML=`<span class="heard">${esc(d.heard)||"(nothing)"}</span><span class="meta">ignored: ${esc(d.ignored)} · stt ${d.stt_ms} ms</span>`; }
+  else{
+    const r=d.route, kp=Math.round(r.kind_p[r.kind]*100), ap=Math.round((r.addressee_p[r.addressee]||0)*100);
+    li.innerHTML=`<span class="heard">“${esc(d.heard)}”</span>
+      <span class="meta"><span class="k ${esc(r.kind)}">${esc(r.kind)} ${kp}%</span>
+      <span>to: ${esc(r.addressee)} ${ap}%</span><span>expects answer ${Math.round(r.expects_answer*100)}%</span>
+      ${r.kind==="deal"?`<span>accept ${Math.round(r.accept_deal*100)}%</span>`:""}
+      <span>stt ${d.stt_ms} ms · ${esc(r.router || "router")} ${r.ms} ms · total ${d.total_ms} ms</span></span>
+      ${d.cards.length?`<span class="meta">board: ${d.cards.map(esc).join(", ")}</span>`:""}
+      ${d.reply?`<span class="reply">${esc(d.speaker)}: ${esc(d.reply)}</span>`:""}
+      ${d.blocked?`<span class="blocked">reply blocked: it named a card in the AI's hidden hand</span>`:""}`;
+  }
+  $("feed").prepend(li);
+}
+
+// ---- mic ------------------------------------------------------------------------------------
+const WORKLET=`class F extends AudioWorkletProcessor{constructor(){super();this.b=[];this.n=Math.round(sampleRate*${FRAME_MS}/1000);}
+process(i){const c=i[0]&&i[0][0];if(c){for(const x of c){this.b.push(x);if(this.b.length>=this.n){this.port.postMessage(new Float32Array(this.b));this.b=[];}}}return true;}}
+registerProcessor("frames",F);`;
+
+$("mic").onclick=async ()=>{
+  if(ctx){ stream.getTracks().forEach(t=>t.stop()); await ctx.close(); ctx=null; $("mic").textContent="Start listening"; setStatus("","mic off"); return; }
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    ctx=new AudioContext(); srcRate=ctx.sampleRate;
+    await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET],{type:"application/javascript"})));
+    node=new AudioWorkletNode(ctx,"frames"); node.port.onmessage=e=>onFrame(e.data);
+    ctx.createMediaStreamSource(stream).connect(node);
+    $("mic").textContent="Stop listening"; setStatus("on","listening");
+  }catch(e){ setStatus("err","mic blocked: "+e.message); }
+};
+$("mute").onclick=()=>{ muted=!muted; $("mute").textContent=muted?"Unmute":"Mute"; if(ctx) setStatus(muted?"":"on", muted?"muted":"listening"); };
+
+function assignVoices(){
+  if(!window.speechSynthesis) return;
+  const en=speechSynthesis.getVoices().filter(v=>v.lang.startsWith("en"));
+  aiPlayers.forEach((p,i)=>{ if(en.length) voices[p.name]=en[(i*3)%en.length]; });
+}
+if(window.speechSynthesis) speechSynthesis.onvoiceschanged=assignVoices;
+fetch("/api/voice-config").then(r=>r.json()).then(c=>{
+  aiPlayers=c.ai_players;
+  $("players").innerHTML=aiPlayers.map(p=>`<span class="chip ai">${esc(p.name)}${p.commander?` · ${esc(p.commander)}`:""}</span>`).join("");
+  assignVoices();
+});
+</script>
+</body>
+</html>

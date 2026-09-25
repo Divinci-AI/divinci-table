@@ -34,6 +34,11 @@ from transformers import AutoModelForImageTextToText
 decider = Decider.from_pretrained(args.model, backend="hf", dtype=torch.bfloat16, device_map="mps",
                                   model_class=AutoModelForImageTextToText)
 print(f"loaded {args.model} in {time.time() - t0:.0f}s on {decider.backend.device}", flush=True)
+# The first forward pass on MPS compiles kernels (a 21 s first request was measured 2026-09-24).
+# Pay that here, before anyone is waiting on an answer.
+t0 = time.time()
+decider.decide("warm-up", [Choice("Warm-up question", ["a", "b"]), yes_no("Warm-up?")], mode=args.mode)
+print(f"warm-up pass {time.time() - t0:.1f}s", flush=True)
 LOCK = Lock()                         # one forward pass at a time on MPS
 N_REQ = 0
 

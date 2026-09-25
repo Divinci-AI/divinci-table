@@ -1,0 +1,11 @@
+// Example: the harness blue deck (Talrand). Replace with a real Moxfield/Archidekt export.
+1 Talrand, Sky Summoner
+16 Island
+1 Sol Ring
+1 Arcane Signet
+4 Air Elemental
+4 Mulldrifter
+4 Man-o'-War
+3 Divination
+3 Ponder
+3 Cyclonic Rift

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scan Pad</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@700&family=Alegreya+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+:root{
+  --bg:#10151a; --panel:#18202a; --ink:#e8ecf1; --muted:#93a0af; --line:#2a3542;
+  --brass:#d6b066; --ok:#6fbf73; --warn:#e2a84b; --bad:#e2715b;
+  --serif:"Alegreya SC",Palatino,Georgia,serif; --sans:"Alegreya Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 var(--sans);padding:24px 16px 40px}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px}
+h1{font:700 1.8rem/1 var(--serif);margin:0;letter-spacing:.02em}
+.pill{font:500 .95rem var(--mono);padding:6px 12px;border-radius:999px;background:var(--panel);border:1px solid var(--line)}
+.pill.ready{color:var(--ok);border-color:var(--ok)} .pill.reading{color:var(--warn);border-color:var(--warn)}
+.pill.remove{color:var(--muted)} .pill.added{color:var(--bg);background:var(--brass);border-color:var(--brass)}
+.pill.error{color:var(--bad);border-color:var(--bad)}
+.counts{color:var(--muted);font:500 .9rem var(--mono)}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:12px}
+.slot{aspect-ratio:3/4;border-radius:10px;border:2px dashed var(--line);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:6px;background:transparent;color:var(--muted);font:inherit;cursor:default}
+.slot .n{font:700 2.6rem/1 var(--serif)}
+.slot.filled{border:2px solid var(--brass);background:var(--panel);color:var(--ink);cursor:pointer}
+.slot.filled .n{color:var(--brass)}
+.slot.flash{animation:flash 1.2s ease-out}
+@keyframes flash{from{box-shadow:0 0 0 8px rgba(214,176,102,.55)}to{box-shadow:0 0 0 0 rgba(214,176,102,0)}}
+.slot small{font-size:.8rem;letter-spacing:.06em;text-transform:uppercase}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button.b{font:500 1rem var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 14px;cursor:pointer}
+button.b:hover{border-color:var(--muted)} button.b.primary{background:var(--brass);color:var(--bg);border-color:var(--brass)}
+button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+label.tog{display:flex;gap:8px;align-items:center;color:var(--muted);cursor:pointer}
+.confirm{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--brass);border-radius:8px;padding:10px 14px}
+.preview{position:relative;max-width:480px}
+.preview video{width:100%;border-radius:8px;border:2px solid var(--warn);transform:scaleX(-1)}
+.preview p{margin:6px 0 0;color:var(--warn);font-size:.9rem}
+/* Off = still rendered (some browsers stop decoding a display:none video), just invisible. */
+.preview.off{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}
+.played{color:var(--muted);font-size:.95rem}
+.played b{color:var(--ink)}
+.help{color:var(--muted);font-size:.95rem;max-width:70ch;margin:0}
+@media (prefers-reduced-motion:reduce){.slot.flash{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Scan Pad</h1>
+    <span class="pill remove" id="status" role="status">camera off</span>
+    <span class="counts" id="counts"></span>
+  </header>
+
+  <p class="help">Hold each card the AI draws <b>face toward the laptop camera</b>, about a hand's width away, name line up. When a slot lights up, put the card face-down on that numbered sticky note. Tap a slot when the AI plays it.</p>
+
+  <section class="slots" id="slots" aria-label="Hand slots"></section>
+
+  <div class="confirm" id="confirm" hidden>
+    <span id="confirmText"></span>
+    <button class="b primary" id="confirmYes">Reveal and play</button>
+    <button class="b" id="confirmNo">Cancel</button>
+  </div>
+
+  <div class="controls">
+    <button class="b primary" id="cam">Start camera</button>
+    <button class="b" id="undo">Undo last scan</button>
+    <label class="tog"><input type="checkbox" id="preview"> Setup: show camera (players can see it)</label>
+    <label class="tog"><input type="checkbox" id="voice" checked> Speak slot numbers</label>
+  </div>
+
+  <div class="preview off" id="previewBox">
+    <video id="video" autoplay playsinline muted></video>
+    <p>Aim only. Turn this off before play: the card face is visible here.</p>
+  </div>
+
+  <div class="played" id="played"></div>
+</div>
+
+<canvas id="canvas" hidden></canvas>
+<script>
+const $ = id => document.getElementById(id);
+let stream = null, busy = false, timer = null, pendingPlay = null;
+
+function say(text){
+  if(!$("voice").checked || !("speechSynthesis" in window)) return;
+  speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+}
+function setStatus(kind, text){ const p=$("status"); p.className="pill "+kind; p.textContent=text; }
+
+function render(state, flashSlot){
+  const box=$("slots"); box.innerHTML="";
+  state.slots.forEach(s=>{
+    const b=document.createElement("button");
+    b.className="slot"+(s.filled?" filled":"")+(s.slot===flashSlot?" flash":"");
+    b.innerHTML=`<span class="n">${s.slot}</span><small>${s.filled?"card":"open"}</small>`;
+    b.disabled=!s.filled;
+    b.setAttribute("aria-label", s.filled?`Slot ${s.slot}: card, tap to play`:`Slot ${s.slot}: open`);
+    if(s.filled) b.onclick=()=>askPlay(s.slot);
+    box.appendChild(b);
+  });
+  $("counts").textContent=`hand ${state.hand} · library ${state.library}`;
+  $("played").innerHTML = state.played.length
+    ? "Played: " + state.played.slice().reverse().map(p=>`slot ${p.slot} <b>${p.card.replace(/[&<>]/g,"")}</b>`).join(" · ")
+    : "";
+}
+
+async function api(path, body, ctype="application/json"){
+  const r = await fetch(path, {method: body===undefined?"GET":"POST", headers: body===undefined?{}:{"Content-Type":ctype},
+                               body: body===undefined?undefined:(ctype==="application/json"?JSON.stringify(body):body)});
+  const text = await r.text();
+  let data; try{ data = JSON.parse(text); }catch{ throw new Error(`server returned non-JSON (HTTP ${r.status})`); }
+  if(!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+
+async function tick(){
+  if(busy || !stream) return;
+  const v=$("video");
+  if(!v.videoWidth) return;
+  busy=true;
+  try{
+    const c=$("canvas"), w=Math.min(1600, v.videoWidth), h=Math.round(v.videoHeight*w/v.videoWidth);
+    c.width=w; c.height=h; c.getContext("2d").drawImage(v,0,0,w,h);
+    const blob = await new Promise(res=>c.toBlob(res,"image/jpeg",0.88));
+    const r = await api("/api/scan", blob, "image/jpeg");
+    if(r.status==="added"){ setStatus("added",`slot ${r.slot}`); render(r, r.slot); say(`Slot ${r.slot}`); }
+    else if(r.status==="reading") setStatus("reading","reading…");
+    else if(r.status==="remove card") setStatus("remove","remove card");
+    else setStatus("ready","ready for a card");
+  }catch(e){ setStatus("error", e.message); }
+  finally{ busy=false; }
+}
+
+$("cam").onclick = async ()=>{
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; clearInterval(timer); $("cam").textContent="Start camera"; setStatus("remove","camera off"); return; }
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1920},height:{ideal:1080}}, audio:false});
+    $("video").srcObject = stream;
+    $("cam").textContent="Stop camera";
+    setStatus("ready","ready for a card");
+    timer = setInterval(tick, 450);
+  }catch(e){ setStatus("error", "camera blocked: "+e.message); }
+};
+$("preview").onchange = ()=>{ $("previewBox").classList.toggle("off", !$("preview").checked); };
+$("undo").onclick = async ()=>{ try{ const r=await api("/api/undo",{}); render(r); setStatus("ready",`slot ${r.undone} emptied`);}catch(e){ setStatus("error",e.message);} };
+
+function askPlay(slot){
+  pendingPlay=slot; $("confirmText").textContent=`Play the card in slot ${slot}? Its name will be shown.`;
+  $("confirm").hidden=false; $("confirmYes").focus();
+}
+$("confirmNo").onclick=()=>{ pendingPlay=null; $("confirm").hidden=true; };
+$("confirmYes").onclick=async ()=>{
+  const slot=pendingPlay; $("confirm").hidden=true; pendingPlay=null;
+  try{ const r=await api("/api/play",{slot}); render(r); say(`Slot ${slot}: ${r.revealed}`); }catch(e){ setStatus("error",e.message); }
+};
+
+api("/api/state").then(s=>render(s)).catch(e=>setStatus("error",e.message));
+</script>
+</body>
+</html>

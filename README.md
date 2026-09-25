@@ -11,6 +11,7 @@ model through open-alternative-jev) picks one and says how sure it is.
 | path | what |
 |---|---|
 | `harness/` | simulated four-player games: rules engine, seat agents, the paired comparison, replay viewer. Start with `harness/README.md` — it has every result so far |
+| `table/` | the real-table server: webcam scan pad for the AI's hidden hand + open-mic voice, fully offline (`table/README.md`) |
 | `scripts/fetch-games.sh` | pull a run's game logs from R2 and verify them |
 | `docs/roadmap.md` | the real-table plan: phones, scan pad, Jetson, and Divinci Releases as player personalities |
 
@@ -21,6 +22,9 @@ model through open-alternative-jev) picks one and says how sure it is.
 - `so1` + Qwen3.5-4B is not a table opponent: 2/32 wins, lasted longer than Jev in 3 of 32 pairs
   (Jev 26); it passes 66% of turns it could cast a spell.
 - djev and Qwen3.6-27B are next — on a Colab A100 or the Jetson AGX Orin 64 GB.
+- The table server runs **fully offline** on a MacBook: scan pad + open mic with open-alternative-jev as
+  the local router. 33/33 session checks and 11/11 real-browser checks pass, with a socket watch
+  proving no connection leaves the machine.
 
 ## Data
 
