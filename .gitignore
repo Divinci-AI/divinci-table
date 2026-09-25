@@ -1,0 +1,10 @@
+# Game logs and the viewer built from them live in R2 (divinci-experiments/commander/<run>/),
+# not git — 179 MB for one day of runs. scripts/fetch-games.sh restores them.
+harness/games/
+harness/viewer.html
+harness/*.log
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+.wrangler/

@@ -1,0 +1,25 @@
+{"seed": 1004, "seat": 0, "colour": "U", "auto_land": true, "x_won": false, "h_won": false, "x_elim_round": 5, "h_elim_round": 7, "rounds": 11, "secs": 22.1}
+{"seed": 1004, "seat": 1, "colour": "B", "auto_land": true, "x_won": false, "h_won": true, "x_elim_round": 6, "h_elim_round": null, "rounds": 9, "secs": 25.1}
+{"seed": 1004, "seat": 2, "colour": "R", "auto_land": true, "x_won": false, "h_won": false, "x_elim_round": 9, "h_elim_round": 10, "rounds": 13, "secs": 64.0}
+{"seed": 1004, "seat": 3, "colour": "G", "auto_land": true, "x_won": false, "h_won": false, "x_elim_round": 5, "h_elim_round": 6, "rounds": 10, "secs": 17.7}
+{"seed": 1005, "seat": 0, "colour": "U", "auto_land": true, "x_won": false, "h_won": false, "x_elim_round": 5, "h_elim_round": 5, "rounds": 9, "secs": 19.5}
+{"seed": 1005, "seat": 1, "colour": "B", "auto_land": true, "x_won": false, "h_won": false, "x_elim_round": 6, "h_elim_round": 7, "rounds": 8, "secs": 25.7}
+{"seed": 1005, "seat": 2, "colour": "R", "auto_land": true, "x_won": true, "h_won": false, "x_elim_round": null, "h_elim_round": 9, "rounds": 11, "secs": 179.3}
+{"seed": 1005, "seat": 3, "colour": "G", "auto_land": true, "x_won": false, "h_won": true, "x_elim_round": 7, "h_elim_round": null, "rounds": 11, "secs": 28.3}
+{"seed": 1006, "seat": 0, "colour": "U", "auto_land": true, "x_won": false, "h_won": false, "x_elim_round": 8, "h_elim_round": 8, "rounds": 11, "secs": 70.2}
+{"seed": 1006, "seat": 1, "colour": "B", "auto_land": true, "x_won": false, "h_won": true, "x_elim_round": 6, "h_elim_round": null, "rounds": 10, "secs": 47.4}
+{"seed": 1006, "seat": 2, "colour": "R", "auto_land": true, "x_won": true, "h_won": false, "x_elim_round": null, "h_elim_round": 11, "rounds": 12, "secs": 181.2}
+{"seed": 1006, "seat": 3, "colour": "G", "auto_land": true, "x_won": false, "h_won": false, "x_elim_round": 6, "h_elim_round": 7, "rounds": 12, "secs": 22.5}
+{"seed": 1007, "seat": 0, "colour": "U", "auto_land": true, "x_won": false, "h_won": true, "x_elim_round": 8, "h_elim_round": null, "rounds": 10, "secs": 80.2}
+{"seed": 1007, "seat": 1, "colour": "B", "auto_land": true, "x_won": false, "h_won": false, "x_elim_round": 10, "h_elim_round": 7, "rounds": 14, "secs": 85.9}
+{"seed": 1007, "seat": 2, "colour": "R", "auto_land": true, "x_won": false, "h_won": false, "x_elim_round": 9, "h_elim_round": 9, "rounds": 13, "secs": 46.8}
+{"seed": 1007, "seat": 3, "colour": "G", "auto_land": true, "x_won": false, "h_won": false, "x_elim_round": 7, "h_elim_round": 10, "rounds": 15, "secs": 33.1}
+
+so1 vs heuristic, 16 paired seat-games
+  wins: so1 2/16 vs heuristic 4/16  (discordant: so1-only 2, heuristic-only 4)
+  survived longer: so1 3, heuristic 10, same 3
+  U: so1 0/4  heuristic 1/4
+  B: so1 0/4  heuristic 2/4
+  R: so1 2/4  heuristic 0/4
+  G: so1 0/4  heuristic 1/4
+  calls=270 fallbacks=0 p50=3020ms p95=8157ms input_tokens=0

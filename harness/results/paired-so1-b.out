@@ -1,0 +1,7 @@
+{"seed": 1004, "seat": 0, "colour": "U", "x_won": false, "h_won": false, "x_elim_round": 5, "h_elim_round": 7, "rounds": 11, "secs": 23.7}
+{"seed": 1004, "seat": 1, "colour": "B", "x_won": false, "h_won": true, "x_elim_round": 5, "h_elim_round": null, "rounds": 9, "secs": 26.2}
+{"seed": 1004, "seat": 2, "colour": "R", "x_won": false, "h_won": false, "x_elim_round": 8, "h_elim_round": 10, "rounds": 13, "secs": 41.2}
+{"seed": 1004, "seat": 3, "colour": "G", "x_won": false, "h_won": false, "x_elim_round": 5, "h_elim_round": 6, "rounds": 10, "secs": 16.8}
+{"seed": 1005, "seat": 0, "colour": "U", "x_won": false, "h_won": false, "x_elim_round": 5, "h_elim_round": 5, "rounds": 9, "secs": 25.8}
+{"seed": 1005, "seat": 1, "colour": "B", "x_won": false, "h_won": false, "x_elim_round": 6, "h_elim_round": 7, "rounds": 8, "secs": 14.6}
+{"seed": 1005, "seat": 2, "colour": "R", "x_won": false, "h_won": false, "x_elim_round": 8, "h_elim_round": 9, "rounds": 10, "secs": 65.5}
