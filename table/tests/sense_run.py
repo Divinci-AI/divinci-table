@@ -81,7 +81,7 @@ class Server:
             if self.proc.poll() is not None:
                 sys.exit(f"test server exited: see {self.log.name}")
             txt = Path(self.log.name).read_text()
-            if "Gemma loaded" in txt or "could not preload" in txt:
+            if "voices:" in txt or "speaker ID unavailable" in txt:
                 return
             time.sleep(1)
         sys.exit("test server not ready in time")
@@ -177,12 +177,21 @@ def to_wav(a: np.ndarray) -> bytes:
 
 
 # ── inputs: camera ───────────────────────────────────────────────────────────────────────────
-def card_image(name: str) -> Image.Image:
-    p = FIX / (re.sub(r"[^A-Za-z0-9]+", "", name) + ".jpg")
+def card_image(name: str, query: str | None = None) -> Image.Image:
+    """A card's Scryfall image. `query`: a Scryfall search instead of a name (a token, a Japanese
+    printing: 'name:Goblin t:token', '!"Sol Ring" lang:ja')."""
+    p = FIX / (re.sub(r"[^A-Za-z0-9]+", "", query or name) + ".jpg")
     if not p.exists():
-        url = "https://api.scryfall.com/cards/named?format=image&version=normal&exact=" + urllib.parse.quote(name)
-        req = urllib.request.Request(url, headers={"User-Agent": "divinci-table-tests/0.1", "Accept": "*/*"})
-        p.write_bytes(urllib.request.urlopen(req, timeout=30).read())
+        hdr = {"User-Agent": "divinci-table-tests/0.1", "Accept": "*/*"}
+        if query:
+            q = urllib.parse.quote(query)
+            meta = json.loads(urllib.request.urlopen(urllib.request.Request(
+                f"https://api.scryfall.com/cards/search?unique=prints&include_multilingual=true&q={q}", headers=hdr), timeout=30).read())
+            c = meta["data"][0]
+            url = (c.get("image_uris") or c["card_faces"][0]["image_uris"])["normal"]
+        else:
+            url = "https://api.scryfall.com/cards/named?format=image&version=normal&exact=" + urllib.parse.quote(name)
+        p.write_bytes(urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=30).read())
         time.sleep(0.15)
     return Image.open(p).convert("RGB")
 
@@ -199,9 +208,22 @@ def scene(spec: dict, rng: np.random.Generator) -> bytes:
         for i, line in enumerate(spec["fake_text"].split("\n")):
             d.text((24, 30 + 34 * i), line, fill=(20, 20, 20), font_size=26)
         frame.paste(page.rotate(spec.get("rotate", 0), expand=True, fillcolor=(58, 44, 34)), (400, 50))
+    if spec.get("layout"):                                        # an overhead board: cards placed by hand
+        for it in spec["layout"]:
+            c = card_image(it["card"], it.get("query"))
+            w = int(488 * it.get("scale", 0.3))          # ≥ ~150 px per card: what an overhead 4K camera gives
+            c = c.resize((w, int(w * c.height / c.width))).rotate(it.get("rotate", 0), expand=True, fillcolor=(58, 44, 34))
+            frame.paste(c, (int(it["x"] * 1280 - c.width / 2), int(it["y"] * 720 - c.height / 2)))
+        if spec.get("hand_over"):                                # a hand passing over part of the board
+            x, y, r = spec["hand_over"]
+            ImageDraw.Draw(frame).ellipse((x * 1280 - r, y * 720 - r * 0.7, x * 1280 + r, y * 720 + r * 0.7), fill=(196, 150, 120))
     for i, name in enumerate(items):
-        c = card_image(name)
+        c = card_image(name, spec.get("query"))
         w = int(488 * spec.get("scale", 0.9))
+        if spec.get("foil"):                                    # rainbow foil sheen
+            g = np.linspace(0, 1, c.width)[None, :, None] * np.ones((c.height, 1, 1))
+            rainbow = np.concatenate([np.sin(6 * g + k) * 0.5 + 0.5 for k in (0, 2.1, 4.2)], axis=2) * 255
+            c = Image.blend(c, Image.fromarray(rainbow.astype(np.uint8)), spec["foil"])
         c = c.resize((w, int(w * c.height / c.width)))
         if spec.get("blur"):
             c = c.filter(ImageFilter.GaussianBlur(spec["blur"]))
@@ -212,6 +234,12 @@ def scene(spec: dict, rng: np.random.Generator) -> bytes:
             c = Image.composite(Image.new("RGB", c.size, (255, 255, 255)), c, g)
         if spec.get("occlude"):                                 # a thumb over the lower part
             ImageDraw.Draw(c).rectangle((0, int(c.height * (1 - spec["occlude"])), c.width, c.height), fill=(196, 150, 120))
+        if spec.get("phone"):                                   # the card on a phone screen: black bezel
+            c = c.resize((int(c.width * 0.8), int(c.height * 0.8)))
+            ph = Image.new("RGB", (c.width + 40, c.height + 110), (12, 12, 14))
+            ph.paste(c, (20, 55))
+            ImageDraw.Draw(ph).rounded_rectangle((0, 0, ph.width - 1, ph.height - 1), radius=40, outline=(60, 60, 64), width=6)
+            c = ph
         c = c.rotate(spec.get("rotate", 0) + (i * 7 if len(items) > 1 else 0), expand=True, fillcolor=(58, 44, 34))
         x = (1280 - c.width) // 2 + (i - (len(items) - 1) / 2) * 360
         frame.paste(c, (int(x), max(0, (720 - c.height) // 2)))
@@ -375,8 +403,14 @@ def _finish(run: Run, step: dict, out: dict, mark: int) -> dict:
 
 def utter_step(run: Run, step: dict, rng) -> dict:
     s = dict(step["say"])
-    s["text"] = run.fill(s["text"])
-    a = mix(say_wav(s["text"], s.get("voice", "Samantha"), s.get("rate")), s, rng)
+    if s.get("wav"):                              # a real recording (16 kHz mono WAV) instead of `say`
+        with wave.open(str(REPO / s["wav"])) as w:
+            base = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32) / 32768
+        s.setdefault("text", Path(s["wav"]).stem)
+    else:
+        s["text"] = run.fill(s["text"])
+        base = say_wav(s["text"], s.get("voice", "Samantha"), s.get("rate"))
+    a = mix(base, s, rng)
     before, mark = run.get("/api/ai/state"), run.last_event()
     t0 = time.time()
     code, r = run.post("/api/utterance", to_wav(a), "audio/wav")
@@ -458,9 +492,19 @@ def concurrent_step(run: Run, step: dict, rng) -> dict:
         t.join()
     codes = [c for c, _ in res]
     cards = sorted({c for _, r in res for c in (r.get("cards") or [])})
-    out = {"code": max(codes), "resp": {"cards": cards, "codes": codes, "heard": " | ".join(str(r.get("heard")) for _, r in res)}, "ms": round((time.time() - t0) * 1000),
+    out = {"code": max(codes), "n_replies": sum(1 for _, r in res if r.get("reply")),
+           "resp": {"cards": cards, "codes": codes, "heard": " | ".join(str(r.get("heard")) for _, r in res)}, "ms": round((time.time() - t0) * 1000),
            "ai_text": " ".join(r.get("reply") or "" for _, r in res).strip() or None, "speaker": None}
     return _finish(run, step, out, mark)
+
+
+def board_step(run: Run, step: dict, rng) -> dict:
+    """An overhead frame of the whole table to /api/board."""
+    b = step["board"]
+    t0, mark = time.time(), run.last_event()
+    code, r = run.post("/api/board", scene(b, rng), "image/jpeg")
+    return _finish(run, step, {"code": code, "resp": r, "ms": round((time.time() - t0) * 1000),
+                               "ai_text": None, "speaker": None}, mark)
 
 
 def brain_step(run: Run, step: dict, rng) -> dict:
@@ -493,9 +537,17 @@ def brain_step(run: Run, step: dict, rng) -> dict:
 
 def show_step(run: Run, step: dict, rng) -> dict:
     s = step["show"]
-    frames, final, t0 = s.get("frames", 4), None, time.time()
-    for _ in range(frames):
-        code, r = run.post("/api/show", scene(s, rng), "image/jpeg",
+    # a real camera streams: the empty table is in view before the card comes up, which is what
+    # re-arms the reader after the previous card (the server wants ~1 s of nothing in view)
+    blank = scene({}, rng)
+    for _ in range(2):
+        run.post("/api/show", blank, "image/jpeg")
+        time.sleep(0.6)
+    seq = s.get("sequence")                        # per-frame overrides: a hand passing in front, etc.
+    frames, final, t0 = len(seq) if seq else s.get("frames", 4), None, time.time()
+    for fi in range(frames):
+        fs = {**s, **seq[fi]} if seq else s
+        code, r = run.post("/api/show", scene(fs, rng), "image/jpeg",
                            {"X-Show-To": s.get("to", ""), "X-Shown-By": s.get("by", "Michael")})
         if r.get("status") in ("seen", "unreadable"):
             final = r
@@ -559,6 +611,38 @@ def check_step(run: Run, step: dict, out: dict, hidden: list[str]) -> list[tuple
     if "kept" in e and "after" in out:
         name = run.filled.get(e["kept"])
         add(name and any(x.startswith(name) for x in out["after"]["battlefield"]), f"{name} is still on its board")
+    if "resp" in e:
+        add(all(r.get(k) == v for k, v in e["resp"].items()), f"response has {e['resp']} (got "
+            f"{ {k: r.get(k) for k in e['resp']} })")
+    if "event_type" in e:
+        add(any(x["type"] == e["event_type"] for x in evs), f"a '{e['event_type']}' event (got {[x['type'] for x in evs]})")
+    if "replies_min" in e:
+        add(out.get("n_replies", 0) >= e["replies_min"], f"≥{e['replies_min']} answered (got {out.get('n_replies')})")
+    said_lines = (r.get("turn") or {}).get("said") or []
+    if "max_words_per_line" in e and said_lines:
+        sentences = [x for l in said_lines for x in re.split(r"(?<=[.!?])\s+", l) if x]
+        long = [l for l in sentences if len(l.split()) > e["max_words_per_line"]]
+        add(not long, f"every turn line ≤ {e['max_words_per_line']} words" + (f": {long[:2]}" if long else ""))
+    if e.get("names_targets") and said_lines:
+        players = list(run.get("/api/life"))
+        bad = [l for l in said_lines if l.startswith("I attack") and not any(p in l for p in players)]
+        bad += [l for l in said_lines if re.match(r"I cast .*", l) and "Aura" in (oracle_type(re.match(r"I cast ([^.]+?)(?: on | from |\.)", l).group(1)) or "")
+                and " on " not in l]
+        add(not bad, "every attack names its player and every Aura names what it enchants" + (f": {bad[:2]}" if bad else ""))
+    if "board_reads" in e:
+        got = sorted(c["name"] for c in r.get("cards", []))
+        want = sorted(e["board_reads"])
+        missing = [w for w in want if got.count(w) < want.count(w)]
+        extra = [g for g in got if g not in want]
+        add(not missing and not extra, f"board reads {want}" + (f" — MISSED {missing}" if missing else "")
+            + (f" — WRONG {extra}" if extra else ""))
+    if "board_tapped" in e:
+        tapped = sorted(c["name"] for c in r.get("cards", []) if c.get("tapped"))
+        add(tapped == sorted(e["board_tapped"]), f"tapped: {sorted(e['board_tapped'])} (got {tapped})")
+    if "board_left" in e:
+        add(sorted(r.get("left", [])) == sorted(e["board_left"]), f"left the board: {e['board_left']} (got {r.get('left')})")
+    if "board_entered" in e:
+        add(sorted(r.get("entered", [])) == sorted(e["board_entered"]), f"entered: {e['board_entered']} (got {r.get('entered')})")
     if "error" in e:
         add(re.search(e["error"], str(r.get("error", "")), re.I), f"refused with /{e['error']}/ (got {r.get('error')!r})")
     if "heard" in e:
@@ -596,7 +680,8 @@ def check_step(run: Run, step: dict, out: dict, hidden: list[str]) -> list[tuple
     if "names_own_board" in e and "after" in out:
         from match import find_cards_in_text
         own = find_cards_in_text(" ; ".join(out["after"]["battlefield"]), catalog())
-        add(any(c.lower() in ai_text.lower() for c in own), f"answer names something it controls {own[:4]}")
+        add(any(c.lower() in ai_text.lower() for c in own) if own else re.search(r"no creatures|nothing", ai_text, re.I),
+            f"answer names something it controls {own[:4]}" if own else "answer says it has no creatures yet")
     if "ai_board_shrinks" in e and "after" in out:
         b, a_ = len(out["before"]["battlefield"]), len(out["after"]["battlefield"])
         add(a_ < b, f"its board reflects the removal ({b} → {a_} permanents)")
@@ -612,7 +697,9 @@ def check_step(run: Run, step: dict, out: dict, hidden: list[str]) -> list[tuple
     # always: the hand never reaches the table, in text or in sound. A name it just announced
     # playing is public (a second Plains still in hand is not a leak when it says "I play Plains").
     played = {m.strip().lower() for m in re.findall(r"I (?:cast|play) ([^.,;!]+)", ai_text)}
-    hidden = [c for c in hidden if c.lower() not in played]
+    # a name that is ALSO on its battlefield is public ("…Fertile Ground on Forest" with a Forest in hand)
+    board = {p["name"].lower() for p in run.get("/api/brain/state", brain=True).get("permanents", [])}
+    hidden = [c for c in hidden if c.lower() not in played and c.lower() not in board]
     leaked = [c for c in hidden if re.search(r"\b" + re.escape(c.lower()) + r"\b", ai_text.lower())]
     add(not leaked, "no hidden card named" + (f": NAMED {leaked}" if leaked else ""))
     if ai_text and run.hear:
@@ -625,7 +712,9 @@ def check_step(run: Run, step: dict, out: dict, hidden: list[str]) -> list[tuple
         if "hear_cards" in e:
             want = e["hear_cards"] if isinstance(e["hear_cards"], list) else [c for c in re.findall(
                 r"I (?:cast|play) ([^.,;!]+)", ai_text) if c.strip() in catalog()]
-            missed = [c for c in want if c not in cards and not audible(c, heard)]
+            import pronounce                       # the lexicon's respelling IS the intended sound
+            missed = [c for c in want if c not in cards and not audible(c, heard)
+                      and not audible(pronounce.for_speech(c), heard)]
             add(not missed, f"card names survive the speaker: {want}" + (f" — LOST {missed}" if missed else ""))
         if "max_spoken_s" in e:
             add(secs <= e["max_spoken_s"], f"spoken in ≤{e['max_spoken_s']} s (took {secs})")
@@ -633,6 +722,21 @@ def check_step(run: Run, step: dict, out: dict, hidden: list[str]) -> list[tuple
 
 
 def run_scenario(run: Run, sc: dict, rng) -> dict:
+    """A scenario with `repeat: N, min_pass: K` is a RATE: N fresh draws (noise, shuffle), and it
+    passes when at least K of them do — the honest measure for anything probabilistic."""
+    if sc.get("repeat"):
+        tries = [_run_once(run, sc, rng) for _ in range(sc["repeat"])]
+        passed = sum(1 for t in tries if t["ok"])
+        steps = [st for t in tries for st in t["steps"]]
+        res = {**tries[-1], "steps": steps, "ok": passed >= sc.get("min_pass", sc["repeat"]),
+               "rate": f"{passed}/{sc['repeat']}"}
+        res["steps"].append({"step": {"rate": True}, "checks": [(res["ok"], f"passed {passed}/{sc['repeat']} "
+                             f"(needs {sc.get('min_pass', sc['repeat'])})")], "ms": 0, "heard": None})
+        return res
+    return _run_once(run, sc, rng)
+
+
+def _run_once(run: Run, sc: dict, rng) -> dict:
     run.post("/api/reset", {})
     run.last_spoken, run.last_spoken_at = None, 0.0
     time.sleep(0.2)
@@ -653,6 +757,8 @@ def run_scenario(run: Run, sc: dict, rng) -> dict:
                 out = garbage_step(run, step, rng)
             elif "concurrent" in step:
                 out = concurrent_step(run, step, rng)
+            elif "board" in step:
+                out = board_step(run, step, rng)
             elif "brain" in step:
                 out = brain_step(run, step, rng)
             elif "wait" in step:
@@ -708,9 +814,15 @@ def main():
     # Build every fixture BEFORE the egress watch: only this touches the network (Scryfall images).
     for _, sc in picked:
         for st in sc["steps"]:
-            for c in (st.get("show", {}).get("cards") or [st.get("show", {}).get("card")]):
+            sh = st.get("show") or st.get("board") or {}
+            for c in (sh.get("cards") or [sh.get("card")]):
                 if c:
-                    card_image(c)
+                    card_image(c, sh.get("query"))
+            for it in sh.get("layout") or []:
+                card_image(it["card"], it.get("query"))
+            for f in sh.get("sequence") or []:
+                if f.get("card"):
+                    card_image(f["card"], f.get("query"))
     from e2e_offline import EgressWatch
 
     report, t0 = [], time.time()

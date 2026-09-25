@@ -167,9 +167,13 @@ still checks every reply before it is spoken.
 ~/.venvs/table/bin/python table/tests/brain_e2e.py             # external brain via the API (--brain external)
 table/tests/run_all.sh                                        # EVERYTHING below, one summary (~15 min; `quick` ~6 min)
 ~/.venvs/table/bin/python table/tests/engine_rules.py          # engine arithmetic from real positions (mana Auras, anthems…)
-~/.venvs/table/bin/python table/tests/sense_run.py             # 93 scenarios through camera + mic only; AI's voice heard back
+~/.venvs/table/bin/python table/tests/sense_run.py             # 125 scenarios through camera + mic only; AI's voice heard back
 ~/.venvs/table/bin/python table/tests/game_sim.py              # whole games by voice vs. a simulator's own ledger (--brain external: you play)
 ~/.venvs/table/bin/python table/tests/voice_audit.py           # which card names survive the AI's voice (per voice, raw vs lexicon)
+~/.venvs/table/bin/python table/tests/hearing_names.py         # every misheard card name seen so far: recovered, or none — never wrong
+~/.venvs/table/bin/python table/tests/speaker_eval.py          # who is speaking: enrolled voices × clean/room/noisy (0 wrong allowed)
+~/.venvs/table/bin/python table/tests/vision_eval.py           # full-frame vs per-card crops by distance/angle/light (0 wrong allowed)
+~/.venvs/table/bin/python table/tests/stt_bench.py             # Whisper sizes × preprocessing on degraded plays (measurement, not a gate)
 PW=<path to node_modules/@playwright/test> node table/tests/brain_page_e2e.cjs  # /table follows the brain
 ~/.venvs/table/bin/python table/tests/board_eval.py            # can one overhead frame be read? (see below)
 ~/.venvs/table/bin/python table/tests/e2e_offline.py           # API-level game session

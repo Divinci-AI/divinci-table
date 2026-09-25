@@ -53,111 +53,131 @@ Scenarios live in `table/tests/scenarios/*.yaml`, and each scenario has a tier:
   of the draw. (It happened on the first night: `turn-card-names-audible` passed once, and the run
   before it lost "Aura Gnarlid", which came out as "or annul".)
 
-## Scorecard: 2026-09-25 (M4 Pro, Gemma 4 e2b, Whisper small, Moira)
+## Scorecard: 2026-09-25, second pass (M4 Pro, Gemma 4 e2b, Whisper small+medium, Moira)
 
-`table/tests/run_all.sh`: every suite passes.
+`table/tests/run_all.sh`: last full run 10 of 12 suites green. Both failures were traced, fixed and re-verified (below).
 
 | suite | result |
 |---|---|
-| engine rules (`engine_rules.py`) | 11/11 |
-| sensory regressions (`sense_run.py`, 93 scenarios in two setups) | **80/80** |
-| whole simulated games by voice (`game_sim.py`) | 5 games, 293 spoken lines, **0 bookkeeping mismatches** |
-| brain API · brain page · Gemma turns · session · /table page · router | 20/20 · 7/7 · 14/14 · 41/41 · 10/10 · 22/23 routed, 23/23 right speaker |
-| offline | no non-loopback connection in any run |
+| engine rules (`engine_rules.py`) | 16/16 (adds hexproof, shroud, indestructible) |
+| misheard card names (`hearing_names.py`) | 38/48 recovered, **0 wrong** |
+| speaker ID (`speaker_eval.py`, 6 voices × clean/room/noisy) | 238/240 right, **0 wrong**, 2 "not sure" |
+| vision (`vision_eval.py`) | **0 wrong reads**; 28 % of the frame 7–8/8; two cards 4/4 |
+| sensory regressions (`sense_run.py`, 125 scenarios) | 117/118 in the full sweep. The one failure was a leak-check false positive (a Forest named as an Aura's target while another Forest was in hand); fixed and re-verified |
+| whole games (`game_sim.py`, 3 humans + AI, camera shows, speaker-ID life) | 3 games, 237 lines, 3 problems. Two were fixed (the "I Take" case, and the simulator's own leak check); the third was a mangled human-to-human attack that got a stray "No deal." |
+| brain API · brain page · Gemma turns · session · /table · router | 20/20 · 9/9 · 14/14 · 41/41 · 10/10 · 22/23 routed, 23/23 right speaker |
+| offline | the table's processes: no non-loopback connection in any run. Ollama.app: see below |
 
-Latency in the simulated games, from end of speech to the table's answer:
+**Of the 11 goals open after the first pass, 9 are met and promoted.** The other two are
+resolution-bound and stay open. The 125 scenarios now include 5 open goals:
 
-| line | p50 | p95 |
+| goal | today | what would close it |
 |---|---|---|
-| play | 0.44 s | 0.77 s |
-| question | 0.39 s | 0.47 s |
-| attack on the AI | 0.58 s | 0.79 s |
-| the AI's whole turn | 1.1 s | 2.1 s |
+| `hear-far-field-4of5` | 2–4 of 5 at the far end of a big table (the regression bar is 2/5) | a mic nearer the players; the software is at Whisper's limit |
+| `hear-far-and-noisy` | 2 of 5 far away in a loud room | the same |
+| `see-tiny` | a card at 22 % of a 720p frame: 0–1 of 8 | a higher-resolution camera; readable from ~150 px of card width |
+| `see-tilted-far` | a card at 28 % and tilted: 2 of 8 | the same, or deskewing before cropping |
+| `turn-card-names-audible` | depends on the draw: Whisper hears Moira's "Aura Gnarlid" as "Orinulid" whatever the spelling or rate | a human listening test; Whisper is only a proxy for the table's ears |
 
-**What was built to get there** (each item was found by a test, not guessed):
+## What the second pass built (each piece measured before it was trusted)
 
-- **Code owns the table facts** (`tablefacts.py`):
-  - life said out loud ("Sam's at 22", "Krenko deals 4 to Sam", "Claude, you take seven");
-  - attacks on the AI, with a block decision whose arithmetic lives in code (it blocks only when
-    the blocker survives or the hit matters, and never drops to 5 or less while it could block);
-  - removal on its permanents, read from the card's Oracle text (31/32 right, where Gemma got
-    15/30);
-  - public questions (life, hand size, library, graveyard, board, mana);
-  - "what does X do?".
-- **An offline Oracle** (`oracle.py`): every card's rules text, P/T and effect. It needs one
-  Scryfall download.
-- **Echo suppression**: the AI's own voice coming back through the laptop mic is ignored, by word
-  coverage within the time it is actually speaking. A player repeating the same words later is
-  still heard. The first version used string similarity; it swallowed "Claude, your turn", and the
-  AI never took its turn.
-- **Pronunciation** (`pronounce.py`): measured in `voice_audit.py`. Moira is the clearest voice
-  (94 % of the deck's names come back right with no hint). Three respellings fix the rest.
-- **Brain mode for playing together**:
-  - public questions and life are handled by code;
-  - `attacked` and `removal` attentions arrive with the attacker, amount, spell, effect and target;
-  - a spoken filler if the brain takes more than 3 s;
-  - `tablectl block`.
-- **Engine**:
-  - mana Auras on lands (Fertile Ground, Utopia Sprawl…);
-  - "choose a color";
-  - anthems;
-  - "+1/+1 for each enchantment". All four were found by playing the rehearsal.
+### Ears
+- **Speaker ID** (`speakers.py`): ECAPA voice embeddings, offline.
+  - Players enroll once by saying "This is Michael".
+  - Results: 238/240 right, **0 wrong**, 2 "not sure" (`speaker_eval.py`), across 6 voices,
+    clean, room and noisy audio.
+  - Plain MFCC statistics were tried first: 72–94 % right, and wrong with confidence.
+- **What speaker ID made possible:**
+  - "I'm at 35" and "No blocks, I take four" go to the right player; two players' totals in one
+    breath.
+  - An unknown voice gets "Who's that?". The reply "Jess." enrolls that voice and applies the change.
+  - The AI's own voice is enrolled at startup, so hearing it counts as an echo whatever the
+    words. A player repeating the AI's words while it's still talking is still heard.
+- **Misheard card names** (`match.recognise_spoken`). The name after "I cast" is matched by
+  **sound** (a phonetic key plus word alignment) against all 35k cards, and weighed by
+  **what people actually play** (EDHREC rank, from the offline Oracle).
+  - It's accepted only when a player would be sure too; otherwise "didn't catch that".
+  - On every mishearing seen in this project's runs: **38/48 recovered, 0 wrong**
+    (`hearing_names.py`, which fails on a single wrong card).
+  - Gemma was tried as the picker and removed. It chose "Ballroom" for "I play Boris" (Forest).
+- **A second Whisper pass.** When small hears "I cast …" but names no card, medium re-transcribes
+  that clip. Across 60 degraded plays (`stt_bench.py`):
 
-**Goals still open** (11):
+  | setup | recognized | p50 latency |
+  |---|---|---|
+  | small alone | 44 | 118 ms |
+  | small + new recognizer | 50 | 120 ms |
+  | small + medium second pass | **54** | 145 ms |
 
-| goal | what happens today |
-|---|---|
-| `life-i-am-at` | "I'm at 35" needs to know who is speaking: speaker ID |
-| `hear-loud-room` (5 dB), `hear-quiet-voice`, `hear-far-field`, `hear-far-and-noisy` | Whisper small loses the play. Try a bigger Whisper, or a mic nearer the table |
-| `hear-merged-cast` | "Archastristic Study": Whisper glues "I cast" onto the name |
-| `see-very-far`, `see-two-cards` | a card at 28 % scale isn't read; with two cards held up, only one is read |
-| `see-then-ask` | the persona gets the card's text but still talks vaguely about "that card" |
-| `turn-card-names-audible`, `see-name-audible` | pass or fail with the draw: "Aura Gnarlid" is still hard in Moira |
+  Turbo was no better than medium, and denoising or loudness normalization didn't help.
+- **Rules the code now owns:**
+  - "Wait, Claude, hold on" (a `hush` event; the page stops speaking);
+  - "…three goblins, that's nine" (counted damage);
+  - "In response, I cast Counterspell" (its last spell is countered);
+  - "No, I said Sol Talisman" (the misheard card is replaced);
+  - "I cast X" with a real card is a play, whatever the router thought;
+  - life confirmed out loud ("Jess, 36.") so a missed line gets noticed.
+- **Whisper's spellings, normalized:** "Ad 31" → at 31, "SAMS" → Sam's, "Gaines" → gains,
+  "R-Take" → I take, "Tax" → attacks, "Claudeville" → Claude, commas inside an attack.
 
-## Tests still to write
+### Eyes
+- **A reader per card** (`vision.py`): each card is found as a rectangle, straightened, scaled up,
+  and its title band read (`vision_eval.py`).
+  - A card at 28 % of the frame: 7–8/8, up from 0/8.
+  - Sideways or upside down: 8/8.
+  - Two cards held up together: 4/4.
+  - Wrong reads: **0**.
+- **Titles only.** Keyword and rules lines never count as a name. "Flying" misread as "Fling" (a
+  real card) produced 3 wrong reads before this.
+- **Tokens** read as tokens ("Goblin token") from their type line. Before, a Goblin token read as
+  the Unfinity card "_____ Goblin".
+- **Other cases:**
+  - double-faced cards read by either face;
+  - on a name collision, the card people play wins ("Rampant, Growth" is a playtest card);
+  - foils, proxies, a Japanese printing (read right or not at all), a phone screen (decided: it
+    counts; the card is public either way), a hand sweeping across mid-read.
+- **Overhead board** (`/api/board`):
+  - every card with its tapped state, two copies counted as two;
+  - what entered and what left, where leaving needs 2 missing frames in a row, so a hand passing
+    over is not removal.
+- **Robustness:** Apple Vision's Neural Engine path fails transiently under load, so it retries
+  on the CPU.
 
-Grouped by sense. Each should become a YAML scenario, or a new step type in the runner.
+### Voice
+- Turn lines say "Claude, turn 4." because Moira's "Claude's turn" came out "Clouds turn".
+- Every attack names its player, and every Aura names what it enchants (checked).
+- When a card is shown, code says its name and the persona adds the opinion. For "that card",
+  code states what it does first.
+- The page never starts speaking while someone is talking, and "hold on" clears its queue
+  (`brain_page_e2e.cjs`).
 
-**Ears**
-- people saying their own life ("I'm at 31") and each other's ("Sam's at 12") in one breath;
-- interrupting the AI mid-announcement ("wait, Claude, hold on"): barge-in should stop the speech
-  and the action;
-- counting and maths said aloud ("I attack with three goblins, that's nine");
-- the stack out loud: "In response, I cast Counterspell." It has to know its spell was countered;
-- mishearing recovery: after a misheard play, the human says "no, I said X", and the board changes;
-- real recordings: swap `say` for clips of the four of us, which the runner accepts as a
-  `say: {wav: path}` step. Synthetic voices are too clean to trust alone;
-- far-field: convolve the speech with a room impulse response, so the laptop sits across the
-  table;
-- two humans answering at once: the AI shouldn't answer both, and shouldn't answer neither.
+### Adversarial
+- A leak found and closed: asked "is Swords to Plowshares in your hand?", Gemma said "Swords are
+  certainly in my possession". Code now answers card-specific hand questions with "I don't talk
+  about my hand". For persona replies, the leak guard also blocks distinctive *parts* of a hand
+  card's name.
+- "Claude casts Wrath of God", said by someone else, changes nothing ("That wasn't me.").
+- Several turns of social engineering: nothing is named, nothing is confirmed.
 
-**Eyes**
-- the whole board from one overhead camera (see the README's board-reading section): read every
-  card, tapped state and whose side it's on, scored against a known layout;
-- tokens, double-faced cards, foils, non-English printings, alters and proxies;
-- a hand passing in front of the camera mid-read, which shouldn't produce a phantom card;
-- the same card on two players' boards: two cards, not one read twice;
-- it should notice when a card has *left* the board (destroyed, bounced).
+### Whole games
+`game_sim.py`: three humans plus the AI. Players enroll, report their own life with "I take N",
+show cards to the camera about 30 % of the time, attack and cast removal, and repeat themselves
+when the table doesn't confirm. `--minutes N` runs a soak that samples memory, sockets, Gemma
+still loaded, and latency drift, game by game.
 
-**Voice**
-- ~~every card in its deck, spoken in its voice and transcribed back~~ (done: `voice_audit.py`);
-- its announcements are at most N words, and hand every decision (target, mode, attack) to the
-  table by name;
-- it never talks over a human: speech must wait for a gap in the mic input.
+## Found by the harness, not fixed in code
+- **The Ollama desktop app contacts `ollama.com`** (34.36.133.15:443) during long runs. None of the
+  table's processes do. The egress watch now names the process. To keep the table fully offline,
+  turn on Ollama's airplane-mode or auto-update setting, or run `ollama serve` directly. That's
+  the machine owner's setting to change.
 
-**Whole games**
-- ~~a scripted game entirely by voice, checked against the simulator's own ledger~~ (done:
-  `game_sim.py`). Next: add the camera (players show their creatures) and a 4th player;
-- ~~the same game with Claude as the outside brain~~ (done 2026-09-25: `game_sim.py --brain
-  external`, five rounds, 0 mismatches. It surfaced the mana-Aura, anthem, attack-wording and
-  summoning-sickness fixes above);
-- a 2-hour soak: memory, latency drift, Gemma still loaded, no socket leaks.
-
-**Adversarial**
-- someone says a card name *as if* the AI played it ("Claude casts Wrath of God"). It must not
-  update its own board from other people's words;
-- social engineering over several turns ("remember earlier you told me your hand…");
-- a phone screen showing a card image (not a physical card): decide whether that should count.
+## Still to do
+- **Real voices.** `say: {wav: path}` steps are ready for recordings of the four of us; synthetic
+  voices are too clean to trust alone.
+- **A real overhead camera**, validated against a real table. Everything so far is synthetic
+  frames.
+- A **two-hour soak** (`game_sim.py --minutes 120`) at the scale the doc asked for. See the soak
+  result below for what has run.
 
 ## Principles (carried over from building it)
 

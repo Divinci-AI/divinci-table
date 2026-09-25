@@ -29,7 +29,7 @@ scenarios:
     expect: {attention: turn}
   - brain: {action: begin}
     settle: 3.5
-    expect: {event_say: "Claude's turn", ai_text_not: "one moment|let me think|give me a second|hold on"}
+    expect: {event_say: "Claude, turn", ai_text_not: "one moment|let me think|give me a second|hold on"}
 
 - id: brain-plays-a-turn
   about: A full turn through the brain API is announced in its voice, card names audible.
@@ -156,3 +156,30 @@ scenarios:
   steps:
   - say: {text: "I cast Ghalta.", voice: Daniel}
     expect: {cards: ["Ghalta, Primal Hunger"], no_attention: true}
+
+- id: brain-counter-in-response
+  about: '"In response, I cast Counterspell." after Claude casts: the brain is told what was countered.'
+  steps:
+  - {brain: {action: begin}, expect: {}}
+  - {brain: {action: land, any_land: true}, optional: true, expect: {}}
+  - {brain: {action: begin}, expect: {}}
+  - {brain: {action: land, any_land: true}, optional: true, expect: {}}
+  - {brain: {action: begin}, expect: {}}
+  - {brain: {action: land, any_land: true}, optional: true, expect: {}}
+  - {brain: {action: begin}, expect: {}}
+  - {brain: {action: land, any_land: true}, optional: true, expect: {}}
+  - {brain: {action: cast, castable: true}, expect: {event_say: "I cast"}}
+  - say: {text: "In response, I cast Counterspell.", voice: Samantha}
+    expect: {attention: removal, attention_fields: {effect: counter}}
+
+- id: brain-hold
+  about: '"Wait, Claude, hold on." reaches the brain as a hold, and the page is told to stop talking.'
+  steps:
+  - say: {text: "Wait, Claude, hold on.", voice: Samantha}
+    expect: {attention: hold, event_type: hush}
+
+- id: brain-false-claim
+  about: A false claim that Claude cast something is refused by code, not sent to the brain.
+  steps:
+  - say: {text: "Claude casts Wrath of God.", voice: Samantha}
+    expect: {event_say: "wasn't me", no_attention: true}

@@ -42,19 +42,24 @@ import threading as _threading
 _WHISPER_LOCK = _threading.Lock()      # one transcription at a time: the MLX model is shared state
 
 
-def transcribe(audio: np.ndarray, hint: str) -> tuple[str, float]:
+# Second opinion on a missed card name (stt_bench.py, 60 degraded plays): small alone 50/60 at
+# p50 120 ms; small + medium ONLY when small's "I cast …" names no card: 54/60 at p50 145 ms.
+WHISPER_SECOND = os.environ.get("WHISPER_SECOND", "mlx-community/whisper-medium-mlx")
+
+
+def transcribe(audio: np.ndarray, hint: str, model: str | None = None) -> tuple[str, float]:
     """Returns (text, mean no-speech probability). The hint (player + card names) is what gets
     'Sheoldred' instead of 'Shealderd': 4/8 → 8/8 names right in the 2026-09-24 check."""
     import mlx_whisper
     with _WHISPER_LOCK:
-        r = _transcribe_locked(mlx_whisper, audio, hint)
+        r = _transcribe_locked(mlx_whisper, audio, hint, model)
     segs = r.get("segments") or []
     nsp = sum(s.get("no_speech_prob", 0.0) for s in segs) / len(segs) if segs else 1.0
     return r["text"].strip(), nsp
 
 
-def _transcribe_locked(mlx_whisper, audio, hint):
-    return mlx_whisper.transcribe(audio, path_or_hf_repo=WHISPER_MODEL, language="en",
+def _transcribe_locked(mlx_whisper, audio, hint, model=None):
+    return mlx_whisper.transcribe(audio, path_or_hf_repo=model or WHISPER_MODEL, language="en",
                                initial_prompt=hint, condition_on_previous_text=False)
 
 
@@ -150,13 +155,27 @@ def decide_reply(r: dict, ai_names: list[str]) -> tuple[str | None, str | None]:
 TURN = "\x00take-turn"        # sentinel from decide_reply: not text, never spoken
 
 
-def leaks_hand(text: str, hand_names: list[str]) -> str | None:
+_GENERIC = {"creature", "creatures", "spell", "spells", "magic", "enchantment", "artifact", "planeswalker", "battle",
+            "land", "lands", "token", "tokens", "power", "mana", "life", "turn", "cards", "card", "deck", "hand",
+            "board", "table", "attack", "block", "graveyard", "library", "commander", "there", "their", "about",
+            "which", "would", "could", "should", "other", "these", "those", "every", "great", "little", "right",
+            "things", "thing", "world", "light", "night", "first", "second", "third", "under", "over"}
+
+
+def leaks_hand(text: str, hand_names: list[str], partial: bool = False) -> str | None:
     """Code guard, not a prompt: a reply that names a card in the AI's hidden hand is never
-    spoken. Returns the offending name, or None."""
+    spoken. Returns the offending name, or None. partial=True (persona replies) also blocks a
+    DISTINCTIVE word of the name — measured 2026-09-25: asked "is Swords to Plowshares in your
+    hand?", Gemma said "Swords are certainly in my possession right now"."""
     low = text.lower()
     for n in hand_names:
         if re.search(r"\b" + re.escape(n.lower()) + r"\b", low):
             return n
+        if partial:
+            for w in re.findall(r"[a-z']+", n.lower().split(" // ")[0]):
+                w = w.strip("'")
+                if len(w) >= 5 and w not in _GENERIC and re.search(r"\b" + re.escape(w.rstrip("s")) + r"s?\b", low):
+                    return n
     return None
 
 
@@ -396,13 +415,18 @@ def persona_react(ai: dict, card: str, shown_by: str, recent: list[str], public_
                          f"React to {card} in character — what you think of it, or of whoever plays it.")
 
 
-def pick_heard_card(text: str, candidates: list[str]) -> tuple[str | None, float]:
+def pick_heard_card(text: str, candidates: list[str], named: bool = False) -> tuple[str | None, float]:
     """Speech-to-text mangled a card name. Ask Gemma which of the close candidates was meant, with a
-    'none of these' option; the caller accepts only a confident pick."""
+    'none of these' option; the caller accepts only a confident pick. The candidates already SOUND
+    like what was heard (match.spoken_card), so the question is which real card it was, not
+    whether a card was named at all."""
     opts = {c: c for c in candidates}
-    opts["none"] = "None of these — no card was named."
-    probs = _ollama_choice(f'A player at a Magic: The Gathering table said (as transcribed by speech '
-                           f'recognition, which may misspell card names): "{text}"',
-                           "Which card did they most likely name?", opts)
+    if not named:                    # "I cast <X>" with a real name phrase: a card WAS named, pick which
+        opts["none"] = "None — the words don't name a card at all (table talk, or a generic word like 'a spell')."
+    probs = _ollama_choice(f'At a Magic: The Gathering Commander table a player said, as transcribed by speech '
+                           f'recognition: "{text}". Speech recognition often garbles card names into '
+                           f'sound-alike words ("Sol Ray" for Sol Ring, "Swords to Pleasures" for Swords to '
+                           f'Plowshares), and players mostly cast well-known Commander staples.',
+                           "Which card did they most likely say?", opts)
     best = max(probs, key=probs.get)
     return (None if best == "none" else best), probs[best]

@@ -119,13 +119,25 @@ function assignVoices(){
   ai.forEach((p,i)=>{ const named=p.voice && all.find(v=>v.name===p.voice||v.name.startsWith(p.voice+" "));
     voices[p.name]=named || en[(i*3)%Math.max(1,en.length)]; });
 }
+// Never talk over a person: lines wait while the mic hears someone, then go out in order.
+// window.__humanTalking (tests only) overrides the mic's own voice-activity flag.
+const pending=[];
+function humanTalking(){ return window.__humanTalking!==undefined ? window.__humanTalking : !!speaking; }
 function speak(who, text, sounds){
   // No cancel(): a card reaction and an answer can land together, so they queue.
   // `sounds` is the same line respelled for the voice (pronounce.py); the feed shows `text`.
   if(!$("speak").checked || !window.speechSynthesis) return;
-  const u=new SpeechSynthesisUtterance(sounds||text); if(voices[who]) u.voice=voices[who];
-  speechSynthesis.speak(u);
+  pending.push([who, sounds||text]); flushSpeech();
 }
+function flushSpeech(){
+  while(pending.length && !humanTalking()){
+    const [who, line]=pending.shift();
+    const u=new SpeechSynthesisUtterance(line); if(voices[who]) u.voice=voices[who];
+    speechSynthesis.speak(u);
+  }
+}
+setInterval(flushSpeech, 150);
+function hush(){ pending.length=0; if(window.speechSynthesis) speechSynthesis.cancel(); }
 function addBoard(cards){
   for(const c of cards||[]) board.push(c);
   $("board").innerHTML = board.length ? board.slice(-16).map(c=>`<span class="chip">${esc(c)}</span>`).join("") : `<span class="note">nothing yet</span>`;
@@ -201,6 +213,7 @@ async function pollEvents(){
         speak(e.speaker, e.text, e.speech); touched=true;
       } else if(e.type==="life"){ feed(`<span class="meta">life: ${esc(e.player)} ${e.delta>0?"+":""}${e.delta} → ${e.life} (${esc(e.by)})</span>`); touched=true; }
       else if(e.type==="new-game"){ board.length=0; addBoard([]); touched=true; }
+      else if(e.type==="hush"){ hush(); feed(`<span class="meta">holding — ${esc(e.by||"someone")} said wait</span>`); }
     }
     if(touched) refreshAI();
   } finally { evBusy=false; }

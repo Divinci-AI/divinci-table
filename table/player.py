@@ -102,6 +102,7 @@ class VirtualPlayer:
         self.log: list[str] = []
         self.public_board: list[str] = []         # other players' announced cards (set each turn)
         self.on_their_cards: list[str] = []       # its hostile Auras, sitting on opponents' permanents
+        self.last_cast: dict | None = None           # for "in response, I counter that"
         self.draw(7)
 
     # ── zones ─────────────────────────────────────────────────────────────────────────────
@@ -297,6 +298,8 @@ class VirtualPlayer:
         else:
             self.hand.remove(c)
         said = [f"I cast {c['name']}" + (" from the command zone." if is_cmdr else ".")]
+        import time as _t
+        self.last_cast = {"name": c["name"], "perm": None, "at": _t.time(), "commander": is_cmdr}
         types = c.get("types") or []
         if "Instant" in types or "Sorcery" in types:
             self.graveyard.append(c)
@@ -320,6 +323,7 @@ class VirtualPlayer:
                     self.next_color = None
                 said = [f"I cast {c['name']} on {target.name}."]      # one sentence, not two
             self.battlefield.append(p)
+            self.last_cast["perm"] = p.id
             said += self.enter_effects(p, choose_target)
         return " ".join(said)
 
@@ -443,7 +447,7 @@ def _manual(cls):
         before = len(self.hand)
         self.draw()
         drew = self.hand[-1]["name"] if len(self.hand) > before else None
-        return [f"{self.name}'s turn {self.turn}."], drew
+        return [f"{self.name}, turn {self.turn}."], drew   # not "Claude's turn": Moira's possessive comes out "Clouds turn"
 
     def manual_land(self, name):
         c = self.hand_card(name)

@@ -19,9 +19,11 @@ const brain = (action, body) => fetch(`${BASE}/api/brain/${action}`, {
   page.on("pageerror", e => errors.push(e.message));
   // count what the page hands to speech synthesis
   await page.addInitScript(() => {
-    window.__spoken = [];
+    window.__spoken = []; window.__cancels = 0;
     const orig = window.speechSynthesis && window.speechSynthesis.speak.bind(window.speechSynthesis);
     if (window.speechSynthesis) window.speechSynthesis.speak = u => { window.__spoken.push(u.text); try { orig(u); } catch (e) {} };
+    const oc = window.speechSynthesis && window.speechSynthesis.cancel.bind(window.speechSynthesis);
+    if (window.speechSynthesis) window.speechSynthesis.cancel = () => { window.__cancels++; try { oc(); } catch (e) {} };
   });
   await page.goto(BASE + "/table");
   await page.waitForFunction(() => document.querySelector("#aiPanel") && !document.querySelector("#aiPanel").hidden);
@@ -46,6 +48,25 @@ const brain = (action, body) => fetch(`${BASE}/api/brain/${action}`, {
   const hand = st.hand.map(h => h.name).filter(n => n !== (land && land.name));
   const body = await page.textContent("body");
   check(!hand.some(n => body.includes(n)), "no card still in the AI's hand appears anywhere on the page");
+  // never talk over a person: while the mic hears someone, the AI's lines wait
+  await page.evaluate(() => { window.__humanTalking = true; });
+  await brain("say", { text: "Waiting for a gap in the talk." });
+  await page.waitForTimeout(2500);
+  const heldBack = !(await page.evaluate(() => window.__spoken.includes("Waiting for a gap in the talk.")));
+  await page.evaluate(() => { window.__humanTalking = false; });
+  await page.waitForTimeout(1000);
+  const thenSaid = await page.evaluate(() => window.__spoken.includes("Waiting for a gap in the talk."));
+  check(heldBack && thenSaid, "a line that arrives while someone is talking waits, then is said when they stop");
+  // "Wait, Claude, hold on." → hush → the page stops speaking
+  const { execSync } = require("child_process");
+  const wav = path.join(require("os").tmpdir(), "hold-on.wav");
+  execSync(`say -v Samantha -o "${wav}" --data-format=LEI16@16000 "Wait, Claude, hold on."`);
+  const before = await page.evaluate(() => window.__cancels);
+  const ur = await (await fetch(`${BASE}/api/utterance`, { method: "POST", headers: { "Content-Type": "audio/wav" },
+    body: fs.readFileSync(wav) })).json();
+  await page.waitForTimeout(2000);
+  const after = await page.evaluate(() => window.__cancels);
+  check(ur.hold === true && after > before, `"${ur.heard}" → hold, and the page cancelled its speech (${before} → ${after})`);
   check(errors.length === 0, "no page errors" + (errors.length ? ": " + errors.join(" / ") : ""));
   await browser.close();
   await brain("new-game", { quiet: true });

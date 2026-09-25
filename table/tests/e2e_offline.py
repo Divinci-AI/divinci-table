@@ -140,7 +140,8 @@ class EgressWatch(threading.Thread):
                 for line in r.stdout.splitlines()[1:]:
                     m = re.search(r"->(\[?[0-9a-fA-F.:]+\]?):(\d+)", line)
                     if m and not re.match(r"^(127\.|\[?::1\]?$|localhost)", m.group(1)):
-                        self.remote.add(f"pid {pid} -> {m.group(1)}:{m.group(2)}")
+                        comm = line.split()[0] if line.split() else "?"          # which program: ours, or Ollama's
+                        self.remote.add(f"pid {pid} ({comm}) -> {m.group(1)}:{m.group(2)}")
             self.samples += 1
             time.sleep(0.4)
 

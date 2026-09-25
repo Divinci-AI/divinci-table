@@ -36,7 +36,13 @@ def normalize(text: str, players: list[str]) -> str:
         t = re.sub(rf"\b{re.escape(p)}s\b", f"{p}'s", t, flags=re.I)
         t = re.sub(rf"\b{re.escape(p)}\b", p, t, flags=re.I)
     t = re.sub(r"\bgaines\b", "gains", t, flags=re.I)
-    return words_to_numbers(t)
+    t = re.sub(r"\b(?:r|ah|eye|aye)[- ](take|took|lose|gain)\b", r"I \1", t, flags=re.I)   # "R-Take 2" (Karen's "I")
+    t = words_to_numbers(t)
+    # "I'm Ad 31", "Sam's et 12": Whisper's spelling of "at" before a number
+    return re.sub(r"(\b(?:I'm|I am|'s|is|are|you're)\s+)(?:ad|add|et|it|app|and)\s+(\d+)", r"\1at \2", t, flags=re.I)
+
+
+I_UNRESOLVED = "?"                                   # "I" said by a voice the table doesn't know
 
 
 def _who(name: str, players: list[str], nick: dict[str, str]) -> str | None:
@@ -48,7 +54,7 @@ def _who(name: str, players: list[str], nick: dict[str, str]) -> str | None:
 
 
 def parse_life(text: str, players: list[str], nick: dict[str, str] | None = None,
-               addressed: str | None = None) -> list[tuple[str, int, str]]:
+               addressed: str | None = None, speaker: str | None = None) -> list[tuple[str, int, str]]:
     """Life changes said out loud, as (player, amount, "delta"|"set").
 
     players: every name at the table. nick: extra spoken names → player (commander nicknames
@@ -97,12 +103,37 @@ def parse_life(text: str, players: list[str], nick: dict[str, str] | None = None
     if you:
         for m in re.finditer(r"\byou(?:'re| are)\s+(?:at|on|down to)\s+(\d+)\b", t, re.I):
             out.append((you, int(m.group(1)), "set"))
+    # "I": only with a speaker the table recognised by voice (speakers.py). Unknown → I_UNRESOLVED.
+    me = speaker if speaker in players else I_UNRESOLVED
+    for m in re.finditer(r"\bI(?:'m| am)\s+(?:at|on|down to|now at)\s+(\d+)\b", t, re.I):
+        out.append((me, int(m.group(1)), "set"))
+    for m in re.finditer(r"\bI(?:'ll| will)?\s+(?:take|took|lose|lost)\s+(\d+)\b", t, re.I):
+        out.append((me, -int(m.group(1)), "delta"))
+    for m in re.finditer(r"\bI\s+(?:gain|gained)\s+(\d+)\b", t, re.I):
+        out.append((me, int(m.group(1)), "delta"))
     seen, uniq = set(), []
     for c in out:                                     # one statement, one change
         if c[0] not in seen:
             seen.add(c[0])
             uniq.append(c)
     return [c for c in uniq if 0 < abs(c[1]) <= 200 or c[2] == "set"]
+
+
+def bare_name(text: str, players: list[str]) -> str | None:
+    """"Jess." / "It's Jess." / "Jess here." — the answer to "Who's that?"."""
+    m = re.match(r"^\W*(?:it's|it is|that's|that was|me,?|this is)?\s*([A-Za-z][A-Za-z'-]+)(?:\s+here)?\W*$", text.replace("\u2019", "'"), re.I)
+    if not m:
+        return None
+    return next((p for p in players if p.lower() == m.group(1).lower()), None)
+
+
+def enrollment(text: str, players: list[str]) -> str | None:
+    """'This is Michael.' / 'Hi, I'm Sam, playing Krenko.' / 'My name is Michael.' → the player."""
+    m = re.match(r"^\s*(?:(?:hi|hey|hello|okay|ok)[,!.]?\s+)?(?:everyone[,!.]?\s+)?(?:this is|it's|i'm|i am|my name is|call me)"
+                 r"\s+([A-Za-z][A-Za-z'-]+)", text.replace("\u2019", "'"), re.I)
+    if not m:
+        return None
+    return next((p for p in players if p.lower() == m.group(1).lower()), None)
 
 
 _PUBLIC = [
@@ -122,6 +153,11 @@ def parse_attack(text: str, ai_name: str) -> dict | None:
     "trample": bool}; the caller finds the attacking card among the cards heard."""
     t = normalize(text, [ai_name])
     tgt = rf"(?:{re.escape(ai_name)}|you)"
+    t = re.sub(r",\s*", " ", t)                        # "Bahimoth, Attacks, Claude, for 8" (Whisper's commas)
+    t = re.sub(r"\b(?:a\s+|of\s+)?(?:tax|taxes|attax|attacked)(?=\s)", "attacks", t, flags=re.I)   # "Sage of Tax Claude for 3"
+    roman = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10, "XI": 11, "XII": 12}
+    t = re.sub(rf"\b({re.escape(ai_name)}|you)\s+(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II)\b\.?",     # "attacks Claude V." = for five
+               lambda m: f"{m.group(1)} for {roman[m.group(2)]}", t)
     m = re.search(rf"\b(?:attacks?|attacking|swings?|swinging|going)\s+(?:at\s+|into\s+|for\s+)?{tgt}\b(?:[^.]*?\bfor\s+(\d+))?", t, re.I)
     if not m:
         return None
@@ -235,4 +271,67 @@ def removal_target(text: str, ai_name: str, own: list[str]) -> str | None:
                     best, score = full, r
         if score >= 0.75:
             return best
+    return None
+
+
+# ── more table talk the code owns ─────────────────────────────────────────────────────────────
+def is_hold(text: str, ai_name: str) -> bool:
+    """"Wait, Claude, hold on." / "Hold on." / "Stop, stop." — stop talking, don't act."""
+    t = normalize(text, [ai_name]).lower().strip()
+    return bool(re.match(rf"^(?:{re.escape(ai_name.lower())}[,.!\s]+)?(?:(?:wait|whoa|woah|hold on|hang on|stop|shh+|quiet|one sec|one second)[,.!\s]*)+"
+                         rf"(?:{re.escape(ai_name.lower())}[,.!\s]*)?(?:(?:hold on|wait|stop|hang on|a sec(?:ond)?)[,.!\s]*)*$", t))
+
+
+def attack_total(text: str) -> int | None:
+    """"…three goblins, that's nine", "…for nine total", "nine damage all together"."""
+    t = words_to_numbers(text)
+    m = re.search(r"\bthat'?s\s+(\d+)\b|\bfor\s+(\d+)\s+total\b|\b(\d+)\s+(?:damage\s+)?(?:all\s+together|altogether|in total|total)\b", t, re.I)
+    return int(next(g for g in m.groups() if g)) if m else None
+
+
+def is_counter(text: str) -> bool:
+    """"In response, I cast Counterspell." / "I counter that." / "Negate your spell." """
+    return bool(re.search(r"\b(in response|counter that|counter it|counters? (?:that|it|your)|i counter)\b", text, re.I))
+
+
+def correction(text: str) -> str | None:
+    """"No, I said Llanowar Elves." / "Sorry, I meant Sol Talisman." → the corrected words."""
+    m = re.match(r"^\W*(?:no|nope|sorry|correction|wait)?\W*(?:i said|i meant|it's|it was|that was|i cast)\s+(.+)$", text, re.I)
+    if m and re.match(r"^\W*(no|nope|sorry|correction|i meant|i said)\b", text, re.I):
+        return m.group(1).strip()
+    return None
+
+
+def claims_ai_did(text: str, ai_name: str) -> bool:
+    """Someone ELSE saying the AI played something ("Claude casts Wrath of God") — the AI knows its own
+    plays; words at the table must not put cards on its board or wipe it."""
+    t = normalize(text, [ai_name])
+    return bool(re.search(rf"\b{re.escape(ai_name)}\s+(?:casts?|cast|played|plays|plays a|just cast)\b", t, re.I)) \
+        and not re.match(rf"^\s*{re.escape(ai_name)}\s*[,:]", t)
+
+
+def hand_probe(text: str, cards: list[str]) -> bool:
+    """A question about whether a SPECIFIC card is in its hand — even "yes" or "no" leaks."""
+    if not cards:
+        return False
+    return bool(re.search(r"\b(in your hand|do you have|are you holding|you holding|you('re| are) holding|"
+                          r"got (?:a|an|the)?|holding onto|still have|told me you had)\b", text, re.I))
+
+
+def cant_be_targeted(card: dict, tapped: bool, eff: str) -> str | None:
+    """What the table can rule from Oracle text: hexproof/shroud (including "as long as it's
+    untapped") stop a targeted spell; indestructible survives "destroy". Measured: Doom Blade on an
+    untapped Paradise Druid was silently ignored — the AI should say WHY."""
+    name = card.get("name", "It")
+    t = (card.get("text") or "").lower()
+    kws = [k.lower() for k in (card.get("keywords") or [])]
+    if "shroud" in kws or re.search(r"\bhas shroud\b", t):
+        return f"{name} has shroud — it can't be targeted."
+    hexproof = "hexproof" in kws or re.search(r"^hexproof\b|\bhas hexproof\b", t, re.M)
+    if hexproof and "as long as it's untapped" in t and tapped:
+        hexproof = False
+    if hexproof:
+        return f"{name} has hexproof — it can't be targeted."
+    if eff == "destroy" and ("indestructible" in kws or re.search(r"^indestructible\b|\bhas indestructible\b", t, re.M)):
+        return f"{name} is indestructible — it stays."
     return None

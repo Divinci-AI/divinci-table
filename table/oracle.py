@@ -22,20 +22,33 @@ def _download() -> None:
     hdr = {"User-Agent": "divinci-table/0.1", "Accept": "application/json"}
     meta = json.loads(urllib.request.urlopen(urllib.request.Request(
         "https://api.scryfall.com/bulk-data/oracle-cards", headers=hdr), timeout=30).read())
-    raw = urllib.request.urlopen(urllib.request.Request(meta.get("download_uri") or meta["jsonl_download_uri"],
-                                                        headers={**hdr, "Accept": "*/*"}), timeout=300).read()
+    raw_path = CACHE.parent / "oracle-cards.raw"
+    if raw_path.exists():                              # rebuilds (e.g. a new field) need no network
+        raw = raw_path.read_bytes()
+    else:
+        raw = urllib.request.urlopen(urllib.request.Request(meta.get("download_uri") or meta["jsonl_download_uri"],
+                                                            headers={**hdr, "Accept": "*/*"}), timeout=300).read()
+        CACHE.parent.mkdir(exist_ok=True)
+        raw_path.write_bytes(raw)
     data = gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw
     text = data.decode()
     cards = json.loads(text) if text.lstrip().startswith("[") else [json.loads(l) for l in text.splitlines() if l.strip()]
     db = {}
+    # Real cards first: a token, emblem or art card can share a name with one ("Llanowar Elves" the
+    # token overwrote Llanowar Elves the card — found by the spoken-name matcher, 2026-09-25).
+    junk = {"token", "double_faced_token", "emblem", "art_series", "vanguard", "scheme", "planar"}
+    cards.sort(key=lambda c: c.get("layout") in junk)
     for c in cards:
+        if c["name"] in db:
+            continue
         faces = c.get("card_faces") or [c]
         f0 = faces[0]
         rec = {"cost": c.get("mana_cost") or f0.get("mana_cost") or "",
                "type": c.get("type_line") or f0.get("type_line") or "",
                "text": "\n//\n".join(f.get("oracle_text") or "" for f in faces),
                "power": f0.get("power"), "toughness": f0.get("toughness"),
-               "keywords": c.get("keywords") or []}
+               "keywords": c.get("keywords") or [],
+               "rank": c.get("edhrec_rank")}                 # EDHREC popularity: 1 = Sol Ring
         db[c["name"]] = rec
         if " // " in c["name"]:
             db.setdefault(c["name"].split(" // ")[0], rec)
@@ -50,6 +63,12 @@ def db() -> dict:
             _download()
         _DB = json.loads(CACHE.read_text())
     return _DB
+
+
+def rank(name: str) -> int | None:
+    """EDHREC popularity rank (1 = most played in Commander), or None for unranked cards."""
+    c = card(name)
+    return c.get("rank") if c else None
 
 
 def card(name: str) -> dict | None:
@@ -102,3 +121,23 @@ def effect(name: str) -> str:
     if re.search(r"deals? (?:\w+|x) damage to (?:any target|target creature)", t):
         return "damage"
     return "none"
+
+
+_TOKENS: list[str] | None = None
+
+
+def token_names() -> list[str]:
+    """Names of token cards (Soldier, Goblin, Treasure…), from the same raw bulk file — so a token
+    held up to the camera reads as a token instead of nothing (or a real card with the same word)."""
+    global _TOKENS
+    if _TOKENS is None:
+        path = CACHE.parent / "token-names.json"
+        if not path.exists():
+            raw = (CACHE.parent / "oracle-cards.raw").read_bytes()
+            data = (gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw).decode()
+            cards = json.loads(data) if data.lstrip().startswith("[") else [json.loads(l) for l in data.splitlines() if l.strip()]
+            names = sorted({c["name"] for c in cards if c.get("layout") in ("token", "double_faced_token")
+                            and " // " not in c["name"]})
+            path.write_text(json.dumps(names))
+        _TOKENS = json.loads(path.read_text())
+    return _TOKENS

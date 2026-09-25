@@ -81,7 +81,7 @@ def main():
         all_said += r["said"]
         if after["lands"] - before["lands"] > 1:
             problems.append(f"turn {after['turn']}: {after['lands'] - before['lands']} lands")
-        if not r["said"][0].startswith("Ellivere's turn") or r["said"][-1] != "That's my turn.":
+        if not r["said"][0].startswith("Ellivere, turn") or r["said"][-1] != "That's my turn.":
             problems.append(f"turn {after['turn']}: malformed announcements")
         leak = [n for n in hand() if n in json.dumps(after)]
         if leak:

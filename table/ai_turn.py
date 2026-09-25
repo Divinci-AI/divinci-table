@@ -45,8 +45,8 @@ def take_turn(p: VirtualPlayer, humans: list[dict], public_board: list[str]) -> 
         perm.sick = False
     before = len(p.hand)
     p.draw()
-    said.append(f"{p.name}'s turn {p.turn}." if len(p.hand) > before
-                else f"{p.name}'s turn {p.turn}. I untap; my library is empty.")
+    said.append(f"{p.name}, turn {p.turn}." if len(p.hand) > before
+                else f"{p.name}, turn {p.turn}. My library is empty.")
 
     land = p.best_land()
     if land:

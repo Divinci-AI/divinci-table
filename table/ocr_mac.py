@@ -24,15 +24,22 @@ def read_lines(image_bytes: bytes, hints: list[str] | None = None) -> list[Line]
     words it would otherwise misread; language correction stays off because card names are not
     dictionary words."""
     data = NSData.dataWithBytes_length_(image_bytes, len(image_bytes))
-    handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(data, None)
-    req = Vision.VNRecognizeTextRequest.alloc().init()
-    req.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
-    req.setUsesLanguageCorrection_(False)
-    if hints:
-        req.setCustomWords_(hints)
-    ok, err = handler.performRequests_error_([req], None)
-    if not ok:
-        raise RuntimeError(f"Vision text recognition failed: {err}")
+    for cpu_only in (False, True):
+        # The Neural Engine path can fail transiently under load ("e5rt … failed", seen in a full test
+        # run while the simulator was busy): retry once on the CPU rather than lose the frame.
+        handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(data, None)
+        req = Vision.VNRecognizeTextRequest.alloc().init()
+        req.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
+        req.setUsesLanguageCorrection_(False)
+        if cpu_only:
+            req.setUsesCPUOnly_(True)
+        if hints:
+            req.setCustomWords_(hints)
+        ok, err = handler.performRequests_error_([req], None)
+        if ok:
+            break
+        if cpu_only or "e5rt" not in str(err):
+            raise RuntimeError(f"Vision text recognition failed: {err}")
     out = []
     for obs in req.results() or []:
         cands = obs.topCandidates_(1)

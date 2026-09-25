@@ -36,7 +36,7 @@ def main():
     import voice
     S.OUT.mkdir(parents=True, exist_ok=True)
     cards = names(Path(a.deck))
-    items = [(a.ai_name, f"{a.ai_name}'s turn 3.")] + [(c, f"I cast {c}.") for c in cards]
+    items = [(a.ai_name, f"{a.ai_name}, turn 3.")] + [(c, f"I cast {c}.") for c in cards]
     print(f"{len(items)} names ({len(cards)} cards + the AI's name)\n")
     report = {}
     for v in a.voices.split(","):

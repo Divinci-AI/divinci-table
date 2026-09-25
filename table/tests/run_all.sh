@@ -19,18 +19,22 @@ run() {            # name, command…
   [ $rc = 0 ] || printf '%s\n' "$out" | grep -E "❌|Traceback|Error" | head -15
 }
 start8800() {      # the older suites expect a particular server config on :8800
-  local pid; pid=$(lsof -ti tcp:8800 -sTCP:LISTEN); [ -n "$pid" ] && kill -TERM $pid && sleep 3
+  local pid; pid=$(lsof -ti tcp:8800 -sTCP:LISTEN); [ -n "$pid" ] && kill -TERM $pid
+  for _ in $(seq 1 30); do lsof -ti tcp:8800 -sTCP:LISTEN >/dev/null || break; sleep 1; done   # unloading Gemma takes a moment
   (env -u TYPESAFE_API_KEY HF_HUB_OFFLINE=1 $PY table/server.py "$@" --port 8800 > "$LOG" 2>&1 &)
-  for _ in $(seq 1 90); do grep -q -E "Gemma loaded|could not|Traceback" "$LOG" && break; sleep 1; done
+  for _ in $(seq 1 120); do grep -q -E "voices:|speaker ID unavailable|Traceback" "$LOG" && break; sleep 1; done
 }
 
 run engine        $PY table/tests/engine_rules.py
+run hearing-names $PY table/tests/hearing_names.py
 if [ "${1:-}" = quick ]; then
   run sensory     $PY table/tests/sense_run.py --tier regression
   run game-sim    $PY table/tests/game_sim.py --games 1 --rounds 6
 else
   run sensory     $PY table/tests/sense_run.py
   run game-sim    $PY table/tests/game_sim.py --games 3 --rounds 8
+  run speaker-id  $PY table/tests/speaker_eval.py 4
+  run vision      $PY table/tests/vision_eval.py
   start8800 --any-card --brain external --ai "Claude|Ellivere of the Wild Court|Moira" --ai-deck decks/ellivere.json --human "Michael|" --human "Player 2|"
   run brain-api   $PY table/tests/brain_e2e.py
   run brain-page  env PW=$PW node table/tests/brain_page_e2e.cjs
@@ -43,4 +47,6 @@ else
   pid=$(lsof -ti tcp:8800 -sTCP:LISTEN); [ -n "$pid" ] && kill -TERM $pid
 fi
 echo; echo "═══ summary"; printf '%s\n' "${SUMMARY[@]}"
-printf '%s\n' "${SUMMARY[@]}" | grep -q "^❌" && exit 1 || exit 0
+FAILED=0; for l in "${SUMMARY[@]}"; do case "$l" in ✅*) ;; *) FAILED=$((FAILED + 1));; esac; done
+echo "$FAILED suite(s) failed"
+[ "$FAILED" = 0 ]

@@ -89,5 +89,18 @@ said = p.manual_attack({"Destiny Spinner": "Sam", "Ellivere": "Sam"})
 check(any(s.startswith("I attack Sam with Destiny Spinner and Ellivere of the Wild Court, ") and s.endswith(" damage.") for s in said),
       f"'I attack Sam with A and B, N damage.' (got {said[-1]!r})")
 
+print("\n5. What can't be targeted (Oracle text)")
+import tablefacts  # noqa: E402
+druid = {"name": "Paradise Druid", "text": "This creature has hexproof as long as it's untapped. (It can't be the target of spells or abilities your opponents control.)\n{T}: Add one mana of any color.", "keywords": []}
+check(tablefacts.cant_be_targeted(druid, False, "destroy") == "Paradise Druid has hexproof — it can't be targeted.",
+      "Doom Blade on an UNTAPPED Paradise Druid: hexproof")
+check(tablefacts.cant_be_targeted(druid, True, "destroy") is None, "…a TAPPED Paradise Druid can be targeted")
+check(tablefacts.cant_be_targeted({"name": "Darksteel Myr", "text": "Indestructible", "keywords": ["Indestructible"]}, False, "destroy")
+      == "Darksteel Myr is indestructible — it stays.", "destroy on an indestructible creature: it stays")
+check(tablefacts.cant_be_targeted({"name": "Darksteel Myr", "text": "Indestructible", "keywords": ["Indestructible"]}, False, "exile") is None,
+      "…but exile still works on it")
+check(tablefacts.cant_be_targeted({"name": "Serra Angel", "text": "Flying, vigilance", "keywords": ["Flying", "Vigilance"]}, False, "destroy") is None,
+      "an ordinary creature can be targeted")
+
 print(f"\n{sum(results)}/{len(results)} engine checks passed")
 sys.exit(0 if all(results) else 1)

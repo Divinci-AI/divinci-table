@@ -86,7 +86,8 @@ def fmt_event(e):
         if e.get("kind") == "attacked":
             extra = f" → {e.get('attacker') or '?'} for {e.get('amount')}{' TRAMPLE' if e.get('trample') else ''}: block or take it"
         elif e.get("kind") == "removal":
-            extra = f" → {e.get('spell')} ({e.get('effect')}) on {e.get('target')}: apply it"
+            extra = f" → {e.get('spell')} ({e.get('effect')}) on {e.get('target')}: " + (
+                f"ILLEGAL — {e['illegal']} (say so)" if e.get("illegal") else "apply it")
         return f"[{t}] #{e['id']} ⚑ FOR YOU ({e['kind']}): \"{e['text']}\"{extra}"
     if k == "shown":
         return f"[{t}] #{e['id']} SHOWN {e['card']} (by {e['by']})"
