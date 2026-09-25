@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Commander Table</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@700&family=Alegreya+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+:root{
+  --bg:#10151a; --panel:#18202a; --ink:#e8ecf1; --muted:#93a0af; --line:#2a3542;
+  --brass:#d6b066; --ok:#6fbf73; --warn:#e2a84b; --bad:#e2715b; --blue:#6aa0e6;
+  --serif:"Alegreya SC",Palatino,Georgia,serif; --sans:"Alegreya Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 var(--sans);padding:20px 16px 36px}
+.wrap{max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+h1{font:700 1.8rem/1 var(--serif);margin:0 8px 0 0}
+.pill{font:500 .9rem var(--mono);padding:5px 11px;border-radius:999px;background:var(--panel);border:1px solid var(--line);white-space:nowrap}
+.pill.on{color:var(--ok);border-color:var(--ok)} .pill.busy{color:var(--warn);border-color:var(--warn)}
+.pill.hot{color:var(--bg);background:var(--brass);border-color:var(--brass)} .pill.err{color:var(--bad);border-color:var(--bad)}
+.meter{width:120px;height:8px;background:var(--panel);border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+.meter i{display:block;height:100%;width:0;background:var(--ok);transition:width .08s}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button.b,select,input.t{font:500 1rem var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 13px}
+button.b{cursor:pointer} button.b.primary{background:var(--brass);color:var(--bg);border-color:var(--brass)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+label{color:var(--muted);display:flex;gap:7px;align-items:center}
+.main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:16px;align-items:start}
+@media (max-width:860px){.main{grid-template-columns:1fr}}
+.left{display:flex;flex-direction:column;gap:12px}
+.cam{position:relative;background:#000;border-radius:10px;overflow:hidden;border:1px solid var(--line);aspect-ratio:16/9;max-width:100%}
+.cam video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
+.cam .hint{position:absolute;inset:auto 0 0 0;padding:6px 10px;background:rgba(0,0,0,.55);font-size:.85rem;color:var(--muted)}
+.now{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.now .card{font:700 1.6rem/1.1 var(--serif);color:var(--brass)}
+.eyebrow{font:500 .75rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.board{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 .85rem var(--sans);padding:3px 9px;border-radius:6px;border:1px solid var(--line);background:var(--panel)}
+.chip.ai{border-color:var(--brass);color:var(--brass);font-family:var(--mono)}
+.feed{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;max-height:70vh;overflow:auto}
+.feed li{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 12px;display:flex;flex-direction:column;gap:5px}
+.feed li.shown{border-left:3px solid var(--brass)}
+.feed li.ignored{opacity:.5}
+.feed .meta{display:flex;flex-wrap:wrap;gap:6px 10px;font:500 .78rem var(--mono);color:var(--muted)}
+.k{padding:1px 7px;border-radius:5px;border:1px solid var(--line)}
+.k.play{color:var(--ok);border-color:var(--ok)} .k.question{color:var(--blue);border-color:var(--blue)}
+.k.deal{color:var(--warn);border-color:var(--warn)} .k.chatter{color:var(--muted)} .k.card{color:var(--brass);border-color:var(--brass)}
+.reply{color:var(--brass);font-weight:700}
+.blocked{color:var(--bad)}
+.note{color:var(--muted);font-size:.92rem;margin:0}
+@media (prefers-reduced-motion:reduce){.meter i{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Commander Table</h1>
+    <span class="pill" id="camStatus" role="status">camera off</span>
+    <span class="pill" id="micStatus" role="status">mic off</span>
+    <div class="meter" aria-hidden="true"><i id="level"></i></div>
+  </header>
+  <p class="note">Everything runs on this computer. The camera here is <b>public</b>: hold up cards for the AI to see. The AI's own secret draws go on the <a href="/" style="color:var(--blue)">scan pad</a>, never here. Tell the table the mic is on.</p>
+
+  <div class="controls">
+    <button class="b primary" id="start">Start camera + mic</button>
+    <button class="b" id="mute" disabled>Mute mic</button>
+    <label>Showing to <select id="to"></select></label>
+    <label>You are <input class="t" id="by" value="Michael" size="9"></label>
+    <label><input type="checkbox" id="speak" checked> Speak replies</label>
+  </div>
+  <div class="board" id="players" aria-label="AI players"></div>
+
+  <div class="main">
+    <div class="left">
+      <div class="cam"><video id="video" autoplay playsinline muted></video><div class="hint">Public camera: everyone can see this.</div></div>
+      <div class="now"><span class="eyebrow">last card shown</span><span class="card" id="card">—</span><span class="eyebrow" id="via"></span></div>
+      <div><div class="eyebrow" style="margin-bottom:6px">public board</div><div class="board" id="board"><span class="note">nothing yet</span></div></div>
+    </div>
+    <div>
+      <div class="eyebrow" style="margin-bottom:6px">table talk</div>
+      <ol class="feed" id="feed" aria-live="polite"></ol>
+    </div>
+  </div>
+</div>
+<canvas id="canvas" hidden></canvas>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let ai = [], voices = {}, stream = null, ctx = null, muted = false, camTimer = null, camBusy = false;
+const board = [];
+function pill(id, k, t){ const p=$(id); p.className="pill "+k; p.textContent=t; }
+
+// ── output: one queue of speech for everything the AI says ───────────────────────────────
+function assignVoices(){
+  if(!window.speechSynthesis) return;
+  const all=speechSynthesis.getVoices(), en=all.filter(v=>v.lang.startsWith("en"));
+  ai.forEach((p,i)=>{ const named=p.voice && all.find(v=>v.name===p.voice||v.name.startsWith(p.voice+" "));
+    voices[p.name]=named || en[(i*3)%Math.max(1,en.length)]; });
+}
+function speak(who, text){
+  // No cancel(): a card reaction and an answer can land together, so they queue.
+  if(!$("speak").checked || !window.speechSynthesis) return;
+  const u=new SpeechSynthesisUtterance(text); if(voices[who]) u.voice=voices[who];
+  speechSynthesis.speak(u);
+}
+function addBoard(cards){
+  for(const c of cards||[]) board.push(c);
+  $("board").innerHTML = board.length ? board.slice(-16).map(c=>`<span class="chip">${esc(c)}</span>`).join("") : `<span class="note">nothing yet</span>`;
+}
+function feed(html, cls=""){ const li=document.createElement("li"); if(cls) li.className=cls; li.innerHTML=html; $("feed").prepend(li); }
+
+async function post(path, body, headers){
+  const r=await fetch(path,{method:"POST",body,headers});
+  const t=await r.text(); let d; try{ d=JSON.parse(t);}catch{ throw new Error(`server returned non-JSON (HTTP ${r.status})`); }
+  if(!r.ok) throw new Error(d.error||`HTTP ${r.status}`);
+  return d;
+}
+
+// ── camera: public cards ─────────────────────────────────────────────────────────────────
+async function camTick(){
+  if(camBusy || !stream) return;
+  const v=$("video"); if(!v.videoWidth) return;
+  camBusy=true;
+  try{
+    const c=$("canvas"), w=Math.min(1600,v.videoWidth), h=Math.round(v.videoHeight*w/v.videoWidth);
+    c.width=w; c.height=h; c.getContext("2d").drawImage(v,0,0,w,h);
+    const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",0.88));
+    const d=await post("/api/show", blob, {"Content-Type":"image/jpeg","X-Show-To":$("to").value,"X-Shown-By":$("by").value});
+    if(d.status==="seen"){
+      pill("camStatus","hot","seen "+d.card);
+      $("card").textContent=d.card; $("via").textContent=`read by ${d.via==="vision"?"Gemma vision":"text recognition"} · ${d.ms} ms`;
+      addBoard([d.card]);
+      feed(`<span><span class="k card">card</span> ${esc($("by").value)} shows <b>${esc(d.card)}</b></span>
+            <span class="reply">${esc(d.speaker)}: ${esc(d.reply)}</span>
+            <span class="meta">${d.reply_source==="persona"?"in character":"template reply"} · ${d.ms} ms</span>`, "shown");
+      speak(d.speaker, d.reply);
+    } else if(d.status==="reading") pill("camStatus","busy","reading card…");
+    else if(d.status==="unreadable") pill("camStatus","err","can't read it: turn the name line to the camera");
+    else if(d.status==="remove card") pill("camStatus","","take the card away");
+    else pill("camStatus","on","camera ready");
+  }catch(e){ pill("camStatus","err",e.message); }
+  finally{ camBusy=false; }
+}
+
+// ── mic: voice activity detection (energy-based) → WAV → /api/utterance ─────────────────
+const FRAME_MS=20, START_FRAMES=3, END_MS=700, PREROLL_MS=300, MAX_MS=15000;
+let floor=0.004, speaking=false, loud=0, quietMs=0, buf=[], pre=[], srcRate=48000, speechMs=0;
+function onFrame(f){
+  let s=0; for(const x of f) s+=x*x; const rms=Math.sqrt(s/f.length);
+  $("level").style.width=Math.min(100, rms*900)+"%";
+  if(muted) return;
+  const tts = !!(window.speechSynthesis && speechSynthesis.speaking);
+  const thr = Math.max(floor*3, 0.012) * (tts ? 3 : 1);        // the AI's own voice must not trigger it
+  if(!speaking){
+    floor = 0.97*floor + 0.03*Math.min(rms, 0.05);
+    pre.push(f); if(pre.length > PREROLL_MS/FRAME_MS) pre.shift();
+    loud = rms>thr ? loud+1 : 0;
+    if(loud>=START_FRAMES){
+      if(tts) speechSynthesis.cancel();                            // barge-in: people talk over the AI
+      speaking=true; buf=[...pre]; pre=[]; quietMs=0; speechMs=0; pill("micStatus","busy","hearing…");
+    }
+    return;
+  }
+  buf.push(f); speechMs+=FRAME_MS;
+  quietMs = rms<thr ? quietMs+FRAME_MS : 0;
+  if(quietMs>=END_MS || speechMs>=MAX_MS){ speaking=false; const b=buf; buf=[]; sendUtterance(b); }
+}
+function toWav16k(frames){
+  const n=frames.reduce((a,f)=>a+f.length,0), all=new Float32Array(n); let o=0;
+  for(const f of frames){ all.set(f,o); o+=f.length; }
+  const ratio=srcRate/16000, len=Math.floor(n/ratio), pcm=new Int16Array(len);
+  for(let i=0;i<len;i++){ let s=0,c=0; for(let j=Math.floor(i*ratio); j<Math.floor((i+1)*ratio) && j<n; j++){ s+=all[j]; c++; }
+    pcm[i]=Math.max(-1,Math.min(1,s/(c||1)))*32767; }
+  const b=new ArrayBuffer(44+pcm.length*2), v=new DataView(b), w=(p,str)=>{for(let i=0;i<str.length;i++) v.setUint8(p+i,str.charCodeAt(i));};
+  w(0,"RIFF"); v.setUint32(4,36+pcm.length*2,true); w(8,"WAVE"); w(12,"fmt "); v.setUint32(16,16,true); v.setUint16(20,1,true);
+  v.setUint16(22,1,true); v.setUint32(24,16000,true); v.setUint32(28,32000,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+  w(36,"data"); v.setUint32(40,pcm.length*2,true); new Int16Array(b,44).set(pcm);
+  return new Blob([b],{type:"audio/wav"});
+}
+async function sendUtterance(frames){
+  if(frames.length*FRAME_MS < 250){ pill("micStatus","on","listening"); return; }
+  pill("micStatus","busy","thinking…");
+  try{
+    const d=await post("/api/utterance", toWav16k(frames), {"Content-Type":"audio/wav"});
+    if(d.ignored){ feed(`<span>${esc(d.heard)||"(nothing)"}</span><span class="meta">ignored: ${esc(d.ignored)}</span>`,"ignored"); }
+    else{
+      const r=d.route;
+      addBoard(d.cards);
+      feed(`<span>“${esc(d.heard)}”</span>
+        <span class="meta"><span class="k ${esc(r.kind)}">${esc(r.kind)}</span><span>to: ${esc(r.addressee)}</span>
+          <span>${esc(r.router||"router")} ${r.ms} ms · total ${d.total_ms} ms</span></span>
+        ${d.cards.length?`<span class="meta">board: ${d.cards.map(esc).join(", ")}</span>`:""}
+        ${d.reply?`<span class="reply">${esc(d.speaker)}: ${esc(d.reply)}</span>`:""}
+        ${d.blocked?`<span class="blocked">reply blocked: it named a card in the AI's hidden hand</span>`:""}`);
+      if(d.reply) speak(d.speaker, d.reply);
+    }
+    pill("micStatus", muted?"":"on", muted?"muted":"listening");
+  }catch(e){ pill("micStatus","err",e.message); }
+}
+const WORKLET=`class F extends AudioWorkletProcessor{constructor(){super();this.b=[];this.n=Math.round(sampleRate*${FRAME_MS}/1000);}
+process(i){const c=i[0]&&i[0][0];if(c){for(const x of c){this.b.push(x);if(this.b.length>=this.n){this.port.postMessage(new Float32Array(this.b));this.b=[];}}}return true;}}
+registerProcessor("frames",F);`;
+
+// ── start / stop ─────────────────────────────────────────────────────────────────────────
+$("start").onclick = async ()=>{
+  if(stream){                                   // stop both
+    stream.getTracks().forEach(t=>t.stop()); stream=null; clearInterval(camTimer);
+    if(ctx){ await ctx.close(); ctx=null; }
+    $("start").textContent="Start camera + mic"; $("mute").disabled=true;
+    pill("camStatus","","camera off"); pill("micStatus","","mic off"); return;
+  }
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1920},height:{ideal:1080}},
+      audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+  }catch(e){ pill("camStatus","err","camera/mic blocked: "+e.message); return; }
+  $("video").srcObject=new MediaStream(stream.getVideoTracks());
+  pill("camStatus","on","camera ready"); camTimer=setInterval(camTick,450);
+  try{
+    ctx=new AudioContext(); srcRate=ctx.sampleRate;
+    await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET],{type:"application/javascript"})));
+    const node=new AudioWorkletNode(ctx,"frames"); node.port.onmessage=e=>onFrame(e.data);
+    ctx.createMediaStreamSource(new MediaStream(stream.getAudioTracks())).connect(node);
+    pill("micStatus","on","listening");
+  }catch(e){ pill("micStatus","err","mic failed: "+e.message); }
+  $("start").textContent="Stop"; $("mute").disabled=false;
+};
+$("mute").onclick=()=>{ muted=!muted; $("mute").textContent=muted?"Unmute mic":"Mute mic"; pill("micStatus", muted?"":"on", muted?"muted":"listening"); };
+
+if(window.speechSynthesis) speechSynthesis.onvoiceschanged=assignVoices;
+fetch("/api/voice-config").then(r=>r.text()).then(t=>{
+  let c; try{ c=JSON.parse(t);}catch{ pill("camStatus","err","server returned non-JSON config"); return; }
+  ai=c.ai_players;
+  $("to").innerHTML=ai.map(p=>`<option>${esc(p.name)}</option>`).join("");
+  $("players").innerHTML=ai.map(p=>`<span class="chip ai">${esc(p.name)} · ${esc(p.commander||"")}${p.voice?` · voice ${esc(p.voice)}`:""}</span>`).join("");
+  assignVoices();
+});
+</script>
+</body>
+</html>

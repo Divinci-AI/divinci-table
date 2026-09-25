@@ -1,6 +1,9 @@
 # The table server: scan pad + open mic, fully offline
 
-The first real-table piece. One Python server on the laptop (the Jetson later) that:
+The first real-table piece. One Python server on the laptop (the Jetson later). **Start at
+`/table`**: camera and mic on one page — hold cards up, talk to the AI, and it answers and reacts
+out loud, with the public board and the conversation side by side. The pages below are the same
+pieces on their own:
 
 - **Scan pad** (`/`) — the AI's hidden hand. A drawn card is held face toward the laptop camera
   (the person holding it sees only the back); the server reads the name line with Apple's Vision
@@ -26,8 +29,13 @@ HF_HUB_OFFLINE=1 ~/.venvs/table/bin/python table/server.py \
   --ai "Talrand|Talrand, Sky Summoner|Daniel" \
   --human "Michael|Ghalta, Primal Hunger"          # one AI opponent; repeat --ai / --human for more
 
-open http://localhost:8800 ; open http://localhost:8800/show ; open http://localhost:8800/voice
+open http://localhost:8800/table        # camera + mic together
+open http://localhost:8800              # the AI's secret draws (scan pad) — never on /table
 ```
+
+Gemma is loaded at startup and **pinned while the server runs** (Ollama otherwise unloads it after 5
+idle minutes, and the reload makes the next line take ~3 s); stopping the server (Ctrl-C / SIGTERM)
+unloads it so the memory comes back. `OLLAMA_KEEP_ALIVE` overrides (e.g. `30m`).
 
 `--ai "Name|Commander|Voice"` — the voice is any installed macOS voice (`say -v '?'`): Daniel,
 Karen, Moira, Fred, Jester, Grandpa…. `localhost` is a secure context, so camera and mic work
@@ -86,7 +94,8 @@ still checks every reply before it is spoken.
 ~/.venvs/table/bin/python table/tests/route_eval.py            # router regression set
 ~/.venvs/table/bin/python table/tests/e2e_offline.py           # API-level game session
 ~/.venvs/table/bin/python table/tests/make_fake_media.py       # fake camera + mic from the fixtures
-PW=<path to node_modules/@playwright/test> node table/tests/browser_e2e.cjs   # real pages
+PW=<path to node_modules/@playwright/test> node table/tests/browser_e2e.cjs   # the three pages at once
+PW=<path to node_modules/@playwright/test> node table/tests/table_e2e.cjs     # /table: camera + mic, one page
 ```
 
 | test | result |
@@ -95,6 +104,7 @@ PW=<path to node_modules/@playwright/test> node table/tests/browser_e2e.cjs   # 
 | game session, one AI opponent: opening hand, off-deck / exhausted cards rejected, table talk, adversarial "which cards are in your hand?", a line for someone else, showing public cards (text + a blurred one the vision fallback must not guess), play, undo, token, silence | **41/41** |
 | offline: every socket of the table server and Ollama watched for the whole session | no non-loopback connection |
 | real pages — scan pad, voice and show page all on the fake camera/mic at once | **13/13** |
+| `/table` — one page, fake camera and fake mic together: cards recognised and reacted to, table talk answered/ignored correctly, both kinds of board update, status transitions | **10/10** |
 
 Measured: scan ~60 ms/frame · speech-to-text p50 ~160 ms · router p50 ~210–360 ms ·
 in-character reply p50 ~500 ms · **speech in → decision + reply ~0.6–0.9 s p50**. With Gemma loaded the

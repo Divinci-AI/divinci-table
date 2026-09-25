@@ -297,6 +297,8 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/":
             return self._send(200, body=(HERE / "scan.html").read_bytes(), ctype="text/html; charset=utf-8")
+        if self.path == "/table":
+            return self._send(200, body=(HERE / "table.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path == "/show":
             return self._send(200, body=(HERE / "show.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path == "/voice":
@@ -376,11 +378,33 @@ def _warm():
     import numpy as np
     import voice
     voice.transcribe(np.zeros(16000, dtype=np.float32), "warm-up")
+    if os.environ.get("ROUTER", "ollama") == "ollama" or os.environ.get("REPLIES", "ollama") == "ollama":
+        try:
+            t0 = time.time()
+            voice.ollama_load([voice.OLLAMA_MODEL, voice.REPLY_MODEL])
+            print(f"Gemma loaded and pinned ({voice.OLLAMA_MODEL}, {time.time() - t0:.1f}s)", flush=True)
+        except Exception as e:
+            print(f"could not preload Gemma ({type(e).__name__}); first line will be slower", flush=True)
+
+
+def _shutdown(signum, frame):
+    """Unpin Gemma so its memory comes back, then exit."""
+    try:
+        import voice
+        voice.ollama_unload([voice.OLLAMA_MODEL, voice.REPLY_MODEL])
+        print("Gemma unloaded", flush=True)
+    finally:
+        os._exit(0)
+
+
+import signal  # noqa: E402
+signal.signal(signal.SIGTERM, _shutdown)
+signal.signal(signal.SIGINT, _shutdown)
 
 
 threading.Thread(target=_warm, daemon=True).start()   # first Whisper load takes seconds
 mode = f"TEST MODE, any of {len(CATALOG)} card names" if args.any_card else f"deck: {len(DECK)} cards, {len(set(DECK))} distinct"
-print(f"{mode}. Scan pad (AI's hand): http://localhost:{args.port}  Show a card: http://localhost:{args.port}/show  "
-      f"Voice: http://localhost:{args.port}/voice", flush=True)
+print(f"{mode}. Table (camera + mic): http://localhost:{args.port}/table   "
+      f"Scan pad (AI's hand): http://localhost:{args.port}/   Show: /show   Voice: /voice", flush=True)
 print("AI players: " + ", ".join(p["name"] for p in AI_PLAYERS), flush=True)
 ThreadingHTTPServer(("127.0.0.1", args.port), H).serve_forever()

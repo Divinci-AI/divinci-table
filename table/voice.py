@@ -162,10 +162,14 @@ def leaks_hand(text: str, hand_names: list[str]) -> str | None:
 # verdict only when the answer is a deal. 4 calls (~3 s) → 1–2 calls.
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.environ.get("ROUTER_OLLAMA_MODEL", "gemma4:e2b")
+# Keep Gemma resident while the table server runs (Ollama's default unloads it after 5 idle minutes,
+# and the reload makes the next line take ~3 s). The server unloads it on shutdown.
+OLLAMA_KEEP_ALIVE = os.environ.get("OLLAMA_KEEP_ALIVE", "-1")
 
 
 def _ollama(body: dict, timeout=30) -> dict:
     import urllib.request
+    body = {**body, "keep_alive": _keep_alive_value()}
     req = urllib.request.Request(f"{OLLAMA_URL}/api/chat", data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
     raw = urllib.request.urlopen(req, timeout=timeout).read().decode()
@@ -173,6 +177,30 @@ def _ollama(body: dict, timeout=30) -> dict:
         return json.loads(raw)
     except json.JSONDecodeError:
         raise RuntimeError(f"Ollama returned non-JSON: {raw[:160]!r}")
+
+
+def _keep_alive_value():
+    v = OLLAMA_KEEP_ALIVE
+    return int(v) if v.lstrip("-").isdigit() else v
+
+
+def ollama_load(models: list[str]) -> None:
+    """Load each model now and pin it (keep_alive), so the first real line isn't a cold start."""
+    for m in dict.fromkeys(models):
+        _ollama({"model": m, "stream": False, "messages": [{"role": "user", "content": "ready"}],
+                 "options": {"num_predict": 1}})
+
+
+def ollama_unload(models: list[str]) -> None:
+    """Give the memory back: keep_alive 0 unloads a model immediately."""
+    import urllib.request
+    for m in dict.fromkeys(models):
+        try:
+            req = urllib.request.Request(f"{OLLAMA_URL}/api/generate", headers={"Content-Type": "application/json"},
+                                         data=json.dumps({"model": m, "keep_alive": 0}).encode())
+            urllib.request.urlopen(req, timeout=10).read()
+        except Exception:
+            pass
 
 
 def _ollama_choice(context: str, question: str, options: dict[str, str]) -> dict[str, float]:
