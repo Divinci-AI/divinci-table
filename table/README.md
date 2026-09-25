@@ -161,6 +161,7 @@ still checks every reply before it is spoken.
 ~/.venvs/table/bin/python table/tests/route_eval.py            # router regression set (23 lines)
 ~/.venvs/table/bin/python table/tests/ai_turn_e2e.py           # virtual-deck AI opponent (Ellivere config)
 ~/.venvs/table/bin/python table/tests/brain_e2e.py             # external brain via the API (--brain external)
+~/.venvs/table/bin/python table/tests/sense_run.py            # 51 scenarios through camera + mic only; AI's voice heard back (docs/goal-sensory-player.md)
 PW=<path to node_modules/@playwright/test> node table/tests/brain_page_e2e.cjs  # /table follows the brain
 ~/.venvs/table/bin/python table/tests/board_eval.py            # can one overhead frame be read? (see below)
 ~/.venvs/table/bin/python table/tests/e2e_offline.py           # API-level game session

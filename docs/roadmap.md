@@ -49,3 +49,4 @@ and how it speaks, so a table can seat several distinct AI opponents.
 Open questions for that step: which Divinci TTS provider and voices, how a Release's persona is
 given to the decision model without hurting its choices (put persona in the state? only in speech?),
 and whether table talk goes through the Release's chat endpoint.
+- **Sensory player goal and test suite:** [goal-sensory-player.md](goal-sensory-player.md) — the AI plays through camera, mic and voice only; 51 scenarios, regression vs goal tiers.

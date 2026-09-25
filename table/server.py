@@ -45,6 +45,9 @@ ap.add_argument("--human", action="append", default=[],
                 help='a human player, "Name|Commander card name" (repeatable); their names go into the speech hint')
 ap.add_argument("--confirm-frames", type=int, default=2, help="same card on N frames in a row")
 ap.add_argument("--clear-secs", type=float, default=1.0, help="no card in view this long before the next scan")
+ap.add_argument("--token-file", default=None,
+                help="where to write the brain token (default table/.brain-token); a second server, e.g. a "
+                     "test run, needs its own so it doesn't lock the live game's brain out")
 args = ap.parse_args()
 
 if sys.platform != "darwin":
@@ -111,7 +114,7 @@ LIFE.update({h["name"]: 40 for h in HUMANS})
 NICKNAMES = {p["commander"].split(",")[0]: p["commander"] for p in AI_PLAYERS + HUMANS if p["commander"]}
 DECK = parse_decklist(Path(args.deck).read_text()) if args.deck else []
 TOKEN = secrets.token_urlsafe(24)
-tok_path = HERE / ".brain-token"
+tok_path = Path(args.token_file) if args.token_file else HERE / ".brain-token"
 tok_path.write_text(TOKEN)
 os.chmod(tok_path, 0o600)
 

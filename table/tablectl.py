@@ -38,7 +38,7 @@ import urllib.request
 from pathlib import Path
 
 BASE = os.environ.get("TABLE_URL", "http://127.0.0.1:8800")
-TOKEN_FILE = Path(__file__).parent / ".brain-token"
+TOKEN_FILE = Path(os.environ.get("TABLE_TOKEN_FILE") or Path(__file__).parent / ".brain-token")
 
 
 def req(method, path, body=None, brain=True):
