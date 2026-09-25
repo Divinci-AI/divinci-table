@@ -65,6 +65,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   for (const t of [...shown.slice(0, 2), ...heard.slice(0, 2)]) console.log("    · " + t.replace(/\s+/g, " ").slice(0, 140));
 
   await browser.close();
+  await fetch(BASE + "/api/reset", { method: "POST", body: "{}" });   // leave the table clean
   const bad = results.filter(r => !r[0]);
   console.log(`\n${results.length - bad.length}/${results.length} /table checks passed`);
   process.exit(bad.length ? 1 : 0);

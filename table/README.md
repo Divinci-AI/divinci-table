@@ -17,6 +17,39 @@ pieces on their own:
   card names as a hint) → a System One router decides what was said and to whom → the addressed AI
   answers by voice; play announcements update the board; chatter is ignored.
 
+## An AI opponent with its own virtual deck
+
+The AI can play **its own virtual deck** instead of physical cards: it shuffles, draws, keeps its
+hand private, and announces every play out loud. Currently: **Ellivere of the Wild Court**
+(*Virtue and Valor*, Wilds of Eldraine Commander), from MTGJSON's deck data in `decks/ellivere.json`.
+
+```bash
+HF_HUB_OFFLINE=1 ~/.venvs/table/bin/python table/server.py --any-card \
+  --ai "Ellivere|Ellivere of the Wild Court|Moira" --ai-deck decks/ellivere.json \
+  --human "Michael|Ghalta, Primal Hunger"
+open http://localhost:8800/table        # "▶ Ellivere's turn", or just say "Ellivere, your turn."
+```
+
+- **Code owns the arithmetic** (`player.py`): library, private hand, one land a turn (code picks the
+  land), mana and colours from its lands and mana creatures, which spells it can afford, Auras only on
+  what their "Enchant …" line allows, Role tokens (Virtuous = +1/+1 per enchantment you control),
+  simple creature tokens, commander tax, and never casting a board wipe onto its own creatures.
+- **Gemma decides** (`ai_turn.py`): which affordable spell next, what an Aura/Role goes on, the modes of
+  a modal spell, whom each creature attacks, and which of YOUR announced cards a hostile Aura
+  (Kenrith's Transformation) goes on. There is no "stop casting" option on its own turn — the harness
+  showed small models pass far too often.
+- **The table resolves the rest.** Effects on your cards (destroy, exile, draw) are read out with the
+  card's text; you apply them. Its board may drift from what those effects would do — correct it by
+  voice later (not built yet).
+- **"Your turn" is a code rule**: a turn is taken only when the words hand it over ("your turn",
+  "you're up", "go ahead") and never for a question — "Ellivere, what cards are in your hand?" once
+  made her play a whole extra turn.
+- **Misheard card names** ("Lanour Elves"): when a play names no recognisable card, the closest
+  catalog names are offered to Gemma with a "none of these" option; a confident pick goes on the board.
+
+Simulated: 3 shuffles × 10 turns with zero rule violations (lands, mana, cards accounted for, Aura
+targets, no self-wipe); `tests/ai_turn_e2e.py` 14/14 against the live server. Turn ≈ 0.5–1.8 s.
+
 ## Run it offline
 
 Everything runs on the laptop: Whisper (mlx-whisper) hears, **Gemma 4 on Ollama** routes and
@@ -91,7 +124,9 @@ still checks every reply before it is spoken.
 ## Tests (2026-09-24, M4 Pro, fully offline: Ollama gemma4:e2b)
 
 ```bash
-~/.venvs/table/bin/python table/tests/route_eval.py            # router regression set
+~/.venvs/table/bin/python table/tests/route_eval.py            # router regression set (23 lines)
+~/.venvs/table/bin/python table/tests/ai_turn_e2e.py           # virtual-deck AI opponent (Ellivere config)
+~/.venvs/table/bin/python table/tests/board_eval.py            # can one overhead frame be read? (see below)
 ~/.venvs/table/bin/python table/tests/e2e_offline.py           # API-level game session
 ~/.venvs/table/bin/python table/tests/make_fake_media.py       # fake camera + mic from the fixtures
 PW=<path to node_modules/@playwright/test> node table/tests/browser_e2e.cjs   # the three pages at once
@@ -121,6 +156,14 @@ overwritten, attacks read as deals, and the wrong AI answering a directly addres
 
 Fixtures (card photos from Scryfall, speech from macOS `say`) are built on first run into
 `tests/fixtures/` and are not committed: card images are Wizards of the Coast's.
+
+## Reading the whole board from one overhead camera (measured, not built)
+
+`tests/board_eval.py`, synthetic board of 19 real cards (hand + three battlefields, 7 tapped): Gemma 4
+reading the whole frame found 6/19 (4K) and 5/19 (1080p); whole-frame OCR 0/19; finding each card with
+OpenCV, straightening it and reading it alone: **17/19 and 16/19, 0 wrong names, tapped state 17/17**.
+Misses were two touching cards merged into one outline, and one card zoned wrong by fixed thirds. A
+real 4K overhead camera over a whole table gives ~160 px per card — about the 1080p row here.
 
 ## Not done yet
 

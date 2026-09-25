@@ -138,11 +138,16 @@ def decide_reply(r: dict, ai_names: list[str]) -> tuple[str | None, str | None]:
     who = r["addressee"] if r["addressee"] in ai_names else None
     if who is None or r["kind"] in ("chatter", "play"):
         return None, None
+    if r["kind"] == "turn":
+        return who, TURN            # the server plays the turn; the announcements are the reply
     if r["kind"] == "deal":
         return who, ("Deal." if r["accept_deal"] >= 0.5 else "No deal.")
     if r["expects_answer"] < 0.5:
         return None, None
     return who, "Let me think about that." if r["kind"] == "question" else "Good question. Let me check."
+
+
+TURN = "\x00take-turn"        # sentinel from decide_reply: not text, never spoken
 
 
 def leaks_hand(text: str, hand_names: list[str]) -> str | None:
@@ -233,6 +238,14 @@ def _context(text, recent, ai_players, humans):
             + f'\nSomeone at the table just said: "{text}"')
 
 
+def hands_turn_over(text: str) -> bool:
+    t = text.lower()
+    if re.search(r"\b(is it|whose|when|what|who|how|why|which|are you|do you|did you|will you)\b", t):
+        return False
+    return bool(re.search(r"\b(your turn|you'?re up|you are up|go ahead|your go|take your turn|over to you|"
+                          r"it'?s you|you'?re next|your move)\b", t))
+
+
 def spoken_to(text: str, names: list[str]) -> str | None:
     """The AI player a sentence opens by addressing ("Talrand, …", "Hey Krenko, …", "OK Talrand!"),
     or None. A bare name followed by a verb ("Talrand attacks me") is talk ABOUT them, not TO them."""
@@ -272,6 +285,14 @@ def route_local(text: str, recent: list[str], ai_players: list[dict], humans: li
     for n in names:
         opts[f"deal:{n}"] = (f"Offering or asking the AI player {n} for an agreement: a deal, truce, "
                              f"alliance, or a promise like 'if you do this, I will do that'.")
+    # Taking a turn is irreversible (it draws, spends mana, attacks), so it is offered ONLY when the
+    # words actually hand the turn over — never for a question. Measured 2026-09-24: "Ellivere, what
+    # cards are in your hand?" and "…who are you attacking this turn?" were each routed as "your turn"
+    # and made her play a whole extra turn.
+    for p in ai_players if hands_turn_over(text) else []:
+        if p.get("has_deck"):
+            opts[f"turn:{p['name']}"] = (f"Telling the AI player {p['name']} that it is their turn to play now "
+                                         f"(for example 'your turn', 'go ahead', 'you're up').")
     opts["question:table"] = "Asking a question of the whole table or a human player, not an AI player."
     opts["chatter"] = "Anything else: side conversation, jokes, food, noise."
     # Direct address is a rule, not a judgment: "Krenko, truce?" IS addressed to Krenko. The model
@@ -282,7 +303,7 @@ def route_local(text: str, recent: list[str], ai_players: list[dict], humans: li
     if elsewhere:                                     # "Sam, …": for someone who isn't an AI
         opts = {k: v for k, v in opts.items() if k in ("play", "chatter", "question:table")}
     if vocative:
-        keep = [f"question:{vocative}", f"deal:{vocative}"]
+        keep = [f"question:{vocative}", f"deal:{vocative}", f"turn:{vocative}"]
         # Naming an AI player AND asking something ("Talrand, who are you attacking?") is a question
         # or an offer TO them, never an announcement of your own play — the word "attacking" pulled
         # exactly this line to "play" in the 2026-09-24 eval.
@@ -295,11 +316,12 @@ def route_local(text: str, recent: list[str], ai_players: list[dict], humans: li
     for k in ["play", "chatter", "question:table"] + [f"{t}:{n}" for t in ("question", "deal") for n in names]:
         p.setdefault(k, 0.0)
     top = max(p, key=p.get)
-    kind = top.split(":")[0] if top != "question:table" else "question"
+    kind = top.split(":")[0] if top != "question:table" else "question"      # play|question|deal|turn|chatter
     kind_p = {"play": p["play"], "chatter": p["chatter"], "rules": 0.0,
+              "turn": sum(v for k, v in p.items() if k.startswith("turn:")),
               "question": sum(v for k, v in p.items() if k.startswith("question:")),
               "deal": sum(v for k, v in p.items() if k.startswith("deal:"))}
-    addr_p = {n: p[f"question:{n}"] + p[f"deal:{n}"] for n in names}
+    addr_p = {n: p[f"question:{n}"] + p[f"deal:{n}"] + p.get(f"turn:{n}", 0.0) for n in names}
     addr_p["the whole table"] = p["question:table"]
     addr_p["nobody in particular"] = p["play"] + p["chatter"]
     addressee = top.split(":")[1] if ":" in top and top != "question:table" else (
@@ -323,14 +345,15 @@ REPLY_MODEL = os.environ.get("REPLY_OLLAMA_MODEL", OLLAMA_MODEL)
 
 
 def persona_reply(ai: dict, kind: str, heard: str, recent: list[str], public_board: list[str],
-                  decision: str) -> str:
+                  decision: str, own_board: list[str] | None = None) -> str:
     persona = ai.get("persona") or (
         f"You are {ai['name']}, an AI player piloting {ai['commander']} in a friendly four-player "
         f"Magic: The Gathering Commander game. You have a playful, confident table-talk personality.")
     rules = ("Reply in ONE or TWO short spoken sentences, under 30 words, in character. No lists, no "
              "stage directions, no emoji. Never mention or hint at specific cards in your hand; if asked, "
              "stay coy. You have not planned your next turn yet, so don't promise specific plays.")
-    user = (f"Public board so far: {', '.join(public_board[-8:]) or 'nothing announced'}.\n"
+    user = (f"Your own battlefield (public): {', '.join(own_board or []) or 'nothing yet'}.\n"
+            f"Other players' announced cards: {', '.join(public_board[-8:]) or 'nothing announced'}.\n"
             f"Recent table talk: {' / '.join(recent[-4:]) or '(none)'}\n"
             f'Someone just said to you: "{heard}"\n'
             f"Your decision: {decision}\nSay your reply out loud now.")
@@ -362,3 +385,15 @@ def persona_react(ai: dict, card: str, shown_by: str, recent: list[str], public_
     name it; it still never sees the AI's own hand."""
     return persona_reply(ai, "show", f"{shown_by} shows you the card {card}.", recent, public_board,
                          f"React to {card} in character — what you think of it, or of whoever plays it.")
+
+
+def pick_heard_card(text: str, candidates: list[str]) -> tuple[str | None, float]:
+    """Speech-to-text mangled a card name. Ask Gemma which of the close candidates was meant, with a
+    'none of these' option; the caller accepts only a confident pick."""
+    opts = {c: c for c in candidates}
+    opts["none"] = "None of these — no card was named."
+    probs = _ollama_choice(f'A player at a Magic: The Gathering table said (as transcribed by speech '
+                           f'recognition, which may misspell card names): "{text}"',
+                           "Which card did they most likely name?", opts)
+    best = max(probs, key=probs.get)
+    return (None if best == "none" else best), probs[best]

@@ -25,7 +25,7 @@ from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from match import find_cards_in_text, identify, identify_any, parse_decklist
+from match import find_cards_in_text, identify, identify_any, near_card_candidates, parse_decklist
 
 HERE = Path(__file__).parent
 ap = argparse.ArgumentParser()
@@ -36,6 +36,8 @@ ap.add_argument("--port", type=int, default=8800)
 ap.add_argument("--ai", action="append", default=[],
                 help='an AI player, "Name|Commander card name|macOS voice" (repeatable), '
                      'e.g. "Talrand|Talrand, Sky Summoner|Daniel"')
+ap.add_argument("--ai-deck", help="a virtual deck (decks/*.json) for the FIRST --ai player: it draws, "
+                                   "plays and announces its own cards instead of using physical ones")
 ap.add_argument("--human", action="append", default=[],
                 help='a human player, "Name|Commander card name" (repeatable); their names go into the speech hint')
 ap.add_argument("--confirm-frames", type=int, default=2, help="same card on N frames in a row")
@@ -69,6 +71,13 @@ for spec in args.ai or ["Talrand|Talrand, Sky Summoner|Daniel"]:
     name, commander, voice_name = (spec.split("|") + ["", ""])[:3]
     AI_PLAYERS.append({"name": name.strip(), "commander": commander.strip() or None,
                        "voice": voice_name.strip() or None})
+VP = None
+if args.ai_deck:
+    from player import VirtualPlayer
+    VP = VirtualPlayer(args.ai_deck, AI_PLAYERS[0]["name"])
+    AI_PLAYERS[0]["has_deck"] = True
+    AI_PLAYERS[0]["deck"] = VP.deck_name
+VP_LOCK = threading.Lock()
 REPLIES = os.environ.get("REPLIES", "ollama")    # "ollama": in-character via local Gemma; "template"
 HUMANS = []
 for spec in args.human:
@@ -183,10 +192,25 @@ def handle_utterance(wav: bytes):
         for nick, full in NICKNAMES.items():
             spoken = re.sub(r"\b" + re.escape(nick) + r"\b(?!,)", full, spoken)
         cards = find_cards_in_text(spoken, CATALOG)
+        if not cards:                                 # a mangled name: choose among close candidates
+            cands = near_card_candidates(spoken, CATALOG)
+            if cands:
+                pick, conf = voice.pick_heard_card(text, cands)
+                if pick and conf >= 0.6:
+                    cards = [pick]
         with CONVO_LOCK:
             CONVO["announced"] += cards
     speaker, reply = voice.decide_reply(r, [p["name"] for p in AI_PLAYERS])
     reply_source, reply_ms = "template", 0
+    turn = None
+    if reply == voice.TURN:
+        if VP is None or speaker != VP.name:
+            reply = None                              # no virtual deck: the humans play its cards
+        else:
+            turn = run_ai_turn()
+            return {"heard": text, "route": r, "cards": cards, "speaker": speaker, "reply": " ".join(turn["said"]),
+                    "reply_source": "turn", "turn": turn, "blocked": False, "stt_ms": t_stt,
+                    "total_ms": round((time.time() - t0) * 1000), "announced": CONVO["announced"][-10:]}
     if reply and REPLIES == "ollama":
         ai = next(p for p in AI_PLAYERS if p["name"] == speaker)
         decision = ({"Deal.": "You ACCEPT the offer.", "No deal.": "You DECLINE the offer."}.get(reply)
@@ -195,7 +219,8 @@ def handle_utterance(wav: bytes):
             board = list(CONVO["announced"])
         t1 = time.time()
         try:
-            said = voice.persona_reply(ai, r["kind"], text, recent, board, decision)
+            own = VP.public()["battlefield"] if (VP and ai["name"] == VP.name) else None
+            said = voice.persona_reply(ai, r["kind"], text, recent, board, decision, own)
             if said:
                 reply, reply_source = said, "persona"
         except Exception as e:                       # the template still gets said
@@ -204,13 +229,28 @@ def handle_utterance(wav: bytes):
     blocked = None
     if reply:
         with T.lock:
-            blocked = voice.leaks_hand(reply, list(T.slots.values()))
+            hidden = list(T.slots.values())
+        if VP:
+            with VP_LOCK:
+                hidden += VP.private_hand()
+        blocked = voice.leaks_hand(reply, hidden)
         if blocked:
             print("reply blocked: it named a card in the hidden hand", flush=True)
             reply = None
     return {"heard": text, "route": r, "cards": cards, "speaker": speaker, "reply": reply,
             "reply_source": reply_source, "reply_ms": reply_ms, "blocked": bool(blocked), "stt_ms": t_stt, "total_ms": round((time.time() - t0) * 1000),
             "announced": CONVO["announced"][-10:]}
+
+
+def run_ai_turn():
+    """Play one full turn for the virtual AI player and return what it announces."""
+    from ai_turn import take_turn
+    with CONVO_LOCK:
+        board = list(CONVO["announced"])
+    with VP_LOCK:
+        result = take_turn(VP, HUMANS, board)
+    print(f"{VP.name} turn {VP.turn}: {len(result['said'])} announcements in {result['ms']} ms", flush=True)
+    return result
 
 
 def show_card(image: bytes, to: str, shown_by: str):
@@ -304,7 +344,17 @@ class H(BaseHTTPRequestHandler):
         if self.path == "/voice":
             return self._send(200, body=(HERE / "voice.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path == "/api/voice-config":
-            return self._send(200, {"ai_players": AI_PLAYERS})
+            return self._send(200, {"ai_players": AI_PLAYERS, "humans": HUMANS})
+        if self.path == "/api/ai/state":
+            if VP is None:
+                return self._send(404, {"error": "no virtual AI deck (start with --ai-deck)"})
+            with VP_LOCK:
+                return self._send(200, VP.public())
+        if self.path == "/api/ai/hand":                    # the AI's own brain only
+            if not secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN):
+                return self._send(403, {"error": "brain token required"})
+            with VP_LOCK:
+                return self._send(200, {"hand": VP.private_hand() if VP else []})
         if self.path == "/api/state":
             with T.lock:
                 return self._send(200, T.public())
@@ -317,7 +367,7 @@ class H(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
-        global T                                           # /api/reset replaces the table
+        global T, VP                                       # /api/reset replaces the table and the AI's game
         try:
             if self.path == "/api/scan":
                 n = int(self.headers.get("Content-Length", 0))
@@ -337,7 +387,10 @@ class H(BaseHTTPRequestHandler):
                     return self._send(413, {"error": "utterance must be 1 byte to 2 MB of WAV"})
                 return self._send(200, handle_utterance(self.rfile.read(n)))
             if self.path == "/api/play":                   # a slot's card is revealed as it is played
-                slot = int(self._json().get("slot", 0))
+                raw = self._json().get("slot")
+                if not isinstance(raw, int) or isinstance(raw, bool):
+                    return self._send(400, {"error": "slot must be a slot number"})
+                slot = raw
                 with T.lock:
                     if slot not in T.slots:
                         return self._send(400, {"error": f"slot {slot} is empty"})
@@ -345,6 +398,10 @@ class H(BaseHTTPRequestHandler):
                     T.played.append((slot, card))
                     print(f"slot {slot} played: {card}", flush=True)
                     return self._send(200, {**T.public(), "revealed": card})   # public() has its own "played" list
+            if self.path == "/api/ai/turn":
+                if VP is None:
+                    return self._send(404, {"error": "no virtual AI deck (start with --ai-deck)"})
+                return self._send(200, run_ai_turn())
             if self.path == "/api/reset":                  # new game: empty hand, full library, no history
                 with T.lock:
                     T = Table(DECK)
@@ -353,6 +410,10 @@ class H(BaseHTTPRequestHandler):
                     CONVO["announced"].clear()
                 with SHOW_LOCK:
                     SHOW.update(armed=True, pending=None, n=0, last_seen=0.0, misses=0, vision_tried=False)
+                if VP is not None:
+                    from player import VirtualPlayer
+                    with VP_LOCK:
+                        VP = VirtualPlayer(args.ai_deck, VP.name)      # reshuffle: a new game
                 print("table reset", flush=True)
                 return self._send(200, T.public())
             if self.path == "/api/undo":                   # mis-scan: card goes back to the library

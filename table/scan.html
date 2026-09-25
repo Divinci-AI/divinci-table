@@ -14,6 +14,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 var(--sans);padding:24px 16px 40px}
 .wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
 header{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px}
@@ -157,6 +158,7 @@ function askPlay(slot){
 $("confirmNo").onclick=()=>{ pendingPlay=null; $("confirm").hidden=true; };
 $("confirmYes").onclick=async ()=>{
   const slot=pendingPlay; $("confirm").hidden=true; pendingPlay=null;
+  if(slot==null) return;                      // nothing was chosen
   try{ const r=await api("/api/play",{slot}); render(r); say(`Slot ${slot}: ${r.revealed}`); }catch(e){ setStatus("error",e.message); }
 };
 

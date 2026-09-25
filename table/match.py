@@ -120,3 +120,24 @@ def find_cards_in_text(text: str, catalog: list[str], fuzzy_cutoff=0.88, max_wor
         else:
             i += 1
     return found
+
+
+def near_card_candidates(text: str, catalog: list[str], cutoff=0.72, n=4) -> list[str]:
+    """Card names CLOSE to a multi-word window of the sentence — for when speech-to-text mangled a
+    name ("Lanour Elves"). Candidates only: a model or a person must pick among them."""
+    from difflib import get_close_matches
+    idx = getattr(find_cards_in_text, "idx", None)
+    if idx is None or idx[0] is not catalog:
+        find_cards_in_text("", catalog)
+        idx = find_cards_in_text.idx
+    _, exact, by_letter = idx
+    words = norm(text).split()
+    scored = {}
+    for size in (2, 3, 4):
+        for i in range(0, max(0, len(words) - size + 1)):
+            w = " ".join(words[i:i + size])
+            pool = [k for k in exact if abs(len(k) - len(w)) <= 4]
+            for m in get_close_matches(w, pool, n=n, cutoff=cutoff):
+                from difflib import SequenceMatcher
+                scored[exact[m]] = max(scored.get(exact[m], 0), SequenceMatcher(None, w, m).ratio())
+    return [k for k, _ in sorted(scored.items(), key=lambda kv: -kv[1])[:n]]

@@ -287,6 +287,7 @@ def main():
           "a reply naming a hand card is caught")
     check(voice.leaks_hand("No deal.", ["Cyclonic Rift", "Island"]) is None, "an ordinary reply passes")
 
+    call("POST", "/api/reset", {})                 # leave the table clean for whoever uses it next
     watch.stop_flag = True
     watch.join()
     print("\n8. Offline", flush=True)

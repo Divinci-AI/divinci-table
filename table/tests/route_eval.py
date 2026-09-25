@@ -9,7 +9,7 @@ import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 os.environ.pop("TYPESAFE_API_KEY", None)
 import voice
-AI=[{"name":"Talrand","commander":"Talrand, Sky Summoner"},{"name":"Krenko","commander":"Krenko, Tin Street Kingpin"}]
+AI=[{"name":"Talrand","commander":"Talrand, Sky Summoner","has_deck":True},{"name":"Krenko","commander":"Krenko, Tin Street Kingpin"}]
 HU=[{"name":"Sam","commander":"Sheoldred, the Apocalypse"},{"name":"Michael","commander":"Ghalta, Primal Hunger"}]
 # (utterance, acceptable kinds, acceptable addressees, should an AI speak? who)
 CASES=[
@@ -29,6 +29,12 @@ CASES=[
  ("Can someone pass the dice?", {"chatter","question"}, {"the whole table","nobody in particular"}, None),
  ("Sam, if you leave me alone this turn I won't attack you.", {"deal","question","chatter","play"}, {"the whole table","nobody in particular"}, None),
  ("Michael, want to team up against Talrand?", {"deal","question","chatter"}, {"the whole table","nobody in particular"}, None),
+ ("Talrand, your turn.", {"turn"}, {"Talrand"}, "Talrand"),
+ ("OK Talrand, go ahead, you're up.", {"turn"}, {"Talrand"}, "Talrand"),
+ ("Talrand, what cards are in your hand?", {"question"}, {"Talrand"}, "Talrand"),
+ ("Talrand, who are you attacking this turn?", {"question"}, {"Talrand"}, "Talrand"),
+ ("Talrand, is it your turn?", {"question"}, {"Talrand"}, "Talrand"),
+ ("It's my turn, I draw.", {"play","chatter"}, {"nobody in particular","the whole table"}, None),
  ("Yes, deal!", {"deal","chatter","question","play"}, {"Talrand","Krenko","the whole table","nobody in particular"}, "ANY"),
 ]
 voice.route_local("warm up", [], AI, HU)

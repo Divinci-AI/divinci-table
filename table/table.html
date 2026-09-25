@@ -13,6 +13,7 @@
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace; color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 var(--sans);padding:20px 16px 36px}
 .wrap{max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
@@ -50,6 +51,13 @@ label{color:var(--muted);display:flex;gap:7px;align-items:center}
 .reply{color:var(--brass);font-weight:700}
 .blocked{color:var(--bad)}
 .note{color:var(--muted);font-size:.92rem;margin:0}
+.ai{background:var(--panel);border:1px solid var(--brass);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.ai .row{display:flex;flex-wrap:wrap;gap:6px 14px;font:500 .85rem var(--mono);color:var(--muted)}
+.ai .row b{color:var(--ink)}
+.ai h2{font:700 1.2rem var(--serif);margin:0;color:var(--brass)}
+.ai ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:2px;font-size:.95rem}
+.feed li.turn{border-left:3px solid var(--blue)}
+.feed li.turn ol{margin:4px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:3px}
 @media (prefers-reduced-motion:reduce){.meter i{transition:none}}
 </style>
 </head>
@@ -69,11 +77,21 @@ label{color:var(--muted);display:flex;gap:7px;align-items:center}
     <label>Showing to <select id="to"></select></label>
     <label>You are <input class="t" id="by" value="Michael" size="9"></label>
     <label><input type="checkbox" id="speak" checked> Speak replies</label>
+    <button class="b primary" id="aiTurn" hidden>▶ AI's turn</button>
+    <button class="b" id="newGame" hidden>New game</button>
+    <span class="note" id="newGameConfirm" hidden>Reshuffle and start over? <button class="b" id="newGameYes">Yes, new game</button> <button class="b" id="newGameNo">Cancel</button></span>
   </div>
   <div class="board" id="players" aria-label="AI players"></div>
 
   <div class="main">
     <div class="left">
+      <section class="ai" id="aiPanel" hidden aria-label="AI player">
+        <h2 id="aiName"></h2>
+        <div class="row" id="aiStats"></div>
+        <div class="eyebrow">its battlefield</div>
+        <ul id="aiBoard"></ul>
+        <div class="row" id="aiExtra"></div>
+      </section>
       <div class="cam"><video id="video" autoplay playsinline muted></video><div class="hint">Public camera: everyone can see this.</div></div>
       <div class="now"><span class="eyebrow">last card shown</span><span class="card" id="card">—</span><span class="eyebrow" id="via"></span></div>
       <div><div class="eyebrow" style="margin-bottom:6px">public board</div><div class="board" id="board"><span class="note">nothing yet</span></div></div>
@@ -117,6 +135,40 @@ async function post(path, body, headers){
   if(!r.ok) throw new Error(d.error||`HTTP ${r.status}`);
   return d;
 }
+
+// ── the virtual AI player ────────────────────────────────────────────────────────────────
+async function refreshAI(){
+  const r=await fetch("/api/ai/state"); if(!r.ok) return;
+  const t=await r.text(); let s; try{ s=JSON.parse(t);}catch{ return; }
+  $("aiPanel").hidden=false;
+  $("aiName").textContent=`${s.name} · ${s.commander}`;
+  $("aiStats").innerHTML=[["life",s.life],["turn",s.turn],["hand",s.hand],["library",s.library],["lands",s.lands],
+    ["untapped mana",s.untapped_mana],["commander",s.commander_in_zone?`in command zone (tax ${s.commander_tax})`:"on the battlefield"]]
+    .map(([k,v])=>`<span>${k} <b>${esc(v)}</b></span>`).join("");
+  $("aiBoard").innerHTML=s.battlefield.length? s.battlefield.map(b=>`<li>${esc(b)}</li>`).join("") : `<li class="note">nothing yet</li>`;
+  $("aiExtra").innerHTML=(s.on_their_cards||[]).length?`<span>its Auras on your cards: <b>${s.on_their_cards.map(esc).join("; ")}</b></span>`:"";
+}
+function showTurn(who, turn){
+  feed(`<span><span class="k question">turn</span> <b>${esc(who)}</b> plays its turn</span>
+        <ol>${turn.said.map(x=>`<li>${esc(x)}</li>`).join("")}</ol>
+        <span class="meta">${turn.decisions.length} decisions by ${esc("gemma4")} · ${turn.ms} ms</span>`, "turn");
+  for(const line of turn.said) speak(who, line);        // one sentence at a time, queued
+  refreshAI();
+}
+$("aiTurn").onclick=async ()=>{
+  $("aiTurn").disabled=true;
+  try{ const d=await post("/api/ai/turn","{}",{"Content-Type":"application/json"}); showTurn(ai[0].name, d); }
+  catch(e){ pill("micStatus","err",e.message); }
+  finally{ $("aiTurn").disabled=false; }
+};
+$("newGame").onclick=()=>{ $("newGameConfirm").hidden=false; $("newGame").hidden=true; };
+$("newGameNo").onclick=()=>{ $("newGameConfirm").hidden=true; $("newGame").hidden=false; };
+$("newGameYes").onclick=async ()=>{
+  $("newGameConfirm").hidden=true; $("newGame").hidden=false;
+  try{ await post("/api/reset","{}",{"Content-Type":"application/json"}); board.length=0; addBoard([]);
+       $("feed").innerHTML=""; feed(`<span class="meta">new game — reshuffled</span>`); refreshAI(); }
+  catch(e){ pill("micStatus","err",e.message); }
+};
 
 // ── camera: public cards ─────────────────────────────────────────────────────────────────
 async function camTick(){
@@ -192,9 +244,10 @@ async function sendUtterance(frames){
         <span class="meta"><span class="k ${esc(r.kind)}">${esc(r.kind)}</span><span>to: ${esc(r.addressee)}</span>
           <span>${esc(r.router||"router")} ${r.ms} ms · total ${d.total_ms} ms</span></span>
         ${d.cards.length?`<span class="meta">board: ${d.cards.map(esc).join(", ")}</span>`:""}
-        ${d.reply?`<span class="reply">${esc(d.speaker)}: ${esc(d.reply)}</span>`:""}
+        ${d.reply && d.reply_source!=="turn"?`<span class="reply">${esc(d.speaker)}: ${esc(d.reply)}</span>`:""}
         ${d.blocked?`<span class="blocked">reply blocked: it named a card in the AI's hidden hand</span>`:""}`);
-      if(d.reply) speak(d.speaker, d.reply);
+      if(d.turn) showTurn(d.speaker, d.turn);
+      else if(d.reply) speak(d.speaker, d.reply);
     }
     pill("micStatus", muted?"":"on", muted?"muted":"listening");
   }catch(e){ pill("micStatus","err",e.message); }
@@ -232,6 +285,9 @@ if(window.speechSynthesis) speechSynthesis.onvoiceschanged=assignVoices;
 fetch("/api/voice-config").then(r=>r.text()).then(t=>{
   let c; try{ c=JSON.parse(t);}catch{ pill("camStatus","err","server returned non-JSON config"); return; }
   ai=c.ai_players;
+  if(ai[0] && ai[0].has_deck){
+    $("aiTurn").hidden=false; $("aiTurn").textContent=`▶ ${ai[0].name}'s turn`; $("newGame").hidden=false; refreshAI();
+  }
   $("to").innerHTML=ai.map(p=>`<option>${esc(p.name)}</option>`).join("");
   $("players").innerHTML=ai.map(p=>`<span class="chip ai">${esc(p.name)} · ${esc(p.commander||"")}${p.voice?` · voice ${esc(p.voice)}`:""}</span>`).join("");
   assignVoices();

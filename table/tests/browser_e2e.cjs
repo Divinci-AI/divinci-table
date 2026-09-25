@@ -111,6 +111,7 @@ async function api(p, body) {
   check(errors.length === 0, `no page errors${errors.length ? ": " + errors.slice(0, 3).join(" / ") : ""}`);
 
   await browser.close();
+  await fetch(BASE + "/api/reset", { method: "POST", body: "{}" });   // leave the table clean
   const bad = results.filter(r => !r[0]);
   console.log(`\n${results.length - bad.length}/${results.length} browser checks passed`);
   process.exit(bad.length ? 1 : 0);
