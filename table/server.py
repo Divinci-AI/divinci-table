@@ -34,7 +34,8 @@ ap.add_argument("--any-card", action="store_true",
                 help="TEST MODE: accept any Magic card (Scryfall name catalog), unlimited copies")
 ap.add_argument("--port", type=int, default=8800)
 ap.add_argument("--ai", action="append", default=[],
-                help='an AI player, "Name|Commander card name" (repeatable), e.g. "Talrand|Talrand, Sky Summoner"')
+                help='an AI player, "Name|Commander card name|macOS voice" (repeatable), '
+                     'e.g. "Talrand|Talrand, Sky Summoner|Daniel"')
 ap.add_argument("--human", action="append", default=[],
                 help='a human player, "Name|Commander card name" (repeatable); their names go into the speech hint')
 ap.add_argument("--confirm-frames", type=int, default=2, help="same card on N frames in a row")
@@ -64,9 +65,11 @@ def load_catalog():
 
 CATALOG = load_catalog()        # always: spoken plays can name any card, not just the AI's deck
 AI_PLAYERS = []
-for spec in args.ai or ["Talrand|Talrand, Sky Summoner"]:
-    name, _, commander = spec.partition("|")
-    AI_PLAYERS.append({"name": name.strip(), "commander": commander.strip() or None})
+for spec in args.ai or ["Talrand|Talrand, Sky Summoner|Daniel"]:
+    name, commander, voice_name = (spec.split("|") + ["", ""])[:3]
+    AI_PLAYERS.append({"name": name.strip(), "commander": commander.strip() or None,
+                       "voice": voice_name.strip() or None})
+REPLIES = os.environ.get("REPLIES", "ollama")    # "ollama": in-character via local Gemma; "template"
 HUMANS = []
 for spec in args.human:
     name, _, commander = spec.partition("|")
@@ -179,6 +182,21 @@ def handle_utterance(wav: bytes):
         with CONVO_LOCK:
             CONVO["announced"] += cards
     speaker, reply = voice.decide_reply(r, [p["name"] for p in AI_PLAYERS])
+    reply_source, reply_ms = "template", 0
+    if reply and REPLIES == "ollama":
+        ai = next(p for p in AI_PLAYERS if p["name"] == speaker)
+        decision = ({"Deal.": "You ACCEPT the offer.", "No deal.": "You DECLINE the offer."}.get(reply)
+                    or "Answer in character without revealing your cards or committing to a plan.")
+        with CONVO_LOCK:
+            board = list(CONVO["announced"])
+        t1 = time.time()
+        try:
+            said = voice.persona_reply(ai, r["kind"], text, recent, board, decision)
+            if said:
+                reply, reply_source = said, "persona"
+        except Exception as e:                       # the template still gets said
+            print(f"persona reply failed, using template: {type(e).__name__}", flush=True)
+        reply_ms = round((time.time() - t1) * 1000)
     blocked = None
     if reply:
         with T.lock:
@@ -187,7 +205,7 @@ def handle_utterance(wav: bytes):
             print("reply blocked: it named a card in the hidden hand", flush=True)
             reply = None
     return {"heard": text, "route": r, "cards": cards, "speaker": speaker, "reply": reply,
-            "blocked": bool(blocked), "stt_ms": t_stt, "total_ms": round((time.time() - t0) * 1000),
+            "reply_source": reply_source, "reply_ms": reply_ms, "blocked": bool(blocked), "stt_ms": t_stt, "total_ms": round((time.time() - t0) * 1000),
             "announced": CONVO["announced"][-10:]}
 
 

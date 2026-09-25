@@ -77,7 +77,7 @@ def route(text: str, recent: list[str], ai_players: list[dict], humans: list[dic
     """One Jev request, four questions answered in parallel. `accept_deal` is speculative: it is
     only used when `kind` comes back as a deal, and costs nothing extra to ask up front."""
     global _calls
-    backend = os.environ.get("ROUTER", "so1")          # offline by default; "typesafe" sends transcripts out
+    backend = os.environ.get("ROUTER", "ollama")       # offline by default; "typesafe" sends transcripts out
     if backend == "ollama":
         return route_local(text, recent, ai_players, humans)
     url = ("https://api.typesafe.ai/v1/systemone" if backend == "typesafe"
@@ -155,30 +155,36 @@ def leaks_hand(text: str, hand_names: list[str]) -> str | None:
     return None
 
 
-# ── Offline router: a local Gemma through Ollama ─────────────────────────────────────────────
-# Same questions as route(), answered by reading the probability of each option LETTER in the
-# model's first output token (Ollama returns top_logprobs), so the result has the same shape:
-# a choice plus a distribution. Free and offline; nothing leaves this machine.
+# ── Offline router + replies: a local Gemma through Ollama ─────────────────────────────────
+# Ollama returns probabilities only for the token it GENERATES, so every question is a separate
+# call (~0.7 s on gemma4:e2b). The router therefore asks ONE question whose options combine kind
+# and addressee ("question for Talrand", "deal for Krenko", "a play", "chatter"), and asks the deal
+# verdict only when the answer is a deal. 4 calls (~3 s) → 1–2 calls.
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.environ.get("ROUTER_OLLAMA_MODEL", "gemma4:e2b")
 
 
-def _ollama_choice(context: str, question: str, options: dict[str, str]) -> dict[str, float]:
-    import math
+def _ollama(body: dict, timeout=30) -> dict:
     import urllib.request
-    keys = list(options)
-    letters = [chr(65 + i) for i in range(len(keys))]
-    lines = "\n".join(f"{l}. {k}: {options[k]}" if options[k] else f"{l}. {k}" for l, k in zip(letters, keys))
-    body = {"model": OLLAMA_MODEL, "stream": False, "think": False, "logprobs": True, "top_logprobs": 20,
-            "options": {"temperature": 0, "num_predict": 1},
-            "messages": [{"role": "user", "content": f"{context}\n\n{question}\n{lines}\nReply with only the letter."}]}
     req = urllib.request.Request(f"{OLLAMA_URL}/api/chat", data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
-    raw = urllib.request.urlopen(req, timeout=60).read().decode()
+    raw = urllib.request.urlopen(req, timeout=timeout).read().decode()
     try:
-        d = json.loads(raw)
+        return json.loads(raw)
     except json.JSONDecodeError:
         raise RuntimeError(f"Ollama returned non-JSON: {raw[:160]!r}")
+
+
+def _ollama_choice(context: str, question: str, options: dict[str, str]) -> dict[str, float]:
+    """Distribution over `options`, read from the probability of each option LETTER in the
+    model's first output token."""
+    import math
+    keys = list(options)
+    letters = [chr(65 + i) for i in range(len(keys))]
+    lines = "\n".join(f"{l}. {options[k]}" for l, k in zip(letters, keys))
+    d = _ollama({"model": OLLAMA_MODEL, "stream": False, "think": False, "logprobs": True, "top_logprobs": 20,
+                 "options": {"temperature": 0, "num_predict": 1},
+                 "messages": [{"role": "user", "content": f"{context}\n\n{question}\n{lines}\nReply with only the letter."}]})
     tops = (d.get("logprobs") or [{}])[0].get("top_logprobs") or []
     lp = {}
     for t in tops:
@@ -191,26 +197,96 @@ def _ollama_choice(context: str, question: str, options: dict[str, str]) -> dict
     return {k: e / s for k, e in zip(keys, ex)}
 
 
+def _context(text, recent, ai_players, humans):
+    return ("A four-player Magic: The Gathering Commander game. AI players: "
+            + ", ".join(f"{p['name']} ({p['commander']})" for p in ai_players)
+            + ". Human players: " + (", ".join(f"{p['name']} ({p['commander']})" for p in humans or []) or "none")
+            + ".\nRecent conversation: " + (" / ".join(recent[-4:]) or "(none)")
+            + f'\nSomeone at the table just said: "{text}"')
+
+
+def spoken_to(text: str, names: list[str]) -> str | None:
+    """The AI player a sentence opens by addressing ("Talrand, …", "Hey Krenko, …", "OK Talrand!"),
+    or None. A bare name followed by a verb ("Talrand attacks me") is talk ABOUT them, not TO them."""
+    for n in names:
+        if re.match(rf"^\s*(?:(?:hey|hi|ok|okay|so|alright|yo|and|but|well)[\s,]+)?{re.escape(n)}\s*[,!?:]", text, re.I):
+            return n
+    return None
+
+
 def route_local(text: str, recent: list[str], ai_players: list[dict], humans: list[dict] | None = None) -> dict:
     t0 = time.time()
     names = [p["name"] for p in ai_players]
-    context = ("A four-player Magic: The Gathering Commander game. AI players: "
-               + ", ".join(f"{p['name']} ({p['commander']})" for p in ai_players)
-               + ". Human players: " + (", ".join(f"{p['name']} ({p['commander']})" for p in humans or []) or "none")
-               + ".\nRecent conversation: " + (" / ".join(recent[-4:]) or "(none)")
-               + f'\nSomeone at the table just said: "{text}"')
-    kind_p = _ollama_choice(context, "What kind of thing did the speaker just say?", KINDS)
-    addressees = {n: f"the AI player {n}" for n in names}
-    addressees["the whole table"] = "everyone, not one specific player"
-    addressees["nobody in particular"] = "not addressed to anyone, or to a human player"
-    addr_p = _ollama_choice(context, "Who is it addressed to? A name said at the start of a sentence "
-                                     "usually marks who is being spoken to.", addressees)
-    exp_p = _ollama_choice(context, "Does the speaker expect a spoken reply from one of the AI players?",
-                           {"yes": "", "no": ""})
-    deal_p = _ollama_choice(context, "Suppose this is a deal offered to the AI player it addresses. "
-                                     "Would accepting it help that AI player win?", {"yes": "", "no": ""})
-    kind = max(kind_p, key=kind_p.get)
-    addressee = max(addr_p, key=addr_p.get)
+    opts = {"play": "Announcing something they do in the game: casting or playing a card, "
+                    "activating an ability, or attacking a player."}
+    for n in names:
+        opts[f"question:{n}"] = f"Asking the AI player {n} a question."
+    for n in names:
+        opts[f"deal:{n}"] = (f"Offering or asking the AI player {n} for an agreement: a deal, truce, "
+                             f"alliance, or a promise like 'if you do this, I will do that'.")
+    opts["question:table"] = "Asking a question of the whole table or a human player, not an AI player."
+    opts["chatter"] = "Anything else: side conversation, jokes, food, noise."
+    # Direct address is a rule, not a judgment: "Krenko, truce?" IS addressed to Krenko. The model
+    # still decides WHAT it is, but can no longer hand it to a different AI (measured 2026-09-24:
+    # "Krenko, truce this turn?" routed to Talrand without this).
+    vocative = spoken_to(text, names)
+    if vocative:
+        keep = [f"question:{vocative}", f"deal:{vocative}"]
+        # Naming an AI player AND asking something ("Talrand, who are you attacking?") is a question
+        # or an offer TO them, never an announcement of your own play — the word "attacking" pulled
+        # exactly this line to "play" in the 2026-09-24 eval.
+        if not text.rstrip().endswith("?"):
+            keep += ["play", "chatter"]
+        opts = {k: v for k, v in opts.items() if k in keep}
+    ctx = _context(text, recent, ai_players, humans)
+    p = _ollama_choice(ctx, "What did the speaker just do? A name said at the start of a sentence, "
+                            "followed by a comma, marks who is being spoken to.", opts)
+    for k in ["play", "chatter", "question:table"] + [f"{t}:{n}" for t in ("question", "deal") for n in names]:
+        p.setdefault(k, 0.0)
+    top = max(p, key=p.get)
+    kind = top.split(":")[0] if top != "question:table" else "question"
+    kind_p = {"play": p["play"], "chatter": p["chatter"], "rules": 0.0,
+              "question": sum(v for k, v in p.items() if k.startswith("question:")),
+              "deal": sum(v for k, v in p.items() if k.startswith("deal:"))}
+    addr_p = {n: p[f"question:{n}"] + p[f"deal:{n}"] for n in names}
+    addr_p["the whole table"] = p["question:table"]
+    addr_p["nobody in particular"] = p["play"] + p["chatter"]
+    addressee = top.split(":")[1] if ":" in top and top != "question:table" else (
+        "the whole table" if top == "question:table" else "nobody in particular")
+    accept = 0.0
+    if kind == "deal":                                   # only now is the verdict worth a call
+        v = _ollama_choice(ctx, f"You are {addressee}. Would accepting this offer help you win the game?",
+                           {"yes": "Yes, accept.", "no": "No, decline."})
+        accept = v["yes"]
     return {"kind": kind, "kind_p": kind_p, "addressee": addressee, "addressee_p": addr_p,
-            "expects_answer": exp_p["yes"], "accept_deal": deal_p["yes"],
-            "ms": round((time.time() - t0) * 1000), "router": f"ollama:{OLLAMA_MODEL}"}
+            "expects_answer": addr_p.get(addressee, 0.0) if addressee in names else 0.0,
+            "accept_deal": accept, "ms": round((time.time() - t0) * 1000), "router": f"ollama:{OLLAMA_MODEL}"}
+
+
+# ── In-character replies ────────────────────────────────────────────────────────────────────
+# THE FIREWALL: this function has no parameter through which the AI's hand could arrive. It sees
+# only what everyone at the table can see (the conversation and announced public cards) plus the
+# decision already taken (e.g. "decline the deal"). leaks_hand() still checks the output as a
+# backstop, but a model can't leak what it was never told.
+REPLY_MODEL = os.environ.get("REPLY_OLLAMA_MODEL", OLLAMA_MODEL)
+
+
+def persona_reply(ai: dict, kind: str, heard: str, recent: list[str], public_board: list[str],
+                  decision: str) -> str:
+    persona = ai.get("persona") or (
+        f"You are {ai['name']}, an AI player piloting {ai['commander']} in a friendly four-player "
+        f"Magic: The Gathering Commander game. You have a playful, confident table-talk personality.")
+    rules = ("Reply in ONE or TWO short spoken sentences, under 30 words, in character. No lists, no "
+             "stage directions, no emoji. Never mention or hint at specific cards in your hand; if asked, "
+             "stay coy. You have not planned your next turn yet, so don't promise specific plays.")
+    user = (f"Public board so far: {', '.join(public_board[-8:]) or 'nothing announced'}.\n"
+            f"Recent table talk: {' / '.join(recent[-4:]) or '(none)'}\n"
+            f'Someone just said to you: "{heard}"\n'
+            f"Your decision: {decision}\nSay your reply out loud now.")
+    d = _ollama({"model": REPLY_MODEL, "stream": False, "think": False,
+                 "options": {"temperature": 0.8, "num_predict": 70},
+                 "messages": [{"role": "system", "content": f"{persona} {rules}"},
+                              {"role": "user", "content": user}]}, timeout=20)
+    out = (d.get("message") or {}).get("content", "").strip().strip('"').replace("\n", " ")
+    out = re.sub(r"\*[^*]*\*", "", out).strip()           # drop *stage directions* if any slip in
+    return out[:240]

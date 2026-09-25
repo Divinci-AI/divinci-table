@@ -85,7 +85,7 @@ async function api(p, body) {
   check(items.length >= 4, `heard ${items.length} utterance(s) (want 4)`);
   const all = items.join("\n");
   check(/Talrand: /.test(all), "Talrand answered the question addressed to it");
-  check(/Krenko: (Deal\.|No deal\.)/.test(all), "Krenko answered the deal");
+  check(/Krenko: \S/.test(all), "Krenko answered the deal (in character)");
   check(/chatter/.test(all), "the pizza question was classed as chatter");
   check(/board: .*Sheoldred/.test(all), "Sam's Sheoldred went onto the board");
   for (const it of items.slice().reverse()) console.log("    · " + it.replace(/\s+/g, " ").slice(0, 150));

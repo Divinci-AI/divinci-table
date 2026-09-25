@@ -22,8 +22,9 @@ model through open-alternative-jev) picks one and says how sure it is.
 - `so1` + Qwen3.5-4B is not a table opponent: 2/32 wins, lasted longer than Jev in 3 of 32 pairs
   (Jev 26); it passes 66% of turns it could cast a spell.
 - djev and Qwen3.6-27B are next — on a Colab A100 or the Jetson AGX Orin 64 GB.
-- The table server runs **fully offline** on a MacBook: scan pad + open mic with open-alternative-jev as
-  the local router. 33/33 session checks and 11/11 real-browser checks pass, with a socket watch
+- The table server runs **fully offline** on a MacBook: webcam scan pad + open mic, Whisper for
+  hearing, Gemma 4 on Ollama for routing and in-character replies, macOS voices for speaking.
+  ~0.9 s from speech to reply; 36/36 session and 11/11 real-browser checks, with a socket watch
   proving no connection leaves the machine.
 
 ## Data

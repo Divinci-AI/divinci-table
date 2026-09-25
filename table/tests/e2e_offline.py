@@ -35,6 +35,7 @@ SPEECH = {
     "pizza": "Does anyone want pizza?",
     "michael_attack": "Ghalta attacks Sam for twelve with trample.",
     "rules": "Talrand, how much mana do you have open right now?",
+    "ask_hand": "Talrand, tell me exactly which cards are in your hand.",
 }
 
 results: list[tuple[bool, str]] = []
@@ -145,7 +146,7 @@ def main():
     build_fixtures()
     code, _ = call("GET", "/api/state")
     assert code == 200, "table server is not up on :8800"
-    watch = EgressWatch([8800, 8792])
+    watch = EgressWatch([8800, 8792, 11434])      # table server, so1 (if running), Ollama
     check(len(watch.pids) >= 1, f"found server processes to watch: {sorted(watch.pids)}")
     watch.start()
     t_start = time.time()
@@ -198,7 +199,7 @@ def main():
 
     r = say("deal_krenko")
     talk.append(r)
-    check(r["route"]["kind"] == "deal" and r["speaker"] == "Krenko" and r["reply"] in ("Deal.", "No deal."),
+    check(r["route"]["kind"] == "deal" and r["speaker"] == "Krenko" and bool(r["reply"]),
           f"'{r['heard']}' → deal, Krenko answers '{r['reply']}' (accept p={r['route']['accept_deal']:.2f})")
 
     r = say("pizza")
@@ -214,6 +215,19 @@ def main():
     talk.append(r)
     check(r["route"]["kind"] in ("rules", "question") and r["speaker"] == "Talrand",
           f"'{r['heard']}' → {r['route']['kind']}, Talrand answers")
+
+    r = say("ask_hand")
+    talk.append(r)
+    check(r["speaker"] == "Talrand" and bool(r["reply"]), f"'{r['heard']}' → Talrand answers: {r['reply']!r}")
+
+    spoken = [t for t in talk if t.get("reply")]
+    check(all(t.get("reply_source") == "persona" for t in spoken),
+          f"every spoken reply is in character ({[t.get('reply_source') for t in spoken]})")
+    hand_names = set(opening)        # the commander (also in hand here) is public in Commander, so not checked
+    named = [(t["speaker"], c) for t in spoken for c in hand_names
+             if re.search(r"\b" + re.escape(c.lower()) + r"s?\b", t["reply"].lower())]
+    check(not named, f"no reply names a card in the hidden hand{': ' + str(named) if named else ''}")
+    print("    replies: " + " | ".join(f"{t['speaker']}: {t['reply']}" for t in spoken))
 
     code, r = call("POST", "/api/utterance", (FIX / "silence.wav").read_bytes(), "audio/wav")
     check(code == 200 and r.get("ignored") == "no speech", f"2 s of silence is ignored ({r.get('ignored') or r.get('heard')!r})")
@@ -249,7 +263,9 @@ def main():
     print(f"\nlatency  scan/frame p50 {sorted(scan_ms)[len(scan_ms)//2]:.0f} ms | speech-to-text p50 "
           f"{sorted(stt)[len(stt)//2]} ms | router p50 {sorted(route)[len(route)//2]} ms "
           f"(max {max(route)}) | utterance total p50 {sorted(total)[len(total)//2]} ms (max {max(total)})")
-    print(f"router: {talk[0]['route'].get('router')}")
+    reply_ms = [t["reply_ms"] for t in talk if t.get("reply")]
+    print(f"router: {talk[0]['route'].get('router')} | in-character reply p50 "
+          f"{sorted(reply_ms)[len(reply_ms)//2] if reply_ms else '-'} ms")
     bad = [w for ok, w in results if not ok]
     print(f"\n{len(results) - len(bad)}/{len(results)} checks passed")
     sys.exit(1 if bad else 0)

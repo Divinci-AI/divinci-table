@@ -52,7 +52,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
     <div class="meter" aria-hidden="true"><i id="level"></i></div>
   </header>
 
-  <p class="note">An open mic for the AI players. Speak normally; address an AI by name to get an answer. Audio stays on this laptop and is never stored. <b>What is said is transcribed here, then the text is sent to TypeSafe's Jev to decide what it was</b> — tell the table the mic is on.</p>
+  <p class="note">An open mic for the AI players. Speak normally; address an AI by name to get an answer. Audio stays on this laptop and is never stored. Transcription, understanding and replies all run on this computer; nothing is sent anywhere. Tell the table the mic is on.</p>
 
   <div class="players" id="players"></div>
 
@@ -144,7 +144,7 @@ function addFeed(d){
       ${r.kind==="deal"?`<span>accept ${Math.round(r.accept_deal*100)}%</span>`:""}
       <span>stt ${d.stt_ms} ms · ${esc(r.router || "router")} ${r.ms} ms · total ${d.total_ms} ms</span></span>
       ${d.cards.length?`<span class="meta">board: ${d.cards.map(esc).join(", ")}</span>`:""}
-      ${d.reply?`<span class="reply">${esc(d.speaker)}: ${esc(d.reply)}</span>`:""}
+      ${d.reply?`<span class="reply">${esc(d.speaker)}: ${esc(d.reply)}</span><span class="meta">${d.reply_source==="persona"?`in character · ${d.reply_ms} ms`:"template reply"}</span>`:""}
       ${d.blocked?`<span class="blocked">reply blocked: it named a card in the AI's hidden hand</span>`:""}`;
   }
   $("feed").prepend(li);
@@ -171,12 +171,16 @@ $("mute").onclick=()=>{ muted=!muted; $("mute").textContent=muted?"Unmute":"Mute
 function assignVoices(){
   if(!window.speechSynthesis) return;
   const en=speechSynthesis.getVoices().filter(v=>v.lang.startsWith("en"));
-  aiPlayers.forEach((p,i)=>{ if(en.length) voices[p.name]=en[(i*3)%en.length]; });
+  aiPlayers.forEach((p,i)=>{
+    // the configured macOS voice ("Daniel", "Moira"…) if this browser has it, else a distinct fallback
+    const named = p.voice && speechSynthesis.getVoices().find(v=>v.name===p.voice || v.name.startsWith(p.voice+" "));
+    if(named) voices[p.name]=named; else if(en.length) voices[p.name]=en[(i*3)%en.length];
+  });
 }
 if(window.speechSynthesis) speechSynthesis.onvoiceschanged=assignVoices;
 fetch("/api/voice-config").then(r=>r.json()).then(c=>{
   aiPlayers=c.ai_players;
-  $("players").innerHTML=aiPlayers.map(p=>`<span class="chip ai">${esc(p.name)}${p.commander?` · ${esc(p.commander)}`:""}</span>`).join("");
+  $("players").innerHTML=aiPlayers.map(p=>`<span class="chip ai">${esc(p.name)}${p.commander?` · ${esc(p.commander)}`:""}${p.voice?` · voice ${esc(p.voice)}`:""}</span>`).join("");
   assignVoices();
 });
 </script>
