@@ -41,6 +41,7 @@ CASES = [  # (what Whisper wrote, the card that was said) — every one observed
     ("Does anyone want pizza?", None), ("I cast a spell.", None), ("I play really well tonight.", None),
     ("I cast my commander.", None), ("I play a land.", None), ("I cast about ten spells last game.", None),
     ("I played this deck at the store yesterday.", None),
+    ("High cost mana relts.", None),                 # far + noisy: unknowable — was read as Mana Vault
 ]
 
 

@@ -111,6 +111,13 @@ def parse_life(text: str, players: list[str], nick: dict[str, str] | None = None
         out.append((me, -int(m.group(1)), "delta"))
     for m in re.finditer(r"\bI\s+(?:gain|gained)\s+(\d+)\b", t, re.I):
         out.append((me, int(m.group(1)), "delta"))
+    # "No blocks, I take 5" from a KNOWN voice, however the "I take" came out ("R-Tank 5", "R-Tag 7",
+    # "R-Tek 5" — measured in the soak): no blocks + one number + no other player named = the speaker takes it
+    if not out and re.search(r"\b(?:no|note)\s*(?:blocks?|logs?|blog)\b", t, re.I) \
+            and not any(re.search(rf"\b{re.escape(p)}\b", t, re.I) for p in players if p != speaker):
+        nums = re.findall(r"\b(\d+)\b", t)
+        if len(nums) == 1:
+            out.append((me, -int(nums[0]), "delta"))       # unknown voice → "Who's that?"
     seen, uniq = set(), []
     for c in out:                                     # one statement, one change
         if c[0] not in seen:
@@ -155,9 +162,10 @@ def parse_attack(text: str, ai_name: str) -> dict | None:
     tgt = rf"(?:{re.escape(ai_name)}|you)"
     t = re.sub(r",\s*", " ", t)                        # "Bahimoth, Attacks, Claude, for 8" (Whisper's commas)
     t = re.sub(r"\b(?:a\s+|of\s+)?(?:tax|taxes|attax|attacked)(?=\s)", "attacks", t, flags=re.I)   # "Sage of Tax Claude for 3"
-    roman = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10, "XI": 11, "XII": 12}
-    t = re.sub(rf"\b({re.escape(ai_name)}|you)\s+(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II)\b\.?",     # "attacks Claude V." = for five
-               lambda m: f"{m.group(1)} for {roman[m.group(2)]}", t)
+    # "attacks Claude VIII." — Whisper's roman numeral is a MANGLED number (the soak had "for twelve"
+    # come out as VIII and the AI took 8): never read it; drop it so the attacker's power, or a
+    # "for how much?", decides.
+    t = re.sub(rf"\b({re.escape(ai_name)}|you)\s+(?:XII|XI|X|IX|VIII|VII|VI|V|IV|III|II)\b\.?", r"\1", t)
     m = re.search(rf"\b(?:attacks?|attacking|swings?|swinging|going)\s+(?:at\s+|into\s+|for\s+)?{tgt}\b(?:[^.]*?\bfor\s+(\d+))?", t, re.I)
     if not m:
         return None
@@ -242,6 +250,8 @@ def removal_target(text: str, ai_name: str, own: list[str]) -> str | None:
     Starfield Mystic", "exile your Kor Spiritdancer" (said to the AI). Names may be shortened to
     their first word or comma part, as players do ("Ellivere")."""
     t = normalize(text, [ai_name]).lower()
+    # "on Claude, Setessan Champion": Whisper writes the possessive as a comma (soak, 2026-09-25)
+    t = re.sub(rf"\b(on|targeting|target)\s+{re.escape(ai_name.lower())},\s+", rf"\1 {ai_name.lower()}'s ", t)
     if not re.search(r"\b(on|targeting|target|at|destroy|destroys|exile|exiles|kill|kills|bounce|"
                      r"return|returns|sacrifice|your|" + re.escape(ai_name.lower()) + r"'?s)\b", t):
         return None

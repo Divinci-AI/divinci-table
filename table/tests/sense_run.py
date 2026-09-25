@@ -121,9 +121,15 @@ def say_wav(text: str, voice: str = "Samantha", rate: int | None = None) -> np.n
     with tempfile.TemporaryDirectory() as d:
         aiff, wav = Path(d) / "a.aiff", Path(d) / "a.wav"
         cmd = ["say", "-v", voice, "-o", str(aiff)] + (["-r", str(rate)] if rate else []) + [text]
-        subprocess.run(cmd, check=True)
+        for attempt in (1, 2):                  # macOS speech can stall (seen: one `say` hung 38 min)
+            try:
+                subprocess.run(cmd, check=True, timeout=30)
+                break
+            except subprocess.TimeoutExpired:
+                if attempt == 2:
+                    raise
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(aiff), "-ar", str(SR), "-ac", "1",
-                        "-sample_fmt", "s16", str(wav)], check=True)
+                        "-sample_fmt", "s16", str(wav)], check=True, timeout=30)
         with wave.open(str(wav)) as w:
             a = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32) / 32768
     np.save(cache, a)

@@ -444,7 +444,8 @@ def enroll_ai_voices():
         for line in (f"{p['name']}, turn three. I play a Forest.", "No blocks. I take four; I'm at thirty-six.",
                      "That's my turn. One moment, let me think."):
             with tempfile.NamedTemporaryFile(suffix=".wav") as f:
-                subprocess.run(["say", "-v", v, "-o", f.name, "--data-format=LEI16@16000", line], check=True)
+                subprocess.run(["say", "-v", v, "-o", f.name, "--data-format=LEI16@16000", line], check=True,
+                               timeout=30)                       # macOS speech can stall
                 speakers().enroll(p["name"], voice.wav_to_float32(f.read()))
 
 

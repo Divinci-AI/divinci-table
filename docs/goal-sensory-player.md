@@ -55,17 +55,17 @@ Scenarios live in `table/tests/scenarios/*.yaml`, and each scenario has a tier:
 
 ## Scorecard: 2026-09-25, second pass (M4 Pro, Gemma 4 e2b, Whisper small+medium, Moira)
 
-`table/tests/run_all.sh`: last full run 10 of 12 suites green. Both failures were traced, fixed and re-verified (below).
+`table/tests/run_all.sh`, final run: **11 of 12 suites green**. The 12th failed on one scenario: a macOS `say` hung for 38 minutes, then was killed. `say` now has a timeout and a retry, and that scenario passes on rerun.
 
 | suite | result |
 |---|---|
 | engine rules (`engine_rules.py`) | 16/16 (adds hexproof, shroud, indestructible) |
-| misheard card names (`hearing_names.py`) | 38/48 recovered, **0 wrong** |
+| misheard card names (`hearing_names.py`) | 36/49 recovered, **0 wrong** (includes a noisy-room case that used to read as Mana Vault) |
 | speaker ID (`speaker_eval.py`, 6 voices × clean/room/noisy) | 238/240 right, **0 wrong**, 2 "not sure" |
 | vision (`vision_eval.py`) | **0 wrong reads**; 28 % of the frame 7–8/8; two cards 4/4 |
-| sensory regressions (`sense_run.py`, 125 scenarios) | 117/118 in the full sweep. The one failure was a leak-check false positive (a Forest named as an Aura's target while another Forest was in hand); fixed and re-verified |
-| whole games (`game_sim.py`, 3 humans + AI, camera shows, speaker-ID life) | 3 games, 237 lines, 3 problems. Two were fixed (the "I Take" case, and the simulator's own leak check); the third was a mangled human-to-human attack that got a stray "No deal." |
-| brain API · brain page · Gemma turns · session · /table · router | 20/20 · 9/9 · 14/14 · 41/41 · 10/10 · 22/23 routed, 23/23 right speaker |
+| sensory regressions (`sense_run.py`, 126 scenarios) | 118/119 in the final sweep. The one crash was the hung `say`; that scenario passes on rerun |
+| whole games (`game_sim.py`, 3 humans + AI, camera shows, speaker-ID life) | final run: 3 games, 243 lines, **0 problems**; plus the 2-hour soak below |
+| brain API · brain page · Gemma turns · session · /table · router | 19/19 · 9/9 · 14/14 · 41/41 · 10/10 · 22/23 routed, 23/23 right speaker |
 | offline | the table's processes: no non-loopback connection in any run. Ollama.app: see below |
 
 **Of the 11 goals open after the first pass, 9 are met and promoted.** The other two are
@@ -97,7 +97,8 @@ resolution-bound and stay open. The 125 scenarios now include 5 open goals:
   **sound** (a phonetic key plus word alignment) against all 35k cards, and weighed by
   **what people actually play** (EDHREC rank, from the offline Oracle).
   - It's accepted only when a player would be sure too; otherwise "didn't catch that".
-  - On every mishearing seen in this project's runs: **38/48 recovered, 0 wrong**
+  - Every word of the chosen card must match something heard. The average alone let "mana relts" become Mana Vault.
+  - On every mishearing seen in this project's runs: **36/49 recovered, 0 wrong**
     (`hearing_names.py`, which fails on a single wrong card).
   - Gemma was tried as the picker and removed. It chose "Ballroom" for "I play Boris" (Forest).
 - **A second Whisper pass.** When small hears "I cast …" but names no card, medium re-transcribes
@@ -176,8 +177,28 @@ still loaded, and latency drift, game by game.
   voices are too clean to trust alone.
 - **A real overhead camera**, validated against a real table. Everything so far is synthetic
   frames.
-- A **two-hour soak** (`game_sim.py --minutes 120`) at the scale the doc asked for. See the soak
-  result below for what has run.
+
+## Two-hour soak — 2026-09-25 (`game_sim.py --minutes 120`)
+
+**24 games, 2,062 spoken lines, 121 minutes, no non-loopback connection.**
+
+| health | result |
+|---|---|
+| server memory | 87–1,078 MB, cycling with model loads. No upward trend: 256 MB at the start, 874 MB at the end, 87 MB at minute 108 |
+| open sockets | 2 throughout |
+| Gemma pinned | loaded the whole time |
+| latency p95 per game | 1.2–2.9 s, no trend (1.6 s at minute 117) |
+
+It found 13 bookkeeping problems, now fixed. Each went into a regression check:
+
+- **Whisper writes "Claude's" as "Claude,"** ("on Claude, Setessan Champion"), so removal missed
+  its target, 5 times.
+- **Whisper wrote "for twelve" as "VIII"**, and the roman-numeral rule added the same day turned it
+  into 8 damage. A roman numeral is now treated as a mangled number: code falls back to the
+  attacker's power, or asks.
+- **Karen's "No blocks, I take 5" arrived as "Note Logs, R-Tank 5"** (also "R-Tag", "R-Tek"). The
+  rule now: a "no blocks … N" line from a known voice, naming no other player, is that player's
+  damage. From an unknown voice, it asks "Who's that?".
 
 ## Principles (carried over from building it)
 

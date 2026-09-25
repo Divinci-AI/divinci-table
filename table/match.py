@@ -254,6 +254,18 @@ def sound_candidates(phrase: str, catalog: list[str], n: int = 5) -> list[tuple[
 
 
 _FILLER = {"a", "an", "the", "of", "my", "this", "that", "some", "another"}
+WEAKEST: dict[str, float] = {}      # per candidate: its worst-matching word (last spoken_card call)
+
+
+def _wstrict(a: str, b: str) -> float:
+    """Per-word check for the WEAKEST word: close spelling, or the same sounds starting with the same
+    sound ("Codimus" ~ "Kodama's": k-d-m). "relts" ~ "vault" share a vowel-collapsed key but not a
+    start — that is how "mana relts" became Mana Vault."""
+    from difflib import SequenceMatcher
+    sp = SequenceMatcher(None, a, b).ratio()
+    ka, kb = sound_key(a), sound_key(b)
+    so = SequenceMatcher(None, ka, kb).ratio() if ka[:1] == kb[:1] else 0.0
+    return max(sp, so)
 
 
 def _wsim(a: str, b: str) -> float:
@@ -264,9 +276,9 @@ def _wsim(a: str, b: str) -> float:
 def _aligned(phrase_words: list[str], card_words: list[str]) -> float:
     """Card words matched in order to one or two consecutive heard words; average similarity,
     with a small penalty for heard words left over."""
-    best = 0.0
+    best, _aligned.min_word = 0.0, 0.0
     for start in range(len(phrase_words)):
-        i, sims = start, []
+        i, sims, strict = start, [], []
         for w in card_words:
             cand = []
             for k in (1, 2):
@@ -277,12 +289,14 @@ def _aligned(phrase_words: list[str], card_words: list[str]) -> float:
                 continue
             s, k = max(cand)
             sims.append(s)
+            strict.append(_wstrict(w, "".join(phrase_words[i:i + k])))
             i += k
         used = i - start
         extra = max(0, len(phrase_words) - used - start)
         weights = [max(3, len(w)) for w in card_words]      # "Kodama's" identifies the card more than "Reach"
         score = sum(s * w for s, w in zip(sims, weights)) / sum(weights) - 0.04 * extra - 0.02 * start
-        best = max(best, score)
+        if score > best:
+            best, _aligned.min_word = score, min(strict) if strict else 0.0
     return best
 
 
@@ -331,12 +345,16 @@ def spoken_card(phrase: str, catalog: list[str], n: int = 5) -> list[tuple[str, 
         # The table's prior, like a player's: a half-heard name is far more likely Sol Ring (EDHREC
         # rank 1) than Soul Read (15921). Worth up to ~0.12 of similarity.
         prior = 0.5 if r is None else max(0.0, 1 - math.log10(r) / math.log10(40000))
-        scored.append((c, max(_aligned(pw, cw), squashed) + 0.12 * (prior - 0.5)))
+        a = _aligned(pw, cw)
+        weakest = _aligned.min_word if a >= squashed else squashed        # squashed = one-word match
+        WEAKEST[c] = weakest
+        scored.append((c, max(a, squashed) + 0.12 * (prior - 0.5)))
     scored.sort(key=lambda x: -x[1])
     return scored[:n]
 
 
 BASICS = {"Plains", "Island", "Swamp", "Mountain", "Forest", "Wastes"}
+MIN_WORD = 0.55                     # tests/hearing_names.py: 36/49 recovered, 0 wrong (0.5 let "mana relts" become Mana Vault)
 
 
 def recognise_spoken(text: str, catalog: list[str], picker=None) -> tuple[list[str], dict]:
@@ -387,7 +405,10 @@ def recognise_spoken(text: str, catalog: list[str], picker=None) -> tuple[list[s
     # like a player: among names that sound about as close as the best, the one people PLAY wins
     # ("Sol Ray": Sorry 0.89, Sol Ring 0.87 → Sol Ring); two played cards too close to call → ask
     pc = [(c, sc) for c, sc in cands if played(c)]
-    if pc and pc[0][1] >= 0.78 and pc[0][1] >= s1 - 0.04 and (len(pc) < 2 or pc[0][1] - pc[1][1] >= 0.02):
+    # …and every word of it must actually match something heard: "mana relts" is not Mana Vault
+    # just because "mana" is right and Mana Vault is popular (a WRONG card, in the noisy far-field goal)
+    if pc and pc[0][1] >= 0.78 and pc[0][1] >= s1 - 0.04 and (len(pc) < 2 or pc[0][1] - pc[1][1] >= 0.02) \
+            and WEAKEST.get(pc[0][0], 1.0) >= MIN_WORD:
         info["how"] = "sound+prior"
         return [pc[0][0]] + others, info
     return others, info                           # not sure of the spell: better unsaid than a wrong card
