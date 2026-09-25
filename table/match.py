@@ -98,8 +98,9 @@ def find_cards_in_text(text: str, catalog: list[str], fuzzy_cutoff=0.88, max_wor
         by_letter: dict[str, list[str]] = {}
         for k in exact:
             by_letter.setdefault(k[:1], []).append(k)
-        idx = find_cards_in_text.idx = (catalog, exact, by_letter)
-    _, exact, by_letter = idx
+        squashed = {k.replace(" ", ""): n for k, n in exact.items() if " " in k}
+        idx = find_cards_in_text.idx = (catalog, exact, by_letter, squashed)
+    _, exact, by_letter, squashed = idx
     words = norm(text).split()
     found, i = [], 0
     while i < len(words):
@@ -109,8 +110,13 @@ def find_cards_in_text(text: str, catalog: list[str], fuzzy_cutoff=0.88, max_wor
             if w in exact:
                 hit = (exact[w], n)
                 break
+            if w.replace(" ", "") in squashed and n <= 2:      # "Doomblade" for Doom Blade
+                hit = (squashed[w.replace(" ", "")], n)
+                break
             if n >= 2:
-                m = get_close_matches(w, by_letter.get(w[:1], []), n=1, cutoff=fuzzy_cutoff)
+                # longer windows can afford a looser match: "swords to plosures" is still Swords to Plowshares
+                cut = fuzzy_cutoff if n == 2 else min(fuzzy_cutoff, 0.84)
+                m = get_close_matches(w, by_letter.get(w[:1], []), n=1, cutoff=cut)
                 if m:
                     hit = (exact[m[0]], n)
                     break
@@ -130,7 +136,7 @@ def near_card_candidates(text: str, catalog: list[str], cutoff=0.72, n=4) -> lis
     if idx is None or idx[0] is not catalog:
         find_cards_in_text("", catalog)
         idx = find_cards_in_text.idx
-    _, exact, by_letter = idx
+    _, exact, by_letter, _sq = idx
     words = norm(text).split()
     scored = {}
     for size in (2, 3, 4):

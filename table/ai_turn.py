@@ -31,6 +31,10 @@ def _context(p: VirtualPlayer, humans: list[dict], public_board: list[str]) -> s
             f"Cards the other players have announced: {', '.join(public_board[-12:]) or 'none yet'}.")
 
 
+def _and(xs):
+    return xs[0] if len(xs) == 1 else ", ".join(xs[:-1]) + " and " + xs[-1]
+
+
 def take_turn(p: VirtualPlayer, humans: list[dict], public_board: list[str]) -> dict:
     t0 = time.time()
     said, decisions = [], []
@@ -41,7 +45,7 @@ def take_turn(p: VirtualPlayer, humans: list[dict], public_board: list[str]) -> 
         perm.sick = False
     before = len(p.hand)
     p.draw()
-    said.append(f"{p.name}'s turn {p.turn}. I untap and draw." if len(p.hand) > before
+    said.append(f"{p.name}'s turn {p.turn}." if len(p.hand) > before
                 else f"{p.name}'s turn {p.turn}. I untap; my library is empty.")
 
     land = p.best_land()
@@ -126,9 +130,75 @@ def take_turn(p: VirtualPlayer, humans: list[dict], public_board: list[str]) -> 
                 fake.id = c.id
                 said += p.enter_effects(fake, choose_target)
         total = sum(p.stats(c)[0] for c in cs)
-        said.append(f"I attack {who} with " + ", ".join(p.describe(c).replace(' [tapped]', '') for c in cs)
-                    + f" — {total} damage if unblocked.")
+        said.append(f"I attack {who} with " + _and([c.name for c in cs]) + f", {total} damage.")
     if not assigned and attackers:
         said.append("No attacks this turn.")
     said.append("That's my turn.")
     return {"said": said, "decisions": decisions, "public": p.public(), "ms": round((time.time() - t0) * 1000)}
+
+
+def decide_block(p: VirtualPlayer, amount: int, attacker: str | None, trample: bool,
+                 humans: list[dict], public_board: list[str]) -> dict:
+    """Someone attacks this AI. Code owns the arithmetic and one rule — if the hit would be lethal
+    and anything can block, something blocks; Gemma decides whether (and with what) otherwise.
+    Returns {"said": [...], "blocker": name|None, "life": new life}."""
+    blockers = [c for c in p.creatures() if not c.tapped]
+    who = attacker or "that"
+    choice = None
+    # Code owns the combat arithmetic. A block is on the table only if the blocker survives, or the
+    # hit really matters (lethal, or would leave it at 10 or less) — measured 2026-09-25: Gemma
+    # chump-blocked a 1-power Llanowar Elves at 40 life, trading a creature for one point of life.
+    import oracle
+    atk_tough = None
+    try:
+        atk_tough = int((oracle.card(attacker) or {}).get("toughness")) if attacker else None
+    except (TypeError, ValueError):
+        pass
+    matters = p.life - amount <= 10
+    blockers = [c for c in blockers if p.stats(c)[1] > amount or matters]
+    if blockers:
+        opts = {"none": f"Don't block. Take {amount}."}
+        for c in blockers:
+            pw, tg = p.stats(c)
+            fate = "survives" if tg > amount else "dies"
+            kill = "" if atk_tough is None else (" and kills it" if pw >= atk_tough else "")
+            opts[str(c.id)] = f"Block with {p.describe(c)} — it {fate}{kill}."
+        probs = voice._ollama_choice(_context(p, humans, public_board),
+                                     f"{who} attacks you for {amount}{' with trample' if trample else ''}. "
+                                     f"You are at {p.life} life. Do you block?", opts)
+        pick = max(probs, key=probs.get)
+        if pick == "none" and p.life - amount <= 5:        # never die (or drop to ≤5) with a blocker available
+            pick = str(max(blockers, key=lambda c: p.stats(c)[1]).id)
+        choice = next((c for c in blockers if str(c.id) == pick), None)
+    return resolve_block(p, choice, amount, trample, attacker)
+
+
+def resolve_block(p: VirtualPlayer, choice, amount: int, trample: bool, attacker: str | None) -> dict:
+    """The arithmetic of one attacker hitting this AI, blocked by `choice` or unblocked."""
+    who = attacker or "that"
+    said = []
+    if choice is None:
+        p.life -= amount
+        said.append(f"No blocks. I take {amount}; I'm at {p.life}.")
+        return {"said": said, "blocker": None, "life": p.life}
+    pw, tg = p.stats(choice)
+    said.append(f"I block {who} with {choice.name}.")
+    import oracle
+    try:
+        atk_tough = int((oracle.card(attacker) or {}).get("toughness")) if attacker else None
+    except (TypeError, ValueError):
+        atk_tough = None
+    through = max(0, amount - tg) if trample else 0
+    if tg <= amount:
+        p.move(f"#{choice.id}", "graveyard")
+        said.append(f"{choice.name} dies.")
+    if through:
+        p.life -= through
+        said.append(f"{through} tramples over; I'm at {p.life}.")
+    died = None
+    if pw and atk_tough is not None and pw >= atk_tough:
+        said.append(f"{choice.name} deals {pw} back — {who} dies.")
+        died = attacker
+    elif pw:
+        said.append(f"{choice.name} deals {pw} back.")
+    return {"said": said, "blocker": choice.name, "life": p.life, "attacker_died": died}

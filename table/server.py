@@ -147,7 +147,10 @@ T = Table(DECK)
 
 
 def scan(image: bytes):
-    lines = [l.text for l in read_lines(image, hints=sorted(set(DECK)) or None)]
+    try:
+        lines = [l.text for l in read_lines(image, hints=sorted(set(DECK)) or None)]
+    except Exception as e:
+        raise BadRequest(f"not a readable image ({type(e).__name__})")
     with T.lock:
         if args.any_card:
             name, s1, s2 = identify_any(lines, CATALOG)
@@ -190,23 +193,31 @@ def whisper_hint():
     this lists the game's own names first and stops well before that."""
     everyone = AI_PLAYERS + HUMANS
     names = [p["name"] for p in everyone] + [p["commander"] for p in everyone if p["commander"]]
+    if VP:                                   # its own permanents: what removal will be aimed at
+        names += [p.name for p in VP.battlefield if not p.is_("Land") and not p.token]
     names += CONVO["announced"][-15:] + sorted(set(DECK))[:40]
     seen, out = set(), []
     for n in names:
         if n and n not in seen:
             seen.add(n)
             out.append(n)
-    return "Magic: The Gathering Commander game. Names: " + "; ".join(out) + "."
+    return "Magic: The Gathering Commander game: mana, life, graveyard, library. Names: " + "; ".join(out) + "."
 
 
 def handle_utterance(wav: bytes):
     import voice
     t0 = time.time()
-    audio = voice.wav_to_float32(wav)
+    try:
+        audio = voice.wav_to_float32(wav)
+    except Exception as e:                        # not a 16 kHz mono WAV: the caller's fault, not ours
+        raise BadRequest(f"utterance must be 16 kHz mono 16-bit WAV ({type(e).__name__})")
     text, nsp = voice.transcribe(audio, whisper_hint())
     t_stt = round((time.time() - t0) * 1000)
     if voice.is_noise(text, nsp):
         return {"heard": text, "ignored": "no speech", "stt_ms": t_stt}
+    if is_echo(text):
+        return {"heard": text, "ignored": "echo", "stt_ms": t_stt}
+
     with CONVO_LOCK:
         recent = list(CONVO["recent"])
     r = voice.route(text, recent, AI_PLAYERS, HUMANS)
@@ -214,12 +225,14 @@ def handle_utterance(wav: bytes):
         CONVO["recent"].append(text)
     cards = []
     if r["kind"] == "play":
-        spoken = text
+        expanded = text
         for nick, full in NICKNAMES.items():
-            spoken = re.sub(r"\b" + re.escape(nick) + r"\b(?!,)", full, spoken)
-        cards = find_cards_in_text(spoken, CATALOG)
-        if not cards:                                 # a mangled name: choose among close candidates
-            cands = near_card_candidates(spoken, CATALOG)
+            expanded = re.sub(r"\b" + re.escape(nick) + r"\b(?!,)", full, expanded)
+        import tablefacts
+        is_report = bool(tablefacts.parse_life(text, list(life_table()))) and not re.search(r"\b(cast|play|plays|casting)\b", text, re.I)
+        cards = [] if is_report else find_cards_in_text(expanded, CATALOG)
+        if not cards and not is_report:               # a mangled name: choose among close candidates
+            cands = near_card_candidates(expanded, CATALOG)
             if cands:
                 pick, conf = voice.pick_heard_card(text, cands)
                 if pick and conf >= 0.6:
@@ -229,8 +242,21 @@ def handle_utterance(wav: bytes):
     speaker, reply = voice.decide_reply(r, [p["name"] for p in AI_PLAYERS])
     emit("heard", text=text, kind=r["kind"], addressee=r["addressee"], cards=cards,
          for_ai=bool(reply) and speaker is not None)
+    rules = table_rules(text, r, cards)
+    if rules is not None:
+        base = {"heard": text, "route": r, "cards": cards, "speaker": VP.name if VP else speaker,
+                "blocked": False, "stt_ms": t_stt, "total_ms": round((time.time() - t0) * 1000),
+                "announced": CONVO["announced"][-10:], "rules": {k: v for k, v in rules.items() if k not in ("reply", "source")}}
+        if rules.get("awaiting"):
+            return {**base, "reply": None, "awaiting": "brain", "reply_source": "brain"}
+        if rules.get("reply"):
+            if BRAIN_EXTERNAL:
+                emit("say", speaker=VP.name, text=rules["reply"], action="rules", speech=spoken(rules["reply"]))
+                return {**base, "reply": None, "reply_source": "rules-event"}
+            return {**base, "reply": rules["reply"], "speech": spoken(rules["reply"]), "reply_source": "rules"}
     if BRAIN_EXTERNAL and reply and VP and speaker == VP.name:
-        emit("attention", kind=r["kind"], text=text, addressee=speaker)
+        ev = emit("attention", kind=r["kind"], text=text, addressee=speaker)
+        hold_the_floor(ev["id"])
         return {"heard": text, "route": r, "cards": cards, "speaker": speaker, "reply": None,
                 "awaiting": "brain", "blocked": False, "stt_ms": t_stt,
                 "total_ms": round((time.time() - t0) * 1000), "announced": CONVO["announced"][-10:]}
@@ -241,6 +267,7 @@ def handle_utterance(wav: bytes):
             reply = None                              # no virtual deck: the humans play its cards
         else:
             turn = run_ai_turn()
+            turn["speech"] = spoken(turn["said"])
             return {"heard": text, "route": r, "cards": cards, "speaker": speaker, "reply": " ".join(turn["said"]),
                     "reply_source": "turn", "turn": turn, "blocked": False, "stt_ms": t_stt,
                     "total_ms": round((time.time() - t0) * 1000), "announced": CONVO["announced"][-10:]}
@@ -248,6 +275,13 @@ def handle_utterance(wav: bytes):
         ai = next(p for p in AI_PLAYERS if p["name"] == speaker)
         decision = ({"Deal.": "You ACCEPT the offer.", "No deal.": "You DECLINE the offer."}.get(reply)
                     or "Answer in character without revealing your cards or committing to a plan.")
+        if re.search(r"\b(that|this|the) card\b|\bthat one\b", text, re.I):
+            import oracle
+            with CONVO_LOCK:
+                last = CONVO["announced"][-1] if CONVO["announced"] else None
+            c = oracle.card(last) if last else None
+            if c:
+                decision += f' "That card" is {last} ({c["type"]}: {c["text"][:200]}). Name it and react to what it does.'
         with CONVO_LOCK:
             board = list(CONVO["announced"])
         t1 = time.time()
@@ -259,6 +293,10 @@ def handle_utterance(wav: bytes):
         except Exception as e:                       # the template still gets said
             print(f"persona reply failed, using template: {type(e).__name__}", flush=True)
         reply_ms = round((time.time() - t1) * 1000)
+    if r["kind"] == "deal" and reply and reply_source == "persona":
+        verdict = "Deal." if r.get("accept_deal", 0) >= 0.5 else "No deal."
+        if not re.match(r"^\W*(deal|no deal|yes|no|agreed|you're on|sure|nope)\b", reply, re.I):
+            reply = f"{verdict} {reply}"                   # code decided; the words must say so first
     blocked = None
     if reply:
         with T.lock:
@@ -271,13 +309,262 @@ def handle_utterance(wav: bytes):
             print("reply blocked: it named a card in the hidden hand", flush=True)
             reply = None
     return {"heard": text, "route": r, "cards": cards, "speaker": speaker, "reply": reply,
+            "speech": spoken(reply) if reply else None,
             "reply_source": reply_source, "reply_ms": reply_ms, "blocked": bool(blocked), "stt_ms": t_stt, "total_ms": round((time.time() - t0) * 1000),
             "announced": CONVO["announced"][-10:]}
+
+
+def life_table():
+    t = dict(LIFE)
+    if VP:
+        t[VP.name] = VP.life
+    return t
+
+
+def change_life(player, delta, by, set_to=None):
+    """Anyone's life, by button, brain or voice. set_to: "Michael's at 31" states a total."""
+    if set_to is None and (not isinstance(delta, int) or isinstance(delta, bool)):
+        return {"error": "delta must be an integer"}
+    lt = life_table()
+    if VP and player.lower() in (VP.name.lower(), "me"):
+        player = VP.name
+    elif player not in LIFE:
+        return {"error": f"unknown player '{player}' (players: {list(lt)})"}
+    if set_to is not None:
+        delta = set_to - lt[player]
+    if VP and player == VP.name:
+        with VP_LOCK:
+            VP.life += delta
+    else:
+        LIFE[player] += delta
+    emit("life", player=player, delta=delta, by=by, life=life_table()[player])
+    return life_table()
+
+
+# ── what the AI has said, for the echo filter and for speech ─────────────────────────────────
+SPOKEN: list[tuple[float, float, str]] = []     # (its batch starts, this line ends — estimated, text)     # (starts, ends — estimated, text)
+WORDS_PER_S = 2.3            # Moira measured 2.0–3.2 words/s (2.48 overall), so this errs long
+
+
+def spoken(texts):
+    """Record lines the AI is about to say, queued one after another as the page speaks them.
+    Returns the same lines as they should SOUND (pronounce.py)."""
+    import pronounce
+    now = time.time()
+    batch = end = max(now, SPOKEN[-1][1] if SPOKEN else now)     # queued behind whatever is still being said
+    for t in texts if isinstance(texts, list) else [texts]:
+        if t:
+            end += 0.3 + len(t.split()) / WORDS_PER_S      # + the pause between queued lines
+            SPOKEN.append((batch, end, t))
+    del SPOKEN[:-60]
+    return [pronounce.for_speech(t) for t in texts] if isinstance(texts, list) else pronounce.for_speech(texts)
+
+
+def is_echo(text: str) -> bool:
+    """The laptop's mic hears the laptop's speaker. A transcript that closely matches something the
+    AI is saying right now is its own voice coming back, not a player."""
+    import tablefacts
+    def words(s):
+        s = tablefacts.words_to_numbers(s.lower().replace("\u2019", "'"))
+        return [re.sub(r"'s$|s$", "", w) for w in re.findall(r"[a-z0-9']+", s)]
+    t = words(text)
+    if len(t) < 3:
+        return False
+    now = time.time()
+    # only lines that could still be coming out of the speaker (+ the mic's end-of-speech wait and
+    # transcription): a player saying "I play a Forest" a minute later is a player
+    # the echo reaches us ~1.5 s after the line ends (end-of-speech wait + transcription); 3 s of slack
+    lines = [line for start, end, line in SPOKEN if start - 1 <= now <= end + 5]
+    live = [w for line in lines for w in words(line)]
+    if not live:
+        return False
+    if len(t) <= 4:
+        # a short line is an echo only if it IS one of the AI's lines, word for word: "Claude, your
+        # turn." shares words with "Claude's turn 3." but is a player handing over the turn
+        return any(words(line) == t for line in lines)
+    # echo = nearly every word heard is one the AI was saying. "Claude, your turn." against the AI's
+    # "Claude's turn 2." shares only "claude" and "turn" — a player, not an echo (measured: a looser
+    # whole-string ratio swallowed exactly that line and the AI never took its turn).
+    from difflib import get_close_matches
+    pool = list(live)
+    hit = 0
+    for w in t:                                   # "planes" heard back for the "Plains" it said
+        m = w if w in pool else next(iter(get_close_matches(w, pool, n=1, cutoff=0.75)), None)
+        if m:
+            pool.remove(m)
+            hit += 1
+    return hit / len(t) >= 0.8
+
+
+# ── the table rules the code owns (tablefacts.py): life, attacks, removal, public questions ──
+def table_rules(text: str, r: dict, cards: list[str]) -> dict | None:
+    """Returns {"reply": str|None, "source": "rules", ...} when the code handled the line, or None."""
+    import tablefacts as F
+    import oracle
+    import voice
+    players = list(life_table())
+    ai = VP.name if VP else None
+    addressed = voice.spoken_to(text, [ai]) if ai else None
+    said, notes = [], {}
+    for who, n, how in F.parse_life(text, players, addressed=addressed):
+        change_life(who, None if how == "set" else n, "voice", set_to=n if how == "set" else None)
+        notes.setdefault("life", []).append({"player": who, "amount": n, "how": how})
+        if who == ai:
+            said.append(f"I'm at {VP.life}.")
+    if VP:
+        atk = F.parse_attack(text, ai)
+        if atk:
+            attacker = next((c for c in cards if (oracle.card(c) or {}).get("power") is not None), None)
+            amount = atk["amount"] or (oracle.power(attacker) if attacker else None)
+            notes["attack"] = {"attacker": attacker, "amount": amount, "trample": atk["trample"]}
+            if amount is None:
+                said.append("Attacking me with what, and for how much?")
+            elif BRAIN_EXTERNAL:
+                emit("attention", kind="attacked", text=text, addressee=ai, attacker=attacker, amount=amount,
+                     trample=atk["trample"])
+                return {"reply": None, "source": "brain", "awaiting": "brain", **notes}
+            else:
+                from ai_turn import decide_block
+                with CONVO_LOCK:
+                    board = list(CONVO["announced"])
+                with VP_LOCK:
+                    life0 = VP.life
+                    res = decide_block(VP, amount, attacker, atk["trample"], HUMANS, board)
+                if VP.life != life0:
+                    emit("life", player=ai, delta=VP.life - life0, by="combat", life=VP.life)
+                forget_dead(res)
+                said += res["said"]
+        own = [p.name for p in VP.battlefield if not p.is_("Land")] if VP else []
+        for c in cards:
+            eff = oracle.effect(c)
+            if eff in ("destroy", "exile", "bounce", "shuffle", "damage", "aura"):
+                target = F.removal_target(text, ai, own)
+                if not target:
+                    continue
+                notes["removal"] = {"spell": c, "effect": eff, "target": target}
+                if BRAIN_EXTERNAL:
+                    emit("attention", kind="removal", text=text, addressee=ai, spell=c, effect=eff, target=target)
+                    return {"reply": None, "source": "brain", "awaiting": "brain", **notes}
+                said += apply_removal(c, eff, target)
+            elif eff in ("wipe", "exile-all", "bounce-all", "damage-all"):
+                notes["removal"] = {"spell": c, "effect": eff, "target": "all"}
+                if BRAIN_EXTERNAL:
+                    emit("attention", kind="removal", text=text, addressee=ai, spell=c, effect=eff, target="all")
+                    return {"reply": None, "source": "brain", "awaiting": "brain", **notes}
+                said += apply_removal(c, eff, None)
+        if VP and "removal" not in notes:              # aimed at its permanent, but no known spell
+            target = F.removal_target(text, ai, own)
+            verb = re.search(r"\b(destroy|destroys|kill|kills|exile|exiles|bounce|bounces|return|returns)\b", text, re.I)
+            if target and (verb or re.search(r"\b(cast|casting|bolt|target|targeting)\b", text, re.I)):
+                eff = None
+                if verb:
+                    v = verb.group(1).lower()
+                    eff = "exile" if v.startswith("exile") else "bounce" if v.startswith(("bounce", "return")) else "destroy"
+                notes["removal"] = {"spell": None, "effect": eff, "target": target}
+                if BRAIN_EXTERNAL:
+                    emit("attention", kind="removal", text=text, addressee=ai, spell=None, effect=eff, target=target)
+                    return {"reply": None, "source": "brain", "awaiting": "brain", **notes}
+                said += apply_removal("(spoken)", eff, target) if eff else [f"What does that do to {target}?"]
+    if VP and addressed == ai and r.get("kind") in ("question", "chatter", "play", "deal"):
+        with CONVO_LOCK:
+            last = CONVO["announced"][-1] if CONVO["announced"] else None
+        which = F.card_question(text, cards, last, VP.commander["name"])
+        c = oracle.card(which) if which else None
+        if c and which not in VP.private_hand():          # never read out a card it's holding
+            said.append(F.say_card(which, c["text"]))
+            notes["card"] = which
+    if VP and addressed == ai and r.get("kind") in ("question", "chatter", "play", "deal") and "card" not in notes:
+        kind = F.public_question(text)
+        if kind:
+            with VP_LOCK:
+                said.append(F.answer_public(kind, VP.public(), life_table(), ai))
+            notes["public"] = kind
+    if not said and not notes and ai and r.get("kind") in ("play", "chatter") and ai.lower() in text.lower() \
+            and re.search(r"\b(attack|attacks|attacking|swing|swings|damage|hits?)\b", text, re.I) \
+            and not re.search(r"\bI (?:attack|play|cast)\b", text) \
+            and not voice.spoken_to_someone_else(text, [ai]):
+        said.append("Sorry, say that again? Who's attacking me, and for how much?")
+        notes["unclear"] = True
+    if not said and not notes:
+        return None
+    return {"reply": " ".join(said) or None, "source": "rules", **notes}
+
+
+def forget_dead(block_result: dict):
+    """An attacker that died blocking-wise leaves the table's list of its owner's cards, so the brain
+    doesn't keep planning around a creature that's gone."""
+    dead = block_result.get("attacker_died")
+    if dead:
+        with CONVO_LOCK:
+            for i in range(len(CONVO["announced"]) - 1, -1, -1):
+                if CONVO["announced"][i] == dead:
+                    del CONVO["announced"][i]
+                    break
+
+
+def apply_removal(spell: str, eff: str, target: str | None) -> list[str]:
+    """Resolve an opponent's removal on the AI's board (gemma brain). Code, from Oracle text."""
+    import oracle
+    said = []
+    with VP_LOCK:
+        if target is None:                             # mass effects hit its creatures
+            txt = (oracle.card(spell) or {}).get("text", "").lower()
+            nonland = "nonland permanents" in txt or "all permanents" in txt
+            victims = [p for p in list(VP.battlefield) if p.attached_to is None and not p.is_("Land")
+                       and (nonland or p.is_("Creature"))]
+            if eff == "damage-all":
+                m = re.search(r"deals? (\d+) damage to each creature", txt)
+                n = int(m.group(1)) if m else 0
+                victims = [p for p in victims if p.is_("Creature") and VP.stats(p)[1] <= n]
+            to = {"wipe": "graveyard", "exile-all": "exile", "bounce-all": "hand", "damage-all": "graveyard"}[eff]
+            for p in victims:
+                if p in VP.battlefield:
+                    VP.move(f"#{p.id}", to)
+            names = [p.name for p in victims]
+            said.append(("I lose " + ", ".join(names) + ".") if names else "That doesn't touch my board.")
+            return said
+        p = next(x for x in VP.battlefield if x.name == target)
+        if eff == "damage":
+            txt = (oracle.card(spell) or {}).get("text", "").lower()
+            m = re.search(r"deals? (\d+) damage", txt)
+            if not m or VP.stats(p)[1] > int(m.group(1)):
+                return [f"{target} survives that."]
+            eff = "destroy"
+        if eff == "aura":
+            p.counters = 0
+            return [f"{target} is enchanted with {spell}. Noted."]
+        to = {"destroy": "graveyard", "exile": "exile", "bounce": "hand", "shuffle": "library"}[eff]
+        if to == "library":
+            VP.move(f"#{p.id}", "graveyard")
+            gone = VP.graveyard.pop() if VP.graveyard and VP.graveyard[-1]["name"] == target else None
+            if gone:
+                import random
+                VP.library.insert(random.randrange(len(VP.library) + 1), gone)
+            return [f"{target} shuffles into my library."]
+        VP.move(f"#{p.id}", to)
+        return [{"graveyard": f"{target} dies.", "exile": f"{target} is exiled.", "hand": f"{target} returns to my hand."}[to]]
 
 
 def voice_leak(text, hidden):
     import voice
     return voice.leaks_hand(text, hidden)
+
+
+BRAIN_LAST = [0.0]
+FILLERS = ["One moment.", "Hmm, let me think.", "Give me a second.", "Thinking.", "Hold on."]
+
+
+def hold_the_floor(attention_id: int, after: float = 3.0):
+    """External brain: if nothing has come back a few seconds after the table spoke to the AI,
+    say so — silence at a table reads as not having heard."""
+    asked = time.time()
+
+    def later():
+        time.sleep(after)
+        if BRAIN_LAST[0] < asked:
+            line = FILLERS[attention_id % len(FILLERS)]
+            emit("say", speaker=VP.name, text=line, action="filler", speech=spoken(line))
+    threading.Thread(target=later, daemon=True).start()
 
 
 def run_ai_turn():
@@ -298,7 +585,10 @@ def show_card(image: bytes, to: str, shown_by: str):
     import voice
     from difflib import get_close_matches
     t0 = time.time()
-    lines = [l.text for l in read_lines(image)]
+    try:
+        lines = [l.text for l in read_lines(image)]
+    except Exception as e:                            # not an image Vision can open
+        raise BadRequest(f"not a readable image ({type(e).__name__})")
     name, _, _ = identify_any(lines, CATALOG)
     via = "ocr"
     now = time.time()
@@ -341,6 +631,7 @@ def show_card(image: bytes, to: str, shown_by: str):
     ai = next((p for p in AI_PLAYERS if p["name"] == to), AI_PLAYERS[0])
     with CONVO_LOCK:
         CONVO["announced"].append(name)
+        CONVO["recent"].append(f"({shown_by} showed {name})")
         recent, board = list(CONVO["recent"]), list(CONVO["announced"])
     emit("shown", card=name, by=shown_by, to=ai["name"], via=via)
     if BRAIN_EXTERNAL:
@@ -359,7 +650,11 @@ def show_card(image: bytes, to: str, shown_by: str):
         reply, src = f"{name}. Noted.", "template"
     print(f"shown to {ai['name']}: {name} (via {via})", flush=True)
     return {"status": "seen", "card": name, "via": via, "speaker": ai["name"], "reply": reply,
-            "reply_source": src, "ms": round((time.time() - t0) * 1000), "board": board[-10:]}
+            "speech": spoken(reply), "reply_source": src, "ms": round((time.time() - t0) * 1000), "board": board[-10:]}
+
+
+class BadRequest(Exception):
+    pass
 
 
 class H(BaseHTTPRequestHandler):
@@ -372,9 +667,24 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _drain(self, n):
+        """Read (and drop) a refused body up to 32 MB, so the client gets our 413 rather than a
+        broken pipe. Anything larger: close the connection."""
+        if 0 < n <= 32_000_000:
+            while n > 0:
+                n -= len(self.rfile.read(min(n, 1 << 20)) or b"x" * n)
+        else:
+            self.close_connection = True
+
     def _json(self):
         n = int(self.headers.get("Content-Length", 0))
-        return json.loads(self.rfile.read(n) or b"{}")
+        try:
+            b = json.loads(self.rfile.read(n) or b"{}")
+        except json.JSONDecodeError:
+            raise BadRequest("body is not JSON")
+        if not isinstance(b, dict):
+            raise BadRequest("body must be a JSON object")
+        return b
 
     def do_GET(self):
         if self.path == "/":
@@ -437,11 +747,13 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/api/scan":
                 n = int(self.headers.get("Content-Length", 0))
                 if not 0 < n <= 8_000_000:
+                    self._drain(n)
                     return self._send(413, {"error": "image must be 1 byte to 8 MB"})
                 return self._send(200, scan(self.rfile.read(n)))
             if self.path.startswith("/api/show"):
                 n = int(self.headers.get("Content-Length", 0))
                 if not 0 < n <= 8_000_000:
+                    self._drain(n)
                     return self._send(413, {"error": "image must be 1 byte to 8 MB"})
                 to = self.headers.get("X-Show-To", "")
                 by = self.headers.get("X-Shown-By", "") or "Someone"
@@ -449,6 +761,7 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/api/utterance":
                 n = int(self.headers.get("Content-Length", 0))
                 if not 0 < n <= 2_000_000:              # ~60 s of 16 kHz mono 16-bit
+                    self._drain(n)
                     return self._send(413, {"error": "utterance must be 1 byte to 2 MB of WAV"})
                 return self._send(200, handle_utterance(self.rfile.read(n)))
             if self.path == "/api/play":                   # a slot's card is revealed as it is played
@@ -467,7 +780,8 @@ class H(BaseHTTPRequestHandler):
                 if VP is None:
                     return self._send(404, {"error": "no virtual AI deck (start with --ai-deck)"})
                 if BRAIN_EXTERNAL:                         # the button hands the turn to the brain
-                    emit("attention", kind="turn", text="(turn button)", addressee=VP.name)
+                    ev = emit("attention", kind="turn", text="(turn button)", addressee=VP.name)
+                    hold_the_floor(ev["id"])
                     return self._send(200, {"awaiting": "brain"})
                 return self._send(200, run_ai_turn())
             if self.path == "/api/life":                   # anyone at the table: {"player": name, "delta": -3}
@@ -488,6 +802,7 @@ class H(BaseHTTPRequestHandler):
                 for k in LIFE:
                     LIFE[k] = 40
                 emit("new-game")
+                SPOKEN.clear()
                 if VP is not None:
                     from player import VirtualPlayer
                     with VP_LOCK:
@@ -506,6 +821,8 @@ class H(BaseHTTPRequestHandler):
                     print(f"undo -> slot {slot} emptied", flush=True)
                     return self._send(200, {"undone": slot, **T.public()})
             self._send(404, {"error": "not found"})
+        except BadRequest as e:
+            self._send(400, {"error": str(e)})
         except Exception as e:                             # never crash the table over one request
             self._send(500, {"error": f"{type(e).__name__}: {e}"})
 
@@ -516,24 +833,10 @@ class H(BaseHTTPRequestHandler):
         return VP is not None and secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN)
 
     def _life_table(self):
-        t = dict(LIFE)
-        if VP:
-            t[VP.name] = VP.life
-        return t
+        return life_table()
 
     def _change_life(self, player, delta, by):
-        if not isinstance(delta, int) or isinstance(delta, bool):
-            return {"error": "delta must be an integer"}
-        if VP and player.lower() in (VP.name.lower(), "me"):
-            with VP_LOCK:
-                VP.life += delta
-            player = VP.name
-        elif player in LIFE:
-            LIFE[player] += delta
-        else:
-            return {"error": f"unknown player '{player}' (players: {list(self._life_table())})"}
-        emit("life", player=player, delta=delta, by=by, life=self._life_table()[player])
-        return self._life_table()
+        return change_life(player, delta, by)
 
     def _brain(self, action, b):
         """The external brain's actions. Engine-checked; each announcement is spoken as the AI."""
@@ -558,7 +861,17 @@ class H(BaseHTTPRequestHandler):
                 elif action == "cast":
                     said = VP.manual_cast(b["name"], on=b.get("on"), role_on=b.get("role_on"), modes=b.get("modes"),
                                           targets=b.get("targets"), commander=bool(b.get("commander")),
-                                          x=int(b.get("x") or 0), discount=int(b.get("discount") or 0))
+                                          x=int(b.get("x") or 0), discount=int(b.get("discount") or 0),
+                                          color=b.get("color"))
+                elif action == "block":                  # someone attacked the AI; the brain blocks (or not)
+                    from ai_turn import resolve_block
+                    blk = VP.perm(b["blocker"]) if b.get("blocker") else None
+                    life0 = VP.life
+                    res = resolve_block(VP, blk, int(b["amount"]), bool(b.get("trample")), b.get("attacker"))
+                    said = res["said"]
+                    if VP.life != life0:
+                        emit("life", player=VP.name, delta=VP.life - life0, by="combat", life=VP.life)
+                    forget_dead(res)
                 elif action == "attack":
                     said = VP.manual_attack(b["assign"], role_on=b.get("role_on"))
                 elif action == "end":
@@ -597,6 +910,7 @@ class H(BaseHTTPRequestHandler):
                     for k in LIFE:
                         LIFE[k] = 40
                     emit("new-game")
+                    SPOKEN.clear()
                     said = ["New game. I shuffle up and draw seven."]
                 else:
                     return self._send(400, {"error": f"unknown action '{action}'"})
@@ -604,9 +918,10 @@ class H(BaseHTTPRequestHandler):
             return self._send(400, {"error": str(e)})
         except KeyError as e:
             return self._send(400, {"error": f"missing field {e}"})
+        BRAIN_LAST[0] = time.time()
         for line in said:
             if speak and line:
-                emit("say", speaker=VP.name, text=line, action=action)
+                emit("say", speaker=VP.name, text=line, action=action, speech=spoken(line))
         with VP_LOCK:
             state = VP.public()
         return self._send(200, {"ok": True, "said": said, "private": private, "public": state})

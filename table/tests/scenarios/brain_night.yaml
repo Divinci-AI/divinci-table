@@ -1,0 +1,158 @@
+# The night we actually play: Claude is the brain (--brain external), acting through the brain API
+# exactly as tablectl does. The `brain:` steps stand in for Claude's decisions so the plumbing —
+# voice → attention → brain → spoken announcements → life/board — is tested without a person.
+
+setup:
+  brain: external
+  ai: ["Claude|Ellivere of the Wild Court|Moira"]
+  ai_deck: decks/ellivere.json
+  humans: ["Michael|Ghalta, Primal Hunger", "Sam|Krenko, Mob Boss"]
+
+scenarios:
+- id: brain-turn-goes-to-brain
+  about: '"Claude, your turn." hands the turn to the brain; the server does not play it.'
+  steps:
+  - say: {text: "Claude, your turn.", voice: Daniel}
+    expect: {attention: turn, turn_advanced: false}
+
+- id: brain-filler-when-slow
+  about: If the brain hasn't answered after ~3 s, the table hears that it was heard.
+  steps:
+  - say: {text: "Claude, your turn.", voice: Daniel}
+    settle: 4
+    expect: {attention: turn, event_say: "moment|think|second|hold"}
+
+- id: brain-no-filler-when-fast
+  about: A brain that answers within 3 s gets no filler talking over it.
+  steps:
+  - say: {text: "Claude, your turn.", voice: Daniel}
+    expect: {attention: turn}
+  - brain: {action: begin}
+    settle: 3.5
+    expect: {event_say: "Claude's turn", ai_text_not: "one moment|let me think|give me a second|hold on"}
+
+- id: brain-plays-a-turn
+  about: A full turn through the brain API is announced in its voice, card names audible.
+  steps:
+  - brain: {action: begin}
+    expect: {event_say: "turn 1"}
+  - brain: {action: land, any_land: true}
+    expect: {event_say: "I play", hear_cards: auto}
+  - brain: {action: end}
+    expect: {event_say: "that's my turn"}
+
+- id: brain-casts-over-turns
+  about: Six turns of land + whatever is castable; every cast is announced and audible.
+  steps:
+  - {brain: {action: begin}, expect: {}}
+  - {brain: {action: land, any_land: true}, optional: true, expect: {}}
+  - {brain: {action: cast, castable: true}, optional: true, expect: {event_say: "I cast", hear_cards: auto}}
+  - {brain: {action: cast, castable: true}, optional: true, expect: {event_say: "I cast", hear_cards: auto}}
+  - {brain: {action: end}, expect: {}}
+  - {brain: {action: begin}, expect: {}}
+  - {brain: {action: land, any_land: true}, optional: true, expect: {}}
+  - {brain: {action: cast, castable: true}, optional: true, expect: {event_say: "I cast", hear_cards: auto}}
+  - {brain: {action: cast, castable: true}, optional: true, expect: {event_say: "I cast", hear_cards: auto}}
+  - {brain: {action: end}, expect: {}}
+  - {brain: {action: begin}, expect: {}}
+  - {brain: {action: land, any_land: true}, optional: true, expect: {}}
+  - {brain: {action: cast, castable: true}, optional: true, expect: {event_say: "I cast", hear_cards: auto}}
+  - {brain: {action: cast, castable: true}, optional: true, expect: {event_say: "I cast", hear_cards: auto}}
+  - {brain: {action: end}, expect: {}}
+  - {brain: {action: begin}, expect: {}}
+  - {brain: {action: land, any_land: true}, optional: true, expect: {}}
+  - {brain: {action: cast, castable: true}, optional: true, expect: {event_say: "I cast", hear_cards: auto}}
+  - {brain: {action: cast, castable: true}, optional: true, expect: {event_say: "I cast", hear_cards: auto}}
+  - {brain: {action: end}, expect: {}}
+  - {brain: {action: begin}, expect: {}}
+  - {brain: {action: land, any_land: true}, optional: true, expect: {}}
+  - {brain: {action: cast, castable: true}, optional: true, expect: {event_say: "I cast", hear_cards: auto}}
+  - {brain: {action: cast, castable: true}, optional: true, expect: {event_say: "I cast", hear_cards: auto}}
+  - {brain: {action: end}, expect: {}}
+  - {brain: {action: begin}, expect: {}}
+  - {brain: {action: land, any_land: true}, optional: true, expect: {}}
+  - {brain: {action: cast, castable: true}, optional: true, expect: {event_say: "I cast", hear_cards: auto}}
+  - {brain: {action: cast, castable: true}, optional: true, expect: {event_say: "I cast", hear_cards: auto}}
+  - {brain: {action: end}, expect: {}}
+
+- id: brain-public-question-by-code
+  about: Public questions are answered at once by code; the brain isn't bothered.
+  steps:
+  - say: {text: "Claude, what's your life total?", voice: Samantha}
+    expect: {event_say: "\\b40\\b", no_attention: true}
+
+- id: brain-private-question-to-brain
+  about: A judgment question goes to the brain.
+  steps:
+  - say: {text: "Claude, who are you going to attack next turn?", voice: Daniel}
+    expect: {attention: question}
+
+- id: brain-deal-to-brain
+  about: A deal goes to the brain.
+  steps:
+  - say: {text: "Claude, truce until my next turn? I won't attack you if you don't attack me.", voice: Daniel}
+    expect: {attention: deal}
+
+- id: brain-attacked
+  about: An attack on Claude asks the brain to block, with the attacker and amount filled in.
+  steps:
+  - say: {text: "Ghalta attacks Claude for twelve.", voice: Daniel}
+    expect: {attention: attacked, attention_fields: {amount: 12}}
+  - brain: {action: block, amount: 12, attacker: Ghalta}
+    expect: {life: {Claude: 28}, event_say: "no blocks.*28"}
+
+- id: brain-blocks-with-token
+  about: The brain blocks with a creature; the blocker dies, life stays.
+  steps:
+  - brain: {action: token, name: Soldier, power: 1, toughness: 1}
+    expect: {}
+  - say: {text: "Krenko attacks Claude for three.", voice: Samantha}
+    expect: {attention: attacked, attention_fields: {amount: 3}}
+  - brain: {action: block, blocker: Soldier, amount: 3, attacker: Krenko}
+    expect: {life: {Claude: 40}, event_say: "block.*Soldier.*dies"}
+
+- id: brain-removal-announced
+  about: Removal on Claude's creature is handed to the brain with spell, effect and target.
+  steps:
+  - brain: {action: token, name: Elf Warrior, power: 1, toughness: 1}
+    expect: {}
+  - say: {text: "I cast Swords to Plowshares on Claude's Elf Warrior.", voice: Daniel}
+    expect: {attention: removal, attention_fields: {effect: exile}}
+  - brain: {action: exile, ref: Elf Warrior}
+    expect: {ai_creatures_max: 0}
+
+- id: brain-wipe-announced
+  about: A board wipe is handed to the brain as affecting everything.
+  steps:
+  - brain: {action: token, name: Elf Warrior, power: 1, toughness: 1}
+    expect: {}
+  - say: {text: "I cast Wrath of God.", voice: Samantha}
+    expect: {attention: removal, attention_fields: {target: all, effect: wipe}}
+
+- id: brain-life-by-voice
+  about: Life said out loud updates the table without involving the brain.
+  steps:
+  - say: {text: "Sam's at twenty-two.", voice: Samantha}
+    expect: {life: {Sam: 22}, no_attention: true}
+  - say: {text: "Claude, you take seven.", voice: Daniel}
+    expect: {life: {Claude: 33}, event_say: "33"}
+
+- id: brain-leak-guard
+  about: The brain trying to say a card still in its hand is refused.
+  steps:
+  - brain: {action: say, text: "I'm holding {hand_card} for later."}
+    expect: {http: 400, error: "still in your hand"}
+
+- id: brain-echo-ignored
+  about: Claude's own spoken line, back through the mic, is ignored.
+  steps:
+  - brain: {action: say, text: "Good evening, table. Shall we begin?"}
+    expect: {event_say: "Good evening"}
+  - echo: {text: "Good evening, table. Shall we begin?"}
+    expect: {ignored: echo, no_attention: true}
+
+- id: brain-plays-heard-for-brain
+  about: Human plays reach the brain as heard events with the cards, so it can track their boards.
+  steps:
+  - say: {text: "I cast Ghalta.", voice: Daniel}
+    expect: {cards: ["Ghalta, Primal Hunger"], no_attention: true}

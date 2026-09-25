@@ -52,6 +52,10 @@ targets, no self-wipe); `tests/ai_turn_e2e.py` 14/14 against the live server. Tu
 
 ## An outside brain drives the virtual player (`--brain external`)
 
+**Game night:** `table/play.sh "Michael|Ghalta, Primal Hunger" "Sam|Krenko, Mob Boss"`, then open
+`/table`. The brain's playbook is [docs/claude-brain.md](../docs/claude-brain.md); the goals and scorecard are in
+[docs/goal-sensory-player.md](../docs/goal-sensory-player.md).
+
 With `--brain external` the server stops making the AI's decisions. It still keeps the deck, the
 private hand, the board, life totals and table talk, and it still checks the arithmetic (mana, one
 land a turn, legal Aura targets). Whoever runs `table/tablectl.py` makes the Magic decisions, and
@@ -161,7 +165,11 @@ still checks every reply before it is spoken.
 ~/.venvs/table/bin/python table/tests/route_eval.py            # router regression set (23 lines)
 ~/.venvs/table/bin/python table/tests/ai_turn_e2e.py           # virtual-deck AI opponent (Ellivere config)
 ~/.venvs/table/bin/python table/tests/brain_e2e.py             # external brain via the API (--brain external)
-~/.venvs/table/bin/python table/tests/sense_run.py            # 51 scenarios through camera + mic only; AI's voice heard back (docs/goal-sensory-player.md)
+table/tests/run_all.sh                                        # EVERYTHING below, one summary (~15 min; `quick` ~6 min)
+~/.venvs/table/bin/python table/tests/engine_rules.py          # engine arithmetic from real positions (mana Auras, anthems…)
+~/.venvs/table/bin/python table/tests/sense_run.py             # 93 scenarios through camera + mic only; AI's voice heard back
+~/.venvs/table/bin/python table/tests/game_sim.py              # whole games by voice vs. a simulator's own ledger (--brain external: you play)
+~/.venvs/table/bin/python table/tests/voice_audit.py           # which card names survive the AI's voice (per voice, raw vs lexicon)
 PW=<path to node_modules/@playwright/test> node table/tests/brain_page_e2e.cjs  # /table follows the brain
 ~/.venvs/table/bin/python table/tests/board_eval.py            # can one overhead frame be read? (see below)
 ~/.venvs/table/bin/python table/tests/e2e_offline.py           # API-level game session

@@ -73,6 +73,7 @@ class Perm:
     attached_to: int | None = None          # auras / roles: the id of the creature they enchant
     role: str | None = None
     counters: int = 0
+    chosen: str | None = None               # "As this enters, choose a color" (Utopia Sprawl)
     id: int = field(default_factory=lambda: next(_ids))
 
     @property
@@ -132,9 +133,24 @@ class VirtualPlayer:
             elif a.role:
                 pw, tg = pw + 1, tg + 1
             else:
-                m = re.search(r"Enchanted creature gets \+(\d+)/\+(\d+)", a.card.get("text") or "")
+                t = a.card.get("text") or ""
+                m = re.search(r"Enchanted creature gets \+(\d+)/\+(\d+)( for each (enchantment|aura|creature|land) you control)?", t)
                 if m:
-                    pw, tg = pw + int(m.group(1)), tg + int(m.group(2))
+                    k = 1
+                    if m.group(3):                  # Ethereal Armor: +1/+1 for each enchantment you control
+                        kind = m.group(4)
+                        k = sum(1 for x in self.battlefield if (x.is_(kind.capitalize()) if kind != "aura"
+                                                                else "Aura" in (x.card.get("subtypes") or [])))
+                    pw, tg = pw + k * int(m.group(1)), tg + k * int(m.group(2))
+        # anthems from its other permanents: "Enchanted creatures you control get +1/+1" (Syr
+        # Armont), "Creatures you control get +1/+1", "Other creatures you control get +1/+1"
+        enchanted = any(a.attached_to == p.id for a in self.battlefield)
+        for src in self.battlefield:
+            t = src.card.get("text") or ""
+            for m in re.finditer(r"(Other )?(Enchanted )?[Cc]reatures you control get \+(\d+)/\+(\d+)", t):
+                if (m.group(1) and src is p) or (m.group(2) and not enchanted):
+                    continue
+                pw, tg = pw + int(m.group(3)), tg + int(m.group(4))
         return pw, tg
 
     def describe(self, p: Perm) -> str:
@@ -146,6 +162,10 @@ class VirtualPlayer:
 
     # ── mana ──────────────────────────────────────────────────────────────────────────────
     def sources(self):
+        """One entry per mana it can make now: (the permanent that gets tapped, colours). A land
+        enchanted by a mana Aura (Fertile Ground, Utopia Sprawl, Wild Growth, Overgrowth) makes its
+        own mana PLUS the Aura's — found in the rehearsal, where the engine said 2 mana and the
+        table had 3."""
         out = []
         for p in self.battlefield:
             if p.tapped or p.attached_to is not None:
@@ -155,7 +175,35 @@ class VirtualPlayer:
                 cols = produced_colors(p.card)
                 if cols:
                     out.append((p, cols))
+                    if p.is_("Land"):
+                        out += [(p, c) for c in self.aura_mana(p)]
         return out
+
+    def missing_color(self):
+        """The commander colour its mana makes least of — what a "choose a color" land Aura names."""
+        ident = [c for c in "WUBRG" if c in (self.commander.get("colorIdentity") or self.commander.get("colors") or [])] or ["G"]
+        made = "".join(c for _, c in self.sources())
+        return min(ident, key=lambda c: made.count(c))
+
+    def aura_mana(self, land):
+        """Extra mana from Auras on this land, one colour-string per mana."""
+        extra = []
+        for a in self.battlefield:
+            if a.attached_to != land.id:
+                continue
+            t = a.card.get("text") or ""
+            m = re.search(r"enchanted (?:land|forest|plains|island|swamp|mountain) is tapped for mana, its controller "
+                          r"adds? (?:an )?additional ([^.]+)", t, re.I)
+            if not m:
+                continue
+            what = m.group(1)
+            if "any color" in what:
+                extra.append("WUBRG")
+            elif "chosen color" in what:
+                extra.append(a.chosen or "G")
+            else:
+                extra += [c for c in re.findall(r"\{([WUBRGC])\}", what)] or ["G"]
+        return extra
 
     def plan_payment(self, mana_cost: str, extra_generic=0):
         """A set of sources that pays the cost, or None. Coloured pips first from the sources that
@@ -267,7 +315,10 @@ class VirtualPlayer:
             if "Aura" in (c.get("subtypes") or []):
                 target = choose_target(c, self.aura_targets(c))
                 p.attached_to = target.id
-                said.append(f"It enchants {target.name}.")
+                if "choose a color" in (c.get("text") or "").lower():
+                    p.chosen = getattr(self, "next_color", None) or self.missing_color()
+                    self.next_color = None
+                said = [f"I cast {c['name']} on {target.name}."]      # one sentence, not two
             self.battlefield.append(p)
             said += self.enter_effects(p, choose_target)
         return " ".join(said)
@@ -392,7 +443,7 @@ def _manual(cls):
         before = len(self.hand)
         self.draw()
         drew = self.hand[-1]["name"] if len(self.hand) > before else None
-        return [f"{self.name}'s turn {self.turn}. I untap and draw a card."], drew
+        return [f"{self.name}'s turn {self.turn}."], drew
 
     def manual_land(self, name):
         c = self.hand_card(name)
@@ -402,9 +453,13 @@ def _manual(cls):
             raise IllegalAction("you already played a land this turn")
         return [self.play_land(c)]
 
-    def manual_cast(self, name, on=None, role_on=None, modes=None, targets=None, commander=False, x=0, discount=0):
+    def manual_cast(self, name, on=None, role_on=None, modes=None, targets=None, commander=False, x=0, discount=0,
+                    color=None):
         """discount: generic cost reduction the brain knows applies (e.g. Jukai Naturalist makes
-        enchantment spells cost {1} less) — the engine does not read cost-reduction text."""
+        enchantment spells cost {1} less) — the engine does not read cost-reduction text.
+        color: for "as this enters, choose a color" (W/U/B/R/G)."""
+        if color:
+            self.next_color = color.strip().upper()[:1]
         if commander or name.lower() in (self.commander["name"].lower(), "commander"):
             if not self.cmdr_in_zone:
                 raise IllegalAction("your commander is not in the command zone")
@@ -485,8 +540,9 @@ def _manual(cls):
                     rt = self.perm(role_on) if role_on else None
                     said += self.enter_effects(fake, lambda card, cands: rt if rt in cands else max(cands, key=lambda k: self.stats(k)[0]))
             total = sum(self.stats(c)[0] for c in cs)
-            said.append(f"I attack {who} with " + ", ".join(self.describe(c).replace(" [tapped]", "") for c in cs)
-                        + f" — {total} damage if unblocked.")
+            names = [c.name for c in cs]
+            said.append(f"I attack {who} with " + (names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1])
+                        + f", {total} damage.")                    # same words as the Gemma turn
         return said
 
     def move(self, ref, to):

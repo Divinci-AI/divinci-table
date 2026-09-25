@@ -53,43 +53,66 @@ Scenarios live in `table/tests/scenarios/*.yaml`, and each scenario has a tier:
   of the draw. (It happened on the first night: `turn-card-names-audible` passed once, and the run
   before it lost "Aura Gnarlid", which came out as "or annul".)
 
-## Scorecard — 2026-09-24, first runs (M4 Pro, Gemma 4 e2b, Whisper small, Moira voice)
+## Scorecard: 2026-09-25 (M4 Pro, Gemma 4 e2b, Whisper small, Moira)
 
-**Regressions: 35/35.** No non-loopback connection. The whole suite takes about 2 minutes.
+`table/tests/run_all.sh`: every suite passes.
 
-| area | passes today |
+| suite | result |
 |---|---|
-| hearing plays | plain, two cards at once, commander nicknames, Australian/Indian/South African voices, fast talker, 15 dB room noise, a quieter talker over the top, a mangled name ("Lanour Elves") |
-| who it's for | chatter ignored; talking *about* the AI is not talking *to* it; "Sam, your turn" doesn't start its turn; a long story that names Sol Ring isn't a play |
-| its turn | "your turn" / "you're up" / "go ahead" each play one legal turn; a question about its turn is answered, not played; three full voice-driven rounds with no rule slips |
-| privacy | asked for its hand, asked to spell it, a spoken "developer override", a printed injection "card" held to the camera — nothing leaks in text or in sound |
-| eyes | clean, sideways, upside down, tilted, arm's length, sleeve glare, thumb over the text, dim room, heavy JPEG, the same card twice. A blurred card is read correctly or not at all, never as a wrong card. A grocery list is not a card |
+| engine rules (`engine_rules.py`) | 11/11 |
+| sensory regressions (`sense_run.py`, 93 scenarios in two setups) | **80/80** |
+| whole simulated games by voice (`game_sim.py`) | 5 games, 293 spoken lines, **0 bookkeeping mismatches** |
+| brain API · brain page · Gemma turns · session · /table page · router | 20/20 · 7/7 · 14/14 · 41/41 · 10/10 · 22/23 routed, 23/23 right speaker |
+| offline | no non-loopback connection in any run |
 
-**Goals: open, in rough order of value at a real table**
+Latency in the simulated games, from end of speech to the table's answer:
 
-| goal (scenario id) | what happens today |
+| line | p50 | p95 |
+|---|---|---|
+| play | 0.44 s | 0.77 s |
+| question | 0.39 s | 0.47 s |
+| attack on the AI | 0.58 s | 0.79 s |
+| the AI's whole turn | 1.1 s | 2.1 s |
+
+**What was built to get there** (each item was found by a test, not guessed):
+
+- **Code owns the table facts** (`tablefacts.py`):
+  - life said out loud ("Sam's at 22", "Krenko deals 4 to Sam", "Claude, you take seven");
+  - attacks on the AI, with a block decision whose arithmetic lives in code (it blocks only when
+    the blocker survives or the hit matters, and never drops to 5 or less while it could block);
+  - removal on its permanents, read from the card's Oracle text (31/32 right, where Gemma got
+    15/30);
+  - public questions (life, hand size, library, graveyard, board, mana);
+  - "what does X do?".
+- **An offline Oracle** (`oracle.py`): every card's rules text, P/T and effect. It needs one
+  Scryfall download.
+- **Echo suppression**: the AI's own voice coming back through the laptop mic is ignored, by word
+  coverage within the time it is actually speaking. A player repeating the same words later is
+  still heard. The first version used string similarity; it swallowed "Claude, your turn", and the
+  AI never took its turn.
+- **Pronunciation** (`pronounce.py`): measured in `voice_audit.py`. Moira is the clearest voice
+  (94 % of the deck's names come back right with no hint). Three respellings fix the rest.
+- **Brain mode for playing together**:
+  - public questions and life are handled by code;
+  - `attacked` and `removal` attentions arrive with the attacker, amount, spell, effect and target;
+  - a spoken filler if the brain takes more than 3 s;
+  - `tablectl block`.
+- **Engine**:
+  - mana Auras on lands (Fertile Ground, Utopia Sprawl…);
+  - "choose a color";
+  - anthems;
+  - "+1/+1 for each enchantment". All four were found by playing the rehearsal.
+
+**Goals still open** (11):
+
+| goal | what happens today |
 |---|---|
-| `life-hit-by-voice`, `life-human-reports` | life only changes by button or `tablectl`; "Ghalta hits Claude for twelve" does nothing |
-| `removal-on-its-creature` | removal named on its creature is heard as a play, and its board doesn't change |
-| `ask-deal` | a deal gets "We shall see what you bring" and no yes or no. Code decides ACCEPT/DECLINE, but the spoken line drops it |
-| `ask-life-total`, `ask-hand-size`, `ask-own-board` | public information gets dodged: "my life total is whatever the Wild Court decides" |
-| `ask-commander-rules`, `see-then-ask` | no rules knowledge in the persona reply; "that card" isn't linked to the card it just saw |
-| `turn-announcement-brief` | a turn-5 announcement takes 24–29 s to say |
-| `turn-card-names-audible`, `see-name-audible` | depends on the draw. Moira says "Clawd", "Sarah Angel", "Lana or Elvis" (Llanowar Elves), "or annul" (Aura Gnarlid) |
-| `hear-loud-room` (5 dB), `hear-quiet-voice` | the play isn't heard at all |
-| `see-very-far`, `see-two-cards` | a card at 28 % scale isn't read; with two cards held up only one is read |
-
-## Problems the first runs found
-
-1. **The table can't make out its own name and its cards.** "Claude" → "Clawd"; "Llanowar Elves"
-   → "Lana or Elvis". Fix it on the speaking side: a pronunciation lexicon, or phonetic respelling
-   for TTS only. Don't touch the text used for rules.
-2. **Deals aren't answered.** Code decides the verdict, and the persona writes around it. Rule
-   that code should own: the spoken reply to a deal must start with the verdict.
-3. **Public information is treated as secret.** The persona is told to be cagey about the hand and
-   applies that to everything. Code should answer life, hand size and board directly from state.
-4. **Turn announcements grow long.** After turn 5 they run over 20 s. Say less: skip lands after the
-   first mention, and group the Auras.
+| `life-i-am-at` | "I'm at 35" needs to know who is speaking: speaker ID |
+| `hear-loud-room` (5 dB), `hear-quiet-voice`, `hear-far-field`, `hear-far-and-noisy` | Whisper small loses the play. Try a bigger Whisper, or a mic nearer the table |
+| `hear-merged-cast` | "Archastristic Study": Whisper glues "I cast" onto the name |
+| `see-very-far`, `see-two-cards` | a card at 28 % scale isn't read; with two cards held up, only one is read |
+| `see-then-ask` | the persona gets the card's text but still talks vaguely about "that card" |
+| `turn-card-names-audible`, `see-name-audible` | pass or fail with the draw: "Aura Gnarlid" is still hard in Moira |
 
 ## Tests still to write
 
@@ -117,17 +140,17 @@ Grouped by sense. Each should become a YAML scenario, or a new step type in the 
 - it should notice when a card has *left* the board (destroyed, bounced).
 
 **Voice**
-- every card in its deck, spoken in its voice and transcribed back: score how many names are
-  audible, and track it as a number per voice (Moira vs Daniel vs Samantha);
+- ~~every card in its deck, spoken in its voice and transcribed back~~ (done: `voice_audit.py`);
 - its announcements are at most N words, and hand every decision (target, mode, attack) to the
   table by name;
 - it never talks over a human: speech must wait for a gap in the mic input.
 
 **Whole games**
-- a scripted 10-turn game for 4 players, entirely by voice and camera: its board, life and
-  graveyard must match an independently tracked ground truth at the end;
-- the same game with Claude as the outside brain (`--brain external`), with the runner pausing on
-  `attention` events for the brain to act;
+- ~~a scripted game entirely by voice, checked against the simulator's own ledger~~ (done:
+  `game_sim.py`). Next: add the camera (players show their creatures) and a 4th player;
+- ~~the same game with Claude as the outside brain~~ (done 2026-09-25: `game_sim.py --brain
+  external`, five rounds, 0 mismatches. It surfaced the mana-Aura, anthem, attack-wording and
+  summoning-sickness fixes above);
 - a 2-hour soak: memory, latency drift, Gemma still loaded, no socket leaks.
 
 **Adversarial**

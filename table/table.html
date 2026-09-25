@@ -119,10 +119,11 @@ function assignVoices(){
   ai.forEach((p,i)=>{ const named=p.voice && all.find(v=>v.name===p.voice||v.name.startsWith(p.voice+" "));
     voices[p.name]=named || en[(i*3)%Math.max(1,en.length)]; });
 }
-function speak(who, text){
+function speak(who, text, sounds){
   // No cancel(): a card reaction and an answer can land together, so they queue.
+  // `sounds` is the same line respelled for the voice (pronounce.py); the feed shows `text`.
   if(!$("speak").checked || !window.speechSynthesis) return;
-  const u=new SpeechSynthesisUtterance(text); if(voices[who]) u.voice=voices[who];
+  const u=new SpeechSynthesisUtterance(sounds||text); if(voices[who]) u.voice=voices[who];
   speechSynthesis.speak(u);
 }
 function addBoard(cards){
@@ -165,7 +166,7 @@ function showTurn(who, turn){
   feed(`<span><span class="k question">turn</span> <b>${esc(who)}</b> plays its turn</span>
         <ol>${turn.said.map(x=>`<li>${esc(x)}</li>`).join("")}</ol>
         <span class="meta">${turn.decisions.length} decisions by ${esc("gemma4")} · ${turn.ms} ms</span>`, "turn");
-  for(const line of turn.said) speak(who, line);        // one sentence at a time, queued
+  turn.said.forEach((line,i)=>speak(who, line, (turn.speech||[])[i]));        // one sentence at a time, queued
   refreshAI();
 }
 $("aiTurn").onclick=async ()=>{
@@ -197,7 +198,7 @@ async function pollEvents(){
       evSince=e.id;
       if(e.type==="say"){
         feed(`<span class="reply">${esc(e.speaker)}: ${esc(e.text)}</span>`, e.action && e.action!=="say" ? "turn" : "");
-        speak(e.speaker, e.text); touched=true;
+        speak(e.speaker, e.text, e.speech); touched=true;
       } else if(e.type==="life"){ feed(`<span class="meta">life: ${esc(e.player)} ${e.delta>0?"+":""}${e.delta} → ${e.life} (${esc(e.by)})</span>`); touched=true; }
       else if(e.type==="new-game"){ board.length=0; addBoard([]); touched=true; }
     }
@@ -223,7 +224,7 @@ async function camTick(){
       feed(`<span><span class="k card">card</span> ${esc($("by").value)} shows <b>${esc(d.card)}</b></span>
             <span class="reply">${esc(d.speaker)}: ${esc(d.reply)}</span>
             <span class="meta">${d.reply_source==="persona"?"in character":"template reply"} · ${d.ms} ms</span>`, "shown");
-      speak(d.speaker, d.reply);
+      speak(d.speaker, d.reply, d.speech);
     } else if(d.status==="reading") pill("camStatus","busy","reading card…");
     else if(d.status==="unreadable") pill("camStatus","err","can't read it: turn the name line to the camera");
     else if(d.status==="remove card") pill("camStatus","","take the card away");
@@ -283,7 +284,7 @@ async function sendUtterance(frames){
         ${d.reply && d.reply_source!=="turn"?`<span class="reply">${esc(d.speaker)}: ${esc(d.reply)}</span>`:""}
         ${d.blocked?`<span class="blocked">reply blocked: it named a card in the AI's hidden hand</span>`:""}`);
       if(d.turn) showTurn(d.speaker, d.turn);
-      else if(d.reply) speak(d.speaker, d.reply);
+      else if(d.reply) speak(d.speaker, d.reply, d.speech);
       else if(d.awaiting) feed(`<span class="meta">handed to ${esc(d.speaker)}…</span>`);
     }
     pill("micStatus", muted?"":"on", muted?"muted":"listening");

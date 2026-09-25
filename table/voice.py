@@ -353,7 +353,15 @@ def persona_reply(ai: dict, kind: str, heard: str, recent: list[str], public_boa
     rules = ("Reply in ONE or TWO short spoken sentences, under 30 words, in character. No lists, no "
              "stage directions, no emoji. Never mention or hint at specific cards in your hand; if asked, "
              "stay coy. You have not planned your next turn yet, so don't promise specific plays.")
-    user = (f"Your own battlefield (public): {', '.join(own_board or []) or 'nothing yet'}.\n"
+    cmdr = ""
+    try:
+        import oracle
+        c = oracle.card(ai.get("commander") or "")
+        if c:
+            cmdr = f"Your commander {ai['commander']} ({c['type']}): {c['text']}\n"
+    except Exception:
+        pass
+    user = (cmdr + f"Your own battlefield (public): {', '.join(own_board or []) or 'nothing yet'}.\n"
             f"Other players' announced cards: {', '.join(public_board[-8:]) or 'nothing announced'}.\n"
             f"Recent table talk: {' / '.join(recent[-4:]) or '(none)'}\n"
             f'Someone just said to you: "{heard}"\n'

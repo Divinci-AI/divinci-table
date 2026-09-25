@@ -171,7 +171,6 @@ scenarios:
     expect: {turn_advanced: true, hear_cards: auto}
 
 - id: turn-announcement-brief
-  tier: goal
   about: A whole turn is said in under 20 seconds — the table shouldn't wait on a monologue.
   start: {ai_turns: 4}
   steps:
@@ -198,21 +197,18 @@ scenarios:
     expect: {speaker: Claude}
 
 - id: ask-hand-size
-  tier: goal
   about: How many cards it holds is public information; it should say.
   steps:
   - say: {text: "Claude, how many cards are in your hand?", voice: Daniel}
     expect: {speaker: Claude, ai_text: "\\b(7|seven)\\b"}
 
 - id: ask-life-total
-  tier: goal
   about: Life totals are public; asked, it gives its own.
   steps:
   - say: {text: "Claude, what's your life total?", voice: Samantha}
     expect: {speaker: Claude, ai_text: "\\b(40|forty)\\b"}
 
 - id: ask-own-board
-  tier: goal
   about: Asked what it has out, it names permanents it actually controls.
   start: {ai_turns: 3}
   steps:
@@ -228,14 +224,12 @@ scenarios:
     expect: {speaker: Claude, silent: false}
 
 - id: ask-deal
-  tier: goal
   about: A deal offered to the AI gets an answer that is clearly yes or no (found 2026-09-24 — "We shall see").
   steps:
   - say: {text: "Claude, if you don't attack me this turn, I won't attack you next turn. Deal?", voice: Daniel}
     expect: {speaker: Claude, ai_text: "\\b(deal|no deal|agreed?|accept|decline|yes|no|you're on|fine|sure|pass)\\b"}
 
 - id: ask-commander-rules
-  tier: goal
   about: Asked about its own commander, it explains Roles correctly.
   steps:
   - say: {text: "Claude, what does Ellivere actually do?", voice: Samantha}
@@ -352,25 +346,216 @@ scenarios:
   - say: {text: "Claude, what do you think of that card?", voice: Daniel}
     expect: {speaker: Claude, ai_text: "bolt|lightning|three damage|3 damage"}
 
-# ── life and interaction the AI must track by ear ────────────────────────────────────────────
-- id: life-hit-by-voice
-  tier: goal
-  about: '"Ghalta hits Claude for twelve" lowers its life to 28.'
+# ── life, combat and removal, by ear ─────────────────────────────────────────────────────────
+- id: life-attacked-no-blockers
+  about: '"Ghalta attacks Claude for twelve" with nothing to block: it takes 12 and says so.'
   steps:
   - say: {text: "Ghalta attacks Claude for twelve.", voice: Daniel}
-    expect: {life: {Claude: 28}}
+    expect: {life: {Claude: 28}, ai_text: "no blocks.*28"}
 
-- id: life-human-reports
-  tier: goal
-  about: A human reporting their own total updates the life row.
+- id: life-named-total
+  about: '"Sam''s at twenty-two" sets Sam''s life.'
   steps:
-  - say: {text: "I take five, I'm at thirty-five.", voice: Daniel}
+  - say: {text: "Sam's at twenty-two.", voice: Samantha}
+    expect: {life: {Sam: 22}, silent: true}
+
+- id: life-landed-damage
+  about: Damage that landed ("deals four damage to Sam") comes off.
+  steps:
+  - say: {text: "Krenko deals four damage to Sam.", voice: Samantha}
+    expect: {life: {Sam: 36}}
+
+- id: life-human-takes
+  about: '"Michael takes five" comes off Michael.'
+  steps:
+  - say: {text: "Michael takes five, he's at thirty-five.", voice: Daniel}
     expect: {life: {Michael: 35}}
 
-- id: removal-on-its-creature
+- id: life-told-to-ai
+  about: '"Claude, you take seven." comes off the AI, and it confirms its total.'
+  steps:
+  - say: {text: "Claude, you take seven.", voice: Samantha}
+    expect: {life: {Claude: 33}, ai_text: "33"}
+
+- id: life-gain
+  about: Life gain.
+  steps:
+  - say: {text: "Sam gains three life.", voice: Samantha}
+    expect: {life: {Sam: 43}}
+
+- id: life-attack-on-human-waits
+  about: An attack on a human is not damage yet (they may block) — nobody's life changes.
+  steps:
+  - say: {text: "Krenko attacks Michael for five.", voice: Samantha}
+    expect: {life: {Michael: 40}}
+
+- id: life-i-am-at
   tier: goal
-  about: Removal announced on its creature takes it off its board.
+  about: '"I''m at thirty-five" needs to know WHO is speaking (speaker ID) — Michael''s voice.'
+  steps:
+  - say: {text: "I'm at thirty-five.", voice: Daniel}
+    expect: {life: {Michael: 35}}
+
+- id: attack-it-blocks-or-takes
+  about: Attacked with creatures on its board, it decides blocks out loud and the arithmetic holds.
   start: {ai_turns: 5}
   steps:
-  - say: {text: "I cast Swords to Plowshares on Claude's biggest creature.", voice: Daniel}
-    expect: {ai_board_shrinks: true}
+  - say: {text: "Ghalta attacks Claude for twelve.", voice: Daniel}
+    expect: {ai_text: "block", life_in: {Claude: [28, 40]}}
+
+- id: attack-lethal-must-block
+  about: At 10 life facing 12, it never dies while it has an untapped blocker.
+  start: {ai_turns: 5}
+  steps:
+  - say: {text: "Claude, you're at ten.", voice: Daniel}
+    expect: {life: {Claude: 10}}
+  - say: {text: "Ghalta attacks Claude for twelve.", voice: Daniel}
+    expect: {alive: true}
+
+- id: removal-exile-its-creature
+  about: Swords to Plowshares on its creature takes that creature off its board.
+  start: {ai_turns: 5}
+  steps:
+  - say: {text: "I cast Swords to Plowshares on Claude's {ai_creature}.", voice: Daniel}
+    expect: {gone: ai_creature, ai_text: "exiled"}
+
+- id: removal-destroy-by-name
+  about: Doom Blade "targeting" its creature by name.
+  start: {ai_turns: 5}
+  steps:
+  - say: {text: "I cast Doom Blade targeting {ai_creature}.", voice: Samantha}
+    expect: {gone: ai_creature, ai_text: "dies"}
+
+- id: removal-bolt-checks-toughness
+  about: Lightning Bolt kills its creature only if toughness is 3 or less, and it says which.
+  start: {ai_turns: 5}
+  steps:
+  - say: {text: "I cast Lightning Bolt on Claude's {ai_creature}.", voice: Daniel}
+    expect: {ai_text: "dies|survives"}
+
+- id: removal-wrath
+  about: Wrath of God clears its creatures.
+  start: {ai_turns: 5}
+  steps:
+  - say: {text: "I cast Wrath of God.", voice: Samantha}
+    expect: {ai_creatures_max: 0}
+
+- id: removal-modal-not-guessed
+  about: A modal spell (Austere Command) isn't applied by guessing the modes.
+  start: {ai_turns: 5}
+  steps:
+  - say: {text: "I cast Austere Command.", voice: Samantha}
+    expect: {ai_board_same: true}
+
+- id: removal-someone-elses
+  about: Removal on SAM's creature leaves its board alone.
+  start: {ai_turns: 5}
+  steps:
+  - say: {text: "I cast Swords to Plowshares on Sam's Krenko.", voice: Daniel}
+    expect: {ai_board_same: true}
+
+- id: removal-creature-spell-harmless
+  about: A creature spell with removal-ish words in its name changes nothing.
+  start: {ai_turns: 5}
+  steps:
+  - say: {text: "I cast Ravenous Chupacabra.", voice: Daniel}
+    expect: {ai_board_same: true}
+
+# ── public information: answered from the game state, by code ─────────────────────────────────
+- id: ask-library
+  about: Cards left in its library.
+  steps:
+  - say: {text: "Claude, how many cards are left in your library?", voice: Samantha}
+    expect: {speaker: Claude, ai_text: "\\b93\\b|\\b92\\b"}
+
+- id: ask-graveyard
+  about: What's in its graveyard, after a few turns.
+  start: {ai_turns: 4}
+  steps:
+  - say: {text: "Claude, what's in your graveyard?", voice: Daniel}
+    expect: {speaker: Claude, ai_text: "graveyard"}
+
+- id: ask-open-mana
+  about: How much mana it has open.
+  start: {ai_turns: 3}
+  steps:
+  - say: {text: "Claude, how much mana do you have open?", voice: Daniel}
+    expect: {speaker: Claude, ai_text: "mana"}
+
+# ── its own voice coming back through the mic ────────────────────────────────────────────────
+- id: echo-own-turn
+  about: The AI's turn announcement, heard back through the laptop mic, is ignored.
+  steps:
+  - say: {text: "Claude, your turn.", voice: Daniel}
+    expect: {turn_advanced: true}
+  - echo: {}
+    expect: {ignored: echo, silent: true}
+
+- id: echo-own-reaction
+  about: Its reaction to a shown card, heard back, is ignored.
+  steps:
+  - show: {card: Serra Angel}
+    expect: {seen: Serra Angel}
+  - echo: {}
+    expect: {ignored: echo}
+
+- id: echo-player-repeats-later
+  about: A player saying the same words well after the AI finished is a player, not an echo.
+  steps:
+  - say: {text: "Claude, your turn.", voice: Daniel}
+    expect: {turn_advanced: true}
+  - wait: 16
+  - say: {text: "That's my turn.", voice: Samantha}
+    expect: {not_ignored: true}
+
+# ── the room ─────────────────────────────────────────────────────────────────────────────────
+- id: hear-across-table
+  about: The laptop across a small table in a living room (RT60 0.4 s, direct sound 6 dB over the room).
+  steps:
+  - say: {text: "I cast Swords to Plowshares.", voice: Daniel, rt60: 0.4, drr_db: 6, pad_s: 0.3}
+    expect: {cards: [Swords to Plowshares]}
+
+- id: hear-far-field
+  tier: goal
+  about: The laptop at the far end of a big table (RT60 0.5 s, direct = reverberant).
+  steps:
+  - say: {text: "I cast Llanowar Elves.", voice: Daniel, rt60: 0.5, drr_db: 0, pad_s: 0.3}
+    expect: {cards: [Llanowar Elves]}
+
+- id: hear-far-and-noisy
+  tier: goal
+  about: Far end of the table AND a noisy room.
+  steps:
+  - say: {text: "I cast Llanowar Elves.", voice: Daniel, rt60: 0.5, drr_db: 0, snr_db: 12, pad_s: 0.3}
+    expect: {cards: [Llanowar Elves]}
+
+- id: hear-rapid-fire
+  about: Three players announce in quick succession; every play lands, nothing errors.
+  steps:
+  - concurrent:
+    - {text: "I cast Llanowar Elves.", voice: Daniel}
+    - {text: "I cast Goblin Instigator.", voice: Samantha}
+    - {text: "I cast Swords to Plowshares.", voice: Karen}
+    expect: {cards: [Llanowar Elves, Goblin Instigator, Swords to Plowshares]}
+
+- id: hear-merged-cast
+  tier: goal
+  about: Whisper glues "I cast" onto the name ("Archastristic Study" for "I cast Rhystic Study", Karen).
+  steps:
+  - say: {text: "I cast Rhystic Study.", voice: Karen}
+    expect: {cards: [Rhystic Study]}
+
+- id: robust-garbage-in
+  about: What a real mic and camera also produce — none of it may crash the table.
+  steps:
+  - {garbage: random-bytes, expect: {}}
+  - {garbage: empty-wav, expect: {}}
+  - {garbage: silence, expect: {ignored: no speech}}
+  - {garbage: noise, expect: {silent: true}}
+  - {garbage: wrong-rate, expect: {}}
+  - {garbage: huge-audio, expect: {}}
+  - {garbage: image-bytes, expect: {}}
+  - {garbage: black-frame, expect: {}}
+  - {garbage: bad-json, expect: {}}
+  - say: {text: "I cast Llanowar Elves.", voice: Daniel}
+    expect: {cards: [Llanowar Elves]}

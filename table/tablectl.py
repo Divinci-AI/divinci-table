@@ -17,6 +17,7 @@ Magic decisions. Everything an action does is announced at the table in the AI's
   tablectl cast "Swords to Plowshares" --targets "Sam's Craw Wurm"
   tablectl cast "Eidolon of Blossoms" --discount 1      (a cost reduction you know applies)
   tablectl attack "Ellivere=Michael" "#14=Sam" [--role-on NAME]
+  tablectl block [REF] --amount 12 [--trample] [--attacker Ghalta]   (no REF = no block, take it)
   tablectl end ["text"]
   tablectl destroy|exile|bounce|tap|untap REF      corrections when opponents' cards affect yours
   tablectl counter REF N · token NAME P T [KW..] · draw N · discard NAME · mill N
@@ -81,7 +82,12 @@ def fmt_event(e):
         extra = f" → {e['kind']}" + (f" to {e['addressee']}" if e.get("for_ai") else "") + (f" · board {e['cards']}" if e.get("cards") else "")
         return f"[{t}] #{e['id']} HEARD \"{e['text']}\"{extra}"
     if k == "attention":
-        return f"[{t}] #{e['id']} ⚑ FOR YOU ({e['kind']}): \"{e['text']}\""
+        extra = ""
+        if e.get("kind") == "attacked":
+            extra = f" → {e.get('attacker') or '?'} for {e.get('amount')}{' TRAMPLE' if e.get('trample') else ''}: block or take it"
+        elif e.get("kind") == "removal":
+            extra = f" → {e.get('spell')} ({e.get('effect')}) on {e.get('target')}: apply it"
+        return f"[{t}] #{e['id']} ⚑ FOR YOU ({e['kind']}): \"{e['text']}\"{extra}"
     if k == "shown":
         return f"[{t}] #{e['id']} SHOWN {e['card']} (by {e['by']})"
     if k == "say":
@@ -162,7 +168,10 @@ def main():
     c = sub.add_parser("cast"); c.add_argument("name"); c.add_argument("--on"); c.add_argument("--role-on")
     c.add_argument("--mode", action="append", type=int); c.add_argument("--targets"); c.add_argument("--x", type=int, default=0)
     c.add_argument("--discount", type=int, default=0, help="generic cost reduction you know applies")
+    c.add_argument("--color", help="for 'choose a color' (W/U/B/R/G), e.g. Utopia Sprawl")
     c.add_argument("--quiet", action="store_true")
+    bl = sub.add_parser("block"); bl.add_argument("ref", nargs="?"); bl.add_argument("--amount", type=int, required=True)
+    bl.add_argument("--trample", action="store_true"); bl.add_argument("--attacker")
     at = sub.add_parser("attack"); at.add_argument("pairs", nargs="+", help='"Creature=Player"'); at.add_argument("--role-on")
     en = sub.add_parser("end"); en.add_argument("text", nargs="?")
     for verb in ("destroy", "exile", "bounce", "tap", "untap"):
@@ -194,11 +203,13 @@ def main():
         return act("land", name=a.name, quiet=q)
     if a.cmd == "cast":
         return act("cast", name=a.name, on=a.on, role_on=a.role_on, modes=a.mode, targets=a.targets, x=a.x,
-                   discount=a.discount,
+                   discount=a.discount, color=a.color,
                    commander=a.name.lower() == "commander", quiet=q)
     if a.cmd == "attack":
         assign = dict(p.split("=", 1) for p in a.pairs)
         return act("attack", assign=assign, role_on=a.role_on)
+    if a.cmd == "block":
+        return act("block", blocker=a.ref, amount=a.amount, trample=a.trample, attacker=a.attacker)
     if a.cmd == "end":
         return act("end", text=a.text)
     if a.cmd in ("destroy", "exile", "bounce", "tap", "untap"):
