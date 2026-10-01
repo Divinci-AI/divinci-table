@@ -47,7 +47,8 @@ SAFE_DEFAULT = (200, 200, 200)            # unknown machine: stay inside the sma
 
 # What may be sent. Anything that heats, extrudes, runs fans, writes EEPROM or prints is refused.
 ALLOWED = {"G0", "G1", "G4", "G28", "G90", "G91", "M17", "M18", "M84", "M114", "M115", "M119",
-           "M400", "M503", "M220", "M211"}
+           "M400", "M503", "M220", "M211", "M105"}
+HEATERS_OFF = {"M104", "M140"}          # allowed ONLY with S0: turning heat off is always safe
 
 
 class Refused(ValueError):
@@ -60,6 +61,8 @@ def safe(line: str) -> str:
     if not line:
         raise Refused("empty line")
     word = line.split()[0]
+    if word in HEATERS_OFF and re.fullmatch(rf"{word}( T\d)? S0", line):
+        return line
     if word not in ALLOWED:
         raise Refused(f"{word} is not a camera move (no heating, extruding, fans or EEPROM)")
     if word in ("G0", "G1") and re.search(r"\bE", line):
@@ -109,7 +112,7 @@ class Printer:
             if not raw:
                 continue
             if raw.startswith("ok"):
-                return out
+                return out + ([raw[2:].strip()] if raw[2:].strip() else [])   # M105 answers on the ok line
             if raw.lower().startswith("error"):
                 raise RuntimeError(f"{cmd}: {raw}")
             if "busy" in raw:                      # long move or homing still running
@@ -160,6 +163,17 @@ class Printer:
         self.send("G90")
         self.send(f"G0 {' '.join(parts)} F{feed}")
         self.send("M400", timeout=120)             # wait until the move has finished
+
+    def temps(self) -> dict:
+        for l in self.send("M105"):
+            t = re.findall(r"\b([TB]):\s*(-?[\d.]+)\s*/\s*(-?[\d.]+)", l)
+            if t:
+                return {("nozzle" if k == "T" else "bed"): {"now": float(a), "target": float(b)} for k, a, b in t}
+        return {}
+
+    def heaters_off(self):
+        self.send("M104 S0")
+        self.send("M140 S0")
 
     def motors_off(self):
         self.send("M84")
@@ -236,6 +250,8 @@ def main(argv=None):
     g.add_argument("z", type=float, nargs="?")
     sub.add_parser("snap")
     sub.add_parser("off")
+    sub.add_parser("temps")
+    sub.add_parser("cool")
     s = sub.add_parser("scan")
     s.add_argument("--cols", type=int, default=3); s.add_argument("--rows", type=int, default=2)
     s.add_argument("--z", type=float); s.add_argument("--post", action="store_true")
@@ -254,6 +270,10 @@ def main(argv=None):
         p.home(z=a.z); print(p.position())
     elif a.cmd == "goto":
         p.goto(a.x, a.y, a.z); print(p.position())
+    elif a.cmd == "temps":
+        print(json.dumps(p.temps()))
+    elif a.cmd == "cool":
+        p.heaters_off(); print(json.dumps(p.temps()))
     elif a.cmd == "off":
         p.motors_off()
     elif a.cmd == "scan":

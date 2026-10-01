@@ -55,9 +55,9 @@ def refused(fn):
 
 ok = True
 for bad in ["M104 S200", "M109 S200", "M140 S60", "M190 S60", "M106 S255", "G1 X10 E5", "M500",
-            "M211 S0", "M302 P1", "G29"]:
+            "M211 S0", "M302 P1", "G29", "M104 S1", "M140 S60", "M104 S05"]:
     ok &= check(f"refuses {bad}", refused(lambda: gantry.safe(bad)))
-for good in ["G28 X Y", "G0 X10 Y20 F3000", "M114", "M400", "M84", "g0 x5 ; comment"]:
+for good in ["M104 S0", "M140 S0", "M105", "G28 X Y", "G0 X10 Y20 F3000", "M114", "M400", "M84", "g0 x5 ; comment"]:
     ok &= check(f"allows {good}", not refused(lambda: gantry.safe(good)))
 
 fake = FakeMarlin()
