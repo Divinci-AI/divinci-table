@@ -820,6 +820,14 @@ def read_board(image: bytes) -> dict:
         seen = vision.read_cards(image, ident, read_lines)      # no de-dup: two Forests are two Forests
     except Exception as e:
         raise BadRequest(f"not a readable image ({type(e).__name__})")
+    # The rectangle finder loses cards on a patterned table: on wood grain it found 1 of 8 (Canon
+    # T5i, 2026-10-01) while reading every title line in the frame got 6 of 8, 0 wrong. So the
+    # frame's own title lines count too, one card per title line (two Forests read as two lines).
+    # Tapped state is known only for cards the rectangle finder saw.
+    by_rect = Counter(c["name"] for c in seen)
+    by_text = Counter(n for n in (ident([t]) for t in vision.title_lines([l.text for l in read_lines(image)])) if n)
+    for n, k in by_text.items():
+        seen += [{"name": n, "tapped": None, "via": "text"}] * max(0, k - by_rect[n])
     now = Counter(c["name"] for c in seen)
     with BOARD_LOCK:
         before = Counter(BOARD["cards"])
