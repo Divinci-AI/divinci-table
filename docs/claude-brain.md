@@ -93,3 +93,21 @@ Mana Auras on lands, anthems and "+1/+1 for each enchantment" ARE modelled (`tes
 
 The brain-mode path was rehearsed end to end on 2026-09-25: Claude played as the brain for five
 rounds (`tests/game_sim.py --brain external`).
+
+## The camera gantry (Creality + Canon)
+
+`table/gantry.py` drives a Creality printer as a motion stage for the overhead Canon. It never
+heats or extrudes: every G-code line passes one gate that allows only moves, homing and status, and
+moves are clamped to the machine's travel (from `MACHINE_TYPE`, or `table/.cache/gantry.json`).
+
+```bash
+~/.venvs/table/bin/python table/gantry.py ports                 # printer serial port + Canon
+~/.venvs/table/bin/python table/gantry.py info                  # firmware, machine, travel, position
+~/.venvs/table/bin/python table/gantry.py home                  # X and Y only
+~/.venvs/table/bin/python table/gantry.py scan --cols 3 --rows 2 --post
+```
+
+`home` leaves Z alone because homing Z drives the head down, and a camera hanging off it can hit
+the table. `scan` shoots a serpentine grid, stitches it with OpenCV, and `--post` sends the
+stitched frame to `/api/board`. `tests/gantry_test.py` checks the gate and limits against a fake
+Marlin board.
