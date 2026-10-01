@@ -50,3 +50,24 @@ Open questions for that step: which Divinci TTS provider and voices, how a Relea
 given to the decision model without hurting its choices (put persona in the state? only in speech?),
 and whether table talk goes through the Release's chat endpoint.
 - **Sensory player goal and test suite:** [goal-sensory-player.md](goal-sensory-player.md) — the AI plays through camera, mic and voice only; 51 scenarios, regression vs goal tiers.
+
+## Camera gantry: two players now, four players next
+
+**Now (CR-6 Max + Canon T5i).** The CR-6 Max is a bed-slinger: the head moves in X, the
+bed moves in Y, and the gantry rises in Z. A camera on the head can only cover the bed itself, so the
+prototype is a **two-player duel on the 400 × 400 mm bed**: each player gets a 400 × 195 mm half,
+which holds two rows of six cards. From the top of Z the 18 mm lens sees about 500 × 330 mm, so one or
+two shots cover the whole bed (`gantry.py plan`). Lower Z zooms in on single cards. Y moves are
+slowed so the cards don't slide.
+
+Steps:
+1. Mount the Canon on the X carriage, pointing down, with a printed L-bracket or a ball-head clamp.
+2. Measure the rig and write `table/.cache/gantry.json`: `min_z`, `lens_at_z0_mm`,
+   `cam_offset_mm`.
+3. `gantry.py scan --area all --post` feeds the stitched frame to `/api/board`.
+
+**Next (four players).** A full Commander table is about 1.2 m across, so the head must move in
+X *and* Y over a fixed table:
+- a CoreXY or H-bot gantry over the table, built from V-slot extrusion running Marlin or Klipper,
+  so `gantry.py` drives it unchanged;
+- or a fixed overhead camera for the whole table, with the CR-6 rig as the close-up "zoom" station.
