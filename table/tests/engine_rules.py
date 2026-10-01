@@ -117,5 +117,155 @@ druid = next(x for x in p.battlefield if x.name == "Paradise Druid")
 check(any(x.role == "Virtuous" and x.attached_to == druid.id for x in p.battlefield),
       "attacking with another creature out, the Role goes on that creature")
 
+def give(p, name):
+    """Move a card from the library into the hand."""
+    c = card(p, name)
+    p.library.remove(c)
+    p.hand.append(c)
+    return c
+
+
+def board(p, *names):
+    return [put(p, n) for n in names]
+
+
+def tokens(p, kind):
+    return [x for x in p.battlefield if x.token and x.name == f"{kind} token"]
+
+
+print("\n7. Enchantress triggers (hand-resolved in the live game 2026-09-30)")
+p = fresh()
+board(p, "Forest", "Forest", "Forest", "Tanglespan Lookout")
+look = p.named("Tanglespan Lookout")[0]
+give(p, "Ancestral Mask")
+n0 = len(p.hand)
+p.manual_cast("Ancestral Mask", on="Tanglespan Lookout")
+check(len(p.recent_draws) == 1 and len(p.hand) == n0, "Tanglespan Lookout: an Aura entering draws a card")
+p = fresh()
+board(p, "Plains", "Plains", "Forest", "Forest", "Tanglespan Lookout")
+p.manual_cast("Ellivere of the Wild Court", commander=True)
+check(any(x.role == "Virtuous" for x in p.battlefield) and len(p.recent_draws) == 1,
+      "Ellivere's Virtuous Role is an Aura, so Tanglespan draws for it too")
+p = fresh()
+board(p, "Plains", "Plains", "Plains", "Plains", "Plains")
+give(p, "Archon of Sun's Grace")
+p.manual_cast("Archon of Sun's Grace")
+check(not tokens(p, "Pegasus"), "Archon itself entering makes NO Pegasus (its trigger is for other enchantments)")
+give(p, "Ethereal Armor")
+p.manual_cast("Ethereal Armor", on="Archon of Sun's Grace")
+peg = tokens(p, "Pegasus")
+check(len(peg) == 1 and "Flying" in peg[0].card["keywords"], "…an enchantment entering afterwards makes a 2/2 flying Pegasus")
+p = fresh()
+board(p, "Forest", "Forest", "Forest", "Forest")
+give(p, "Eidolon of Blossoms")
+p.manual_cast("Eidolon of Blossoms")
+check(len(p.recent_draws) == 1, "Eidolon of Blossoms draws for itself entering")
+p = fresh()
+board(p, "Forest", "Forest", "Forest", "Enchantress's Presence", "Tanglespan Lookout")
+give(p, "Ancestral Mask")
+p.manual_cast("Ancestral Mask", on="Tanglespan Lookout")
+check(len(p.recent_draws) == 2, f"Enchantress's Presence (cast) + Tanglespan (enters): 2 cards (got {len(p.recent_draws)})")
+p = fresh()
+board(p, "Forest", "Forest", "Forest", "Setessan Champion")
+give(p, "Ancestral Mask")
+p.manual_cast("Ancestral Mask", on="Setessan Champion")
+champ = p.named("Setessan Champion")[0]
+check(champ.counters == 1 and len(p.recent_draws) == 1, "Setessan Champion: a +1/+1 counter and a card")
+p = fresh()
+board(p, "Plains", "Siona, Captain of the Pyleas")
+give(p, "Ethereal Armor")
+p.manual_cast("Ethereal Armor", on="Siona")
+check(len(tokens(p, "Soldier")) == 1, "Siona: an Aura attached to its creature makes a 1/1 Human Soldier")
+
+print("\n8. Cost reductions apply on their own")
+p = fresh()
+board(p, "Forest", "Forest", "Forest", "Jukai Naturalist")
+give(p, "Eidolon of Blossoms")
+check(any(c["name"] == "Eidolon of Blossoms" for _, c, _, _ in p.castable()),
+      "Jukai Naturalist: Eidolon of Blossoms {2}{G}{G} is castable from 3 lands")
+p = fresh()
+board(p, "Forest", "Forest", "Plains", "Plains", "Danitha Capashen, Paragon", "Transcendent Envoy")
+give(p, "Pollenbright Wings")
+check(any(c["name"] == "Pollenbright Wings" for _, c, _, _ in p.castable()),
+      "Danitha + Transcendent Envoy: Pollenbright Wings {4}{G}{W} costs 4")
+check(p.auto_discount(card(p, "Tanglespan Lookout")) == 0, "…and they don't discount a creature spell")
+
+print("\n9. Power that scales")
+p = fresh()
+f = put(p, "Forest")
+druid, _ = board(p, "Paradise Druid", "Jukai Naturalist")
+put(p, "Fertile Ground", attached_to=f.id)
+put(p, "Ancestral Mask", attached_to=druid.id)
+p.public_board = ["Rhystic Study"]
+check(p.stats(druid) == (8, 7), f"Ancestral Mask counts every OTHER enchantment, theirs too: Druid 8/7 (got {p.stats(druid)})")
+p = fresh()
+kor = put(p, "Kor Spiritdancer")
+put(p, "Ethereal Armor", attached_to=kor.id)
+put(p, "Bear Umbra", attached_to=kor.id)
+check(p.stats(kor) == (8, 10), f"Kor Spiritdancer with Ethereal Armor + Bear Umbra: 8/10 (got {p.stats(kor)})")
+p = fresh()
+gn, dr = board(p, "Aura Gnarlid", "Paradise Druid")
+put(p, "Ethereal Armor", attached_to=dr.id)
+put(p, "Bear Umbra", attached_to=dr.id)
+p.public_board = ["Rancor"]
+check(p.stats(gn) == (5, 5), f"Aura Gnarlid counts every Aura on the battlefield: 5/5 (got {p.stats(gn)})")
+
+print("\n10. Mana")
+p = fresh()
+w, j = board(p, "Sanctum Weaver", "Jukai Naturalist")
+put(p, "Ethereal Armor", attached_to=j.id)
+check(p.available_mana() == 3, f"Sanctum Weaver with 3 enchantments makes 3 (got {p.available_mana()})")
+check(p.plan_payment("{1}{G}{G}") is not None and p.plan_payment("{W}{W}{W}") is not None, "…of one colour, any colour")
+check(p.plan_payment("{G}{W}") is None, "…but not two different colours")
+p = fresh()
+put(p, "Sol Ring")
+check(p.available_mana() == 2, "Sol Ring makes 2")
+
+print("\n11. Combat damage to a player")
+p = fresh()
+ell, druid = board(p, "Ellivere of the Wild Court", "Paradise Druid")
+p.battlefield.remove(ell)
+ell = Perm(p.commander, sick=False)
+p.battlefield.append(ell)
+put(p, "Pollenbright Wings", attached_to=druid.id)
+said, life = p.combat_damage({"Paradise Druid": ("Sam", None)})
+check(life == {"Sam": -2}, f"enchanted Druid hits Sam for 2 (got {life})")
+check(len(tokens(p, "Saproling")) == 2, "Pollenbright Wings: 2 Saprolings")
+check(len(p.recent_draws) == 1, "Ellivere: an enchanted creature hit a player, draw a card")
+p = fresh()
+arch = put(p, "Archon of Sun's Grace")
+said, life = p.combat_damage({"Archon of Sun's Grace": ("Michael", None)})
+check(life == {"Michael": -3, "Claude": 3}, f"Archon's lifelink gains what it deals (got {life})")
+p.make_token("Pegasus", 2, 2, ["Flying"])
+said, life = p.combat_damage({"Pegasus token": ("Sam", None)})
+check(life.get("Claude") == 2, "Archon gives Pegasus tokens lifelink")
+
+print("\n12. Attack triggers")
+p = fresh()
+lands = board(p, "Forest", "Forest", "Plains")
+druid = put(p, "Paradise Druid")
+put(p, "Bear Umbra", attached_to=druid.id)
+for x in lands:
+    x.tapped = True
+p.manual_attack({"Paradise Druid": "Sam"})
+check(not any(x.tapped for x in lands), "Bear Umbra: attacking untaps all lands")
+p = fresh()
+ell = Perm(p.commander, sick=False)
+p.battlefield.append(ell)
+druid = put(p, "Paradise Druid")
+put(p, "Giant Inheritance", attached_to=druid.id)
+p.manual_attack({f"#{ell.id}": "Sam", "Paradise Druid": "Sam"})
+check(any(x.role == "Virtuous" and x.attached_to == druid.id for x in p.battlefield)
+      and any(x.role == "Monster" and x.attached_to == ell.id for x in p.battlefield),
+      "Ellivere's Virtuous Role stays on the Druid; Giant Inheritance's Monster Role goes on Ellivere")
+
+print("\n13. Upkeep")
+p = fresh()
+druid = put(p, "Paradise Druid")
+put(p, "Verdant Embrace", attached_to=druid.id)
+p.begin_turn()
+check(len(tokens(p, "Saproling")) == 1, "Verdant Embrace: a Saproling on its upkeep")
+check(any("EACH opponent's upkeep" in t for t in p.todo), "…and a to-do for every opponent's upkeep")
+
 print(f"\n{sum(results)}/{len(results)} engine checks passed")
 sys.exit(0 if all(results) else 1)

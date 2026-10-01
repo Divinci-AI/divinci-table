@@ -44,7 +44,7 @@ table/tablectl.py state          # private: hand with rules text, board with #id
 
 | attention | what to do |
 |---|---|
-| `turn` | `begin` → `land X` → `cast …` → `attack "A=Sam" …` → `end` |
+| `turn` | `begin` → `land X` → `cast …` → `attack "A=Sam" …` → `damage "A=Sam"` → `end` |
 | `question` / `deal` | `say "…"` (keep it short; `say` refuses to name a card still in hand) |
 | `attacked` → *X for N* | `block REF --amount N --attacker X`, or `block --amount N` to take it |
 | `removal` → *spell (effect) on target* | `exile REF` / `destroy REF` / `bounce REF`; for effect `counter`, the target is the spell Claude just cast |
@@ -62,9 +62,38 @@ table/tablectl.py state          # private: hand with rules text, board with #id
 If the brain hasn't acted about 3 s after a `⚑`, the table hears a filler ("One moment."). The page
 never starts speaking while someone is talking, and it clears everything queued on "hold on".
 
+## What the engine resolves on its own
+
+The Ellivere deck's own triggers (all hand-resolved in the live game of 2026-09-30, now in
+`tests/engine_rules.py` sections 7–13):
+
+- **casting:** Enchantress's Presence and Kor Spiritdancer draw;
+- **an enchantment or Aura entering**, Roles included (a Role is an Aura):
+  - Tanglespan Lookout, Eidolon of Blossoms and Setessan Champion draw (Champion also gets a counter);
+  - Archon makes a flying Pegasus and Ajani's Chosen makes a Cat;
+  - Siona makes a Soldier when an Aura attaches to its own creature;
+- **cost reductions:** Jukai Naturalist, Starfield Mystic, Danitha and Transcendent Envoy;
+- **scaling power:** Ancestral Mask, Kor Spiritdancer, Mantle, Sage's Reverie, Aura Gnarlid, Eidolon
+  of Countless Battles, Ethereal Armor. Opponents' enchantments count from what's been announced;
+- **mana:** Sanctum Weaver (X of one colour), Sol Ring (2), Careful Cultivation's `{T}: Add {G}{G}`;
+- **attacking:** Bear Umbra untaps lands, Giant Inheritance's Monster Role (never replacing a
+  Virtuous Role), Ox Drover;
+- **`damage "Ellivere=Michael" "#14=Sam:3"`** after blocks, for attackers that hit a player
+  (the amount defaults to power):
+  - the opponent's life and lifelink (Archon gives Pegasi lifelink);
+  - Ellivere's draw for each enchanted creature;
+  - Pollenbright Wings' Saprolings and Snake Umbra's draw.
+  The table hears the new life totals, so players don't need to say them again;
+- **upkeep:** Verdant Embrace makes its Saproling on the AI's own upkeep.
+
+Cards drawn by triggers show up under `🔒 private` as `drew`. Anything the engine can't resolve
+alone shows up there as `todo`: Sun Titan, Songbirds' Blessing, Siona's look at seven, Gylwain's Role
+choice (`tablectl role REF Monster`), Verdant Embrace on each opponent's upkeep, and Ajani's Chosen
+moving the Aura. Do those by hand.
+
 ## What the engine doesn't know (the brain covers it)
 
-- **Cost reductions:** pass `--discount N` (e.g. Jukai Naturalist).
+- **Other cost reductions:** pass `--discount N`; the four above are already applied.
 - **"Choose a color":** `cast "Utopia Sprawl" --on "#2" --color W`. The default is the colour
   its mana lacks.
 - **Static effects beyond Auras, Roles and anthems:** say them, e.g. `say "With X, Spinner is 9/10."`

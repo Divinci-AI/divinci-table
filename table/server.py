@@ -1144,6 +1144,8 @@ class H(BaseHTTPRequestHandler):
         private = {}
         try:
             with VP_LOCK:
+                VP.recent_draws.clear()
+                VP.todo.clear()
                 if action == "say":
                     text = str(b.get("text", "")).strip()
                     hidden = VP.private_hand()
@@ -1173,6 +1175,17 @@ class H(BaseHTTPRequestHandler):
                     forget_dead(res)
                 elif action == "attack":
                     said = VP.manual_attack(b["assign"], role_on=b.get("role_on"))
+                elif action == "damage":                 # its attackers that hit a player: triggers + life
+                    hits = {ref: (v[0], v[1]) for ref, v in b["hits"].items()}
+                    said, deltas = VP.combat_damage(hits)
+                    for who, d in deltas.items():
+                        r = self._change_life(who, d, "combat")
+                        if "error" in r:
+                            raise IllegalAction(r["error"])
+                    lt = life_table()
+                    said += [f"{who} is at {lt[who]}." for who in deltas if who != VP.name and who in lt]
+                elif action == "role":
+                    said = VP.add_role(VP.perm(b["ref"]), b["kind"].strip().title())
                 elif action == "end":
                     said = [b.get("text") or "That's my turn."]
                 elif action in ("destroy", "exile", "bounce"):
@@ -1218,6 +1231,12 @@ class H(BaseHTTPRequestHandler):
         except KeyError as e:
             return self._send(400, {"error": f"missing field {e}"})
         BRAIN_LAST[0] = time.time()
+        if VP.recent_draws:                         # trigger draws: the brain sees them, the table doesn't
+            private["drew"] = list(VP.recent_draws) if action != "begin" else private.get("drew")
+            if action == "begin" and len(VP.recent_draws) > 1:
+                private["drew_all"] = list(VP.recent_draws)
+        if VP.todo:
+            private["todo"] = list(VP.todo)
         for line in said:
             if speak and line:
                 emit("say", speaker=VP.name, text=line, action=action, speech=spoken(line))

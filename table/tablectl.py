@@ -15,9 +15,13 @@ Magic decisions. Everything an action does is announced at the table in the AI's
   tablectl cast commander --role-on "Paradise Druid"
   tablectl cast "Austere Command" --mode 3 --mode 1
   tablectl cast "Swords to Plowshares" --targets "Sam's Craw Wurm"
-  tablectl cast "Eidolon of Blossoms" --discount 1      (a cost reduction you know applies)
+  tablectl cast "Eidolon of Blossoms" --discount 1      (only reductions the engine can't see; Jukai,
+                                         Starfield, Danitha and Envoy are applied automatically)
   tablectl attack "Ellivere=Michael" "#14=Sam" [--role-on NAME]
   tablectl block [REF] --amount 12 [--trample] [--attacker Ghalta]   (no REF = no block, take it)
+  tablectl damage "Ellivere=Michael" "#14=Sam:3"   your attackers that hit a player (amount defaults to
+                                         power): life, lifelink, Ellivere draws, Pollenbright Saprolings
+  tablectl role REF Monster              a Role from a choice the engine leaves to you (Gylwain)
   tablectl end ["text"]
   tablectl destroy|exile|bounce|tap|untap REF      corrections when opponents' cards affect yours
   tablectl counter REF N · token NAME P T [KW..] · draw N · discard NAME · mill N
@@ -174,6 +178,9 @@ def main():
     bl = sub.add_parser("block"); bl.add_argument("ref", nargs="?"); bl.add_argument("--amount", type=int, required=True)
     bl.add_argument("--trample", action="store_true"); bl.add_argument("--attacker")
     at = sub.add_parser("attack"); at.add_argument("pairs", nargs="+", help='"Creature=Player"'); at.add_argument("--role-on")
+    dm = sub.add_parser("damage", help='attackers that hit a player: "Ellivere=Michael" "#14=Sam:5"')
+    dm.add_argument("hits", nargs="+")
+    ro = sub.add_parser("role"); ro.add_argument("ref"); ro.add_argument("kind")
     en = sub.add_parser("end"); en.add_argument("text", nargs="?")
     for verb in ("destroy", "exile", "bounce", "tap", "untap"):
         v = sub.add_parser(verb); v.add_argument("ref"); v.add_argument("--quiet", action="store_true")
@@ -211,6 +218,15 @@ def main():
         return act("attack", assign=assign, role_on=a.role_on)
     if a.cmd == "block":
         return act("block", blocker=a.ref, amount=a.amount, trample=a.trample, attacker=a.attacker)
+    if a.cmd == "damage":
+        hits = {}
+        for h in a.hits:
+            ref, rest = h.split("=", 1)
+            who, _, n = rest.partition(":")
+            hits[ref] = [who, int(n) if n else None]
+        return act("damage", hits=hits)
+    if a.cmd == "role":
+        return act("role", ref=a.ref, kind=a.kind)
     if a.cmd == "end":
         return act("end", text=a.text)
     if a.cmd in ("destroy", "exile", "bounce", "tap", "untap"):
