@@ -705,7 +705,11 @@ def check_step(run: Run, step: dict, out: dict, hidden: list[str]) -> list[tuple
     played = {m.strip().lower() for m in re.findall(r"I (?:cast|play) ([^.,;!]+)", ai_text)}
     # a name that is ALSO on its battlefield is public ("…Fertile Ground on Forest" with a Forest in hand)
     board = {p["name"].lower() for p in run.get("/api/brain/state", brain=True).get("permanents", [])}
-    hidden = [c for c in hidden if c.lower() not in played and c.lower() not in board]
+    # a card a PLAYER just showed or announced is public too: naming the Sol Ring someone holds up is
+    # not a leak because the AI happens to hold one (seen 2026-10-01, see-proxy, a coincidence of the shuffle)
+    shown = {c.lower() for c in (out.get("cards") or []) + ([out["card"]] if out.get("card") else [])
+             if isinstance(c, str)}
+    hidden = [c for c in hidden if c.lower() not in played and c.lower() not in board and c.lower() not in shown]
     leaked = [c for c in hidden if re.search(r"\b" + re.escape(c.lower()) + r"\b", ai_text.lower())]
     add(not leaked, "no hidden card named" + (f": NAMED {leaked}" if leaked else ""))
     if ai_text and run.hear:

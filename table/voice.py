@@ -85,6 +85,8 @@ def route(text: str, recent: list[str], ai_players: list[dict], humans: list[dic
     backend = os.environ.get("ROUTER", "ollama")       # offline by default; "typesafe" sends transcripts out
     if backend == "ollama":
         return route_local(text, recent, ai_players, humans)
+    if backend == "code":
+        return route_code(text, recent, ai_players, humans)
     url = ("https://api.typesafe.ai/v1/systemone" if backend == "typesafe"
            else os.environ.get("SO1_URL", "http://127.0.0.1:8792").rstrip("/") + "/v1/systemone")
     if backend == "typesafe" and not _KEY:
@@ -227,9 +229,32 @@ def ollama_unload(models: list[str]) -> None:
             pass
 
 
+# Which local model makes the typed decisions (routing, blocks, deals, misheard names). Gemma reads
+# a letter's logprob from /api/chat; a decision model (Ollama ≥ 0.35: nimble, tev1) answers the same
+# question natively on /v1/systemone. Persona replies and card reading stay on Gemma either way.
+DECIDER_MODEL = os.environ.get("DECIDER_MODEL", "")            # e.g. "nimble"; empty = Gemma letters
+
+
+def _systemone_choice(context: str, question: str, options: dict[str, str]) -> dict[str, float]:
+    import urllib.request
+    body = {"model": DECIDER_MODEL, "keep_alive": _keep_alive_value(), "state": context,
+            "questions": {"q": {"type": "choice", "instructions": question, "criteria": options}}}
+    req = urllib.request.Request(f"{OLLAMA_URL}/v1/systemone", data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"})
+    raw = urllib.request.urlopen(req, timeout=30).read().decode()
+    try:
+        probs = json.loads(raw)["answers"]["q"]["probabilities"]
+    except (json.JSONDecodeError, KeyError, TypeError):
+        raise RuntimeError(f"decision model returned: {raw[:160]!r}")
+    s = sum(probs.get(k, 0.0) for k in options) or 1.0
+    return {k: probs.get(k, 0.0) / s for k in options}
+
+
 def _ollama_choice(context: str, question: str, options: dict[str, str]) -> dict[str, float]:
     """Distribution over `options`, read from the probability of each option LETTER in the
-    model's first output token."""
+    model's first output token — or, with DECIDER_MODEL set, from a decision model."""
+    if DECIDER_MODEL:
+        return _systemone_choice(context, question, options)
     import math
     keys = list(options)
     letters = [chr(65 + i) for i in range(len(keys))]
@@ -266,12 +291,53 @@ def hands_turn_over(text: str) -> bool:
                           r"it'?s you|you'?re next|your move)\b", t))
 
 
+_DEAL = re.compile(r"\b(deal|truce|alliance|ally|team up|teams? up|partner|pact|promise|leave (me|you|us) alone|"
+                   r"(won'?t|will not|don'?t|not) attack|if you\b.*\b(i'?ll|i will|i won'?t|we)|"
+                   r"i'?ll\b.*\bif you)\b", re.I)
+_QUESTION = re.compile(r"\?\s*$|^\s*(?:\w+,\s*)?(who|what|when|where|why|how|which|is|are|do|does|did|can|could|"
+                       r"will|would|should|have|has)\b", re.I)
+
+
+def route_code(text: str, recent: list[str], ai_players: list[dict], humans: list[dict] | None = None) -> dict:
+    """No model at all: for brain mode, where the brain (Claude through tablectl) makes every
+    judgment. Code only decides WHO a line is for and what shape it has; anything addressed to an
+    AI player goes to the brain as attention, so a wrong shape costs nothing worse than the brain
+    reading the line. Rules are the ones the Gemma router was already forced to obey."""
+    t0 = time.time()
+    names = [p["name"] for p in ai_players]
+    who = spoken_to(text, names)
+    if who is None:                                   # "…, Claude?" — the name closing the sentence
+        for n in names:
+            if re.search(rf",\s*{re.escape(n)}\s*[?.!]*\s*$", text, re.I):
+                who = n
+    if who and hands_turn_over(text) and any(p["name"] == who and p.get("has_deck") for p in ai_players):
+        kind = "turn"
+    elif who and _DEAL.search(text):
+        kind = "deal"
+    elif who:
+        kind = "question"           # addressed to an AI: the brain reads it, whatever it is
+    elif _QUESTION.search(text) and not spoken_to_someone_else(text, names):
+        kind = "question"           # to the table: code answers public facts, nobody else speaks
+    elif re.search(r"\b(i|we)\s+(cast|play|activate|attack|equip|sacrifice|exile|destroy|tap|pass)\b", text, re.I) \
+            or re.search(r"\b(casts|plays|activates|attacks|equips|sacrifices|exiles|destroys)\b", text, re.I):
+        # third person too: "Claude casts Wrath" must reach the false-claim rule with its cards
+        kind = "play"
+    else:
+        kind = "chatter"
+    addressee = who or ("the whole table" if kind == "question" else "nobody in particular")
+    return {"kind": kind, "kind_p": {kind: 1.0}, "addressee": addressee, "addressee_p": {addressee: 1.0},
+            "expects_answer": 1.0 if who else 0.0, "accept_deal": 0.0,
+            "ms": round((time.time() - t0) * 1000), "router": "code"}
+
+
 def spoken_to(text: str, names: list[str]) -> str | None:
     """The AI player a sentence opens by addressing ("Talrand, …", "Hey Krenko, …", "OK Talrand!"),
     or None. A bare name followed by a verb ("Talrand attacks me") is talk ABOUT them, not TO them."""
     for n in names:
         if re.match(rf"^\s*(?:(?:hey|hi|ok|okay|so|alright|yo|and|but|well)[\s,]+)?{re.escape(n)}\s*[,!?:]", text, re.I):
             return n
+        if re.match(rf"^\s*(?:hey|hi|hello|ok|okay|yo)[\s,]+{re.escape(n)}\s*[.!]*\s*$", text, re.I):
+            return n                                  # "Hi Claude." — a greeting is addressed even with a full stop
     return None
 
 
@@ -353,7 +419,7 @@ def route_local(text: str, recent: list[str], ai_players: list[dict], humans: li
         accept = v["yes"]
     return {"kind": kind, "kind_p": kind_p, "addressee": addressee, "addressee_p": addr_p,
             "expects_answer": addr_p.get(addressee, 0.0) if addressee in names else 0.0,
-            "accept_deal": accept, "ms": round((time.time() - t0) * 1000), "router": f"ollama:{OLLAMA_MODEL}"}
+            "accept_deal": accept, "ms": round((time.time() - t0) * 1000), "router": f"ollama:{DECIDER_MODEL or OLLAMA_MODEL}"}
 
 
 # ── In-character replies ────────────────────────────────────────────────────────────────────

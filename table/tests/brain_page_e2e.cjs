@@ -41,7 +41,7 @@ const brain = (action, body) => fetch(`${BASE}/api/brain/${action}`, {
   const feed = await page.$$eval("#feed li", els => els.map(e => e.innerText).join("\n"));
   const spoken = await page.evaluate(() => window.__spoken);
   check(/Claude: Good evening, table/.test(feed), "a brain 'say' appears in the page's feed");
-  check(spoken.includes("Good evening, table. Shall we begin?"), "…and is handed to speech synthesis");
+  check(spoken.join(" ").includes("Good evening, table. Shall we begin?"), "…and is handed to speech synthesis (a sentence at a time, in order)");
   check(!land || new RegExp(`I play ${land.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(feed), `the land announcement (${land && land.name}) appears`);
   check(/turn 1/.test(await page.textContent("#aiStats")), "the AI panel refreshed to turn 1");
   check(/Michael\s*38/.test(await page.textContent("#lifeRow")), "the life table shows Michael at 38");

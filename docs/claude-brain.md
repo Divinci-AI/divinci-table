@@ -6,6 +6,19 @@ the board, life totals and the conversation, and it checks the arithmetic. The b
 everything else and acts through `table/tablectl.py`. Every action is announced at the table in
 Moira's voice.
 
+**No local model at all:** `NO_GEMMA=1 table/play.sh "Michael|" "Sam|"`. Plain code decides who a
+line is for (a name opening or closing it, "your turn", "truce", "I cast"), and everything said to
+the AI goes to the brain. Nothing loads into Ollama. Played a whole game this way on 2026-09-30 and
+won it. It only starts with `--brain external`, because without a brain nothing would decide.
+
+**Someone joins late:** the page's **+ Add player** button (or `POST /api/players {"name","commander"}`)
+adds them at 40 life; they enroll their voice with "This is Jess." like everyone else.
+
+**A board everyone can read:** `~/.venvs/table/bin/python table/boardview.py` serves
+http://localhost:8803: each player's battlefield, command zone, graveyard and live life, with every
+card's Oracle text from the offline card file. The brain keeps it current by editing
+`table/.cache/boardview/board.json` (public information only, never a hand).
+
 ## Before the first game: say your names
 
 Each player says one sentence, for example "Hi everyone, this is Michael, I'm playing Ghalta

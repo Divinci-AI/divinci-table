@@ -102,5 +102,20 @@ check(tablefacts.cant_be_targeted({"name": "Darksteel Myr", "text": "Indestructi
 check(tablefacts.cant_be_targeted({"name": "Serra Angel", "text": "Flying, vigilance", "keywords": ["Flying", "Vigilance"]}, False, "destroy") is None,
       "an ordinary creature can be targeted")
 
+print("\n6. Ellivere's Role goes on ANOTHER creature (live game 2026-09-30, turn 3)")
+p = fresh()
+for land in ("Plains", "Plains", "Forest", "Forest"):
+    put(p, land)
+p.manual_cast("Ellivere of the Wild Court", commander=True)
+ell = next(x for x in p.battlefield if x.name == "Ellivere of the Wild Court")
+check(not any(x.role for x in p.battlefield), "alone, Ellivere gets no Role (no other creature to target)")
+check(p.stats(ell)[:2] == (4, 4), f"Ellivere is 4/4, not boosted by her own trigger (got {p.stats(ell)[:2]})")
+put(p, "Paradise Druid")
+ell.sick = False
+p.manual_attack({f"#{ell.id}": "Sam"})
+druid = next(x for x in p.battlefield if x.name == "Paradise Druid")
+check(any(x.role == "Virtuous" and x.attached_to == druid.id for x in p.battlefield),
+      "attacking with another creature out, the Role goes on that creature")
+
 print(f"\n{sum(results)}/{len(results)} engine checks passed")
 sys.exit(0 if all(results) else 1)

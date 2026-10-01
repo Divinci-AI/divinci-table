@@ -213,16 +213,24 @@ class VirtualPlayer:
         generic = max(0, generic + extra_generic)
         pool = sorted(self.sources(), key=lambda s: len(s[1]))
         used = []
+        # A land with a mana Aura is ONE tap for TWO mana: once it is tapped for one, its other mana
+        # comes free and must be spent before anything else is tapped. Measured 2026-09-30: Fertile
+        # Ground's Forest paid the {G} of Tanglespan Lookout, then Plains and a second Forest paid
+        # the {2}, and the Aura's mana was thrown away.
+        free = lambda: [s for s in pool if s[0] in used]
         for color, n in pips.items():
             for _ in range(n):
-                s = next((s for s in pool if color in s[1]), None)
+                s = next((s for s in free() if color in s[1]), None) or next((s for s in pool if color in s[1]), None)
                 if not s:
                     return None
                 pool.remove(s)
                 used.append(s[0])
-        if len(pool) < generic:
-            return None
-        used += [s[0] for s in pool[:generic]]
+        for _ in range(generic):
+            s = (free() or pool or [None])[0]
+            if s is None:
+                return None
+            pool.remove(s)
+            used.append(s[0])
         return used
 
     def available_mana(self): return len(self.sources())
@@ -340,9 +348,12 @@ class VirtualPlayer:
                        "toughness": m.group(3), "text": "", "keywords": []}
                 self.battlefield.append(Perm(tok, token=True))
             said.append(f"I create {m.group(1)} {m.group(2)}/{m.group(3)} {m.group(4)} token{'s' if n > 1 else ''}.")
-        m = re.search(r"create an? (\w+(?: \w+)?) Role token attached to (?:up to one |another )?target creature", clause)
+        m = re.search(r"create an? (\w+(?: \w+)?) Role token attached to (up to one |another )?target creature", clause)
         if m and m.group(1) in ROLES:
-            cands = [c for c in self.creatures() if c.id != p.id] or ([p] if p.is_("Creature") else [])
+            # "another target creature" (Ellivere) never means itself: with no other creature the
+            # trigger does nothing. Measured 2026-09-30: the Role went on Ellivere and made her 6/6.
+            others = [c for c in self.creatures() if c.id != p.id]
+            cands = others if m.group(2) == "another " else (others or ([p] if p.is_("Creature") else []))
             if cands:
                 target = choose_target({"name": f"{m.group(1)} Role", "text": ROLES[m.group(1)]}, cands)
                 for old in [a for a in self.battlefield if a.attached_to == target.id and a.role]:

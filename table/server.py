@@ -104,6 +104,10 @@ def emit(event_type: str, **fields) -> dict:
 
 LIFE: dict[str, int] = {}             # filled once the human players are parsed, below
 REPLIES = os.environ.get("REPLIES", "ollama")    # "ollama": in-character via local Gemma; "template"
+# ROUTER=code + REPLIES=template: no local model at all — the brain (Claude) makes every judgment.
+NO_GEMMA = os.environ.get("ROUTER", "ollama") == "code" and REPLIES == "template"
+if NO_GEMMA and not BRAIN_EXTERNAL:
+    sys.exit("ROUTER=code needs --brain external: with no local model, the brain makes every decision")
 HUMANS = []
 for spec in args.human:
     name, _, commander = spec.partition("|")
@@ -416,6 +420,25 @@ def change_life(player, delta, by, set_to=None):
         LIFE[player] += delta
     emit("life", player=player, delta=delta, by=by, life=life_table()[player])
     return life_table()
+
+
+def add_human(name: str, commander: str = "") -> tuple[int, dict]:
+    """A player joining after the server started. They start at 40, and enroll their voice the
+    same way as everyone else ("This is Jess.")."""
+    name, commander = name.strip(), commander.strip()[:80]
+    if not re.fullmatch(r"[A-Za-z][A-Za-z'-]{0,19}", name):
+        return 400, {"error": "a name is one word of letters, up to 20"}
+    taken = [h["name"].lower() for h in HUMANS] + [p["name"].lower() for p in AI_PLAYERS]
+    if name.lower() in taken:
+        return 409, {"error": f"{name} is already at the table"}
+    if len(HUMANS) >= 6:
+        return 400, {"error": "the table is full (6 human players)"}
+    HUMANS.append({"name": name, "commander": commander or None})
+    LIFE[name] = 40
+    if commander:
+        NICKNAMES[commander.split(",")[0]] = commander
+    emit("player-added", player=name, commander=commander or None)
+    return 200, {"humans": HUMANS, "life": life_table()}
 
 
 # ── who is speaking (speakers.py: ECAPA voice embeddings, enrolled by "This is Michael.") ───────
@@ -859,6 +882,8 @@ def show_card(image: bytes, to: str, shown_by: str):
             SHOW["pending"] = key
             if SHOW["n"] < 2:
                 return {"status": "reading"}
+    if not names and NO_GEMMA:                        # code-only table: no vision model to ask
+        return {"status": "unreadable"}
     if not names:                                     # outside the lock: this call takes ~0.6 s
         guess = voice.gemma_read_card(image)
         norm_index = getattr(show_card, "idx", None) or {n.lower(): n for n in CATALOG}
@@ -963,8 +988,11 @@ class H(BaseHTTPRequestHandler):
             with EV_LOCK:
                 last = EVENTS[-1]["id"] if EVENTS else 0
                 since = last if q.get("since", ["0"])[0] == "latest" else int(q.get("since", ["0"])[0] or 0)
-                out = [e for e in EVENTS if e["id"] > since][:300]
-            return self._send(200, {"last": last, "events": out})
+                # A page left open across a server restart holds a cursor from the OLD server, ahead
+                # of every new id, and would wait for ever (seen 2026-09-30: the page went silent).
+                restarted = since > last
+                out = [e for e in EVENTS if e["id"] > (0 if restarted else since)][:300]
+            return self._send(200, {"last": last, "events": out, "restarted": restarted})
         if self.path == "/api/life":
             return self._send(200, self._life_table())
         if self.path == "/api/brain/state":
@@ -1040,6 +1068,9 @@ class H(BaseHTTPRequestHandler):
                     hold_the_floor(ev["id"])
                     return self._send(200, {"awaiting": "brain"})
                 return self._send(200, run_ai_turn())
+            if self.path == "/api/players":                # someone joins mid-game: {"name": "Jess", "commander": "…"}
+                b = self._json()
+                return self._send(*add_human(str(b.get("name", "")), str(b.get("commander") or "")))
             if self.path == "/api/life":                   # anyone at the table: {"player": name, "delta": -3}
                 b = self._json()
                 return self._send(200, self._change_life(str(b.get("player", "")), b.get("delta"), b.get("by", "table")))
@@ -1232,5 +1263,6 @@ mode = f"TEST MODE, any of {len(CATALOG)} card names" if args.any_card else f"de
 print(f"{mode}. Table (camera + mic): http://localhost:{args.port}/table   "
       f"Scan pad (AI's hand): http://localhost:{args.port}/   Show: /show   Voice: /voice", flush=True)
 print("AI players: " + ", ".join(p["name"] for p in AI_PLAYERS)
-      + (f" — brain: EXTERNAL (drive with table/tablectl.py)" if BRAIN_EXTERNAL else " — brain: local Gemma"), flush=True)
+      + (f" — brain: EXTERNAL (drive with table/tablectl.py)" if BRAIN_EXTERNAL else " — brain: local Gemma")
+      + (" — no local model (ROUTER=code)" if NO_GEMMA else ""), flush=True)
 ThreadingHTTPServer(("127.0.0.1", args.port), H).serve_forever()

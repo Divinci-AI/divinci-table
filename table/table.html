@@ -75,13 +75,20 @@ label{color:var(--muted);display:flex;gap:7px;align-items:center}
     <button class="b primary" id="start">Start camera + mic</button>
     <button class="b" id="mute" disabled>Mute mic</button>
     <label>Showing to <select id="to"></select></label>
-    <label>You are <input class="t" id="by" value="Michael" size="9"></label>
+    <label>You are <select id="by"></select></label>
     <label><input type="checkbox" id="speak" checked> Speak replies</label>
     <button class="b primary" id="aiTurn" hidden>▶ AI's turn</button>
     <button class="b" id="newGame" hidden>New game</button>
     <span class="note" id="newGameConfirm" hidden>Reshuffle and start over? <button class="b" id="newGameYes">Yes, new game</button> <button class="b" id="newGameNo">Cancel</button></span>
   </div>
-  <div class="board" id="players" aria-label="AI players"></div>
+  <div class="board" id="players" aria-label="Players"></div>
+  <form class="controls" id="addForm" hidden>
+    <label>Name <input class="t" id="addName" size="10" maxlength="20" required pattern="[A-Za-z][A-Za-z'\-]{0,19}" autocomplete="off"></label>
+    <label>Commander <input class="t" id="addCmdr" size="22" maxlength="80" placeholder="optional" autocomplete="off"></label>
+    <button class="b primary" type="submit">Add to the table</button>
+    <button class="b" type="button" id="addCancel">Cancel</button>
+    <span class="note" id="addMsg" role="status"></span>
+  </form>
 
   <div class="main">
     <div class="left">
@@ -129,14 +136,30 @@ function speak(who, text, sounds){
   if(!$("speak").checked || !window.speechSynthesis) return;
   pending.push([who, sounds||text]); flushSpeech();
 }
+// Chrome's speech engine can hang on a long utterance: speechSynthesis.speaking stays true and every
+// later line queues behind it in silence (seen 2026-10-01: the page went quiet mid-game after the
+// AI's long turn recaps). So: one sentence per utterance, and a watchdog that resets a stuck engine.
+let ttsStarted=0;
 function flushSpeech(){
   while(pending.length && !humanTalking()){
     const [who, line]=pending.shift();
-    const u=new SpeechSynthesisUtterance(line); if(voices[who]) u.voice=voices[who];
-    speechSynthesis.speak(u);
+    for(const part of line.match(/[^.!?]+[.!?]*/g) || [line]){
+      if(!part.trim()) continue;
+      const u=new SpeechSynthesisUtterance(part.trim()); if(voices[who]) u.voice=voices[who];
+      u.onstart=()=>{ ttsStarted=Date.now(); }; u.onend=()=>{ ttsStarted=0; };
+      speechSynthesis.speak(u);
+    }
   }
 }
 setInterval(flushSpeech, 150);
+setInterval(()=>{
+  if(!window.speechSynthesis) return;
+  if(speechSynthesis.paused) speechSynthesis.resume();
+  if(speechSynthesis.speaking && ttsStarted && Date.now()-ttsStarted > 15000){   // one sentence never takes 15 s
+    const left=speechSynthesis.pending; speechSynthesis.cancel(); ttsStarted=0;
+    feed(`<span class="meta">speech engine was stuck — reset${left?" (a line was dropped)":""}</span>`);
+  }
+}, 3000);
 function hush(){ pending.length=0; if(window.speechSynthesis) speechSynthesis.cancel(); }
 function addBoard(cards){
   for(const c of cards||[]) board.push(c);
@@ -205,14 +228,17 @@ async function pollEvents(){
     const r=await fetch(`/api/events?since=${evSince===null?"latest":evSince}`);
     const t=await r.text(); let d; try{ d=JSON.parse(t);}catch{ return; }
     if(evSince===null){ evSince=d.last; return; }
+    if(d.restarted){ feed(`<span class="meta">the table server restarted — caught up</span>`); board.length=0; addBoard([]); loadConfig(); }
     let touched=false;
     for(const e of d.events){
       evSince=e.id;
       if(e.type==="say"){
         feed(`<span class="reply">${esc(e.speaker)}: ${esc(e.text)}</span>`, e.action && e.action!=="say" ? "turn" : "");
-        speak(e.speaker, e.text, e.speech); touched=true;
+        if(!(d.restarted && Date.now()/1000 - e.ts > 15)) speak(e.speaker, e.text, e.speech);   // don't replay old lines aloud
+        touched=true;
       } else if(e.type==="life"){ feed(`<span class="meta">life: ${esc(e.player)} ${e.delta>0?"+":""}${e.delta} → ${e.life} (${esc(e.by)})</span>`); touched=true; }
       else if(e.type==="new-game"){ board.length=0; addBoard([]); touched=true; }
+      else if(e.type==="player-added"){ feed(`<span class="meta">${esc(e.player)} joins the table${e.commander?` with ${esc(e.commander)}`:""} at 40 life</span>`); loadConfig(); touched=true; }
       else if(e.type==="hush"){ hush(); feed(`<span class="meta">holding — ${esc(e.by||"someone")} said wait</span>`); }
     }
     if(touched) refreshAI();
@@ -333,16 +359,39 @@ $("start").onclick = async ()=>{
 $("mute").onclick=()=>{ muted=!muted; $("mute").textContent=muted?"Unmute mic":"Mute mic"; pill("micStatus", muted?"":"on", muted?"muted":"listening"); };
 
 if(window.speechSynthesis) speechSynthesis.onvoiceschanged=assignVoices;
-fetch("/api/voice-config").then(r=>r.text()).then(t=>{
-  let c; try{ c=JSON.parse(t);}catch{ pill("camStatus","err","server returned non-JSON config"); return; }
-  ai=c.ai_players;
-  if(ai[0] && ai[0].has_deck){
-    $("aiTurn").hidden=false; $("aiTurn").textContent=`▶ ${ai[0].name}'s turn`; $("newGame").hidden=false; refreshAI();
-  }
-  $("to").innerHTML=ai.map(p=>`<option>${esc(p.name)}</option>`).join("");
-  $("players").innerHTML=ai.map(p=>`<span class="chip ai">${esc(p.name)} · ${esc(p.commander||"")}${p.voice?` · voice ${esc(p.voice)}`:""}</span>`).join("");
-  assignVoices();
-});
+function renderPlayers(c){
+  const humans=c.humans||[], was=$("by").value;
+  $("by").innerHTML=humans.map(h=>`<option>${esc(h.name)}</option>`).join("")||"<option>table</option>";
+  if(humans.some(h=>h.name===was)) $("by").value=was;
+  $("players").innerHTML=ai.map(p=>`<span class="chip ai">${esc(p.name)} · ${esc(p.commander||"")}${p.voice?` · voice ${esc(p.voice)}`:""}</span>`).join("")
+    + humans.map(h=>`<span class="chip">${esc(h.name)}${h.commander?` · ${esc(h.commander)}`:""}</span>`).join("")
+    + `<button class="b" id="addPlayer" type="button">+ Add player</button>`;
+  $("addPlayer").onclick=()=>{ $("addForm").hidden=false; $("addMsg").textContent=""; $("addName").focus(); };
+}
+function loadConfig(){
+  return fetch("/api/voice-config").then(r=>r.text()).then(t=>{
+    let c; try{ c=JSON.parse(t);}catch{ pill("camStatus","err","server returned non-JSON config"); return; }
+    const first=!ai.length; ai=c.ai_players;
+    if(first && ai[0] && ai[0].has_deck){
+      $("aiTurn").hidden=false; $("aiTurn").textContent=`▶ ${ai[0].name}'s turn`; $("newGame").hidden=false; refreshAI();
+    }
+    if(first) $("to").innerHTML=ai.map(p=>`<option>${esc(p.name)}</option>`).join("");
+    renderPlayers(c); refreshLife();
+    if(first) assignVoices();
+  });
+}
+$("addCancel").onclick=()=>{ $("addForm").hidden=true; };
+$("addForm").onsubmit=async ev=>{
+  ev.preventDefault();
+  const r=await fetch("/api/players",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name:$("addName").value.trim(),commander:$("addCmdr").value.trim()})});
+  const t=await r.text(); let d={}; try{ d=JSON.parse(t);}catch{}
+  if(!r.ok){ $("addMsg").textContent=d.error||`could not add (HTTP ${r.status})`; return; }
+  const name=$("addName").value.trim();
+  $("addName").value=""; $("addCmdr").value=""; $("addForm").hidden=true;
+  await loadConfig(); $("by").value=name;
+};
+loadConfig();
 </script>
 </body>
 </html>
