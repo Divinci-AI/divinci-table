@@ -10,7 +10,8 @@ from the printer's MACHINE_TYPE.
   ~/.venvs/table/bin/python table/gantry.py home              # X and Y only (see Z below)
   ~/.venvs/table/bin/python table/gantry.py goto 110 110 [Z]
   ~/.venvs/table/bin/python table/gantry.py snap              # one photo where the camera is now
-  ~/.venvs/table/bin/python table/gantry.py scan --cols 3 --rows 2 [--post]
+  ~/.venvs/table/bin/python table/gantry.py plan --area all --z 300   # how many shots, no motion
+  ~/.venvs/table/bin/python table/gantry.py scan --area south [--z 300] [--post]
 
 Z: homing Z drives the head DOWN until the endstop or probe triggers, so with a camera hanging off
 the carriage it can hit the table. `home` leaves Z alone; `home --z` is for when the camera
@@ -44,6 +45,50 @@ TRAVEL = {
     "cr-10 max": (450, 450, 470), "cr-10 v3": (300, 300, 400),
 }
 SAFE_DEFAULT = (200, 200, 200)            # unknown machine: stay inside the smallest one
+
+# The camera rig, measured once after mounting and kept in gantry.json:
+#   min_z            lowest Z the head may go with the camera on (lens must clear the bed + cards)
+#   lens_at_z0_mm    lens front to bed distance when Z = 0 (negative: lens hangs below the nozzle)
+#   cam_offset_mm    [x, y] of the lens axis relative to the nozzle
+#   focal_mm, sensor_mm   18 mm kit lens at its widest on the T5i's APS-C sensor (22.3 x 14.9)
+#   y_feed           the bed carries the cards, so Y moves gently or they slide
+RIG_DEFAULT = {"min_z": 0, "lens_at_z0_mm": 0, "cam_offset_mm": [0, 0], "focal_mm": 18,
+               "sensor_mm": [22.3, 14.9], "y_feed": 1200, "overlap": 0.3}
+
+
+def config() -> dict:
+    cfg = dict(RIG_DEFAULT)
+    if CONFIG.exists():
+        cfg.update(json.loads(CONFIG.read_text()))
+    return cfg
+
+
+def footprint(z: float, cfg: dict | None = None) -> tuple[float, float]:
+    """Width x height (mm) of bed the camera sees from head height z."""
+    cfg = cfg or config()
+    d = z + cfg["lens_at_z0_mm"]
+    if d <= 0:
+        raise Refused(f"at Z{z} the lens would be at or below the bed")
+    return d * cfg["sensor_mm"][0] / cfg["focal_mm"], d * cfg["sensor_mm"][1] / cfg["focal_mm"]
+
+
+def plan(area: tuple[float, float, float, float], z: float, cfg: dict | None = None):
+    """Shots (bed-point centres) covering area=(x0, y0, x1, y1) from height z with the configured overlap."""
+    import math
+    cfg = cfg or config()
+    fw, fh = footprint(z, cfg)
+    step_w, step_h = fw * (1 - cfg["overlap"]), fh * (1 - cfg["overlap"])
+    x0, y0, x1, y1 = area
+    cols = 1 if x1 - x0 <= fw else math.ceil((x1 - x0 - fw) / step_w) + 1
+    rows = 1 if y1 - y0 <= fh else math.ceil((y1 - y0 - fh) / step_h) + 1
+    cx = (x0 + fw / 2, x1 - fw / 2) if cols > 1 else ((x0 + x1) / 2,) * 2
+    cy = (y0 + fh / 2, y1 - fh / 2) if rows > 1 else ((y0 + y1) / 2,) * 2
+    return grid(cx[0], cy[0], cx[1], cy[1], cols, rows), (cols, rows), (fw, fh)
+
+
+# Two players on the 400 x 400 bed, each with a 400 x 195 half: two rows of six cards
+# (63 x 88 mm) fit, ~12 permanents each. Four players need the bigger gantry (docs/claude-brain.md).
+DUEL_AREAS = {"north": (0, 205, 400, 400), "south": (0, 0, 400, 195), "all": (0, 0, 400, 400)}
 
 # What may be sent. Anything that heats, extrudes, runs fans, writes EEPROM or prints is refused.
 ALLOWED = {"G0", "G1", "G4", "G28", "G90", "G91", "M17", "M18", "M84", "M114", "M115", "M119",
@@ -151,6 +196,11 @@ class Printer:
         self.send("G28 X Y" + (" Z" if z else ""), timeout=120)
 
     def goto(self, x=None, y=None, z=None, feed=3000):
+        cfg = config()
+        if z is not None and z < cfg["min_z"]:
+            raise Refused(f"Z{z} is below the camera floor min_z={cfg['min_z']} (gantry.json)")
+        if y is not None:
+            feed = min(feed, cfg["y_feed"])         # the bed carries the cards
         parts = []
         for axis, v, hi in (("X", x, self.travel[0]), ("Y", y, self.travel[1]), ("Z", z, self.travel[2])):
             if v is None:
@@ -221,15 +271,21 @@ def stitch(paths: list[Path], out: Path) -> Path | None:
     return out
 
 
-def scan(p: Printer, cols, rows, z=None, margin=20, settle=0.6, post=False) -> Path | None:
-    tx, ty, _ = p.travel
+def scan(p: Printer, area=DUEL_AREAS["all"], z=None, settle=1.0, post=False) -> Path | None:
+    cfg = config()
+    z = z if z is not None else p.travel[2]
+    shots_at, (cols, rows), (fw, fh) = plan(area, z, cfg)
+    ox, oy = cfg["cam_offset_mm"]
     run = CACHE / time.strftime("scan-%Y%m%d-%H%M%S")
+    print(f"{cols}x{rows} shots, each {fw:.0f}x{fh:.0f} mm, from Z{z:.0f}")
     shots = []
-    for i, (x, y) in enumerate(grid(margin, margin, tx - margin, ty - margin, cols, rows)):
+    for i, (bx, by) in enumerate(shots_at):
+        x = min(max(bx - ox, 0), p.travel[0])
+        y = min(max(by - oy, 0), p.travel[1])
         p.goto(x, y, z)
-        time.sleep(settle)                        # let the camera stop swaying
-        shots.append(snap(run / f"{i:02d}_x{x:.0f}_y{y:.0f}.jpg"))
-        print(f"shot {i + 1}/{cols * rows} at X{x:.0f} Y{y:.0f}")
+        time.sleep(settle)                        # the bed and camera stop swaying
+        shots.append(snap(run / f"{i:02d}_x{bx:.0f}_y{by:.0f}.jpg"))
+        print(f"shot {i + 1}/{len(shots_at)} at bed X{bx:.0f} Y{by:.0f}")
     out = stitch(shots, run / "board.jpg")
     if out and post:
         req = urllib.request.Request("http://127.0.0.1:8800/api/board", data=out.read_bytes(),
@@ -253,12 +309,18 @@ def main(argv=None):
     sub.add_parser("temps")
     sub.add_parser("cool")
     s = sub.add_parser("scan")
-    s.add_argument("--cols", type=int, default=3); s.add_argument("--rows", type=int, default=2)
+    s.add_argument("--area", choices=list(DUEL_AREAS), default="all")
     s.add_argument("--z", type=float); s.add_argument("--post", action="store_true")
+    pl = sub.add_parser("plan")
+    pl.add_argument("--area", choices=list(DUEL_AREAS), default="all"); pl.add_argument("--z", type=float, default=300)
     a = ap.parse_args(argv)
 
     if a.cmd == "ports":
         print("\n".join(find_ports()) or "no printer serial port", "\nCanon:", canon_port() or "not found")
+        return
+    if a.cmd == "plan":
+        pts, (c, r), (fw, fh) = plan(DUEL_AREAS[a.area], a.z)
+        print(f"{a.area} from Z{a.z:.0f}: {c}x{r} shots of {fw:.0f}x{fh:.0f} mm at", [(round(x), round(y)) for x, y in pts])
         return
     if a.cmd == "snap":
         print(snap(CACHE / time.strftime("snap-%Y%m%d-%H%M%S.jpg")))
@@ -277,7 +339,7 @@ def main(argv=None):
     elif a.cmd == "off":
         p.motors_off()
     elif a.cmd == "scan":
-        print(scan(p, a.cols, a.rows, z=a.z, post=a.post))
+        print(scan(p, DUEL_AREAS[a.area], z=a.z, post=a.post))
 
 
 if __name__ == "__main__":

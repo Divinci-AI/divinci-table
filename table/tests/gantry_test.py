@@ -80,5 +80,18 @@ ok &= check("CR-10 S5 = 500 mm", big.travel == (500, 500, 500))
 g = gantry.grid(0, 0, 200, 100, 3, 2)
 ok &= check("serpentine grid", g == [(0, 0), (100, 0), (200, 0), (200, 100), (100, 100), (0, 100)])
 
+cfg = dict(gantry.RIG_DEFAULT, min_z=50, lens_at_z0_mm=-100)
+gantry.config = lambda: cfg
+ok &= check("refuses Z below the camera floor", refused(lambda: big.goto(10, 10, 40)))
+fake_big = big.ser; big.goto(10, 10, 60)
+ok &= check("Y moves are slowed for the cards", fake_big.sent[-2].endswith("F1200"))
+fw, fh = gantry.footprint(400, cfg)
+ok &= check("footprint at 300 mm lens height = 372 x 248", (round(fw), round(fh)) == (372, 248))
+pts, (c, r), _ = gantry.plan((0, 0, 400, 400), 400, cfg)
+ok &= check("whole bed from 300 mm: 2x2 shots", (c, r) == (2, 2) and len(pts) == 4)
+pts, (c, r), _ = gantry.plan((0, 0, 300, 200), 400, cfg)
+ok &= check("an area smaller than one frame is one shot, centred", (c, r) == (1, 1) and pts == [(150, 100)])
+ok &= check("lens into the bed is refused", refused(lambda: gantry.footprint(100, cfg)))
+
 print("ALL PASS" if ok else "SOME FAILED")
 sys.exit(0 if ok else 1)
