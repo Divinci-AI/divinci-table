@@ -49,6 +49,8 @@
 <div id="help">click a seat to pin it · space follows the turn · F full screen</div>
 <script type="module">
 import * as THREE from "three";
+import { GLTFLoader } from "/vendor/jsm/loaders/GLTFLoader.js";
+import * as SkeletonUtils from "/vendor/jsm/utils/SkeletonUtils.js";
 
 // ── table state ─────────────────────────────────────────────────────────────────────────────
 const params = new URLSearchParams(location.search);
@@ -92,7 +94,6 @@ floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h); camera.aspect = w / h;
-  camera.position.z = w / h < 1 ? 6.8 : 4.6;              // portrait phones: step back so it all fits
   camera.updateProjectionMatrix();
 }
 addEventListener("resize", resize); resize();
@@ -119,7 +120,7 @@ const backTex = (() => {
 })();
 
 // the hand: n card backs fanned in front of the face, held by two hands
-function cardFan(n, skin) {
+function cardFan(n, skin, hands = true) {
   const g = new THREE.Group();
   const cards = new THREE.Group(); g.add(cards);
   const geo = new THREE.BoxGeometry(0.42, 0.59, 0.006);
@@ -134,9 +135,11 @@ function cardFan(n, skin) {
     c.position.set(0, 0.27, i * 0.004); c.castShadow = true;
     pivot.add(c); cards.add(pivot);
   }
-  const handMat = M(skin);
-  g.add(mesh(new THREE.SphereGeometry(0.09, 20, 16), handMat, -0.12, 0.02, 0.06));
-  g.add(mesh(new THREE.SphereGeometry(0.09, 20, 16), handMat, 0.12, 0.02, 0.06));
+  if (hands) {                                       // the built avatars need hands; Meshy's have their own
+    const handMat = M(skin);
+    g.add(mesh(new THREE.SphereGeometry(0.09, 20, 16), handMat, -0.12, 0.02, 0.06));
+    g.add(mesh(new THREE.SphereGeometry(0.09, 20, 16), handMat, 0.12, 0.02, 0.06));
+  }
   g.userData.count = n;
   return g;
 }
@@ -266,8 +269,50 @@ function genericAvatar() {
   a.userData.head = head; a.userData.skin = "#ccc"; return a;
 }
 
+// ── Meshy models (table/meshy_avatars.py): rigged GLBs with clips idle, talk, think, cheer, wave ──
+const CLIPS = ["idle", "talk", "think", "cheer", "wave"];
+let models = new Set();
+const gltfCache = {};
+const loader = new GLTFLoader();
+function loadModel(name) {
+  return gltfCache[name] ||= new Promise((ok, bad) => loader.load(`/avatars/${encodeURIComponent(name)}.glb`, ok, undefined, bad));
+}
+function meshyActor(gltf) {
+  const a = new THREE.Group();
+  const model = SkeletonUtils.clone(gltf.scene);
+  model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+  let headBone = null;
+  model.traverse(o => { if (o.isBone && /^head$/i.test(o.name)) headBone = o; });          // Meshy's rig: "Head"
+  if (!headBone) model.traverse(o => { if (!headBone && o.isBone && /head/i.test(o.name) && !/top|end|nub|front/i.test(o.name)) headBone = o; });
+  // Size from the SKELETON: a skinned mesh's box before its bones are posed is meaningless.
+  model.updateMatrixWorld(true);
+  const pts = []; model.traverse(o => { if (o.isBone) pts.push(o.getWorldPosition(new THREE.Vector3())); });
+  const bb = new THREE.Box3().setFromPoints(pts.length ? pts : [new THREE.Vector3(), new THREE.Vector3(0, 1, 0)]);
+  const top = headBone ? headBone.getWorldPosition(new THREE.Vector3()).y : bb.max.y;
+  const k = 1.72 / ((top - bb.min.y) || 1);               // the head sits at 1.72 on every avatar
+  const c = bb.getCenter(new THREE.Vector3());
+  model.scale.multiplyScalar(k);
+  model.position.set(-c.x * k, -bb.min.y * k, -c.z * k);
+  a.add(model);
+  const anchor = new THREE.Group(); a.add(anchor);        // follows the head; the cards hang off it
+  anchor.position.set(0, 1.78, 0);
+  const mixer = new THREE.AnimationMixer(model), actions = {};
+  gltf.animations.forEach((clip, i) => { actions[CLIPS[i] || clip.name] = mixer.clipAction(clip); });
+  (actions.idle || Object.values(actions)[0])?.play();
+  Object.assign(a.userData, { meshy: true, model, mixer, actions, headBone, head: anchor, current: "idle", skin: "#d9c7b0" });
+  return a;
+}
+function play(clip, once = false) {
+  const u = actor?.userData; if (!u?.actions) return;
+  const next = u.actions[clip] || u.actions.idle; if (!next || u.current === clip) return;
+  const prev = u.actions[u.current];
+  next.reset(); next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat); next.clampWhenFinished = once;
+  next.play(); if (prev) next.crossFadeFrom(prev, 0.35, true);
+  u.current = clip; u.onceUntil = once ? performance.now() + next.getClip().duration * 1000 : 0;
+}
+
 // ── who is on stage ─────────────────────────────────────────────────────────────────────────
-let actor = null, actorName = null, fan = null, enterT = 0;
+let actor = null, actorName = null, fan = null, enterT = 0, thinkUntil = 0, cheerUntil = 0;
 function stage(name, force = false) {
   const s = seatOf(name); if (!s) return;
   if (!force && name === actorName && fan?.userData.count === s.hand) return;
@@ -275,6 +320,10 @@ function stage(name, force = false) {
   if (name !== actorName || force) {
     if (actor) scene.remove(actor);
     actor = look.build(); actorName = name; enterT = performance.now();
+    if (models.has(name)) loadModel(name).then(gltf => {      // swap in the Meshy model once it loads
+      if (actorName !== name) return;
+      scene.remove(actor); actor = meshyActor(gltf); scene.add(actor); fan = null; stage(name);
+    }).catch(() => models.delete(name));
     actor.traverse(o => { if (o.isMesh) o.castShadow = true; });
     scene.add(actor);
     document.documentElement.style.setProperty("--bg1", look.bg[0]);
@@ -283,8 +332,10 @@ function stage(name, force = false) {
     fan = null;
   }
   if (fan) actor.userData.head.remove(fan);
-  fan = cardFan(s.hand, actor.userData.skin);
-  fan.position.set(0, -0.66, 0.58);                 // held up to the chin, eyes peeking over the top
+  const meshy = actor.userData.meshy;
+  fan = cardFan(s.hand, actor.userData.skin, !meshy);
+  fan.position.set(0, meshy ? -0.36 : -0.66, meshy ? 0.3 : 0.58);   // at the chin, eyes peeking over the top
+  if (meshy) fan.scale.setScalar(0.55);
   fan.rotation.x = -0.12;
   actor.userData.head.add(fan);
   hud();
@@ -326,6 +377,7 @@ async function setHand(player, delta) {
 async function refresh() {
   try {
     seats = (await (await fetch("/api/stage")).json()).seats;
+    try { models = new Set(await (await fetch("/avatars/index.json")).json()); } catch { models = new Set(); }
     stage(shown()); hud();
   } catch { /* server restarting: try again next tick */ }
 }
@@ -348,7 +400,8 @@ async function poll() {
     else {
       for (const e of r.events) {
         if (e.type === "attention" && e.kind === "turn" && seatOf(e.addressee)) turn = seatOf(e.addressee).name;
-        if (e.type === "say" && e.action === "begin" && seatOf(e.speaker)) turn = seatOf(e.speaker).name;
+        if (e.type === "say" && e.action === "begin" && seatOf(e.speaker)) { turn = seatOf(e.speaker).name; thinkUntil = performance.now() + 5000; }
+        if (e.type === "say" && e.action === "damage" && e.speaker === actorName) cheerUntil = performance.now() + 3500;
         if (e.type === "say" && e.action === "end" && seatOf(e.speaker)) turn = next(seatOf(e.speaker).name) || turn;
         if (e.type === "say" && e.speaker && e.speech !== "") caption(e.speaker, e.speech || e.text || "");
       }
@@ -359,6 +412,7 @@ async function poll() {
   setTimeout(poll, 700);
 }
 
+renderer.domElement.addEventListener("click", () => play("wave", true));
 addEventListener("keydown", e => {
   if (e.key === " ") { pinned = null; stage(shown(), true); hud(); }
   if (e.key.toLowerCase() === "f") document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
@@ -369,7 +423,21 @@ addEventListener("keydown", e => {
 const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   const t = clock.getElapsedTime(), now = performance.now();
-  if (actor) {
+  const meshyOn = !!actor?.userData.meshy, portrait = innerWidth < innerHeight;
+  const camT = meshyOn ? new THREE.Vector3(0, 1.55, portrait ? 3.6 : 2.5) : new THREE.Vector3(0, 1.7, portrait ? 6.8 : 4.6);
+  camera.position.lerp(camT, 0.08);
+  camera.lookAt(0, meshyOn ? 1.5 : 1.45, 0);
+  const dt = Math.min(0.05, (now - (window.__last || now)) / 1000); window.__last = now;   // getElapsedTime eats getDelta
+  if (actor?.userData.meshy) {
+    const u = actor.userData;
+    u.mixer.update(dt);
+    if (!(u.onceUntil > now)) play(now < talking ? "talk" : now < cheerUntil ? "cheer" : now < thinkUntil ? "think" : "idle");
+    if (u.headBone) {                                       // keep the cards in front of the face as it moves
+      const p = u.headBone.getWorldPosition(new THREE.Vector3()); actor.worldToLocal(p);
+      u.head.position.lerp(p, 0.5);
+    }
+    if (fan) fan.rotation.z = Math.sin(t * 1.1) * 0.03;
+  } else if (actor) {
     const u = actor.userData, k = Math.min(1, (now - enterT) / 700);
     const ease = 1 - Math.pow(1 - k, 3);
     actor.scale.setScalar(0.6 + 0.4 * ease);
