@@ -67,7 +67,7 @@ def brain(action, **body):
 
 
 BEFORE = set(RESEARCH.glob("*"))              # never touch an existing game's logs
-srv = start("--priority-secs", "30", "--priority-beat", "0.6,0.6")
+srv = start("--priority-window", "0", "--priority-secs", "30", "--priority-beat", "0.6,0.6")
 BEAT = 0.7
 try:
     print("NEXT and priority")
@@ -226,7 +226,7 @@ try:
     snaps = sorted(RESEARCH.glob("*/snapshot.pkl"), key=lambda x: x.stat().st_mtime)
     check(bool(snaps), "a snapshot is written after changes")
     srv.terminate(); srv.wait(10)
-    srv = start("--restore", str(snaps[-1]), "--priority-secs", "2", "--priority-beat", "0.3,0.3")
+    srv = start("--restore", str(snaps[-1]), "--priority-window", "1.5")
     code, st = call("GET", "/api/brain/state?seat=Claude", brain=True)
     check(json.dumps([st["hand"], st["permanents"], st["life"]], sort_keys=True) == before,
           "restore brings back the same hand, board and life")
@@ -236,17 +236,22 @@ try:
     code, p = call("GET", "/api/phase")
     check(p["player"] == "Ben", "restore brings back whose turn it is")
 
-    print("timeout")
-    call("POST", "/api/phase/next", {"by": "Ben"})
+    print("fixed windows (the default): every step lasts the same, whoever holds what")
+    code, p = call("POST", "/api/phase/next", {"by": "Ben"})           # untap → upkeep: a window opens
+    t0 = time.time()
+    check(code == 200 and p["waiting"] == ["Claude"] and 1.0 < p["seconds_left"] <= 1.5, "a window opens with the full fixed time")
+    brain("pass", quiet=True)
     code, p = call("POST", "/api/phase/next", {"by": "Ben"})
-    if p.get("waiting"):
-        code, p = call("POST", "/api/phase/next", {"by": "Ben"})
-        check(code == 409, "refused inside the window")
-        time.sleep(2.3)
-        code, p = call("POST", "/api/phase/next", {"by": "Ben"})
-        check(code == 200, "a window that runs out passes for the silent seat")
-    else:
-        check(True, "(no instant castable this step; timeout path covered above when it is)")
+    check(code == 409 and p["waiting"] == ["Claude"], "passing early does NOT close it (an early answer looks like none)")
+    time.sleep(max(0, 1.6 - (time.time() - t0)))
+    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    check(code == 200, "it closes when the time is up")
+    t1 = time.time()
+    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    check(code == 409, "a seat that says nothing is waited on for the same time…")
+    time.sleep(max(0, 1.6 - (time.time() - t1)))
+    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    check(code == 200, "…and passes when it's up — no window lasts longer than another")
 finally:
     srv.terminate()
     import shutil

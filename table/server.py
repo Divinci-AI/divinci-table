@@ -56,6 +56,10 @@ ap.add_argument("--restore", default="",
 ap.add_argument("--tls-cert", default="", help="also serve HTTPS (WebXR needs a secure page on phones/headsets)")
 ap.add_argument("--tls-key", default="")
 ap.add_argument("--tls-port", type=int, default=8443)
+ap.add_argument("--priority-window", type=float, default=10.0,
+                help="every priority window lasts exactly this long (seconds), whoever holds what: passing early "
+                     "doesn't shorten it and a seat that hasn't answered by then passes — so timing reveals nothing. "
+                     "0 = the older behaviour (a random beat, then wait on seats that could respond)")
 ap.add_argument("--priority-beat", default="1.5,3.5",
                 help="every priority window lasts a random beat in this range (seconds, 'lo,hi'), whether or not "
                      "anyone could respond — so an open window never tells the table who holds an instant")
@@ -218,6 +222,9 @@ ORDER: list[str] = [x.strip() for x in args.order.split(",") if x.strip()]
 PHASE = {"player": None, "step": 0, "begun": False}   # begun: an AI seat has started playing its turn
 PRIORITY = {"step": None, "waiting": [], "seats": [], "deadline": 0.0, "beat_until": 0.0}
 BEAT = tuple(float(x) for x in args.priority_beat.split(","))
+if args.priority_window > 0:                          # fixed windows: the beat IS the window, and the deadline
+    BEAT = (args.priority_window, args.priority_window)
+    args.priority_secs = args.priority_window
 PHASE_LOCK = threading.RLock()
 HAND_N: dict[str, int] = {}                            # humans' hand sizes (public), set from the stage page
 
@@ -352,6 +359,8 @@ def open_priority(step: str) -> list[str]:
 
 
 def priority_done(seat_name: str):
+    """A seat answered (cast or pass). With fixed windows the window still runs to its end: an early
+    answer must look exactly like no answer."""
     with PHASE_LOCK:
         if seat_name in PRIORITY["waiting"]:
             PRIORITY["waiting"].remove(seat_name)
