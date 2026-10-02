@@ -276,7 +276,7 @@ class VirtualPlayer:
         enchanted by a mana Aura (Fertile Ground, Utopia Sprawl, Wild Growth, Overgrowth) makes its
         own mana PLUS the Aura's — found in the rehearsal, where the engine said 2 mana and the
         table had 3."""
-        out = []
+        out, filters = [], []
         for p in self.battlefield:
             if p.tapped or p.attached_to is not None:
                 continue
@@ -286,9 +286,8 @@ class VirtualPlayer:
             if p.is_("Land") or "{T}: Add" in text or "{T}: add" in text:
                 cols = produced_colors(p.card)
                 if cols:
-                    filt = re.search(r"\{1\}, \{T\}: Add \{([WUBRG])\}\{([WUBRG])\}", text)
-                    if filt:                                          # Signets: pay {1}, get two = net one
-                        out.append((p, "".join(sorted(set(filt.groups())))))
+                    if re.search(r"\{1\}, \{T\}: Add \{", text):     # Signets, filter lands: pay {1}, get two
+                        filters.append((p, "".join(sorted(set(re.findall(r"\{([WUBRG])\}", text.split("{1}, {T}: Add", 1)[1])))) or "C"))
                         continue
                     if re.search(r"Add X mana of any one colou?r, where X is the number of enchantments", text):
                         n = len(self.enchantments())                     # Sanctum Weaver
@@ -303,7 +302,8 @@ class VirtualPlayer:
                     if a.attached_to == p.id:
                         for g in re.findall(r"\"\{T\}: Add ((?:\{[WUBRGC]\})+)\.\"", a.card.get("text") or ""):
                             out += [(p, c) for c in re.findall(r"\{([WUBRGC])\}", g)]
-        return out
+        # net one each, but only if some other mana can pay the first {1} (Mossfire Valley alone makes nothing)
+        return out + filters if out else out
 
     def missing_color(self):
         """The commander colour its mana makes least of — what a "choose a color" land Aura names."""
