@@ -199,6 +199,24 @@ EV_LOCK = threading.Lock()
 _ev_id = [0]
 
 
+RESEARCH = HERE / ".cache" / "research"          # every game, kept for research (gitignored, local only)
+
+
+def research_dir() -> Path:
+    game = globals().get("FAIR", {}).get("game") or time.strftime("%Y%m%d-%H%M%S")
+    d = RESEARCH / game
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _append(name: str, rec: dict):
+    try:
+        with open(research_dir() / name, "a") as fh:
+            fh.write(json.dumps(rec, default=str) + "\n")
+    except OSError as e:                              # logging must never stop the table
+        print(f"research log failed: {e}", flush=True)
+
+
 def emit(event_type: str, **fields) -> dict:
     # (not "kind": heard/attention events carry their own "kind" field)
     with EV_LOCK:
@@ -206,6 +224,7 @@ def emit(event_type: str, **fields) -> dict:
         e = {"id": _ev_id[0], "ts": round(time.time(), 2), "type": event_type, **fields}
         EVENTS.append(e)
         del EVENTS[:-3000]
+        _append("events.jsonl", e)                    # the public stream, persisted
     return e
 
 
@@ -1470,6 +1489,10 @@ class H(BaseHTTPRequestHandler):
         except KeyError as e:
             return self._send(400, {"error": f"missing field {e}"})
         BRAIN_LAST[0] = time.time()
+        _append("brain.jsonl", {"ts": round(time.time(), 2), "seat": VP.name, "action": action,
+                                "body": {k: v for k, v in b.items() if k != "seat"}, "said": said,
+                                "drew": list(VP.recent_draws), "todo": list(VP.todo),
+                                "hand_after": VP.private_hand(), "life": VP.life})   # PRIVATE: hands
         if VP.recent_draws:                         # trigger draws: the brain sees them, the table doesn't
             private["drew"] = list(VP.recent_draws) if action != "begin" else private.get("drew")
             if action == "begin" and len(VP.recent_draws) > 1:

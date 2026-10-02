@@ -98,6 +98,15 @@ def ask(prompt: str, dry: bool, release: str | None = None) -> dict:
         print(f"  ! unparseable reply (HTTP {status}): {text[:160]}", flush=True)
         out = {}
     print(f"  ⏱ Fusion {time.time() - t0:.1f}s → {out}", flush=True)
+    try:                                                     # research log: every decision, in full
+        logd = Path(__file__).parent / ".cache" / "research"
+        logd.mkdir(parents=True, exist_ok=True)
+        with open(logd / "fusion-decisions.jsonl", "a") as fh:
+            fh.write(json.dumps({"ts": round(time.time(), 2), "release": release or RELEASE_ID, "prompt": prompt,
+                                 "reply": out, "raw": content if 'content' in locals() else text[:2000],
+                                 "latency_s": round(time.time() - t0, 2)}) + "\n")
+    except OSError:
+        pass
     return out if isinstance(out, dict) else {}
 
 
