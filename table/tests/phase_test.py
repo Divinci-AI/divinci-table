@@ -20,6 +20,8 @@ PORT = 8815
 BASE = f"http://127.0.0.1:{PORT}"
 TMP = Path(tempfile.mkdtemp(prefix="phase-test-"))
 TOKEN = TMP / "token"
+os.environ["TABLE_RESEARCH_DIR"] = str(TMP / "research")         # this test's games stay out of the real data
+RESEARCH = TMP / "research"
 fails = []
 
 
@@ -64,7 +66,7 @@ def brain(action, **body):
     return call("POST", f"/api/brain/{action}", {"seat": "Claude", **body}, brain=True)
 
 
-BEFORE = set((HERE / ".cache" / "research").glob("*"))              # never touch an existing game's logs
+BEFORE = set(RESEARCH.glob("*"))              # never touch an existing game's logs
 srv = start("--priority-secs", "30", "--priority-beat", "0.6,0.6")
 BEAT = 0.7
 try:
@@ -99,7 +101,7 @@ try:
           "the public event for a seat with nothing and a seat with an instant look the same")
     check(not any(e["type"] == "priority" for e in ev["events"]),
           "no public event says a window closed early or who timed out")
-    holders = [json.loads(l) for d in set((HERE / ".cache" / "research").glob("*")) - BEFORE
+    holders = [json.loads(l) for d in set(RESEARCH.glob("*")) - BEFORE
                for l in (d / "brain.jsonl").read_text().splitlines() if (d / "brain.jsonl").exists()]
     check(any(r.get("priority") == "main 1" and r.get("holders") == ["Claude"] for r in holders) and
           not any(r.get("priority") == "upkeep" for r in holders),
@@ -169,16 +171,44 @@ try:
         if made:
             mp3.unlink()
 
+    print("the 3D board")
+    code, _ = call("POST", "/api/brain/manifest", {"seat": "Claude", "n": 1}, brain=True)
+    code, d = call("GET", "/api/board3d")
+    me = next(x for x in d["seats"] if x["name"] == "Claude")
+    fd = [p for p in me["permanents"] if p.get("face_down")]
+    check(code == 200 and bool(fd) and all(p.get("name") is None and not p.get("text") for p in fd),
+          "a face-down card is on the board with no name and no text")
+    check(any(p.get("name") == "Mortify" for p in me["permanents"]) is False and "hand" in me and isinstance(me["hand"], int),
+          "the board shows a hand's size, never its cards")
+    check(raw("/api/board3d", {"X-Forwarded-For": "203.0.113.9"}) == 200, "phones and remote visitors can read the board")
+    code, _ = call("POST", "/api/public-board", {"seat": "Ann", "permanents": [{"name": "Mountain"}]})
+    check(code == 403, "recording a human's board needs the brain token")
+    code, _ = call("POST", "/api/public-board", {"seat": "Claude", "permanents": [{"name": "Black Lotus"}]}, brain=True)
+    check(code == 400, "an AI seat's board can't be overwritten (it comes from the engine)")
+    code, r = call("POST", "/api/public-board", {"seat": "Ann", "commander_out": True, "graveyard": ["Shock"],
+                   "permanents": [{"name": "Mountain", "tapped": True}, {"name": "Centaur", "token": True, "pt": "3/3"},
+                                  {"name": "x" * 500, "counters": "2"}]}, brain=True)
+    code, d = call("GET", "/api/board3d")
+    ann = next(x for x in d["seats"] if x["name"] == "Ann")
+    names = [p["name"] for p in ann["permanents"]]
+    check(names[:2] == ["Mountain", "Centaur"] and ann["permanents"][0]["tapped"] and ann["graveyard"] == ["Shock"]
+          and not ann["commander_in_zone"], "a human's board, graveyard and commander are recorded as given")
+    check(len(names[2]) <= 80 and ann["permanents"][2].get("counters") == 2, "fields are trimmed and typed")
+    check(ann["permanents"][0].get("type", "").startswith("Basic Land"), "cards are filled in from the card file")
+
     print("snapshot / restore")
     code, st = call("GET", "/api/brain/state?seat=Claude", brain=True)
     before = json.dumps([st["hand"], st["permanents"], st["life"]], sort_keys=True)
-    snaps = sorted((HERE / ".cache" / "research").glob("*/snapshot.pkl"), key=lambda x: x.stat().st_mtime)
+    snaps = sorted(RESEARCH.glob("*/snapshot.pkl"), key=lambda x: x.stat().st_mtime)
     check(bool(snaps), "a snapshot is written after changes")
     srv.terminate(); srv.wait(10)
     srv = start("--restore", str(snaps[-1]), "--priority-secs", "2", "--priority-beat", "0.3,0.3")
     code, st = call("GET", "/api/brain/state?seat=Claude", brain=True)
     check(json.dumps([st["hand"], st["permanents"], st["life"]], sort_keys=True) == before,
           "restore brings back the same hand, board and life")
+    code, d = call("GET", "/api/board3d")
+    check(any(x["name"] == "Ann" and any(p["name"] == "Centaur" for p in x["permanents"]) for x in d["seats"]),
+          "a human's recorded board survives a restore")
     code, p = call("GET", "/api/phase")
     check(p["player"] == "Ben", "restore brings back whose turn it is")
 
@@ -196,7 +226,7 @@ try:
 finally:
     srv.terminate()
     import shutil
-    for d in set((HERE / ".cache" / "research").glob("*")) - BEFORE:   # only folders this test created
+    for d in set(RESEARCH.glob("*")) - BEFORE:   # only folders this test created
         shutil.rmtree(d, ignore_errors=True)
 
 print("ALL PASS" if not fails else f"{len(fails)} FAILED: {fails}")

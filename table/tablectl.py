@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -204,6 +205,9 @@ def main():
     en = sub.add_parser("end"); en.add_argument("text", nargs="?")
     sub.add_parser("pass", help="answer a priority window: no instant this time")
     sub.add_parser("phase", help="whose turn, which step, who still holds priority")
+    pb = sub.add_parser("public-board", help="record a HUMAN's board for the 3D view (from photos / what they said)")
+    pb.add_argument("seat"); pb.add_argument("cards", nargs="*", help='"Swamp" "Mountain:tapped" "Centaur:token:3/3" "Nihilith:suspended:5"')
+    pb.add_argument("--graveyard", default="", help="comma-separated, oldest first"); pb.add_argument("--commander-out", action="store_true")
     nx = sub.add_parser("next", help="press NEXT for the active human (testing / remote play)"); nx.add_argument("--by")
     for verb in ("destroy", "exile", "bounce", "tap", "untap"):
         v = sub.add_parser(verb); v.add_argument("ref"); v.add_argument("--quiet", action="store_true")
@@ -274,6 +278,20 @@ def main():
         return act("pass", quiet=True)
     if a.cmd == "phase":
         print(json.dumps(req("GET", "/api/phase", brain=False), indent=1)); return
+    if a.cmd == "public-board":
+        perms = []
+        for spec in a.cards:                     # Name[:tapped][:token][:N/N][:suspended][:<counters>]
+            name, *flags = [x.strip() for x in spec.split(":")]
+            p = {"name": name}
+            for fl in flags:
+                if fl in ("tapped", "token", "face_down"): p[fl] = True
+                elif re.fullmatch(r"-?\d+/-?\d+", fl): p["pt"] = fl
+                elif re.fullmatch(r"[+-]?\d+", fl): p["counters"] = int(fl)
+                elif fl: p["zone" if fl in ("suspended", "exiled", "foretold") else "note"] = fl
+            perms.append(p)
+        gy = [x.strip() for x in a.graveyard.split(",") if x.strip()]
+        print(json.dumps(req("POST", "/api/public-board", {"seat": a.seat, "permanents": perms, "graveyard": gy,
+                                                            "commander_out": a.commander_out}))); return
     if a.cmd == "next":
         print(json.dumps(req("POST", "/api/phase/next", {"by": a.by} if a.by else {}, brain=False), indent=1)); return
     if a.cmd in ("destroy", "exile", "bounce", "tap", "untap"):

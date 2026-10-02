@@ -47,6 +47,7 @@ import * as SkeletonUtils from "/vendor/jsm/utils/SkeletonUtils.js";
 import { RoomEnvironment } from "/vendor/jsm/environments/RoomEnvironment.js";
 import { ARButton } from "/vendor/jsm/webxr/ARButton.js";
 import { VRButton } from "/vendor/jsm/webxr/VRButton.js";
+import { createBoard } from "/assets/board3d.js";
 const escHtml = t => String(t).replace(/[<>&"']/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[ch]));
 
 // ── the same decks → models → colours as the stage ─────────────────────────────────────────
@@ -172,7 +173,7 @@ async function seatActor(s, i, n) {
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 48).rotateX(Math.PI / 2),
     new THREE.MeshStandardMaterial({ color: look.accent, emissive: look.accent, emissiveIntensity: 1.5 }));
   ring.position.y = 0.02; ring.visible = false; holder.add(ring);
-  const a = { holder, ring, look, name: s.name, pool: "idle", hold: 1, seed: Math.random() * 10, nextIdle: 0, onceUntil: 0, life: s.life, hand: s.hand };
+  const a = { ang, holder, ring, look, name: s.name, pool: "idle", hold: 1, seed: Math.random() * 10, nextIdle: 0, onceUntil: 0, life: s.life, hand: s.hand };
   actors[s.name] = a;
   a.tag = label(`${s.name} · ${s.life}`, look.accent); a.tag.position.y = 2.15; holder.add(a.tag);
   if (!base) { const pill = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 1.0, 6, 16), new THREE.MeshStandardMaterial({ color: look.accent })); pill.position.y = 0.8; holder.add(pill); return; }
@@ -265,6 +266,7 @@ async function poll() {
       if (e.type === "captain") { const c = actors[e.seat]; if (c) { c.talkUntil = performance.now() + 4000; act(c, "react"); }
         if (e.audio) new Audio(e.audio).play().catch(() => {}); }
       if (e.type === "life" || e.type === "hand" || (e.type === "say" && /draw|cast|land/.test(e.action || ""))) refresh();
+      if (e.type === "say" || e.type === "board3d" || e.type === "board") boardRefresh();
     }
     cursor = r.last;
   } catch {}
@@ -281,9 +283,11 @@ renderer.setAnimationLoop((t, frame) => {
     if (hits.length) reticle.matrix.fromArray(hits[0].getPose(renderer.xr.getReferenceSpace()).transform.matrix);
   } else if (placed) reticle.visible = false;
   if (!renderer.xr.isPresenting) {                           // preview: a slow orbit around the table
-    const r = 4.6; camera.position.set(Math.sin(now / 9000) * r, 2.9, Math.cos(now / 9000) * r); camera.lookAt(0, 0.95, 0);
+    if (topView) { camera.position.set(0, 2.6, 0.001); camera.lookAt(0, 0.75, 0); }
+    else { const r = 4.6; camera.position.set(Math.sin(now / 9000) * r, 2.9, Math.cos(now / 9000) * r); camera.lookAt(0, 0.95, 0); }
   }
   for (const a of Object.values(actors)) {
+    a.holder.visible = !(topView && !renderer.xr.isPresenting);    // looking straight down: the cards, not the heads
     if (!a.mixer) continue;
     a.mixer.update(dt);
     if (a.hips) { a.hips.position.x = a.hipsHome.x; a.hips.position.z = a.hipsHome.z; }
@@ -306,8 +310,35 @@ renderer.setAnimationLoop((t, frame) => {
   renderer.render(scene, camera);
 });
 
-await build(); phase(); poll();
-setInterval(phase, 1500);
+// ── every card in play, on the table in front of its owner ────────────────────────────────
+const board = createBoard(THREE, { parent: table, y: 0.752, radius: TABLE_R * 0.62, angleOf: n => actors[n]?.ang });
+let boardBusy = false;
+async function boardRefresh() {
+  if (boardBusy) return; boardBusy = true;
+  try { board.update(await j("/api/board3d")); } catch {} finally { boardBusy = false; }
+}
+// hover a card (desktop/phone preview): its name, type and text in a box; T: look straight down
+const tip = document.createElement("div");
+tip.style.cssText = "position:fixed;max-width:320px;padding:10px 12px;border-radius:10px;background:rgba(10,10,14,.88);color:#eee;font:13px/1.35 system-ui;pointer-events:none;display:none;z-index:9";
+document.body.appendChild(tip);
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+addEventListener("pointermove", ev => {
+  if (renderer.xr.isPresenting) return;
+  ptr.set(ev.clientX / innerWidth * 2 - 1, -(ev.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ptr, camera);
+  const c = board.pick(ray);
+  if (!c) { tip.style.display = "none"; return; }
+  tip.innerHTML = c.face_down ? "<b>A face-down card</b><br>" + escHtml(c.pt ? c.pt + " creature" : "")
+    : `<b>${escHtml(c.name)}</b> ${escHtml(c.cost || "")}<br><i>${escHtml(c.type || "")}</i>${c.pt ? " · " + escHtml(c.pt) : ""}` +
+      (c.tapped ? " · tapped" : "") + (c.counters ? ` · ${c.counters} counter(s)` : "") + (c.note ? `<br>${escHtml(c.note)}` : "") +
+      (c.text ? `<br><span style="opacity:.85">${escHtml(c.text)}</span>` : "");
+  tip.style.left = Math.min(ev.clientX + 14, innerWidth - 340) + "px"; tip.style.top = Math.min(ev.clientY + 14, innerHeight - 160) + "px";
+  tip.style.display = "block";
+});
+let topView = new URLSearchParams(location.search).get("view") === "top";
+addEventListener("keydown", ev => { if (ev.key === "t" || ev.key === "T") topView = !topView; });
+
+await build(); phase(); poll(); boardRefresh();
+setInterval(phase, 1500); setInterval(boardRefresh, 2500);
 </script>
 </body>
 </html>

@@ -22,6 +22,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
 DECKS = HERE.parent / "decks"
 TMP = Path(tempfile.mkdtemp(prefix="migrate-test-"))
+os.environ["TABLE_RESEARCH_DIR"] = str(TMP / "research")         # this test's games stay out of the real data
+RESEARCH = TMP / "research"
 fails = []
 
 
@@ -69,7 +71,7 @@ def fingerprint(port, token, seat):
             "life": st["life"], "library": f(pk["private"]["top"]), "n": st["library"]}
 
 
-BEFORE = set((HERE / ".cache" / "research").glob("*"))
+BEFORE = set(RESEARCH.glob("*"))
 A, B = 8817, 8818
 TA, TB = TMP / "token-a", TMP / "token-b"
 srv_a = start(A, TA, "--order", "Fusion,Ann,Claude")
@@ -113,7 +115,7 @@ finally:
     for s in (srv_a, srv_b):
         if s:
             s.terminate()
-    for d in set((HERE / ".cache" / "research").glob("*")) - BEFORE:     # only folders this test created
+    for d in set(RESEARCH.glob("*")) - BEFORE:     # only folders this test created
         shutil.rmtree(d, ignore_errors=True)
     shutil.rmtree(TMP, ignore_errors=True)
 

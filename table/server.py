@@ -222,6 +222,59 @@ PHASE_LOCK = threading.RLock()
 HAND_N: dict[str, int] = {}                            # humans' hand sizes (public), set from the stage page
 
 
+# Humans' boards are physical cards: the table only knows them from photos and what people say. The
+# brain keeps them here (POST /api/public-board) so the 3D board can show everyone's battlefield.
+PUBLIC_BOARD: dict[str, dict] = {}
+
+
+def _card_view(name: str | None, **kw) -> dict:
+    """One card as the 3D board draws it. name None = face down: nothing about it but its back."""
+    import oracle
+    if name is None:
+        return {"name": None, "face_down": True, **kw}
+    c = oracle.card(name) or {}
+    pt = kw.pop("pt", None) or (f"{c['power']}/{c['toughness']}" if c.get("power") is not None else None)
+    return {"name": name, "cost": c.get("cost", ""), "type": c.get("type") or kw.pop("type", ""),
+            "text": (c.get("text") or "")[:400], "pt": pt, **kw}
+
+
+def board3d() -> dict:
+    """Every seat's battlefield, command zone and graveyard — public information only. AI seats come from
+    the engine (face-down cards stay nameless); human seats from PUBLIC_BOARD."""
+    seats = []
+    lt = life_table()
+    for h in HUMANS:
+        b = PUBLIC_BOARD.get(h["name"], {})
+        perms = [_card_view(p.get("name") if not p.get("face_down") else None,
+                            **{k: p[k] for k in ("tapped", "token", "counters", "note", "pt", "zone") if k in p})
+                 for p in b.get("permanents", [])]
+        seats.append({"name": h["name"], "kind": "human", "commander": h["commander"],
+                      "commander_card": _card_view(h["commander"]) if h.get("commander") else None, "life": lt.get(h["name"]),
+                      "hand": HAND_N.get(h["name"], 7), "commander_in_zone": not b.get("commander_out", False),
+                      "permanents": perms, "graveyard": [str(x)[:60] for x in b.get("graveyard", [])][-30:],
+                      "updated": b.get("updated")})
+    with VP_LOCK:
+        for n, v in VPS.items():
+            perms = []
+            for p in v.battlefield:
+                pw, tg = v.stats(p) if p.is_("Creature") or p.face_down else (None, None)
+                pt = f"{pw}/{tg}" if pw is not None else None
+                if p.face_down:
+                    perms.append(_card_view(None, id=p.id, tapped=p.tapped, pt=pt, ward=p.ward2))
+                else:
+                    perms.append(_card_view(p.name, id=p.id, tapped=p.tapped, token=p.token, counters=p.counters,
+                                            attached_to=p.attached_to, role=p.role, pt=pt,
+                                            type=p.card.get("type") or " ".join(p.types)))
+            seats.append({"name": n, "kind": "ai", "commander": v.commander.get("name"),
+                          "commander_card": _card_view(v.commander.get("name")), "life": v.life,
+                          "hand": len(v.hand), "library": len(v.library), "commander_in_zone": v.cmdr_in_zone,
+                          "commander_tax": 2 * v.cmdr_casts, "permanents": perms,
+                          "graveyard": [c["name"] for c in v.graveyard][-30:]})
+    order = turn_order()
+    seats.sort(key=lambda x: order.index(x["name"]) if x["name"] in order else 99)
+    return {"seats": seats, "turn": PHASE.get("player"), "step": STEPS[PHASE["step"]]}
+
+
 def turn_order() -> list[str]:
     names = [h["name"] for h in HUMANS] + list(VPS)
     return [n for n in ORDER if n in names] + [n for n in names if n not in ORDER]
@@ -234,7 +287,8 @@ def snapshot():
     try:
         with VP_LOCK, PHASE_LOCK:
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
-                                 "ORDER": turn_order(), "HAND_N": HAND_N, "ev_id": _ev_id[0], "saved": time.time()})
+                                 "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD,
+                                 "ev_id": _ev_id[0], "saved": time.time()})
         p = research_dir() / "snapshot.pkl"
         tmp = p.with_suffix(".tmp")
         tmp.write_bytes(blob)
@@ -250,6 +304,7 @@ def restore(path: str):
     d = pickle.loads(Path(path).read_bytes())
     VPS.clear(); VPS.update(d["VPS"]); DECK_OF.update(d["DECK_OF"])
     LIFE.update(d["LIFE"]); FAIR.update(d["FAIR"]); PHASE.update(d["PHASE"]); HAND_N.update(d.get("HAND_N", {}))
+    PUBLIC_BOARD.update(d.get("PUBLIC_BOARD", {}))
     if not ORDER:
         ORDER.extend(d.get("ORDER", []))
     _ev_id[0] = d.get("ev_id", 0)                     # pages keep their cursors across the restart
@@ -359,7 +414,9 @@ def next_step(by: str | None = None) -> tuple[int, dict]:
         return 200, phase_public()
 
 
-RESEARCH = HERE / ".cache" / "research"          # every game, kept for research (gitignored, local only)
+RESEARCH = Path(os.environ.get("TABLE_RESEARCH_DIR") or HERE / ".cache" / "research")   # every game, kept for
+# research (gitignored, local only). Test servers point TABLE_RESEARCH_DIR at a temp dir so simulated games
+# never land in the real research data.
 
 
 def research_dir() -> Path:
@@ -416,7 +473,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("GET", "/xr"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
           ("GET", "/vendor/three.module.min.js"), ("GET", "/vendor/three.core.min.js"),
           ("GET", "/avatars/index.json")}
@@ -1345,6 +1402,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, sorted(x.stem for x in d.glob("*.glb")) if d.exists() else [])
         if self.path == "/api/phase":
             return self._send(200, phase_public())
+        if self.path == "/api/board3d":                   # everyone's battlefield, public only
+            return self._send(200, board3d())
         if self.path == "/api/stage":                      # seats, commanders, life, hand SIZES — never cards
             with VP_LOCK:
                 lt = life_table()
@@ -1499,6 +1558,28 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/api/players":                # someone joins mid-game: {"name": "Jess", "commander": "…"}
                 b = self._json()
                 return self._send(*add_human(str(b.get("name", "")), str(b.get("commander") or "")))
+            if self.path == "/api/public-board":           # the brain records a human's board (from photos/speech)
+                if not secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN):
+                    return self._send(403, {"error": "brain token required"})
+                b = self._json()
+                who = str(b.get("seat", ""))
+                if who not in [h["name"] for h in HUMANS]:
+                    return self._send(400, {"error": "public-board is for human seats; AI boards come from the engine"})
+                def clean(p):
+                    p = p if isinstance(p, dict) else {"name": str(p)}
+                    out = {"name": str(p.get("name", ""))[:80]}
+                    for k, t in (("tapped", bool), ("token", bool), ("face_down", bool), ("counters", int)):
+                        if k in p:
+                            out[k] = t(p[k])
+                    for k in ("note", "pt", "zone"):
+                        if p.get(k):
+                            out[k] = str(p[k])[:60]
+                    return out
+                perms = [clean(p) for p in (b.get("permanents") or [])][:120]
+                PUBLIC_BOARD[who] = {"permanents": perms, "graveyard": [str(x)[:80] for x in (b.get("graveyard") or [])][:200],
+                                     "commander_out": bool(b.get("commander_out")), "updated": round(time.time(), 2)}
+                emit("board3d", seat=who, n=len(perms))
+                return self._send(200, {"ok": True, "seat": who, "permanents": len(perms)})
             if self.path == "/api/captain":                # a commander's line (table/captains.py): text + its mp3
                 if not secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN):
                     return self._send(403, {"error": "brain token required"})

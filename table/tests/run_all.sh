@@ -15,6 +15,7 @@ if [ "${1:-}" != quick ] && [ "${FORCE:-}" != 1 ] && lsof -ti tcp:8800 -sTCP:LIS
   fi
 fi
 PY=~/.venvs/table/bin/python
+export TABLE_RESEARCH_DIR=$(mktemp -d)/research   # simulated games never land in the real research data
 PW=${PW:-$HOME/Documents/server/workspace/clients/tests/node_modules/@playwright/test}
 LOG=$(mktemp -d)/table-server.log
 declare -a SUMMARY
