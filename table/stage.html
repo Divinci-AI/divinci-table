@@ -341,7 +341,12 @@ function loadModel(name) {
   const file = modelFile(name);
   return gltfCache[file] ||= new Promise((ok, bad) => loader.load(`/avatars/${encodeURIComponent(file)}.glb`, ok, undefined, bad));
 }
-function meshyActor(gltf) {
+function loadMore(name) {                                // <Seat>.v2.more0.glb, .more1… : extra clips, same bones
+  const files = [...models].filter(m => m.startsWith(modelFile(name) + ".more")).sort();
+  return Promise.all(files.map(m => gltfCache[m] ||= new Promise((ok, bad) =>
+    loader.load(`/avatars/${encodeURIComponent(m)}.glb`, ok, undefined, bad)).catch(() => null)));
+}
+function meshyActor(gltf, extra = []) {
   const a = new THREE.Group();
   const model = SkeletonUtils.clone(gltf.scene);
   model.traverse(o => {
@@ -378,18 +383,45 @@ function meshyActor(gltf) {
   anchor.position.set(0, 1.78, 0);
   const mixer = new THREE.AnimationMixer(model), actions = {};
   gltf.animations.forEach((clip, i) => { actions[CLIPS[i] || clip.name] = mixer.clipAction(clip); });
+  for (const g of extra) for (const clip of g?.animations || []) actions[clip.name] ||= mixer.clipAction(clip);
   (actions.idle || Object.values(actions)[0])?.play();
   Object.assign(a.userData, { meshy: true, model, mixer, actions, headBone, head: anchor, current: "idle", skin: "#d9c7b0",
-    arm: arm.upper && arm.lower && arm.hand ? arm : null, hold: 1, hips, hipsHome });
+    arm: arm.upper && arm.lower && arm.hand ? arm : null, hold: 1, hips, hipsHome, pool: "idle", seed: Math.random() * 10 });
   return a;
 }
-function play(clip, once = false) {
+// ── the director: what is happening at the table picks a POOL; the pool picks a motion at random ──
+const POOLS = {
+  idle:  ["idle", /^Idle_0?2$/, /^Idle_5$/],
+  talk:  ["talk", /Talk_with_Hands_Open/, /Talk_with_Left_Hand_Raised/],
+  think: ["think", /Look_Around/, /Shrug/],
+  cast:  [/spell|cast/i],
+  hurt:  [/Hit_Reaction/],
+  shock: [/Look_Around_Dumbfounded/, /Hit_Reaction/],
+  win:   ["cheer", /Fist_Pump/],
+  react: [/Agree/, /Shrug/, /Finger_Wag/, /Look_Around_Dumbfounded/],
+  done:  [/Bow/, /Agree/],
+  hello: ["wave", /Bow/],
+};
+const HANDS_FREE = new Set(["idle", "talk", "think"]);   // pools where the left hand can keep holding the cards
+function pick(pool) {
+  const u = actor?.userData; if (!u?.actions) return null;
+  const names = Object.keys(u.actions);
+  const found = POOLS[pool].map(p => typeof p === "string" ? (u.actions[p] ? p : null) : names.find(n => p.test(n)))
+    .filter(Boolean).filter(n => n !== u.current || POOLS[pool].length === 1);
+  return found.length ? found[Math.floor(Math.random() * found.length)] : null;
+}
+function act(pool, once = true) {                           // a reaction: play it, then the loop returns to idle
+  const clip = pick(pool); if (!clip) return false;
+  play(clip, once, 0.88 + Math.random() * 0.24); actor.userData.pool = pool; return true;
+}
+function play(clip, once = false, speed = 1) {
   const u = actor?.userData; if (!u?.actions) return;
   const next = u.actions[clip] || u.actions.idle; if (!next || u.current === clip) return;
   const prev = u.actions[u.current];
   next.reset(); next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat); next.clampWhenFinished = once;
-  next.play(); if (prev) next.crossFadeFrom(prev, 0.35, true);
-  u.current = clip; u.onceUntil = once ? performance.now() + next.getClip().duration * 1000 : 0;
+  next.timeScale = speed;
+  next.play(); if (prev) next.crossFadeFrom(prev, 0.25 + Math.random() * 0.3, true);
+  u.current = clip; u.onceUntil = once ? performance.now() + next.getClip().duration * 1000 / speed - 250 : 0;
 }
 
 // ── who is on stage ─────────────────────────────────────────────────────────────────────────
@@ -401,9 +433,9 @@ function stage(name, force = false) {
   if (name !== actorName || force) {
     if (actor) scene.remove(actor);
     actor = look.build(); actorName = name; enterT = performance.now();
-    if (hasModel(name)) loadModel(name).then(gltf => {      // swap in the Meshy model once it loads
+    if (hasModel(name)) Promise.all([loadModel(name), loadMore(name)]).then(([gltf, extra]) => {   // swap in the Meshy model
       if (actorName !== name) return;
-      scene.remove(actor); actor = meshyActor(gltf); scene.add(actor); fan = null; stage(name);
+      scene.remove(actor); actor = meshyActor(gltf, extra); scene.add(actor); fan = null; stage(name);
     }).catch(() => { models.delete(name); models.delete(name + ".v2"); });
     actor.traverse(o => { if (o.isMesh) o.castShadow = true; });
     scene.add(actor);
@@ -476,6 +508,26 @@ function caption(who, text) {
   captionTimer = setTimeout(() => (c.style.opacity = 0), 6500);
   if (who === actorName) talking = performance.now() + Math.min(6000, 220 * text.split(" ").length);
 }
+const lifeOf = n => seatOf(n)?.life ?? 40;
+function direct(e) {                                         // game state → which pool the actor draws from
+  if (!actor?.userData.meshy) return;
+  const me = actorName, u = actor.userData;
+  if (e.type === "life" && e.player === me && e.delta) {
+    if (e.delta <= -5) act("shock"); else if (e.delta < 0) act("hurt"); else act("react");
+    return;
+  }
+  if (e.type !== "say" && e.type !== "heard") return;
+  if (e.speaker === me) {
+    if (e.action === "begin") act("think");
+    else if (e.action === "cast") act("cast");
+    else if (e.action === "attack" || e.action === "damage") act("win");
+    else if (e.action === "end") act("done");
+    return;
+  }
+  // someone else did something: sometimes the actor reacts, never every time
+  const big = e.action === "cast" || e.action === "attack" || /destroy|exile|counter|win/i.test(e.text || "");
+  if (big && Math.random() < 0.45 && !(u.onceUntil > performance.now())) act("react");
+}
 function next(name) { const i = ORDER.findIndex(n => n.toLowerCase() === String(name).toLowerCase()); return i < 0 ? null : ORDER[(i + 1) % ORDER.length]; }
 
 async function poll() {
@@ -487,6 +539,7 @@ async function poll() {
         if (e.type === "attention" && e.kind === "turn" && seatOf(e.addressee)) turn = seatOf(e.addressee).name;
         if (e.type === "say" && e.action === "begin" && seatOf(e.speaker)) { turn = seatOf(e.speaker).name; thinkUntil = performance.now() + 5000; }
         if (e.type === "say" && e.action === "damage" && e.speaker === actorName) cheerUntil = performance.now() + 3500;
+        direct(e);
         if (e.type === "say" && e.action === "end" && seatOf(e.speaker)) turn = next(seatOf(e.speaker).name) || turn;
         if (e.type === "say" && e.speaker && e.speech !== "") caption(e.speaker, e.speech || e.text || "");
       }
@@ -497,7 +550,7 @@ async function poll() {
   setTimeout(poll, 700);
 }
 
-renderer.domElement.addEventListener("click", () => play("wave", true));
+renderer.domElement.addEventListener("click", () => act("hello"));
 addEventListener("keydown", e => {
   if (e.key.toLowerCase() === "q") post = !post;
   if (e.key === " ") { pinned = null; stage(shown(), true); hud(); }
@@ -526,7 +579,7 @@ function solveArm(arm, target, pole) {
 }
 function holdCards(now) {
   const u = actor.userData, arm = u.arm; if (!arm || !fan) return;
-  const busy = u.current === "wave" || u.current === "cheer";
+  const busy = !HANDS_FREE.has(u.pool);                    // cast, cheer, bow… use both arms
   u.hold += ((busy ? 0 : 1) - u.hold) * 0.12;
   const saved = [arm.upper.quaternion.clone(), arm.lower.quaternion.clone()];
   actor.updateMatrixWorld(true);
@@ -555,7 +608,21 @@ renderer.setAnimationLoop(() => {
     const u = actor.userData;
     u.mixer.update(dt);
     if (u.hips) { u.hips.position.x = u.hipsHome.x; u.hips.position.z = u.hipsHome.z; }   // stay on the mark
-    if (!(u.onceUntil > now)) play(now < talking ? "talk" : now < cheerUntil ? "cheer" : now < thinkUntil ? "think" : "idle");
+    if (!(u.onceUntil > now)) {                              // between reactions: talk while speaking, else idle
+      const want = now < talking ? "talk" : now < thinkUntil ? "think" : "idle";
+      const low = lifeOf(actorName) < 20;                    // low life: restless, slower
+      if (u.pool !== want || now > (u.nextIdle || 0)) {
+        const clip = pick(want);
+        if (clip) play(clip, false, (low ? 0.82 : 0.9) + Math.random() * 0.2);
+        u.pool = want; u.nextIdle = now + (want === "idle" ? 6000 + Math.random() * 9000 : 4000 + Math.random() * 3000);
+        if (want === "idle" && low && Math.random() < 0.35) act("think");
+      }
+    }
+    if (u.headBone && HANDS_FREE.has(u.pool)) {               // a wandering gaze, layered on the clip
+      const yaw = Math.sin(now / 2300 + u.seed) * 0.12 + Math.sin(now / 5100) * 0.08;
+      const pitch = Math.sin(now / 3100 + u.seed * 2) * 0.05;
+      u.headBone.quaternion.multiply(_q().setFromEuler(new THREE.Euler(pitch, yaw, 0)));
+    }
     holdCards(now);
     if (u.headBone) {                                       // keep the anchor on the head as it moves
       const p = u.headBone.getWorldPosition(new THREE.Vector3()); actor.worldToLocal(p);

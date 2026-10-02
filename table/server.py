@@ -1580,4 +1580,5 @@ print(f"{mode}. Table (camera + mic): http://localhost:{args.port}/table   "
 print("AI players: " + ", ".join(p["name"] for p in AI_PLAYERS)
       + (f" — brain: EXTERNAL (drive with table/tablectl.py)" if BRAIN_EXTERNAL else " — brain: local Gemma")
       + (" — no local model (ROUTER=code)" if NO_GEMMA else ""), flush=True)
+ThreadingHTTPServer.request_queue_size = 128   # pages import ~20 modules at once; the default 5 drops some
 ThreadingHTTPServer((args.host, args.port), H).serve_forever()

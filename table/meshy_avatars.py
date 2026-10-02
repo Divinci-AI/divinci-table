@@ -47,7 +47,11 @@ AVATARS_V2 = {
                      "face, glowing white eyes, a black tricorn hat, a waist-length navy captain's jacket with gold "
                      "buttons, trousers, boots.",
 }
-ACTIONS = [0, 308, 36, 59, 28]      # Idle, Talking, Confused_Scratch (thinking), Victory_Cheer, Big_Wave_Hello
+ACTIONS = [0, 308, 36, 59, 28]
+# more clips on the same v2 rig, for varied, game-state-driven acting (≤10 ids per Meshy task)
+EXTRA = [[11, 245, 313, 310, 333, 178], [317, 25, 409, 125, 41, 403]]
+# Idle_02, Idle_5, Talk_with_Hands_Open, Talk_with_Left_Hand_Raised, Look_Around_Dumbfounded, Hit_Reaction,
+# Shrug, Agree_Gesture, Finger_Wag_No, mage spell cast, Formal_Bow, Victory_Fist_Pump      # Idle, Talking, Confused_Scratch (thinking), Victory_Cheer, Big_Wave_Hello
 CLIPS = ["idle", "talk", "think", "cheer", "wave"]
 
 
@@ -128,6 +132,23 @@ def build_v2(seat):
     print(f"✅ {seat} v2: {OUT / (seat + '.v2.glb')}", flush=True)
 
 
+def build_more(seat):
+    """extra clips on the existing v2 rig → <Seat>.v2.more<i>.glb (same bones, so they play on the v2 model)"""
+    key = seat + ".v2"
+    rig = load().get(key, {}).get("rig")
+    if not rig:
+        raise RuntimeError(f"{seat}: no v2 rig yet — run --v2 first")
+    for i, ids in enumerate(EXTRA):
+        k = f"more{i}"
+        if k not in load().get(key, {}):
+            r = call("POST", "/openapi/v1/animations", {"rig_task_id": rig, "action_ids": ids})
+            save(key, k, r["result"])
+        anim = wait(f"/openapi/v1/animations/{load()[key][k]}", seat, k)
+        res = anim.get("result") or anim
+        urllib.request.urlretrieve(res.get("animation_glb_url") or anim.get("animation_glb_url"), OUT / f"{seat}.v2.more{i}.glb")
+    print(f"✅ {seat} more clips", flush=True)
+
+
 def build(seat):
     s = load().get(seat, {})
     if "preview" not in s:
@@ -164,7 +185,7 @@ if __name__ == "__main__":
     if "--balance" in sys.argv:
         print(call("GET", "/openapi/v1/balance")); sys.exit()
     seats = [a for a in sys.argv[1:] if a in AVATARS] or list(AVATARS)
-    job = build_v2 if "--v2" in sys.argv else build
+    job = build_more if "--more" in sys.argv else build_v2 if "--v2" in sys.argv else build
     with ThreadPoolExecutor(len(seats)) as ex:
         for f in [ex.submit(job, s) for s in seats]:
             try:

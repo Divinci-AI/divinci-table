@@ -96,4 +96,11 @@ class H(BaseHTTPRequestHandler):
 import urllib.parse  # noqa: E402  (used in stage())
 
 print(f"stage: http://localhost:{args.port}/stage   (reading {args.table})", flush=True)
-ThreadingHTTPServer((args.host, args.port), H).serve_forever()
+class Server(ThreadingHTTPServer):
+    # the page imports ~20 modules at once; the default backlog of 5 refused some at random, and one
+    # failed import silently stops the whole page script (blank stage, no error) — seen 2026-10-02
+    request_queue_size = 128
+    daemon_threads = True
+
+
+Server((args.host, args.port), H).serve_forever()
