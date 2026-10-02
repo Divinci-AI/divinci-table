@@ -327,7 +327,7 @@ addEventListener("pointermove", ev => {
   ptr.set(ev.clientX / innerWidth * 2 - 1, -(ev.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ptr, camera);
   const c = board.pick(ray);
   if (!c) { tip.style.display = "none"; return; }
-  tip.innerHTML = c.face_down ? "<b>A face-down card</b><br>" + escHtml(c.pt ? c.pt + " creature" : "")
+  tip.innerHTML = c.face_down ? `<b>A face-down ${escHtml(c.pt || "2/2")}</b>` + (c.how ? "<br>" + escHtml(c.how) : "") + (c.ward ? "<br>ward 2" : "")
     : `<b>${escHtml(c.name)}</b> ${escHtml(c.cost || "")}<br><i>${escHtml(c.type || "")}</i>${c.pt ? " · " + escHtml(c.pt) : ""}` +
       (c.tapped ? " · tapped" : "") + (c.counters ? ` · ${c.counters} counter(s)` : "") + (c.note ? `<br>${escHtml(c.note)}` : "") +
       (c.text ? `<br><span style="opacity:.85">${escHtml(c.text)}</span>` : "");

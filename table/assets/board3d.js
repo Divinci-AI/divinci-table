@@ -98,6 +98,8 @@ export function createBoard(THREE, { parent, y, radius, angleOf }) {
     if (c.counters) tags.push([(c.counters > 0 ? "+" : "") + c.counters, "#2a7a3a"]);
     if (c.token) tags.push(["T", "#7a5a1a"]);
     if (c.zone) tags.push([c.zone.slice(0, 4), "#5a2a7a"]);
+    if (c.face_down && c.how) tags.push([c.how.split(" ")[0].slice(0, 5), "#5a3a20"]);
+    if (c.face_down && c.ward) tags.push(["W2", "#1a4a7a"]);
     tags.forEach(([t, col], i) => { const b = badge(t, col); b.position.set(W * 0.32, 0.002 + i * 0.0004, -H * 0.36 + i * W * 0.42); m.add(b); });
     return m;
   }

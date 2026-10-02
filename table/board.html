@@ -63,7 +63,8 @@ gyLabel();
 const gyList = gy => gyAZ ? gy.slice().sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })) : gy.slice().reverse();
 function card(c, extra = "") {
   const i = cardsById.push(c) - 1;
-  if (c.face_down) return `<div class="card down${c.tapped ? " tapped" : ""}" data-i="${i}"><div class="n">Face down</div><div class="t">${esc(c.pt || "")}</div></div>`;
+  if (c.face_down) return `<div class="card down${c.tapped ? " tapped" : ""}" data-i="${i}"><div class="n">Face down</div>
+    <div class="t" style="opacity:.95">${esc(c.how || "")}</div>${c.ward ? `<span class="tag">ward 2</span>` : ""}<span class="pt">${esc(c.pt || "2/2")}</span></div>`;
   const tags = [c.token && "token", c.counters && `${c.counters > 0 ? "+" : ""}${c.counters}`, c.zone, c.n > 1 && `×${c.n}`].filter(Boolean)
     .map(t => `<span class="tag">${esc(t)}</span>`).join("");
   return `<div class="card${c.tapped ? " tapped" : ""}" data-i="${i}" style="background:${bg(c)}">
@@ -100,7 +101,7 @@ const tip = document.getElementById("tip");
 function showTip(ev) {
   const el = ev.target.closest(".card"); if (!el) { tip.style.display = "none"; return; }
   const c = cardsById[+el.dataset.i];
-  tip.innerHTML = c.face_down ? "<b>A face-down card</b>" + (c.pt ? `<br>${esc(c.pt)} creature` : "")
+  tip.innerHTML = c.face_down ? `<b>A face-down ${esc(c.pt || "2/2")}</b>` + (c.how ? `<br>${esc(c.how)}` : "") + (c.ward ? "<br>ward 2" : "")
     : `<b>${esc(c.name)}</b> ${esc(c.cost || "")}<br><i>${esc(c.type || "")}</i>${c.pt ? " · " + esc(c.pt) : ""}${c.tapped ? " · tapped" : ""}` +
       (c.note ? `<br>${esc(c.note)}` : "") + (c.text ? `<br><span style="opacity:.85">${esc(c.text)}</span>` : "");
   const x = ev.clientX ?? ev.touches?.[0]?.clientX ?? 20, y = ev.clientY ?? ev.touches?.[0]?.clientY ?? 20;

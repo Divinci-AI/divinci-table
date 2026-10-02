@@ -201,6 +201,7 @@ try:
     fd = [p for p in me["permanents"] if p.get("face_down")]
     check(code == 200 and bool(fd) and all(p.get("name") is None and not p.get("text") for p in fd),
           "a face-down card is on the board with no name and no text")
+    check(all(p.get("how") == "manifest" for p in fd), "…but it says how it went face down (public: manifest, cloak, morph, disguise)")
     check(any(p.get("name") == "Mortify" for p in me["permanents"]) is False and "hand" in me and isinstance(me["hand"], int),
           "the board shows a hand's size, never its cards")
     check(raw("/api/board3d", {"X-Forwarded-For": "203.0.113.9"}) == 200, "phones and remote visitors can read the board")

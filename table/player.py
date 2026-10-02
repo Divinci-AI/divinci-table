@@ -107,6 +107,7 @@ class Perm:
     role: str | None = None
     face_down: bool = False                 # disguise / morph / manifest / cloak: a nameless 2/2
     ward2: bool = False                     # disguised or cloaked: ward {2} while face down
+    how: str | None = None                  # how it went face down — public: disguise, morph, manifest, cloak
     turned_up_turn: int | None = None       # Kaust: "turned face up this turn"
     counters: int = 0
     chosen: str | None = None               # "As this enters, choose a color" (Utopia Sprawl)
@@ -1030,7 +1031,7 @@ def _manual(cls):
         for x in pay:
             x.tapped = True
         self.hand.remove(c)
-        p = Perm(c, sick=True, face_down=True, ward2=fc[0] == "Disguise")
+        p = Perm(c, sick=True, face_down=True, ward2=fc[0] == "Disguise", how=fc[0].lower())
         self.battlefield.append(p)
         import time as _t
         self.last_cast = {"name": "a face-down creature", "perm": p.id, "at": _t.time(), "commander": False}
@@ -1042,7 +1043,8 @@ def _manual(cls):
         for _ in range(n):
             if not self.library:
                 break
-            self.battlefield.append(Perm(self.library.pop(), sick=True, face_down=True, ward2=cloak))
+            self.battlefield.append(Perm(self.library.pop(), sick=True, face_down=True, ward2=cloak,
+                                         how="cloak" if cloak else "manifest"))
             made += 1
         word = "cloak" if cloak else "manifest"
         return [f"I {word} the top card of my library." if made == 1 else f"I {word} the top {made} cards of my library."]
