@@ -163,7 +163,7 @@ def cmd_watch(a):
     while True:
         try:
             d = req("GET", f"/api/events?since={since}", brain=False)
-        except SystemExit as e:
+        except (SystemExit, OSError) as e:                 # server restarting: wait and carry on
             print(f"[watch] {e}", flush=True)
             time.sleep(5)
             continue

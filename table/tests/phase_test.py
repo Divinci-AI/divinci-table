@@ -185,6 +185,7 @@ try:
     check(any(p.get("name") == "Mortify" for p in me["permanents"]) is False and "hand" in me and isinstance(me["hand"], int),
           "the board shows a hand's size, never its cards")
     check(raw("/api/board3d", {"X-Forwarded-For": "203.0.113.9"}) == 200, "phones and remote visitors can read the board")
+    check(raw("/board", {"X-Forwarded-For": "203.0.113.9"}) == 200, "the plain-HTML board opens on any device")
     code, _ = call("POST", "/api/public-board", {"seat": "Ann", "permanents": [{"name": "Mountain"}]})
     check(code == 403, "recording a human's board needs the brain token")
     code, _ = call("POST", "/api/public-board", {"seat": "Claude", "permanents": [{"name": "Black Lotus"}]}, brain=True)

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Table Board</title>
+<style>
+  :root { --bg: #14161b; --panel: #1d2027; --ink: #e9e6df; --mute: #9aa0aa; --line: #2c3039; --turn: #f0a868; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.35 system-ui, -apple-system, sans-serif; }
+  header { display: flex; gap: 12px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 2; }
+  header b { font-size: 16px; }
+  #phase { color: var(--mute); }
+  #phase .p { color: var(--turn); font-weight: 600; }
+  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; padding: 12px 16px 40px; }
+  .seat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .seat.turn { border-color: var(--turn); box-shadow: 0 0 0 1px var(--turn) inset; }
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .name { font-size: 17px; font-weight: 700; }
+  .meta { color: var(--mute); font-size: 12.5px; }
+  .life { font-size: 20px; font-weight: 700; }
+  h4 { margin: 10px 0 4px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); font-weight: 600; }
+  .cards { display: flex; flex-wrap: wrap; gap: 6px; }
+  .card { position: relative; width: 108px; min-height: 64px; padding: 6px 7px; border-radius: 7px; border: 1px solid rgba(0,0,0,.4);
+          color: #111; cursor: default; font-size: 12px; line-height: 1.2; }
+  .card .n { font-weight: 700; }
+  .card .t { font-size: 10.5px; opacity: .75; margin-top: 2px; }
+  .card .pt { position: absolute; right: 5px; bottom: 4px; font-weight: 700; font-size: 12px; background: rgba(255,255,255,.75); padding: 0 4px; border-radius: 4px; }
+  .card.tapped { transform: rotate(8deg); opacity: .72; }
+  .card.down { background: repeating-linear-gradient(45deg, #5a3a20, #5a3a20 6px, #6b4628 6px, #6b4628 12px) !important; color: #f3e2b5; }
+  .tag { display: inline-block; margin: 3px 3px 0 0; padding: 0 5px; border-radius: 8px; font-size: 10.5px; font-weight: 700; color: #fff; background: #333; }
+  .gy { color: var(--mute); font-size: 12.5px; }
+  #tip { position: fixed; max-width: 320px; padding: 10px 12px; border-radius: 10px; background: rgba(8,8,12,.95); color: #eee; font-size: 13px;
+         pointer-events: none; display: none; z-index: 5; border: 1px solid #333; }
+  .empty { color: var(--mute); font-size: 12.5px; }
+  @media (max-width: 420px) { main { padding: 10px 16px 40px; } .card { width: 96px; } }
+</style>
+</head>
+<body>
+<header><b>Table board</b><span id="phase">—</span><span class="meta" style="margin-left:auto">public information only · tap or hover a card</span></header>
+<main id="seats"></main>
+<div id="tip"></div>
+<script>
+// The whole board without 3D: the same /api/board3d data as the AR/VR table, as plain HTML — for any
+// laptop, phone or older browser. Face-down cards arrive with no name; hands are counts only.
+const COLORS = { W: "#efe6c8", U: "#8fb6e8", B: "#a59aa3", R: "#e8957f", G: "#8fc79e" };
+const esc = t => String(t ?? "").replace(/[<>&"']/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c]));
+const colorsOf = c => [...new Set((((c.cost || "") + (/Land/.test(c.type || "") ? " " + (c.text || "") : "")).match(/\{([WUBRG])(?:\/[WUBRGP])?\}/g) || []).map(m => m[1]))];
+function bg(c) {
+  const cols = colorsOf(c);
+  if (cols.length === 1) return COLORS[cols[0]];
+  if (cols.length > 1) return `linear-gradient(135deg, ${cols.map(k => COLORS[k]).join(", ")})`;
+  return /Land/.test(c.type || "") ? "#c9bea8" : "#c8cbd0";
+}
+let cardsById = [];
+function card(c, extra = "") {
+  const i = cardsById.push(c) - 1;
+  if (c.face_down) return `<div class="card down${c.tapped ? " tapped" : ""}" data-i="${i}"><div class="n">Face down</div><div class="t">${esc(c.pt || "")}</div></div>`;
+  const tags = [c.token && "token", c.counters && `${c.counters > 0 ? "+" : ""}${c.counters}`, c.zone, c.n > 1 && `×${c.n}`].filter(Boolean)
+    .map(t => `<span class="tag">${esc(t)}</span>`).join("");
+  return `<div class="card${c.tapped ? " tapped" : ""}" data-i="${i}" style="background:${bg(c)}">
+    <div class="n">${esc(c.name)}</div><div class="t">${esc((c.type || "").replace(/^Legendary /, "").split("—")[0])}</div>${tags}${extra}
+    ${c.pt ? `<span class="pt">${esc(c.pt)}</span>` : ""}</div>`;
+}
+function group(list, label) {
+  return list.length ? `<h4>${label}</h4><div class="cards">${list.join("")}</div>` : "";
+}
+function render(d) {
+  cardsById = [];
+  const isLand = c => !c.face_down && /Land/.test(c.type || ""), isCreature = c => c.face_down || /Creature/.test(c.type || "");
+  document.getElementById("phase").innerHTML = d.turn ? `<span class="p">${esc(d.turn)}</span> · ${esc(d.step)}` : "not started";
+  document.getElementById("seats").innerHTML = d.seats.map(s => {
+    const perms = (s.permanents || []).filter(c => c.attached_to == null);
+    const lands = [], idx = new Map();
+    for (const c of perms.filter(isLand)) { const k = c.name + "|" + !!c.tapped;
+      if (idx.has(k)) lands[idx.get(k)].n++; else { idx.set(k, lands.length); lands.push({ ...c, n: 1 }); } }
+    const cmd = s.commander_in_zone && s.commander_card ? card({ ...s.commander_card, zone: "command zone" }) : "";
+    const gy = s.graveyard || [];
+    return `<section class="seat${s.name === d.turn ? " turn" : ""}">
+      <div class="top"><span class="name">${esc(s.name)}</span><span class="life">♥ ${esc(s.life ?? "—")}</span></div>
+      <div class="meta">${esc(s.commander || "")} · hand ${esc(s.hand ?? "?")}${s.library != null ? ` · library ${esc(s.library)}` : ""}${s.kind === "human" && s.updated ? ` · board as of ${new Date(s.updated * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</div>
+      ${group(perms.filter(isCreature).map(c => card(c)), "Creatures")}
+      ${group(perms.filter(c => !isLand(c) && !isCreature(c)).map(c => card(c)), "Other permanents")}
+      ${group(lands.map(c => card(c)), "Lands")}
+      ${cmd ? group([cmd], "Command zone") : ""}
+      ${gy.length ? `<h4>Graveyard (${gy.length})</h4><div class="gy">${gy.slice().reverse().map(esc).join(" · ")}</div>` : ""}
+      ${!perms.length && !cmd ? `<p class="empty">Nothing recorded yet.</p>` : ""}
+    </section>`;
+  }).join("");
+}
+const tip = document.getElementById("tip");
+function showTip(ev) {
+  const el = ev.target.closest(".card"); if (!el) { tip.style.display = "none"; return; }
+  const c = cardsById[+el.dataset.i];
+  tip.innerHTML = c.face_down ? "<b>A face-down card</b>" + (c.pt ? `<br>${esc(c.pt)} creature` : "")
+    : `<b>${esc(c.name)}</b> ${esc(c.cost || "")}<br><i>${esc(c.type || "")}</i>${c.pt ? " · " + esc(c.pt) : ""}${c.tapped ? " · tapped" : ""}` +
+      (c.note ? `<br>${esc(c.note)}` : "") + (c.text ? `<br><span style="opacity:.85">${esc(c.text)}</span>` : "");
+  const x = ev.clientX ?? ev.touches?.[0]?.clientX ?? 20, y = ev.clientY ?? ev.touches?.[0]?.clientY ?? 20;
+  tip.style.left = Math.min(x + 14, innerWidth - 336) + "px"; tip.style.top = Math.min(y + 14, innerHeight - 180) + "px"; tip.style.display = "block";
+}
+addEventListener("mousemove", showTip); addEventListener("click", showTip);
+let last = "";
+async function refresh() {
+  try {
+    const t = await (await fetch("/api/board3d")).text();
+    if (t !== last) { last = t; render(JSON.parse(t)); }
+  } catch {}
+}
+refresh(); setInterval(refresh, 2500);
+</script>
+</body>
+</html>
