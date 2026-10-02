@@ -31,6 +31,22 @@ AVATARS = {   # described in our own words — inspired by each deck, not copies
     "Sam": POSE + "A squid-faced psychic pirate captain: lavender skin, four short tentacles hanging from the lower "
                   "face, glowing white eyes, a black tricorn hat, a dark navy captain's coat with gold buttons.",
 }
+# v2: a concept image first (A-pose, clean background), then Meshy 7 image-to-3D at 4K — sharper faces and
+# hands than text-to-3D, which can't use Meshy 7. Waist-length coats: long coats smear when the arms swing.
+CONCEPT = ("Full-body character concept art, front view, standing in a relaxed A-pose, arms angled down away "
+           "from the body, both hands open with five clearly separated fingers, feet visible, plain light grey "
+           "background, even studio lighting, stylized realistic game character, no props in the hands. ")
+AVATARS_V2 = {
+    "Claude": CONCEPT + "A young sorceress with long dark hair, a glowing coral-orange starburst tiara, layered "
+                        "robes of white, deep blue and black with silver trim, fitted at the waist, robe hem above the ankles.",
+    "Fusion": CONCEPT + "A dryad detective: moss-green skin with subtle bark texture, a crown of leaves for hair, a "
+                        "brass detective's monocle over one eye, a waist-length fitted forest-green jacket, trousers, boots.",
+    "Michael": CONCEPT + "A friendly robot artificer: blue and red enamelled armour plates, a glowing cyan visor, an "
+                         "antenna with a red light, brass gears on the shoulders, a tool belt, articulated metal hands.",
+    "Sam": CONCEPT + "A squid-faced psychic pirate captain: lavender skin, four short tentacles hanging from the lower "
+                     "face, glowing white eyes, a black tricorn hat, a waist-length navy captain's jacket with gold "
+                     "buttons, trousers, boots.",
+}
 ACTIONS = [0, 308, 36, 59, 28]      # Idle, Talking, Confused_Scratch (thinking), Victory_Cheer, Big_Wave_Hello
 CLIPS = ["idle", "talk", "think", "cheer", "wave"]
 
@@ -50,14 +66,20 @@ def call(method, path, body=None):
         raise RuntimeError(f"{method} {path}: not JSON: {text[:200]}") from None
 
 
+import threading
+LOCK = threading.Lock()          # four builds run at once: an unlocked read-modify-write lost task ids
+
+
 def load():
-    return json.loads(STATE.read_text()) if STATE.exists() else {}
+    with LOCK:
+        return json.loads(STATE.read_text()) if STATE.exists() else {}
 
 
 def save(seat, key, val):
-    st = load()
-    st.setdefault(seat, {})[key] = val
-    STATE.write_text(json.dumps(st, indent=1))
+    with LOCK:
+        st = json.loads(STATE.read_text()) if STATE.exists() else {}
+        st.setdefault(seat, {})[key] = val
+        STATE.write_text(json.dumps(st, indent=1))
 
 
 def wait(path, seat, label):
@@ -70,6 +92,40 @@ def wait(path, seat, label):
         if st in ("FAILED", "CANCELED", "EXPIRED"):
             raise RuntimeError(f"{seat} {label} {st}: {json.dumps(t.get('task_error'))[:200]}")
         time.sleep(15)
+
+
+def build_v2(seat):
+    """concept image → Meshy 7 image-to-3D (4K, PBR) → rig → the same five clips → <Seat>.v2.glb"""
+    key = seat + ".v2"
+    s = load().get(key, {})
+    if "concept" not in s:
+        r = call("POST", "/openapi/v1/text-to-image", {"ai_model": "nano-banana-pro", "prompt": AVATARS_V2[seat],
+                                                      "aspect_ratio": "3:4", "pose_mode": "a-pose"})
+        save(key, "concept", r["result"]); s = load()[key]
+    img = wait(f"/openapi/v1/text-to-image/{s['concept']}", seat, "concept")
+    url = img["image_urls"][0]
+    if not (OUT / f"{seat}.v2-concept.png").exists():
+        urllib.request.urlretrieve(url, OUT / f"{seat}.v2-concept.png")
+    if "mesh" not in s:
+        r = call("POST", "/openapi/v1/image-to-3d", {"image_url": url, "ai_model": "meshy-7", "should_texture": True,
+                                                    "enable_pbr": True, "texture_resolution": "4k", "pose_mode": "a-pose",
+                                                    "should_remesh": True, "target_polycount": 60000, "topology": "triangle"})
+        save(key, "mesh", r["result"]); s = load()[key]
+    mesh = wait(f"/openapi/v1/image-to-3d/{s['mesh']}", seat, "mesh")
+    if "rig" not in s:
+        r = call("POST", "/openapi/v1/rigging", {"input_task_id": s["mesh"], "height_meters": 1.75})
+        save(key, "rig", r["result"]); s = load()[key]
+    wait(f"/openapi/v1/rigging/{s['rig']}", seat, "rig")
+    if "anim" not in s:
+        r = call("POST", "/openapi/v1/animations", {"rig_task_id": s["rig"], "action_ids": ACTIONS})
+        save(key, "anim", r["result"]); s = load()[key]
+    anim = wait(f"/openapi/v1/animations/{s['anim']}", seat, "animate")
+    res = anim.get("result") or anim
+    urllib.request.urlretrieve(res.get("animation_glb_url") or anim.get("animation_glb_url"), OUT / f"{seat}.v2.glb")
+    if mesh.get("thumbnail_url"):
+        urllib.request.urlretrieve(mesh["thumbnail_url"], OUT / f"{seat}.v2.png")
+    save(key, "done", {"glb": f"{seat}.v2.glb", "clips": CLIPS, "actions": ACTIONS})
+    print(f"✅ {seat} v2: {OUT / (seat + '.v2.glb')}", flush=True)
 
 
 def build(seat):
@@ -108,8 +164,9 @@ if __name__ == "__main__":
     if "--balance" in sys.argv:
         print(call("GET", "/openapi/v1/balance")); sys.exit()
     seats = [a for a in sys.argv[1:] if a in AVATARS] or list(AVATARS)
+    job = build_v2 if "--v2" in sys.argv else build
     with ThreadPoolExecutor(len(seats)) as ex:
-        for f in [ex.submit(build, s) for s in seats]:
+        for f in [ex.submit(job, s) for s in seats]:
             try:
                 f.result()
             except Exception as e:  # noqa: BLE001 — one avatar failing must not stop the others

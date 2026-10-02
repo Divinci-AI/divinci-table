@@ -38,6 +38,10 @@
   #help { position: fixed; top: 24px; left: 50%; transform: translateX(-50%); color: #ffffff55; font-size: 12px; }
   @media (max-width: 640px) { #caption { bottom: 150px; } .seat { min-width: 120px; } }
 </style>
+<script>   // any error shows on the page itself, not only in a console nobody has open
+  addEventListener("error", e => { const h = document.getElementById("help"); if (h) h.textContent = "⚠ " + (e.message || e.error); });
+  addEventListener("unhandledrejection", e => { const h = document.getElementById("help"); if (h) h.textContent = "⚠ " + e.reason; });
+</script>
 <script type="importmap">{ "imports": { "three": "/vendor/three.module.min.js" } }</script>
 </head>
 <body>
@@ -46,12 +50,19 @@
 <div id="life"><div class="n">40</div><div class="l">life</div></div>
 <div id="caption"></div>
 <div id="seats"></div>
-<div id="help">click a seat to pin it · space follows the turn · F full screen</div>
+<div id="help">click a seat to pin it · space follows the turn · F full screen · Q effects</div>
 <script type="module">
 import * as THREE from "three";
 import { GLTFLoader } from "/vendor/jsm/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "/vendor/jsm/utils/SkeletonUtils.js";
 import { RoomEnvironment } from "/vendor/jsm/environments/RoomEnvironment.js";
+import { HDRLoader } from "/vendor/jsm/loaders/HDRLoader.js";
+import { EffectComposer } from "/vendor/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "/vendor/jsm/postprocessing/RenderPass.js";
+import { GTAOPass } from "/vendor/jsm/postprocessing/GTAOPass.js";
+import { UnrealBloomPass } from "/vendor/jsm/postprocessing/UnrealBloomPass.js";
+import { SMAAPass } from "/vendor/jsm/postprocessing/SMAAPass.js";
+import { OutputPass } from "/vendor/jsm/postprocessing/OutputPass.js";
 
 // ── table state ─────────────────────────────────────────────────────────────────────────────
 const params = new URLSearchParams(location.search);
@@ -74,29 +85,75 @@ const lookFor = s => LOOKS.find(l => l.match.test(s?.commander || "")) ||
   { bg: ["#262626", "#070707"], accent: "#e6e6e6", build: genericAvatar };
 
 // ── three.js scene ─────────────────────────────────────────────────────────────────────────
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.85;                       // ACES at 1.0 blows out pale skin and white robes
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
-scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.55;
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;     // until the HDRI arrives
+scene.environmentIntensity = 0.8;
+// 1 · a real studio light probe (Poly Haven, CC0), vendored: lights the PBR models, never shown as background
+new HDRLoader().load("/assets/studio_small_09_1k.hdr", hdr => {
+  hdr.mapping = THREE.EquirectangularReflectionMapping;
+  scene.environment = pmrem.fromEquirectangular(hdr).texture; hdr.dispose();
+});
+// the background is drawn in three (not CSS) so post-processing has something to composite over
+const bgCanvas = document.createElement("canvas"); bgCanvas.width = 512; bgCanvas.height = 512;
+const bgTex = new THREE.CanvasTexture(bgCanvas); bgTex.colorSpace = THREE.SRGBColorSpace;
+scene.background = bgTex;
+function paintBackground(c1, c2) {
+  const g = bgCanvas.getContext("2d"), gr = g.createRadialGradient(256, 200, 10, 256, 230, 380);
+  gr.addColorStop(0, c1); gr.addColorStop(1, c2); g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+  bgTex.needsUpdate = true;
+}
+paintBackground("#1b2233", "#06080d");
 const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
 camera.position.set(0, 1.7, 4.6);
 camera.lookAt(0, 1.45, 0);
-scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x231a14, 1.1));
-const key = new THREE.DirectionalLight(0xfff1e0, 2.4);
-key.position.set(2.5, 4, 3.5); key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
+// 2 · three-point lighting: warm key (shadows), cool fill, rims in the commander's accent colour
+scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x231a14, 0.35));
+const key = new THREE.DirectionalLight(0xfff1e0, 2.2);
+key.position.set(2.2, 4, 3.2); key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+Object.assign(key.shadow.camera, { left: -1.5, right: 1.5, top: 2.6, bottom: -0.3, near: 0.5, far: 12 });
+key.shadow.bias = -0.0004; key.shadow.normalBias = 0.02; key.shadow.radius = 4;
 scene.add(key);
-const rim = new THREE.DirectionalLight(0x88aaff, 1.6); rim.position.set(-3, 2.5, -2.5); scene.add(rim);
-const floor = new THREE.Mesh(new THREE.CircleGeometry(3, 64), new THREE.ShadowMaterial({ opacity: 0.35 }));
+const fill = new THREE.DirectionalLight(0xbfd2ff, 0.55); fill.position.set(-3, 2, 2.5); scene.add(fill);
+const rim = new THREE.DirectionalLight(0x88aaff, 2.6); rim.position.set(-1.5, 3, -3.5); scene.add(rim);
+const rim2 = new THREE.DirectionalLight(0x88aaff, 1.6); rim2.position.set(2, 2.2, -3); scene.add(rim2);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(3, 64), new THREE.ShadowMaterial({ opacity: 0.32 }));
 floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+// 3 · a contact shadow: a soft dark pool right under the feet, where the shadow map is too thin
+const contact = (() => {
+  const c = document.createElement("canvas"); c.width = c.height = 256;
+  const g = c.getContext("2d"), gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gr.addColorStop(0, "rgba(0,0,0,0.75)"); gr.addColorStop(0.45, "rgba(0,0,0,0.35)"); gr.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.1),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.y = 0.003; m.renderOrder = -1; scene.add(m); return m;
+})();
+// 4 · post-processing: ambient occlusion → bloom on the bright bits → SMAA → tone map / sRGB
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const gtao = new GTAOPass(scene, camera, innerWidth, innerHeight);
+gtao.updateGtaoMaterial({ radius: 0.25, distanceExponent: 1, thickness: 1, scale: 1 });
+gtao.blendIntensity = 0.8;
+composer.addPass(gtao);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.5, 0.92);
+composer.addPass(bloom);
+const smaa = new SMAAPass(innerWidth, innerHeight);
+composer.addPass(smaa);
+composer.addPass(new OutputPass());
+let post = params.get("post") !== "off";                 // Q toggles; ?post=off for a slow machine
 
 function resize() {
   const w = innerWidth, h = innerHeight;
-  renderer.setSize(w, h); camera.aspect = w / h;
+  renderer.setSize(w, h); composer.setSize(w, h); camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
 addEventListener("resize", resize); resize();
@@ -277,13 +334,30 @@ const CLIPS = ["idle", "talk", "think", "cheer", "wave"];
 let models = new Set();
 const gltfCache = {};
 const loader = new GLTFLoader();
+const WANT = params.get("avatars") || "v2";             // ?avatars=v1 shows the first, text-to-3D generation
+const modelFile = name => WANT !== "v1" && models.has(name + ".v2") ? name + ".v2" : name;
+const hasModel = name => models.has(name) || models.has(name + ".v2");
 function loadModel(name) {
-  return gltfCache[name] ||= new Promise((ok, bad) => loader.load(`/avatars/${encodeURIComponent(name)}.glb`, ok, undefined, bad));
+  const file = modelFile(name);
+  return gltfCache[file] ||= new Promise((ok, bad) => loader.load(`/avatars/${encodeURIComponent(file)}.glb`, ok, undefined, bad));
 }
 function meshyActor(gltf) {
   const a = new THREE.Group();
   const model = SkeletonUtils.clone(gltf.scene);
-  model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+  model.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
+    // 7 · Meshy's rigged GLB carries one base-colour material: give it a cloth-like sheen and a soft
+    // specular response, sharpen the texture at grazing angles, keep it non-metallic
+    const old = o.material;
+    if (old?.isMeshStandardMaterial && !old.userData.tweaked) {
+      const m = new THREE.MeshPhysicalMaterial({ map: old.map, color: old.color, roughness: 0.62, metalness: 0,
+        sheen: 0.35, sheenRoughness: 0.6, sheenColor: new THREE.Color(0xffffff), specularIntensity: 0.6,
+        envMapIntensity: 1.0, side: old.side, transparent: old.transparent, alphaTest: old.alphaTest });
+      if (m.map) { m.map.colorSpace = THREE.SRGBColorSpace; m.map.anisotropy = renderer.capabilities.getMaxAnisotropy(); }
+      m.userData.tweaked = true; o.material = m;
+    }
+  });
   let headBone = null;
   model.traverse(o => { if (o.isBone && /^head$/i.test(o.name)) headBone = o; });          // Meshy's rig: "Head"
   if (!headBone) model.traverse(o => { if (!headBone && o.isBone && /head/i.test(o.name) && !/top|end|nub|front/i.test(o.name)) headBone = o; });
@@ -297,12 +371,16 @@ function meshyActor(gltf) {
   model.scale.multiplyScalar(k);
   model.position.set(-c.x * k, -bb.min.y * k, -c.z * k);
   a.add(model);
+  const bone = n => { let b = null; model.traverse(o => { if (!b && o.isBone && o.name === n) b = o; }); return b; };
+  const arm = { upper: bone("LeftArm"), lower: bone("LeftForeArm"), hand: bone("LeftHand") };
+  const hips = bone("Hips"), hipsHome = hips?.position.clone();       // clips may walk the root: pin it
   const anchor = new THREE.Group(); a.add(anchor);        // follows the head; the cards hang off it
   anchor.position.set(0, 1.78, 0);
   const mixer = new THREE.AnimationMixer(model), actions = {};
   gltf.animations.forEach((clip, i) => { actions[CLIPS[i] || clip.name] = mixer.clipAction(clip); });
   (actions.idle || Object.values(actions)[0])?.play();
-  Object.assign(a.userData, { meshy: true, model, mixer, actions, headBone, head: anchor, current: "idle", skin: "#d9c7b0" });
+  Object.assign(a.userData, { meshy: true, model, mixer, actions, headBone, head: anchor, current: "idle", skin: "#d9c7b0",
+    arm: arm.upper && arm.lower && arm.hand ? arm : null, hold: 1, hips, hipsHome });
   return a;
 }
 function play(clip, once = false) {
@@ -323,25 +401,28 @@ function stage(name, force = false) {
   if (name !== actorName || force) {
     if (actor) scene.remove(actor);
     actor = look.build(); actorName = name; enterT = performance.now();
-    if (models.has(name)) loadModel(name).then(gltf => {      // swap in the Meshy model once it loads
+    if (hasModel(name)) loadModel(name).then(gltf => {      // swap in the Meshy model once it loads
       if (actorName !== name) return;
       scene.remove(actor); actor = meshyActor(gltf); scene.add(actor); fan = null; stage(name);
-    }).catch(() => models.delete(name));
+    }).catch(() => { models.delete(name); models.delete(name + ".v2"); });
     actor.traverse(o => { if (o.isMesh) o.castShadow = true; });
     scene.add(actor);
+    paintBackground(look.bg[0], look.bg[1]);
+    rim.color.set(look.accent); rim2.color.set(look.accent);
     document.documentElement.style.setProperty("--bg1", look.bg[0]);
     document.documentElement.style.setProperty("--bg2", look.bg[1]);
     document.documentElement.style.setProperty("--accent", look.accent);
     fan = null;
   }
-  if (fan) actor.userData.head.remove(fan);
+  if (fan) fan.parent?.remove(fan);
   const meshy = actor.userData.meshy;
   fan = cardFan(s.hand, actor.userData.skin, !meshy);
-  if (meshy) {                                      // held out to the side: the whole character stays visible
+  if (meshy && actor.userData.arm) {               // 5 · in the hand: placed at the hand bone every frame
+    fan.scale.setScalar(0.55); actor.add(fan);
+  } else if (meshy) {                               // no arm bones: held out to the side
     fan.position.set(0.62, -0.5, 0.25); fan.rotation.set(-0.1, -0.35, -0.18); fan.scale.setScalar(0.6);
-  } else fan.position.set(0, -0.66, 0.58);          // the built avatars: at the chin, eyes over the top
-  fan.rotation.x = -0.12;
-  actor.userData.head.add(fan);
+    actor.userData.head.add(fan);
+  } else { fan.position.set(0, -0.66, 0.58); fan.rotation.x = -0.12; actor.userData.head.add(fan); }   // at the chin
   hud();
 }
 
@@ -383,7 +464,7 @@ async function refresh() {
     seats = (await (await fetch("/api/stage")).json()).seats;
     try { models = new Set(await (await fetch("/avatars/index.json")).json()); } catch { models = new Set(); }
     stage(shown()); hud();
-  } catch { /* server restarting: try again next tick */ }
+  } catch (e) { console.error("[stage] refresh failed:", e); document.getElementById("help").textContent = "⚠ " + e; }   // server restarting, or a bug: say which
 }
 
 // ── follow the table ────────────────────────────────────────────────────────────────────────
@@ -418,10 +499,48 @@ async function poll() {
 
 renderer.domElement.addEventListener("click", () => play("wave", true));
 addEventListener("keydown", e => {
+  if (e.key.toLowerCase() === "q") post = !post;
   if (e.key === " ") { pinned = null; stage(shown(), true); hud(); }
   if (e.key.toLowerCase() === "f") document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
   const n = parseInt(e.key, 10); if (n >= 1 && n <= ORDER.length) { pinned = ORDER[n - 1]; stage(shown(), true); hud(); }
 });
+
+// ── 5 · two-bone IK: the arm reaches the hold point; blended with the animation, off for wave/cheer ──
+const _v = () => new THREE.Vector3(), _q = () => new THREE.Quaternion();
+function rotateWorld(b, qWorld) {                 // apply a world-space rotation to a bone, keep its parent
+  const pq = b.parent.getWorldQuaternion(_q());
+  b.quaternion.premultiply(pq.clone().invert().multiply(qWorld).multiply(pq)); b.updateMatrixWorld(true);
+}
+function solveArm(arm, target, pole) {
+  const a = arm.upper.getWorldPosition(_v()), b = arm.lower.getWorldPosition(_v()), c = arm.hand.getWorldPosition(_v());
+  const l1 = a.distanceTo(b), l2 = b.distanceTo(c), d = Math.min(a.distanceTo(target), (l1 + l2) * 0.999);
+  const ba = a.clone().sub(b), bc = c.clone().sub(b);
+  const axis = _v().crossVectors(ba, bc); if (axis.lengthSq() < 1e-10) axis.set(1, 0, 0); axis.normalize();
+  const want = Math.acos(THREE.MathUtils.clamp((l1 * l1 + l2 * l2 - d * d) / (2 * l1 * l2), -1, 1));
+  rotateWorld(arm.lower, _q().setFromAxisAngle(axis, want - ba.angleTo(bc)));            // the elbow angle
+  const c2 = arm.hand.getWorldPosition(_v());
+  rotateWorld(arm.upper, _q().setFromUnitVectors(c2.sub(a).normalize(), target.clone().sub(a).normalize()));  // aim
+  const ax = target.clone().sub(a).normalize(), e = arm.lower.getWorldPosition(_v()).sub(a), p = pole.clone().sub(a);
+  e.sub(ax.clone().multiplyScalar(e.dot(ax))); p.sub(ax.clone().multiplyScalar(p.dot(ax)));            // swing the elbow
+  if (e.lengthSq() > 1e-10 && p.lengthSq() > 1e-10) rotateWorld(arm.upper, _q().setFromUnitVectors(e.normalize(), p.normalize()));
+}
+function holdCards(now) {
+  const u = actor.userData, arm = u.arm; if (!arm || !fan) return;
+  const busy = u.current === "wave" || u.current === "cheer";
+  u.hold += ((busy ? 0 : 1) - u.hold) * 0.12;
+  const saved = [arm.upper.quaternion.clone(), arm.lower.quaternion.clone()];
+  actor.updateMatrixWorld(true);
+  const target = actor.localToWorld(new THREE.Vector3(0.36, 1.22 + Math.sin(now / 900) * 0.015, 0.34));
+  const pole = actor.localToWorld(new THREE.Vector3(0.9, 0.7, -0.2));                      // elbow out and down
+  solveArm(arm, target, pole);
+  arm.upper.quaternion.slerpQuaternions(saved[0], arm.upper.quaternion.clone(), u.hold);
+  arm.lower.quaternion.slerpQuaternions(saved[1], arm.lower.quaternion.clone(), u.hold);
+  actor.updateMatrixWorld(true);
+  const h = actor.worldToLocal(arm.hand.getWorldPosition(_v()));                          // the fan sits in the palm
+  fan.position.copy(h).add(new THREE.Vector3(0.03, -0.02, 0.06));
+  fan.rotation.set(-0.15, -0.25, -0.22 + Math.sin(now / 1100) * 0.03);
+  fan.visible = u.hold > 0.35;
+}
 
 // ── animate ─────────────────────────────────────────────────────────────────────────────────
 const clock = new THREE.Clock();
@@ -435,12 +554,14 @@ renderer.setAnimationLoop(() => {
   if (actor?.userData.meshy) {
     const u = actor.userData;
     u.mixer.update(dt);
+    if (u.hips) { u.hips.position.x = u.hipsHome.x; u.hips.position.z = u.hipsHome.z; }   // stay on the mark
     if (!(u.onceUntil > now)) play(now < talking ? "talk" : now < cheerUntil ? "cheer" : now < thinkUntil ? "think" : "idle");
-    if (u.headBone) {                                       // keep the cards in front of the face as it moves
+    holdCards(now);
+    if (u.headBone) {                                       // keep the anchor on the head as it moves
       const p = u.headBone.getWorldPosition(new THREE.Vector3()); actor.worldToLocal(p);
       u.head.position.lerp(p, 0.5);
     }
-    if (fan) fan.rotation.z = -0.18 + Math.sin(t * 1.1) * 0.03;
+    if (fan && !u.arm) fan.rotation.z = -0.18 + Math.sin(t * 1.1) * 0.03;
   } else if (actor) {
     const u = actor.userData, k = Math.min(1, (now - enterT) / 700);
     const ease = 1 - Math.pow(1 - k, 3);
@@ -459,7 +580,8 @@ renderer.setAnimationLoop(() => {
     u.head.children.forEach(c => { if (c.userData.blink) c.scale.y = blink; });
     if (fan) fan.rotation.z = Math.sin(t * 1.1) * 0.03;
   }
-  renderer.render(scene, camera);
+  if (actor) contact.visible = !!actor.userData.meshy;
+  post ? composer.render() : renderer.render(scene, camera);
 });
 
 refresh().then(poll);

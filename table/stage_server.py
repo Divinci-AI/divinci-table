@@ -22,9 +22,6 @@ ap.add_argument("--host", default="127.0.0.1")
 args = ap.parse_args()
 HUMANS = [dict(zip(("name", "commander"), (x.strip() for x in h.split("|", 1)))) for h in args.human]
 HAND_N = {h["name"]: 7 for h in HUMANS}
-VENDOR = {"three.module.min.js", "three.core.min.js", "jsm/loaders/GLTFLoader.js",
-          "jsm/utils/BufferGeometryUtils.js", "jsm/utils/SkeletonUtils.js",
-          "jsm/environments/RoomEnvironment.js"}
 AVATARS = HERE / ".cache" / "avatars"          # Meshy GLBs (table/meshy_avatars.py), local only
 
 
@@ -64,8 +61,12 @@ class H(BaseHTTPRequestHandler):
         try:
             if p in ("/", "/stage"):
                 return self._send(200, body=(HERE / "stage.html").read_bytes(), ctype="text/html; charset=utf-8")
-            if p.startswith("/vendor/") and p[8:] in VENDOR:
-                return self._send(200, body=(HERE / "vendor" / p[8:]).read_bytes(), ctype="text/javascript; charset=utf-8")
+            for pre, root in (("/vendor/", HERE / "vendor"), ("/assets/", HERE / "assets")):
+                if p.startswith(pre):
+                    f = (root / p[len(pre):]).resolve()
+                    if f.is_file() and root.resolve() in f.parents:        # no ../ escapes
+                        return self._send(200, body=f.read_bytes(), ctype="text/javascript; charset=utf-8"
+                                          if f.suffix == ".js" else "application/octet-stream")
             if p == "/avatars/index.json":           # which seats have a generated model
                 return self._send(200, sorted(x.stem for x in AVATARS.glob("*.glb")) if AVATARS.exists() else [])
             if p.startswith("/avatars/") and p.endswith(".glb"):
