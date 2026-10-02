@@ -96,10 +96,15 @@ if args.ai_deck:
     from player import VirtualPlayer
     if len(args.ai_deck) > len(AI_PLAYERS):
         sys.exit("more --ai-deck than --ai players: each deck belongs to an --ai, in order")
+    _online = {}
+    if args.fair_seed == "online":
+        import fair as _fair
+        _online = _fair.online_parts()
+        print(f"fair seed: {sorted(_online)}", flush=True)
     for _i, _deck in enumerate(args.ai_deck):
         _n = AI_PLAYERS[_i]["name"]
         VPS[_n] = VirtualPlayer(_deck, _n, **({} if args.fair_seed == "off" else
-                                              {"fair_words": {}, "fair_online": args.fair_seed == "online"}))
+                                              {"fair_words": {}, "fair_online": _online or False}))
         DECK_OF[_n] = _deck
         AI_PLAYERS[_i]["has_deck"] = True
         AI_PLAYERS[_i]["deck"] = VPS[_n].deck_name
@@ -152,9 +157,13 @@ def reshuffle_all():
     from player import VirtualPlayer
     words = dict(FAIR["words"])
     FAIR.update(game=time.strftime("%Y%m%d-%H%M%S"), words={}, revealed=False)
+    online = {}
+    if args.fair_seed == "online":
+        import fair
+        online = fair.online_parts()                  # once per game, shared by every seat
     for n in list(VPS):
         VPS[n] = VirtualPlayer(DECK_OF[n], n, **({} if args.fair_seed == "off" else
-                                                 {"fair_words": words, "fair_online": args.fair_seed == "online"}))
+                                                 {"fair_words": words, "fair_online": online or False}))
     save_fair()
 
 
@@ -175,7 +184,9 @@ def fair_public() -> dict:
 
 
 def fair_announcement() -> list[str]:
-    return [f"{n}'s deck fingerprint: {v.fair['fingerprint']}." for n, v in VPS.items() if v.fair]
+    import fair
+    return [f"{n}'s deck is sealed with {fair.sources(v.fair)}. Fingerprint {v.fair['fingerprint']}."
+            for n, v in VPS.items() if v.fair]
 
 
 save_fair()
@@ -301,7 +312,7 @@ def whisper_hint():
     everyone = AI_PLAYERS + HUMANS
     names = [p["name"] for p in everyone] + [p["commander"] for p in everyone if p["commander"]]
     for _v in VPS.values():                  # the AIs' own permanents: what removal will be aimed at
-        names += [p.name for p in _v.battlefield if not p.is_("Land") and not p.token]
+        names += [p.name for p in _v.battlefield if not p.is_("Land") and not p.token and not p.face_down]
     names += CONVO["announced"][-15:] + sorted(set(DECK))[:40]
     seen, out = set(), []
     for n in names:
@@ -1359,6 +1370,12 @@ class H(BaseHTTPRequestHandler):
                     private["drew"] = drew
                 elif action == "land":
                     said = VP.manual_land(b["name"])
+                elif action == "cast" and b.get("face_down"):
+                    said = VP.cast_face_down(b["name"])
+                elif action == "turn-up":
+                    said = VP.turn_up(b["ref"], free=bool(b.get("free")))
+                elif action == "manifest":
+                    said = VP.manifest(int(b.get("n") or 1), cloak=bool(b.get("cloak")))
                 elif action == "cast":
                     said = VP.manual_cast(b["name"], on=b.get("on"), role_on=b.get("role_on"), modes=b.get("modes"),
                                           targets=b.get("targets"), commander=bool(b.get("commander")),

@@ -132,7 +132,8 @@ def cmd_state(_):
         if "Land" in (p["type"] or "") and not p["tapped"]:
             continue
         att = f" → on #{p['attached_to']}" if p["attached_to"] else ""
-        print(f"  #{p['id']} {p['name']}{' ' + p['pt'] if p['pt'] else ''}{att}"
+        fd = f" [FACE DOWN — turn up: {p.get('turn_up_cost')}]" if p.get("face_down") else ""
+        print(f"  #{p['id']} {p['name']}{fd}{' ' + p['pt'] if p['pt'] else ''}{att}"
               f"{' [tapped]' if p['tapped'] else ''}{' [sick]' if p['sick'] and p['pt'] else ''}")
     lands = [p for p in s["permanents"] if "Land" in (p["type"] or "")]
     print(f"  lands: {len(lands)} ({sum(1 for p in lands if not p['tapped'])} untapped)")
@@ -182,6 +183,11 @@ def main():
     c = sub.add_parser("cast"); c.add_argument("name"); c.add_argument("--on"); c.add_argument("--role-on")
     c.add_argument("--mode", action="append", type=int); c.add_argument("--targets"); c.add_argument("--x", type=int, default=0)
     c.add_argument("--discount", type=int, default=0, help="generic cost reduction you know applies")
+    c.add_argument("--face-down", action="store_true", help="disguise/morph: cast it face down for {3}")
+    tu = sub.add_parser("turn-up", help="turn a face-down permanent face up (pays its cost)"); tu.add_argument("ref")
+    tu.add_argument("--free", action="store_true", help="no cost (Kaust's {T} ability, Showstopping Surprise)")
+    mf = sub.add_parser("manifest", help="top card(s) face down as 2/2s"); mf.add_argument("--n", type=int, default=1)
+    mf.add_argument("--cloak", action="store_true", help="cloak: ward 2")
     c.add_argument("--color", help="for 'choose a color' (W/U/B/R/G), e.g. Utopia Sprawl")
     c.add_argument("--quiet", action="store_true")
     bl = sub.add_parser("block"); bl.add_argument("ref", nargs="?"); bl.add_argument("--amount", type=int, required=True)
@@ -236,6 +242,8 @@ def main():
     if a.cmd == "land":
         return act("land", name=a.name, quiet=q)
     if a.cmd == "cast":
+        if a.face_down:
+            return act("cast", name=a.name, face_down=True)
         return act("cast", name=a.name, on=a.on, role_on=a.role_on, modes=a.mode, targets=a.targets, x=a.x,
                    discount=a.discount, color=a.color,
                    commander=a.name.lower() == "commander", quiet=q)
@@ -262,6 +270,10 @@ def main():
     if a.cmd == "token":
         return act("token", name=a.name, power=a.power, toughness=a.toughness, keywords=a.keywords, n=a.n,
                    tapped=a.tapped)
+    if a.cmd == "turn-up":
+        return act("turn-up", ref=a.ref, free=a.free)
+    if a.cmd == "manifest":
+        return act("manifest", n=a.n, cloak=a.cloak)
     if a.cmd == "peek":
         return act("peek", n=a.n, announce=a.announce)
     if a.cmd == "topdeck":

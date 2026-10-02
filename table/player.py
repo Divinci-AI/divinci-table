@@ -84,6 +84,13 @@ def pt_bonuses(text: str) -> list[tuple[set, int, int, str | None]]:
     return out
 
 
+def face_cost(card: dict) -> tuple[str, str] | None:
+    """('Megamorph', '{2}{W}') from "Megamorph {2}{W}", or None. Disguise and morph cards can be cast
+    face down for {3}; the cost here is what turning it face up costs."""
+    m = re.search(r"\b(Disguise|Megamorph|Morph) ((?:\{[^}]+\})+)", card.get("text") or "")
+    return (m.group(1), m.group(2)) if m else None
+
+
 def mana_amount(card: dict) -> int:
     """How many mana one tap makes: Sol Ring's {C}{C}, a '{T}: Add {G}{G}' creature."""
     m = re.search(r"\{T\}: Add ((?:\{[WUBRGC]\})+)", card.get("text") or "")
@@ -98,6 +105,9 @@ class Perm:
     token: bool = False
     attached_to: int | None = None          # auras / roles: the id of the creature they enchant
     role: str | None = None
+    face_down: bool = False                 # disguise / morph / manifest / cloak: a nameless 2/2
+    ward2: bool = False                     # disguised or cloaked: ward {2} while face down
+    turned_up_turn: int | None = None       # Kaust: "turned face up this turn"
     counters: int = 0
     chosen: str | None = None               # "As this enters, choose a color" (Utopia Sprawl)
     id: int = field(default_factory=lambda: next(_ids))
@@ -184,6 +194,8 @@ class VirtualPlayer:
             pw, tg = int(p.card.get("power") or 0), int(p.card.get("toughness") or 0)
         except ValueError:                       # '*' power: count as 0 rather than guess
             pw, tg = 0, 0
+        if p.face_down:
+            pw, tg = 2, 2
         pw += p.counters
         tg += p.counters
         for a in self.battlefield:
@@ -201,8 +213,8 @@ class VirtualPlayer:
                     if "enchanted" in who:
                         k = self.count_each(each, a, p) if each else 1
                         pw, tg = pw + k * bp, tg + k * bt
-        # its own text: Kor Spiritdancer, Aura Gnarlid, Eidolon of Countless Battles
-        for who, bp, bt, each in pt_bonuses(p.card.get("text") or ""):
+        # its own text: Kor Spiritdancer, Aura Gnarlid, Eidolon of Countless Battles (a face-down card has none)
+        for who, bp, bt, each in ([] if p.face_down else pt_bonuses(p.card.get("text") or "")):
             if "self" in who:
                 k = self.count_each(each, p, p) if each else 1
                 pw, tg = pw + k * bp, tg + k * bt
@@ -247,6 +259,9 @@ class VirtualPlayer:
         return 0
 
     def describe(self, p: Perm) -> str:
+        if p.face_down:
+            pw, tg = self.stats(p)
+            return f"a face-down {pw}/{tg} (#{p.id}{', ward 2' if p.ward2 else ''})" + (" [tapped]" if p.tapped else "")
         if p.is_("Planeswalker"):
             return f"{p.name} (loyalty {p.counters})" + (" [tapped]" if p.tapped else "")
         if p.is_("Creature"):
@@ -468,7 +483,7 @@ class VirtualPlayer:
                 if "choose a color" in (c.get("text") or "").lower():
                     p.chosen = getattr(self, "next_color", None) or self.missing_color()
                     self.next_color = None
-                said = [f"I cast {c['name']} on {target.name}."]      # one sentence, not two
+                said = [f"I cast {c['name']} on {self.shown(target)}."]      # one sentence, not two
             said += triggered
             if p.is_("Planeswalker"):
                 try:
@@ -547,7 +562,7 @@ class VirtualPlayer:
         role = {"name": f"{kind} Role", "types": ["Enchantment"], "subtypes": ["Aura", "Role"], "text": ""}
         r = Perm(role, token=True, attached_to=target.id, role=kind)
         self.battlefield.append(r)
-        return [f"{target.name} gets a {kind} Role."] + self.on_enchantment_enters(r)
+        return [f"{self.shown(target)} gets a {kind} Role."] + self.on_enchantment_enters(r)
 
     # ── triggers on its own permanents ───────────────────────────────────────────────────
     def on_cast(self, c) -> list[str]:
@@ -616,8 +631,13 @@ class VirtualPlayer:
                 "graveyard": [c["name"] for c in self.graveyard[-8:]],
                 "on_their_cards": self.on_their_cards[-6:]}
 
+    def shown(self, p) -> str:
+        """How the table hears a permanent: its name, or "a face-down 2/2" (never the hidden name)."""
+        return f"a face-down {self.stats(p)[0]}/{self.stats(p)[1]}" if p.face_down else p.name
+
     def private_hand(self):
-        return [c["name"] for c in self.hand]
+        """Names the table must not hear from the AI: its hand, and its face-down permanents."""
+        return [c["name"] for c in self.hand] + [p.name for p in self.battlefield if p.face_down]
 
 
 def is_hostile_aura(c) -> bool:
@@ -811,7 +831,7 @@ def _manual(cls):
             total = sum(self.stats(c)[0] for c in cs)
             # Short names keep the sentence speakable: "Siona", not "Siona, Captain of the Pyleas";
             # past four attackers, a count ("five creatures") instead of a list.
-            names = [c.name.split(",")[0] for c in cs]
+            names = [self.shown(c).split(",")[0] for c in cs]
             if len(names) > 4:
                 names = [f"{['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'][len(names)] if len(names) <= 8 else len(names)} creatures"]
             said.append(f"I attack {who} with " + (names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1])
@@ -821,7 +841,7 @@ def _manual(cls):
     def attack_triggers(self, c, defender, attackers, role_on=None):
         """'Whenever this creature attacks' on the attacker and on the Auras and Roles it carries."""
         said = []
-        text = c.card.get("text") or ""
+        text = "" if c.face_down else (c.card.get("text") or "")
         m = re.search(r"Whenever [^.]*?attacks[^,]*, ([^.]+)\.", text)
         if m:
             eff = m.group(1)
@@ -877,7 +897,7 @@ def _manual(cls):
             if n <= 0:
                 continue
             life[who] = life.get(who, 0) - n
-            said.append(f"{c.name} deals {n} to {who}.")
+            said.append(f"{self.shown(c)} deals {n} to {who}.")
             auras = [a for a in self.battlefield if a.attached_to == c.id]
             if auras and ellivere_draws:
                 self.draw(ellivere_draws)
@@ -892,7 +912,12 @@ def _manual(cls):
                 if "deals damage to an opponent, you may draw a card" in at:      # Snake Umbra
                     self.draw()
                     said.append(f"{a.name}: I draw a card.")
-            kws = c.card.get("keywords") or []
+            if c.turned_up_turn == self.turn:                    # Kaust, Eyes of the Glade
+                k = len([x for x in self.battlefield if not x.face_down and "that was turned face up this turn deals combat damage to a player, draw a card" in (x.card.get("text") or "")])
+                if k:
+                    self.draw(k)
+                    said.append(f"It was turned face up this turn: I draw {'a card' if k == 1 else f'{k} cards'}.")
+            kws = [] if c.face_down else (c.card.get("keywords") or [])
             if "Lifelink" in kws or (pegasus_lifelink and "Pegasus" in c.name):
                 life[self.name] = life.get(self.name, 0) + n
                 said.append(f"Lifelink: I gain {n}.")
@@ -992,6 +1017,75 @@ def _manual(cls):
         said += self.enter_effects(q, lambda card, cands: max(cands, key=lambda k: self.stats(k)[0]))
         return said
 
+    # ── face-down cards: disguise, morph, megamorph, manifest, cloak ───────────────────────
+    def cast_face_down(self, name):
+        """Cast a disguise/morph card face down for {3}: a nameless 2/2 (disguise: ward {2})."""
+        c = self.hand_card(name)
+        fc = face_cost(c)
+        if not fc:
+            raise IllegalAction(f"{c['name']} has no disguise or morph: it can't be cast face down")
+        pay = self.plan_payment("{3}")
+        if pay is None:
+            raise IllegalAction("can't pay {3} to cast it face down")
+        for x in pay:
+            x.tapped = True
+        self.hand.remove(c)
+        p = Perm(c, sick=True, face_down=True, ward2=fc[0] == "Disguise")
+        self.battlefield.append(p)
+        import time as _t
+        self.last_cast = {"name": "a face-down creature", "perm": p.id, "at": _t.time(), "commander": False}
+        return [f"I cast a creature face down" + (" with ward 2." if p.ward2 else ".")]
+
+    def manifest(self, n=1, cloak=False):
+        """The top card(s) of the library onto the battlefield face down as 2/2s (cloak: ward {2})."""
+        made = 0
+        for _ in range(n):
+            if not self.library:
+                break
+            self.battlefield.append(Perm(self.library.pop(), sick=True, face_down=True, ward2=cloak))
+            made += 1
+        word = "cloak" if cloak else "manifest"
+        return [f"I {word} the top card of my library." if made == 1 else f"I {word} the top {made} cards of my library."]
+
+    def turn_up(self, ref, free=False):
+        """Turn a face-down permanent face up: pay its disguise/morph/megamorph cost (a manifested or
+        cloaked creature card: its mana cost), or nothing with free=True (Kaust's ability)."""
+        p = self.perm(ref)
+        if not p.face_down:
+            raise IllegalAction(f"#{p.id} isn't face down")
+        fc = face_cost(p.card)
+        cost = fc[1] if fc else (p.card.get("manaCost") if p.is_("Creature") else None)
+        if cost is None and not free:
+            raise IllegalAction(f"#{p.id} is a face-down non-creature with no morph: it can't be turned face up")
+        if not free:
+            pay = self.plan_payment(cost)
+            if pay is None:
+                raise IllegalAction(f"can't pay {cost} to turn #{p.id} face up")
+            for x in pay:
+                x.tapped = True
+        p.face_down, p.ward2, p.turned_up_turn = False, False, self.turn
+        said = [f"I turn #{p.id} face up: {p.name}."]
+        text = p.card.get("text") or ""
+        if fc and fc[0] == "Megamorph":
+            p.counters += 1
+            said.append(f"{p.name} gets a +1/+1 counter.")
+        m = re.search(r"As this creature is turned face up, put (\w+) \+1/\+1 counters? on it", text)
+        if m:                                                    # Hooded Hydra
+            n = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5}.get(m.group(1), 0)
+            p.counters += n
+            said.append(f"{p.name} gets {n} +1/+1 counters.")
+        m = re.search(r"When this creature is turned face up, ([^.]+)\.", text)
+        if m:
+            said += self.resolve_effect(p, m.group(1))
+        for src in list(self.battlefield):                       # True Identity, Mastery of the Unseen
+            t = src.card.get("text") or ""
+            if src is p or src.face_down:
+                continue
+            m = re.search(r"Whenever (?:this enchantment or )?(?:another )?(?:a )?permanent you control is turned face up, ([^.]+)\.", t)
+            if m:
+                said += self.resolve_effect(src, m.group(1))
+        return said
+
     def make_tokens(self, name, power, toughness, keywords=(), n=1, tapped=False):
         for _ in range(n):
             tok = {"name": f"{name} token", "types": ["Creature"], "power": str(power), "toughness": str(toughness),
@@ -1018,7 +1112,7 @@ def _manual(cls):
 
     for f in (hand_card, perm, begin_turn, upkeep, manual_land, manual_cast, manual_attack, attack_triggers,
               combat_damage, move, search_library, make_token, make_tokens, discard, mill, peek, topdeck, bottom,
-              shuffle_library, put, blink):
+              shuffle_library, put, blink, cast_face_down, manifest, turn_up):
         setattr(cls, f.__name__, f)
     return cls
 
@@ -1034,6 +1128,8 @@ def brain_view(p: VirtualPlayer) -> dict:
         "hand": [{"name": c["name"], "cost": c.get("manaCost") or "", "type": c.get("type"),
                   "text": c.get("text"), "pt": f"{c['power']}/{c['toughness']}" if c.get("power") else None,
                   "castable_now": c["name"] in castable, "land": "Land" in c["types"],
+                  "face_down_castable": bool(face_cost(c)) and p.plan_payment("{3}") is not None,
+                  "face_up_cost": " ".join(face_cost(c)) if face_cost(c) else None,
                   # for Auras: exactly where it may go ("#id name"), or "an opponent's permanent"
                   "aura_targets": (["an opponent's permanent (--on 'their card')"] if is_hostile_aura(c) else
                                    [f"#{t.id} {t.name}" for t in p.aura_targets(c)])
@@ -1041,6 +1137,8 @@ def brain_view(p: VirtualPlayer) -> dict:
         "commander_card": {"name": p.commander["name"], "cost": p.commander["manaCost"], "text": p.commander["text"],
                            "castable_now": p.commander["name"] in castable},
         "permanents": [{"id": x.id, "name": x.name, "type": x.card.get("type"), "tapped": x.tapped, "sick": x.sick,
+                        "face_down": x.face_down, "turn_up_cost": (" ".join(face_cost(x.card)) if face_cost(x.card)
+                                                                   else x.card.get("manaCost")) if x.face_down else None,
                         "token": x.token, "attached_to": x.attached_to, "role": x.role,
                         "pt": "%d/%d" % p.stats(x) if x.is_("Creature") else None,
                         "text": (x.card.get("text") or "")[:300]} for x in p.battlefield],

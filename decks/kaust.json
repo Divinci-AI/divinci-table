@@ -1,0 +1,2107 @@
+{
+ "name": "Deadly Disguise",
+ "commander": [
+  {
+   "name": "Kaust, Eyes of the Glade",
+   "count": 1,
+   "manaCost": "{R/W}{G}",
+   "manaValue": 2.0,
+   "type": "Legendary Creature \u2014 Dryad Detective",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Dryad",
+    "Detective"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Whenever a creature you control that was turned face up this turn deals combat damage to a player, draw a card.\n{T}: Turn target face-down attacking creature you control face up.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G",
+    "R",
+    "W"
+   ],
+   "colorIdentity": [
+    "G",
+    "R",
+    "W"
+   ]
+  }
+ ],
+ "mainBoard": [
+  {
+   "name": "Duskana, the Rage Mother",
+   "count": 1,
+   "manaCost": "{2}{R}{G}{W}",
+   "manaValue": 5.0,
+   "type": "Legendary Creature \u2014 Bear",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Bear"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "When Duskana enters, draw a card for each creature you control with base power and toughness 2/2.\nWhenever a creature you control with base power and toughness 2/2 attacks, it gets +3/+3 until end of turn.",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "G",
+    "R",
+    "W"
+   ],
+   "colorIdentity": [
+    "G",
+    "R",
+    "W"
+   ]
+  },
+  {
+   "name": "True Identity",
+   "count": 1,
+   "manaCost": "{1}{W}",
+   "manaValue": 2.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever this enchantment or another permanent you control is turned face up, scry 1, then draw a card. This ability triggers only once each turn.\nDisguise {W} (You may cast this card face down for {3} as a 2/2 creature with ward {2}. Turn it face up any time for its disguise cost.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Disguise",
+    "Scry"
+   ]
+  },
+  {
+   "name": "Unexplained Absence",
+   "count": 1,
+   "manaCost": "{3}{W}",
+   "manaValue": 4.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "For each player, exile up to one target nonland permanent that player controls. For each permanent exiled this way, its controller cloaks the top card of their library. (To cloak a card, put it onto the battlefield face down as a 2/2 creature with ward {2}. Turn it face up any time for its mana cost if it's a creature card.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Cloak"
+   ]
+  },
+  {
+   "name": "Veiled Ascension",
+   "count": 1,
+   "manaCost": "{3}{W}",
+   "manaValue": 4.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "When this enchantment enters, put a flying counter on each face-down creature you control.\nFace-down creatures you control enter with a flying counter on them.\nAt the beginning of your upkeep, you may cloak the top card of your library.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Cloak"
+   ]
+  },
+  {
+   "name": "Boltbender",
+   "count": 1,
+   "manaCost": "{3}{R}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Goblin Wizard",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Goblin",
+    "Wizard"
+   ],
+   "supertypes": [],
+   "text": "Disguise {1}{R} (You may cast this card face down for {3} as a 2/2 creature with ward {2}. Turn it face up any time for its disguise cost.)\nWhen this creature is turned face up, you may choose new targets for any number of other spells and/or abilities.",
+   "power": "4",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Disguise"
+   ]
+  },
+  {
+   "name": "Showstopping Surprise",
+   "count": 1,
+   "manaCost": "{3}{R}{R}",
+   "manaValue": 5.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Choose target creature you control. Turn it face up if it's face down. Then it deals damage equal to its power to each other creature.",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ]
+  },
+  {
+   "name": "Tesak, Judith's Hellhound",
+   "count": 1,
+   "manaCost": "{3}{R}",
+   "manaValue": 4.0,
+   "type": "Legendary Creature \u2014 Elemental Dog",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Elemental",
+    "Dog"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Unleash (You may have this creature enter with a +1/+1 counter on it. It can't block as long as it has a +1/+1 counter on it.)\nOther Dogs you control have unleash.\nCreatures you control with counters on them have haste.\nWhenever Tesak attacks, add {R} for each attacking creature.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Unleash"
+   ]
+  },
+  {
+   "name": "Experiment Twelve",
+   "count": 1,
+   "manaCost": "{3}{G}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Elf Lizard Warrior",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Elf",
+    "Lizard",
+    "Warrior"
+   ],
+   "supertypes": [],
+   "text": "Trample\nWhenever this creature or another creature you control is turned face up, put +1/+1 counters on that creature equal to its power.\nDisguise {4}{G} (You may cast this card face down for {3} as a 2/2 creature with ward {2}. Turn it face up any time for its disguise cost.)",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Disguise",
+    "Trample"
+   ]
+  },
+  {
+   "name": "Printlifter Ooze",
+   "count": 1,
+   "manaCost": "{1}{G}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Ooze",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Ooze"
+   ],
+   "supertypes": [],
+   "text": "Deathtouch\nWhenever this creature or another creature you control is turned face up, create a 0/0 green Ooze creature token with trample. The token enters with X +1/+1 counters on it, where X is the number of other creatures you control.\nDisguise {3}{G}",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Deathtouch",
+    "Disguise"
+   ]
+  },
+  {
+   "name": "Panoptic Projektor",
+   "count": 1,
+   "manaCost": "{4}",
+   "manaValue": 4.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: The next face-down creature spell you cast this turn costs {3} less to cast.\nIf turning a face-down permanent face up causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time.",
+   "colors": [],
+   "colorIdentity": []
+  },
+  {
+   "name": "Ransom Note",
+   "count": 1,
+   "manaCost": "{1}",
+   "manaValue": 1.0,
+   "type": "Artifact \u2014 Clue",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [
+    "Clue"
+   ],
+   "supertypes": [],
+   "text": "When this artifact enters, surveil 1.\n{2}, Sacrifice this artifact: Choose one \u2014\n\u2022 Cloak the top card of your library.\n\u2022 Goad target creature.\n\u2022 Draw a card.",
+   "colors": [],
+   "colorIdentity": [],
+   "keywords": [
+    "Cloak",
+    "Goad",
+    "Surveil"
+   ]
+  },
+  {
+   "name": "Ugin's Mastery",
+   "count": 1,
+   "manaCost": "{4}",
+   "manaValue": 4.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever you cast a colorless creature spell, manifest the top card of your library. (Put it onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)\nWhenever you attack with creatures with total power 6 or greater, you may turn a face-down creature you control face up.",
+   "colors": [],
+   "colorIdentity": [],
+   "keywords": [
+    "Manifest"
+   ]
+  },
+  {
+   "name": "Austere Command",
+   "count": 1,
+   "manaCost": "{4}{W}{W}",
+   "manaValue": 6.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Choose two \u2014\n\u2022 Destroy all artifacts.\n\u2022 Destroy all enchantments.\n\u2022 Destroy all creatures with mana value 3 or less.\n\u2022 Destroy all creatures with mana value 4 or greater.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ]
+  },
+  {
+   "name": "Dusk // Dawn",
+   "count": 1,
+   "manaCost": "{2}{W}{W}",
+   "manaValue": 9.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy all creatures with power 3 or greater.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Aftermath"
+   ]
+  },
+  {
+   "name": "Exalted Angel",
+   "count": 1,
+   "manaCost": "{4}{W}{W}",
+   "manaValue": 6.0,
+   "type": "Creature \u2014 Angel",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Angel"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhenever this creature deals damage, you gain that much life.\nMorph {2}{W}{W} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)",
+   "power": "4",
+   "toughness": "5",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Flying",
+    "Morph"
+   ]
+  },
+  {
+   "name": "Fell the Mighty",
+   "count": 1,
+   "manaCost": "{4}{W}",
+   "manaValue": 5.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy all creatures with power greater than target creature's power.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ]
+  },
+  {
+   "name": "Hidden Dragonslayer",
+   "count": 1,
+   "manaCost": "{1}{W}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Human Warrior",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Warrior"
+   ],
+   "supertypes": [],
+   "text": "Lifelink\nMegamorph {2}{W} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its megamorph cost and put a +1/+1 counter on it.)\nWhen this creature is turned face up, destroy target creature with power 4 or greater an opponent controls.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Lifelink",
+    "Megamorph"
+   ]
+  },
+  {
+   "name": "Master of Pearls",
+   "count": 1,
+   "manaCost": "{1}{W}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Human Monk",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Monk"
+   ],
+   "supertypes": [],
+   "text": "Morph {3}{W}{W} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, creatures you control get +2/+2 until end of turn.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Morph"
+   ]
+  },
+  {
+   "name": "Mastery of the Unseen",
+   "count": 1,
+   "manaCost": "{1}{W}",
+   "manaValue": 2.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever a permanent you control is turned face up, you gain 1 life for each creature you control.\n{3}{W}: Manifest the top card of your library. (Put it onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Manifest"
+   ]
+  },
+  {
+   "name": "Mirror Entity",
+   "count": 1,
+   "manaCost": "{2}{W}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Shapeshifter",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Shapeshifter"
+   ],
+   "supertypes": [],
+   "text": "Changeling (This card is every creature type.)\n{X}: Until end of turn, creatures you control have base power and toughness X/X and gain all creature types.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Changeling"
+   ]
+  },
+  {
+   "name": "Welcoming Vampire",
+   "count": 1,
+   "manaCost": "{2}{W}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Vampire",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Vampire"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhenever one or more other creatures you control with power 2 or less enter, draw a card. This ability triggers only once each turn.",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Flying"
+   ]
+  },
+  {
+   "name": "Akroma, Angel of Fury",
+   "count": 1,
+   "manaCost": "{5}{R}{R}{R}",
+   "manaValue": 8.0,
+   "type": "Legendary Creature \u2014 Angel",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Angel"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "This spell can't be countered.\nFlying, trample, protection from white and from blue\n{R}: Akroma gets +1/+0 until end of turn.\nMorph {3}{R}{R}{R} (You may cast this card face down as a 2/2 creature for {3}. Turn her face up any time for her morph cost.)",
+   "power": "6",
+   "toughness": "6",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Flying",
+    "Morph",
+    "Protection",
+    "Trample"
+   ]
+  },
+  {
+   "name": "Ashcloud Phoenix",
+   "count": 1,
+   "manaCost": "{2}{R}{R}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Phoenix",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Phoenix"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhen this creature dies, return it to the battlefield face down under your control.\nMorph {4}{R}{R} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, it deals 2 damage to each player.",
+   "power": "4",
+   "toughness": "1",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Flying",
+    "Morph"
+   ]
+  },
+  {
+   "name": "Chaos Warp",
+   "count": 1,
+   "manaCost": "{2}{R}",
+   "manaValue": 3.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "The owner of target permanent shuffles it into their library, then reveals the top card of their library. If it's a permanent card, they put it onto the battlefield.",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ]
+  },
+  {
+   "name": "Imperial Hellkite",
+   "count": 1,
+   "manaCost": "{5}{R}{R}",
+   "manaValue": 7.0,
+   "type": "Creature \u2014 Dragon",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Dragon"
+   ],
+   "supertypes": [],
+   "text": "Flying\nMorph {6}{R}{R} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, you may search your library for a Dragon card, reveal it, put it into your hand, then shuffle.",
+   "power": "6",
+   "toughness": "6",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Flying",
+    "Morph"
+   ]
+  },
+  {
+   "name": "Jeska's Will",
+   "count": 1,
+   "manaCost": "{2}{R}",
+   "manaValue": 3.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Choose one. If you control a commander as you cast this spell, you may choose both instead.\n\u2022 Add {R} for each card in target opponent's hand.\n\u2022 Exile the top three cards of your library. You may play them this turn.",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ]
+  },
+  {
+   "name": "Neheb, the Eternal",
+   "count": 1,
+   "manaCost": "{3}{R}{R}",
+   "manaValue": 5.0,
+   "type": "Legendary Creature \u2014 Zombie Minotaur Warrior",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Zombie",
+    "Minotaur",
+    "Warrior"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Afflict 3 (Whenever this creature becomes blocked, defending player loses 3 life.)\nAt the beginning of each of your postcombat main phases, add {R} for each 1 life your opponents have lost this turn.",
+   "power": "4",
+   "toughness": "6",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Afflict"
+   ]
+  },
+  {
+   "name": "Scourge of the Throne",
+   "count": 1,
+   "manaCost": "{4}{R}{R}",
+   "manaValue": 6.0,
+   "type": "Creature \u2014 Dragon",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Dragon"
+   ],
+   "supertypes": [],
+   "text": "Flying\nDethrone (Whenever this creature attacks the player with the most life or tied for most life, put a +1/+1 counter on it.)\nWhenever this creature attacks for the first time each turn, if it's attacking the player with the most life or tied for most life, untap all attacking creatures. After this phase, there is an additional combat phase.",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Dethrone",
+    "Flying"
+   ]
+  },
+  {
+   "name": "Beast Whisperer",
+   "count": 1,
+   "manaCost": "{2}{G}{G}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Elf Druid",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Elf",
+    "Druid"
+   ],
+   "supertypes": [],
+   "text": "Whenever you cast a creature spell, draw a card.",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ]
+  },
+  {
+   "name": "Deathmist Raptor",
+   "count": 1,
+   "manaCost": "{1}{G}{G}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Dinosaur Beast",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Dinosaur",
+    "Beast"
+   ],
+   "supertypes": [],
+   "text": "Deathtouch\nWhenever a permanent you control is turned face up, you may return this card from your graveyard to the battlefield face up or face down.\nMegamorph {4}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its megamorph cost and put a +1/+1 counter on it.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Deathtouch",
+    "Megamorph"
+   ]
+  },
+  {
+   "name": "Den Protector",
+   "count": 1,
+   "manaCost": "{1}{G}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Human Warrior",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Warrior"
+   ],
+   "supertypes": [],
+   "text": "Creatures with power less than this creature's power can't block it.\nMegamorph {1}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its megamorph cost and put a +1/+1 counter on it.)\nWhen this creature is turned face up, return target card from your graveyard to your hand.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Megamorph"
+   ]
+  },
+  {
+   "name": "Hooded Hydra",
+   "count": 1,
+   "manaCost": "{X}{G}{G}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Snake Hydra",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Snake",
+    "Hydra"
+   ],
+   "supertypes": [],
+   "text": "This creature enters with X +1/+1 counters on it.\nWhen this creature dies, create a 1/1 green Snake creature token for each +1/+1 counter on it.\nMorph {3}{G}{G}\nAs this creature is turned face up, put five +1/+1 counters on it.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Morph"
+   ]
+  },
+  {
+   "name": "Krosan Cloudscraper",
+   "count": 1,
+   "manaCost": "{7}{G}{G}{G}",
+   "manaValue": 10.0,
+   "type": "Creature \u2014 Beast Mutant",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Beast",
+    "Mutant"
+   ],
+   "supertypes": [],
+   "text": "At the beginning of your upkeep, sacrifice this creature unless you pay {G}{G}.\nMorph {7}{G}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)",
+   "power": "13",
+   "toughness": "13",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Morph"
+   ]
+  },
+  {
+   "name": "Krosan Colossus",
+   "count": 1,
+   "manaCost": "{6}{G}{G}{G}",
+   "manaValue": 9.0,
+   "type": "Creature \u2014 Beast",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Beast"
+   ],
+   "supertypes": [],
+   "text": "Morph {6}{G}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)",
+   "power": "9",
+   "toughness": "9",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Morph"
+   ]
+  },
+  {
+   "name": "Obscuring Aether",
+   "count": 1,
+   "manaCost": "{G}",
+   "manaValue": 1.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Face-down creature spells you cast cost {1} less to cast.\n{1}{G}: Turn this enchantment face down. (It becomes a 2/2 creature.)",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ]
+  },
+  {
+   "name": "Ohran Frostfang",
+   "count": 1,
+   "manaCost": "{3}{G}{G}",
+   "manaValue": 5.0,
+   "type": "Snow Creature \u2014 Snake",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Snake"
+   ],
+   "supertypes": [
+    "Snow"
+   ],
+   "text": "Attacking creatures you control have deathtouch.\nWhenever a creature you control deals combat damage to a player, draw a card.",
+   "power": "2",
+   "toughness": "6",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ]
+  },
+  {
+   "name": "Return of the Wildspeaker",
+   "count": 1,
+   "manaCost": "{4}{G}",
+   "manaValue": 5.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Choose one \u2014\n\u2022 Draw cards equal to the greatest power among non-Human creatures you control.\n\u2022 Non-Human creatures you control get +3/+3 until end of turn.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ]
+  },
+  {
+   "name": "Root Elemental",
+   "count": 1,
+   "manaCost": "{4}{G}{G}",
+   "manaValue": 6.0,
+   "type": "Creature \u2014 Elemental",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Elemental"
+   ],
+   "supertypes": [],
+   "text": "Morph {5}{G}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, you may put a creature card from your hand onto the battlefield.",
+   "power": "6",
+   "toughness": "5",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Morph"
+   ]
+  },
+  {
+   "name": "Saryth, the Viper's Fang",
+   "count": 1,
+   "manaCost": "{2}{G}{G}",
+   "manaValue": 4.0,
+   "type": "Legendary Creature \u2014 Human Warlock",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Warlock"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Other tapped creatures you control have deathtouch.\nOther untapped creatures you control have hexproof.\n{1}, {T}: Untap another target creature or land you control.",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ]
+  },
+  {
+   "name": "Seedborn Muse",
+   "count": 1,
+   "manaCost": "{3}{G}{G}",
+   "manaValue": 5.0,
+   "type": "Creature \u2014 Spirit",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Spirit"
+   ],
+   "supertypes": [],
+   "text": "Untap all permanents you control during each other player's untap step.",
+   "power": "2",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ]
+  },
+  {
+   "name": "Temur War Shaman",
+   "count": 1,
+   "manaCost": "{4}{G}{G}",
+   "manaValue": 6.0,
+   "type": "Creature \u2014 Human Shaman",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Shaman"
+   ],
+   "supertypes": [],
+   "text": "When this creature enters, manifest the top card of your library. (Put that card onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)\nWhenever a permanent you control is turned face up, if it's a creature, you may have it fight target creature you don't control.",
+   "power": "4",
+   "toughness": "5",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Fight",
+    "Manifest"
+   ]
+  },
+  {
+   "name": "Thelonite Hermit",
+   "count": 1,
+   "manaCost": "{3}{G}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Elf Shaman",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Elf",
+    "Shaman"
+   ],
+   "supertypes": [],
+   "text": "All Saprolings get +1/+1.\nMorph {3}{G}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, create four 1/1 green Saproling creature tokens.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Morph"
+   ]
+  },
+  {
+   "name": "Toski, Bearer of Secrets",
+   "count": 1,
+   "manaCost": "{3}{G}",
+   "manaValue": 4.0,
+   "type": "Legendary Creature \u2014 Squirrel",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Squirrel"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "This spell can't be countered.\nIndestructible\nToski attacks each combat if able.\nWhenever a creature you control deals combat damage to a player, draw a card.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Indestructible"
+   ]
+  },
+  {
+   "name": "Trail of Mystery",
+   "count": 1,
+   "manaCost": "{1}{G}",
+   "manaValue": 2.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever a face-down creature you control enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.\nWhenever a permanent you control is turned face up, if it's a creature, it gets +2/+2 until end of turn.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ]
+  },
+  {
+   "name": "Whisperwood Elemental",
+   "count": 1,
+   "manaCost": "{3}{G}{G}",
+   "manaValue": 5.0,
+   "type": "Creature \u2014 Elemental",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Elemental"
+   ],
+   "supertypes": [],
+   "text": "At the beginning of your end step, manifest the top card of your library. (Put it onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)\nSacrifice this creature: Until end of turn, face-up nontoken creatures you control gain \"When this creature dies, manifest the top card of your library.\"",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Manifest"
+   ]
+  },
+  {
+   "name": "Yedora, Grave Gardener",
+   "count": 1,
+   "manaCost": "{4}{G}",
+   "manaValue": 5.0,
+   "type": "Legendary Creature \u2014 Treefolk Druid",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Treefolk",
+    "Druid"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Whenever another nontoken creature you control dies, you may return it to the battlefield face down under its owner's control. It's a Forest land. (It has no other types or abilities.)",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ]
+  },
+  {
+   "name": "Decimate",
+   "count": 1,
+   "manaCost": "{2}{R}{G}",
+   "manaValue": 4.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy target artifact, target creature, target enchantment, and target land. (You can't cast this spell unless you have legal choices for all its targets.)",
+   "colors": [
+    "G",
+    "R"
+   ],
+   "colorIdentity": [
+    "G",
+    "R"
+   ]
+  },
+  {
+   "name": "Sidar Kondo of Jamuraa",
+   "count": 1,
+   "manaCost": "{2}{G}{W}",
+   "manaValue": 4.0,
+   "type": "Legendary Creature \u2014 Human Knight",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Knight"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Flanking (Whenever a creature without flanking blocks this creature, the blocking creature gets -1/-1 until end of turn.)\nCreatures your opponents control without flying or reach can't block creatures with power 2 or less.\nPartner (You can have two commanders if both have partner.)",
+   "power": "2",
+   "toughness": "5",
+   "colors": [
+    "G",
+    "W"
+   ],
+   "colorIdentity": [
+    "G",
+    "W"
+   ],
+   "keywords": [
+    "Flanking",
+    "Partner"
+   ]
+  },
+  {
+   "name": "Lifecrafter's Bestiary",
+   "count": 1,
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "At the beginning of your upkeep, scry 1.\nWhenever you cast a creature spell, you may pay {G}. If you do, draw a card.",
+   "colors": [],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "name": "Scroll of Fate",
+   "count": 1,
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Manifest a card from your hand. (Put that card onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)",
+   "colors": [],
+   "colorIdentity": [],
+   "keywords": [
+    "Manifest"
+   ]
+  },
+  {
+   "name": "Canopy Vista",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land \u2014 Forest Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Forest",
+    "Plains"
+   ],
+   "supertypes": [],
+   "text": "({T}: Add {G} or {W}.)\nThis land enters tapped unless you control two or more basic lands.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Cinder Glade",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land \u2014 Mountain Forest",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Mountain",
+    "Forest"
+   ],
+   "supertypes": [],
+   "text": "({T}: Add {R} or {G}.)\nThis land enters tapped unless you control two or more basic lands.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "R"
+   ]
+  },
+  {
+   "name": "Exotic Orchard",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color that a land an opponent controls could produce.",
+   "colors": [],
+   "colorIdentity": []
+  },
+  {
+   "name": "Fortified Village",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "As this land enters, you may reveal a Forest or Plains card from your hand. If you don't, this land enters tapped.\n{T}: Add {G} or {W}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Furycalm Snarl",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "As this land enters, you may reveal a Mountain or Plains card from your hand. If you don't, this land enters tapped.\n{T}: Add {R} or {W}.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "W"
+   ]
+  },
+  {
+   "name": "Game Trail",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "As this land enters, you may reveal a Mountain or Forest card from your hand. If you don't, this land enters tapped.\n{T}: Add {R} or {G}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "R"
+   ]
+  },
+  {
+   "name": "Kessig Wolf Run",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{X}{R}{G}, {T}: Target creature gets +X/+0 and gains trample until end of turn.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "R"
+   ]
+  },
+  {
+   "name": "Mossfire Valley",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{1}, {T}: Add {R}{G}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "R"
+   ]
+  },
+  {
+   "name": "Mosswort Bridge",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Hideaway 4 (When this land enters, look at the top four cards of your library, exile one face down, then put the rest on the bottom in a random order.)\nThis land enters tapped.\n{T}: Add {G}.\n{G}, {T}: You may play the exiled card without paying its mana cost if creatures you control have total power 10 or greater.",
+   "colors": [],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Hideaway"
+   ]
+  },
+  {
+   "name": "Scattered Groves",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land \u2014 Forest Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Forest",
+    "Plains"
+   ],
+   "supertypes": [],
+   "text": "({T}: Add {G} or {W}.)\nThis land enters tapped.\nCycling {2} ({2}, Discard this card: Draw a card.)",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "W"
+   ],
+   "keywords": [
+    "Cycling"
+   ]
+  },
+  {
+   "name": "Sheltered Thicket",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land \u2014 Mountain Forest",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Mountain",
+    "Forest"
+   ],
+   "supertypes": [],
+   "text": "({T}: Add {R} or {G}.)\nThis land enters tapped.\nCycling {2} ({2}, Discard this card: Draw a card.)",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "R"
+   ],
+   "keywords": [
+    "Cycling"
+   ]
+  },
+  {
+   "name": "Shrine of the Forsaken Gods",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{T}: Add {C}{C}. Spend this mana only to cast colorless spells. Activate only if you control seven or more lands.",
+   "colors": [],
+   "colorIdentity": []
+  },
+  {
+   "name": "Sungrass Prairie",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{1}, {T}: Add {G}{W}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Temple of Abandon",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {R} or {G}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "R"
+   ],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "name": "Temple of Plenty",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {G} or {W}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "W"
+   ],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "name": "Temple of Triumph",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {R} or {W}.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "name": "Path to Exile",
+   "count": 1,
+   "manaCost": "{W}",
+   "manaValue": 1.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Exile target creature. Its controller may search their library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ]
+  },
+  {
+   "name": "Ainok Survivalist",
+   "count": 1,
+   "manaCost": "{1}{G}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Dog Shaman",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Dog",
+    "Shaman"
+   ],
+   "supertypes": [],
+   "text": "Megamorph {1}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its megamorph cost and put a +1/+1 counter on it.)\nWhen this creature is turned face up, destroy target artifact or enchantment an opponent controls.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Megamorph"
+   ]
+  },
+  {
+   "name": "Broodhatch Nantuko",
+   "count": 1,
+   "manaCost": "{1}{G}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Insect Druid",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Insect",
+    "Druid"
+   ],
+   "supertypes": [],
+   "text": "Whenever this creature is dealt damage, you may create that many 1/1 green Insect creature tokens.\nMorph {2}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Morph"
+   ]
+  },
+  {
+   "name": "Nervous Gardener",
+   "count": 1,
+   "manaCost": "{1}{G}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Dryad",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Dryad"
+   ],
+   "supertypes": [],
+   "text": "Disguise {G} (You may cast this card face down for {3} as a 2/2 creature with ward {2}. Turn it face up any time for its disguise cost.)\nWhen this creature is turned face up, search your library for a land card with a basic land type, reveal it, put it into your hand, then shuffle.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Disguise"
+   ]
+  },
+  {
+   "name": "Nantuko Vigilante",
+   "count": 1,
+   "manaCost": "{3}{G}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Insect Druid Mutant",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Insect",
+    "Druid",
+    "Mutant"
+   ],
+   "supertypes": [],
+   "text": "Morph {1}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)\nWhen this creature is turned face up, destroy target artifact or enchantment.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Morph"
+   ]
+  },
+  {
+   "name": "Nature's Lore",
+   "count": 1,
+   "manaCost": "{1}{G}",
+   "manaValue": 2.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Search your library for a Forest card, put that card onto the battlefield, then shuffle.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ]
+  },
+  {
+   "name": "Sakura-Tribe Elder",
+   "count": 1,
+   "manaCost": "{1}{G}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Snake Shaman",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Snake",
+    "Shaman"
+   ],
+   "supertypes": [],
+   "text": "Sacrifice this creature: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ]
+  },
+  {
+   "name": "Salt Road Ambushers",
+   "count": 1,
+   "manaCost": "{3}{G}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Dog Warrior",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Dog",
+    "Warrior"
+   ],
+   "supertypes": [],
+   "text": "Whenever another permanent you control is turned face up, if it's a creature, put two +1/+1 counters on it.\nMegamorph {3}{G}{G} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its megamorph cost and put a +1/+1 counter on it.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Megamorph"
+   ]
+  },
+  {
+   "name": "Three Visits",
+   "count": 1,
+   "manaCost": "{1}{G}",
+   "manaValue": 2.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Search your library for a Forest card, put it onto the battlefield, then shuffle.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ]
+  },
+  {
+   "name": "Wild Growth",
+   "count": 1,
+   "manaCost": "{G}",
+   "manaValue": 1.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional {G}.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Enchant"
+   ]
+  },
+  {
+   "name": "Arcane Signet",
+   "count": 1,
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color in your commander's color identity.",
+   "colors": [],
+   "colorIdentity": []
+  },
+  {
+   "name": "Sol Ring",
+   "count": 1,
+   "manaCost": "{1}",
+   "manaValue": 1.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}{C}.",
+   "colors": [],
+   "colorIdentity": []
+  },
+  {
+   "name": "Boros Garrison",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {R}{W}.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "W"
+   ]
+  },
+  {
+   "name": "Command Tower",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color in your commander's color identity.",
+   "colors": [],
+   "colorIdentity": []
+  },
+  {
+   "name": "Branch of Vitu-Ghazi",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\nDisguise {3} (You may cast this card face down for {3} as a 2/2 creature with ward {2}. Turn it face up any time for its disguise cost.)\nWhen this land is turned face up, add two mana of any one color. Until end of turn, you don't lose this mana as steps and phases end.",
+   "colors": [],
+   "colorIdentity": [],
+   "keywords": [
+    "Disguise"
+   ]
+  },
+  {
+   "name": "Gruul Turf",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {R}{G}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "R"
+   ]
+  },
+  {
+   "name": "Jungle Shrine",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {R}, {G}, or {W}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "R",
+    "W"
+   ]
+  },
+  {
+   "name": "Krosan Verge",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Search your library for a Forest card and a Plains card, put them onto the battlefield tapped, then shuffle.",
+   "colors": [],
+   "colorIdentity": []
+  },
+  {
+   "name": "Sacred Peaks",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land \u2014 Mountain Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Mountain",
+    "Plains"
+   ],
+   "supertypes": [],
+   "text": "({T}: Add {R} or {W}.)\nThis land enters tapped.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "W"
+   ]
+  },
+  {
+   "name": "Selesnya Sanctuary",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {G}{W}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "W"
+   ]
+  },
+  {
+   "name": "Temple of the False God",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}{C}. Activate only if you control five or more lands.",
+   "colors": [],
+   "colorIdentity": []
+  },
+  {
+   "name": "Zoetic Cavern",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\nMorph {2} (You may cast this card face down as a 2/2 creature for {3}. Turn it face up any time for its morph cost.)",
+   "colors": [],
+   "colorIdentity": [],
+   "keywords": [
+    "Morph"
+   ]
+  },
+  {
+   "name": "Plains",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Plains"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {W}.)",
+   "colors": [],
+   "colorIdentity": [
+    "W"
+   ]
+  },
+  {
+   "name": "Plains",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Plains"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {W}.)",
+   "colors": [],
+   "colorIdentity": [
+    "W"
+   ]
+  },
+  {
+   "name": "Mountain",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Mountain",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Mountain"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {R}.)",
+   "colors": [],
+   "colorIdentity": [
+    "R"
+   ]
+  },
+  {
+   "name": "Mountain",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Mountain",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Mountain"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {R}.)",
+   "colors": [],
+   "colorIdentity": [
+    "R"
+   ]
+  },
+  {
+   "name": "Forest",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Forest",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Forest"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {G}.)",
+   "colors": [],
+   "colorIdentity": [
+    "G"
+   ]
+  },
+  {
+   "name": "Forest",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Forest",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Forest"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {G}.)",
+   "colors": [],
+   "colorIdentity": [
+    "G"
+   ]
+  }
+ ]
+}

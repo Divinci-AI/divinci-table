@@ -28,7 +28,15 @@ API = "https://api.divinci.app"
 # The release ID is account-specific: FUSION_RELEASE_ID, or table/.cache/fusion.json {"release_id": …}
 # (gitignored). See docs/fusion-player.md for how to make your own release.
 _CFG = Path(__file__).parent / ".cache" / "fusion.json"
-RELEASE_ID = os.environ.get("FUSION_RELEASE_ID") or (json.loads(_CFG.read_text()).get("release_id") if _CFG.exists() else "")
+_CONF = json.loads(_CFG.read_text()) if _CFG.exists() else {}
+RELEASE_ID = os.environ.get("FUSION_RELEASE_ID") or _CONF.get("release_id", "")
+
+
+def release_for(commander: str | None) -> str:
+    """One release per deck (its RAG holds that deck's cards and strategy): fusion.json "releases"
+    maps commander → release; FUSION_RELEASE_ID overrides; else the default release_id."""
+    return (os.environ.get("FUSION_RELEASE_ID") or (_CONF.get("releases") or {}).get(commander or "")
+            or _CONF.get("release_id", ""))
 HERE = Path(__file__).parent
 
 
@@ -67,10 +75,10 @@ class Table:
         return self._req("GET", f"/api/events?since={since}", brain=False)[1]
 
 
-def ask(prompt: str, dry: bool) -> dict:
+def ask(prompt: str, dry: bool, release: str | None = None) -> dict:
     if dry:
         return {"choice": 1, "say": ""}
-    body = json.dumps({"messages": [{"role": "user", "content": prompt}], "releaseId": RELEASE_ID}).encode()
+    body = json.dumps({"messages": [{"role": "user", "content": prompt}], "releaseId": release or RELEASE_ID}).encode()
     req = urllib.request.Request(API + "/api/v1/chat/completions", data=body, method="POST", headers={
         "Authorization": "Bearer " + os.environ["DIVINCI_FUSION_API_KEY"], "Content-Type": "application/json"})
     t0 = time.time()
@@ -96,9 +104,11 @@ def ask(prompt: str, dry: bool) -> dict:
 def state_for_prompt(s: dict) -> dict:
     """What the model needs, compact. The hand is private but this call is server-to-Divinci only."""
     return {"you": s.get("name"), "turn": s.get("turn"), "life": s.get("life_table"),
-            "hand": [{k: h[k] for k in ("name", "cost", "type", "text", "pt", "castable_now", "land")} for h in s.get("hand", [])],
+            "hand": [{k: h.get(k) for k in ("name", "cost", "type", "text", "pt", "castable_now", "land",
+                                            "face_down_castable", "face_up_cost")} for h in s.get("hand", [])],
             "commander": s.get("commander_card"), "commander_in_zone": s.get("commander_in_zone"),
-            "your_permanents": [{k: p[k] for k in ("id", "name", "pt", "tapped", "sick", "role", "attached_to")}
+            "your_permanents": [{k: p.get(k) for k in ("id", "name", "pt", "tapped", "sick", "role", "attached_to",
+                                                       "face_down", "turn_up_cost")}
                                 for p in s.get("permanents", []) if "Land" not in (p.get("type") or "")],
             "lands": sum(1 for p in s.get("permanents", []) if "Land" in (p.get("type") or "")),
             "untapped_mana": s.get("untapped_mana"), "graveyard": s.get("graveyard"),
@@ -109,7 +119,7 @@ def choose(state: dict, options: list[tuple[str, dict]], question: str, dry: boo
     """options: [(label, {"action":..., **body})]. Returns the chosen option's body and the line to say."""
     prompt = ("STATE:\n" + json.dumps(state_for_prompt(state), separators=(",", ":")) + "\nOPTIONS:\n"
               + "\n".join(f"{i + 1}. {lab}" for i, (lab, _) in enumerate(options)) + f"\n{question}")
-    r = ask(prompt, dry)
+    r = ask(prompt, dry, release_for(state.get("commander")))
     try:
         i = int(r.get("choice", 1)) - 1
     except (TypeError, ValueError):
@@ -135,6 +145,8 @@ def play_turn(t: Table, dry: bool):
         for h in s.get("hand", []):
             if h["land"] or not h["castable_now"]:
                 continue
+            if "{X}" in (h.get("cost") or "") and "Creature" in (h.get("type") or ""):
+                continue                                   # X = 0 would be a 0/0 (Hooded Hydra: cast it face down)
             raw = next((x for x in s["hand"] if x["name"] == h["name"]), {})
             targets = (raw.get("aura_targets") or [])
             for tgt in (targets[:3] if targets else [None]):
@@ -143,6 +155,14 @@ def play_turn(t: Table, dry: bool):
                     opts.append((f'cast "{h["name"]}" on {tgt}', {"action": "cast", "name": h["name"], "on": ref}))
                 elif not targets:
                     opts.append((f'cast "{h["name"]}"', {"action": "cast", "name": h["name"]}))
+        for h in s.get("hand", []):
+            if h.get("face_down_castable"):
+                opts.append((f'cast "{h["name"]}" FACE DOWN for {{3}} (turn up later: {h["face_up_cost"]})',
+                             {"action": "cast", "name": h["name"], "face_down": True}))
+        for pm in s.get("permanents", []):
+            if pm.get("face_down") and pm.get("turn_up_cost"):
+                opts.append((f'turn face-down #{pm["id"]} ({pm["name"]}) face up for {pm["turn_up_cost"]}',
+                             {"action": "turn-up", "ref": f'#{pm["id"]}'}))
         cc = s.get("commander_card") or {}
         if s.get("commander_in_zone") and cc.get("castable_now"):
             opts.append((f'cast your commander {cc["name"]}', {"action": "cast", "name": "commander", "commander": True}))
@@ -153,7 +173,7 @@ def play_turn(t: Table, dry: bool):
         if pick["action"] == "stop":
             break
         body = {k: v for k, v in pick.items() if k != "action"}
-        ok, _ = t.act("cast", **body)
+        ok, _ = t.act(pick["action"], **body)
         say(t, line)
         if not ok:
             break
@@ -171,9 +191,25 @@ def play_turn(t: Table, dry: bool):
             ok, _ = t.act("attack", assign={f"#{i}": pick["who"] for i in pick["ids"]})
             say(t, line)
             attackers = [(f"#{i}", pick["who"]) for i in pick["ids"]] if ok else []
+            if ok:
+                kaust_flip(t, pick["ids"])
     if attackers:
         resolve_combat(t, attackers)
     t.act("end", text="That's my turn.")
+
+
+def kaust_flip(t: Table, attacking_ids):
+    """Kaust, Eyes of the Glade: {T}: turn target face-down ATTACKING creature you control face up.
+    Code picks the face-down attacker whose real card is biggest (the model already chose to attack)."""
+    s = t.state()
+    kaust = next((p for p in s.get("permanents", []) if p["name"].startswith("Kaust") and not p["tapped"]
+                  and not p.get("face_down")), None)
+    downs = [p for p in s.get("permanents", []) if p.get("face_down") and p["id"] in attacking_ids]
+    if not kaust or not downs:
+        return
+    best = max(downs, key=lambda p: p["id"])            # latest cast: usually the biggest threat
+    t.act("tap", ref=f'#{kaust["id"]}', announce=True)
+    t.act("turn-up", ref=f'#{best["id"]}', free=True)
 
 
 def resolve_combat(t: Table, attackers, wait=25):
@@ -243,8 +279,9 @@ def main():
         sys.exit("DIVINCI_FUSION_API_KEY isn't set: run under infisical run (see the docstring), or --dry")
     t = Table(a.url, a.seat, Path(a.token_file))
     since = t.events("latest").get("last", 0)
-    print(f"Fusion brain on seat {a.seat} — release {RELEASE_ID}{' (DRY)' if a.dry else ''}; watching from #{since}",
-          flush=True)
+    decks = ", ".join(f"{k.split(',')[0]}→{v[-6:]}" for k, v in (_CONF.get("releases") or {}).items()) or RELEASE_ID[-6:]
+    print(f"Fusion brain on seat {a.seat} — releases by commander: {decks}{' (DRY)' if a.dry else ''}; "
+          f"watching from #{since}", flush=True)
     held = False
     while True:
         try:

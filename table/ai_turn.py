@@ -130,7 +130,7 @@ def take_turn(p: VirtualPlayer, humans: list[dict], public_board: list[str]) -> 
                 fake.id = c.id
                 said += p.enter_effects(fake, choose_target)
         total = sum(p.stats(c)[0] for c in cs)
-        said.append(f"I attack {who} with " + _and([c.name for c in cs]) + f", {total} damage.")
+        said.append(f"I attack {who} with " + _and([p.shown(c) for c in cs]) + f", {total} damage.")
     if not assigned and attackers:
         said.append("No attacks this turn.")
     said.append("That's my turn.")
@@ -182,7 +182,7 @@ def resolve_block(p: VirtualPlayer, choice, amount: int, trample: bool, attacker
         said.append(f"No blocks. I take {amount}; I'm at {p.life}.")
         return {"said": said, "blocker": None, "life": p.life}
     pw, tg = p.stats(choice)
-    said.append(f"I block {who} with {choice.name}.")
+    said.append(f"I block {who} with {p.shown(choice)}.")
     import oracle
     try:
         atk_tough = int((oracle.card(attacker) or {}).get("toughness")) if attacker else None
@@ -191,14 +191,14 @@ def resolve_block(p: VirtualPlayer, choice, amount: int, trample: bool, attacker
     through = max(0, amount - tg) if trample else 0
     if tg <= amount:
         p.move(f"#{choice.id}", "graveyard")
-        said.append(f"{choice.name} dies.")
+        said.append(f"{p.shown(choice)} dies.")
     if through:
         p.life -= through
         said.append(f"{through} tramples over; I'm at {p.life}.")
     died = None
     if pw and atk_tough is not None and pw >= atk_tough:
-        said.append(f"{choice.name} deals {pw} back — {who} dies.")
+        said.append(f"{p.shown(choice)} deals {pw} back — {who} dies.")
         died = attacker
     elif pw:
-        said.append(f"{choice.name} deals {pw} back.")
+        said.append(f"{p.shown(choice)} deals {pw} back.")
     return {"said": said, "blocker": choice.name, "life": p.life, "attacker_died": died}

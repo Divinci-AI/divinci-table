@@ -7,6 +7,7 @@
 # CLAUDE_DECK=…   Claude's deck (default decks/ellivere.json).
 # FUSION=1        a second AI seat, "Fusion": a Divinci release (RAG) that plays itself through
 #                 table/fusion_brain.py. FUSION_DECK=… picks its deck (default decks/ellivere.json).
+# FAIR_SEED=online  seal each AI deck with ANU quantum randomness + Cloudflare's drand (+ players' words).
 # LAN=1           players' phones can open http://<this Mac>:8800/me (public info only).
 # Claude (in Claude Code) follows the table with:  table/tablectl.py --seat Claude watch   — docs/claude-brain.md
 set -eu
@@ -24,10 +25,11 @@ if [ "${FUSION:-}" = 1 ]; then
   AIS+=(--ai "Fusion|$(commander "$FUSION_DECK")|Daniel" --ai-deck "$FUSION_DECK")
 fi
 HOST=(); [ "${LAN:-}" = 1 ] && HOST=(--host 0.0.0.0)
+FAIR=(--fair-seed "${FAIR_SEED:-local}")   # FAIR_SEED=online: ANU quantum + drand go into every AI deck's seal
 LOG=table/.cache/game-$(date +%Y%m%d-%H%M).log
 mkdir -p table/.cache
 env -u TYPESAFE_API_KEY ${MODELS[@]+"${MODELS[@]}"} HF_HUB_OFFLINE=1 HF_DEACTIVATE_ASYNC_LOAD=1 ~/.venvs/table/bin/python table/server.py \
-  --any-card --brain external "${AIS[@]}" "${HUMANS[@]}" ${HOST[@]+"${HOST[@]}"} --port 8800 > "$LOG" 2>&1 &
+  --any-card --brain external "${AIS[@]}" "${HUMANS[@]}" ${HOST[@]+"${HOST[@]}"} "${FAIR[@]}" --port 8800 > "$LOG" 2>&1 &
 for _ in $(seq 1 90); do grep -q -E "Gemma loaded|voices:|could not|Traceback" "$LOG" && break; sleep 1; done
 grep -E "AI players|Gemma|voices:|Traceback" "$LOG" || true
 if [ "${FUSION:-}" = 1 ]; then

@@ -5,6 +5,7 @@ rehearsed game. No server, no model — pure arithmetic, runs in a second.
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -291,6 +292,46 @@ v.topdeck(v.hand[0]["name"])
 check(v.peek(1)[0] != top or v.library[-1]["name"] == top, "topdeck puts a hand card on top")
 v.make_tokens("Zombie", 2, 2, n=13, tapped=True)
 check(len([x for x in v.battlefield if x.token and x.tapped]) == 13, "Army of the Damned: 13 tapped Zombies")
+
+print("\n15. Face-down cards (the Kaust deck, 2026-10-01)")
+KD = HERE.parent.parent / "decks" / "kaust.json"
+k = VirtualPlayer(str(KD), "Fusion", seed=2)
+k.library += k.hand
+k.hand = []
+def kc(n):
+    c = next(c for c in k.library + [k.commander] if c["name"] == n)
+    if c in k.library:
+        k.library.remove(c)
+    return c
+for n in ("Forest", "Forest", "Plains", "Plains", "Mountain", "Forest"):
+    k.battlefield.append(Perm(next(c for c in k.library if c["name"] == n), sick=False))
+k.hand.append(kc("Hidden Dragonslayer"))
+said = " ".join(k.cast_face_down("Hidden Dragonslayer"))
+fd = next(x for x in k.battlefield if x.face_down)
+pub = json.dumps(k.public())
+check("Dragonslayer" not in said and "Dragonslayer" not in pub, "cast face down: the table never hears or sees the name")
+check(k.stats(fd) == (2, 2) and "face-down 2/2" in k.describe(fd), "a face-down card is a nameless 2/2")
+check("Hidden Dragonslayer" in k.private_hand(), "…and the leak guard treats its name as hidden")
+fd.sick = False
+k.turn = 3
+atk = " ".join(k.manual_attack({f"#{fd.id}": "Sam"}))
+check("Dragonslayer" not in atk and "face-down" in atk, "attacking with it names it only as face-down")
+for x in k.battlefield:
+    x.tapped = False
+out = " ".join(k.turn_up(f"#{fd.id}"))
+check(not fd.face_down and fd.counters == 1 and "Hidden Dragonslayer" in out, "megamorph: turned up for {2}{W}, +1/+1 counter, name revealed")
+check(any("destroy target creature with power 4" in t for t in k.todo), "…its turned-up trigger goes to the brain's to-do")
+kaust = Perm(k.commander, sick=False)
+k.battlefield.append(kaust)
+n0 = len(k.hand)
+k.combat_damage({f"#{fd.id}": ("Sam", None)})
+check(len(k.hand) == n0 + 1, "Kaust: a creature turned face up this turn hits a player, draw a card")
+before = len([x for x in k.battlefield if x.face_down])
+k.manifest(1, cloak=True)
+cl = [x for x in k.battlefield if x.face_down]
+check(len(cl) == before + 1 and cl[-1].ward2, "cloak: the top card face down with ward 2")
+import fair
+check(json.loads(json.dumps(k.public())) and all(c.name not in json.dumps(k.public()) for c in cl), "cloaked card's name isn't public")
 
 print(f"\n{sum(results)}/{len(results)} engine checks passed")
 sys.exit(0 if all(results) else 1)
