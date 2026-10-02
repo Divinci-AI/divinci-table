@@ -107,6 +107,10 @@ def fmt_event(e):
         return f"[{t}] #{e['id']} SAID ({e['speaker']}): {e['text']}"
     if k == "life":
         return f"[{t}] #{e['id']} LIFE {e['player']} {e['delta']:+d} → {e['life']} (by {e['by']})"
+    if k == "captain":
+        return f"[{t}] #{e['id']} ⚓ {e.get('captain')} ({e.get('seat')}): {e.get('text')}"
+    if k == "phase":
+        return f"[{t}] #{e['id']} PHASE {e.get('player')} · {e.get('step')}"
     return f"[{t}] #{e['id']} {k.upper()}"
 
 

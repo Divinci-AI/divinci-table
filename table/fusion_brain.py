@@ -110,6 +110,43 @@ def ask(prompt: str, dry: bool, release: str | None = None) -> dict:
     return out if isinstance(out, dict) else {}
 
 
+# Small, frequent decisions (cast an instant in someone else's turn, or pass) go to a LOCAL decision
+# model when one is set, so they cost nothing: Ollama >= 0.35 serves decision models (tev1, nimble) on
+# /v1/systemone, which return a probability per option. The turn's real moves stay on the release.
+LOCAL_MODEL = os.environ.get("FUSION_LOCAL_MODEL", "")          # e.g. "tev1"; empty = everything on the release
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
+
+
+def local_choice(state: dict, options: list[tuple[str, dict]], question: str) -> tuple[dict, dict] | None:
+    """The option a local decision model prefers, with its probabilities — or None (not set / failed)."""
+    if not LOCAL_MODEL:
+        return None
+    crit = {str(i + 1): lab for i, (lab, _) in enumerate(options)}
+    body = {"model": LOCAL_MODEL, "keep_alive": "30m",
+            "state": json.dumps(state_for_prompt(state), separators=(",", ":")),
+            "questions": {"q": {"type": "choice", "instructions": question, "criteria": crit}}}
+    t0 = time.time()
+    try:
+        req = urllib.request.Request(OLLAMA_URL + "/v1/systemone", data=json.dumps(body).encode(),
+                                     headers={"Content-Type": "application/json"})
+        raw = urllib.request.urlopen(req, timeout=45).read().decode()
+        probs = json.loads(raw)["answers"]["q"]["probabilities"]
+        best = max(crit, key=lambda k: probs.get(k, 0.0))
+    except Exception as e:                                   # noqa: BLE001 — local model down: caller falls back
+        print(f"  ! local {LOCAL_MODEL} failed ({type(e).__name__}: {str(e)[:80]}); asking the release", flush=True)
+        return None
+    print(f"  ⏱ {LOCAL_MODEL} {time.time() - t0:.1f}s → {best} {({k: round(v, 2) for k, v in probs.items()})}", flush=True)
+    try:
+        logd = Path(__file__).parent / ".cache" / "research"
+        with open(logd / "fusion-decisions.jsonl", "a") as fh:
+            fh.write(json.dumps({"ts": round(time.time(), 2), "decider": LOCAL_MODEL, "question": question,
+                                 "options": crit, "probabilities": probs, "choice": best,
+                                 "latency_s": round(time.time() - t0, 2)}) + "\n")
+    except OSError:
+        pass
+    return options[int(best) - 1][1], probs
+
+
 def state_for_prompt(s: dict) -> dict:
     """What the model needs, compact. The hand is private but this call is server-to-Divinci only."""
     return {"you": s.get("name"), "turn": s.get("turn"), "life": s.get("life_table"),
@@ -277,7 +314,9 @@ def on_priority(t: Table, e: dict, dry: bool):
     opts = [("pass — keep my mana", {"action": "pass"})]
     opts += [(f"cast {h['name']} ({h['cost']}): {(h.get('text') or '')[:120]}", {"action": "cast", "name": h["name"]})
              for h in instants]
-    pick, line = choose(s, opts, f"{e.get('text')} Only respond if it clearly helps you right now.", dry)
+    question = f"{e.get('text')} Only respond if it clearly helps you right now."
+    local = None if dry else local_choice(s, opts, question)
+    pick, line = (local[0], "") if local else choose(s, opts, question, dry)
     if pick.get("action") == "cast":
         t.act("cast", name=pick["name"])
         if line:

@@ -12,6 +12,8 @@
 # ORDER=…         turn order, "Fusion,Sam,Claude,Michael": NEXT walks each human's turn step by step, and
 #                 the turn passes itself along (AI seats are started for you).
 # RESTORE=…       resume a game from its snapshot.pkl (table/.cache/research/<game>/snapshot.pkl).
+# FUSION_LOCAL_MODEL=tev1  Fusion's small decisions (instants in others' turns) go to a local Ollama
+#                 decision model instead of its Divinci release — free; the turn's real moves stay on the release.
 # CAPTAINS=1      each commander speaks a short in-character line now and then, in its own voice
 #                 (table/captains.py; needs table/.cache/captains.json — see docs/captains.md).
 # TLS=1           also serve HTTPS on :8443 (self-signed, made once for this Mac's LAN address): WebXR —
