@@ -6,6 +6,14 @@
 # suites below, which restart a server on 8800 — so run the full set between games, not during one.
 set -u
 cd "$(dirname "$0")/../.."
+# The full run restarts :8800 for its older suites, which would end a game in progress. Refuse when a
+# game is being played there (a seat has the turn, or anything has happened) unless FORCE=1.
+if [ "${1:-}" != quick ] && [ "${FORCE:-}" != 1 ] && lsof -ti tcp:8800 -sTCP:LISTEN >/dev/null 2>&1; then
+  if curl -s --max-time 2 http://127.0.0.1:8800/api/phase | grep -q '"player": "' ||
+     [ "$(curl -s --max-time 2 'http://127.0.0.1:8800/api/events?since=0' | grep -o '"id":' | wc -l)" -gt 0 ]; then
+    echo "a game is running on :8800 — the full suite would restart it. Run 'quick', finish the game, or FORCE=1."; exit 3
+  fi
+fi
 PY=~/.venvs/table/bin/python
 PW=${PW:-$HOME/Documents/server/workspace/clients/tests/node_modules/@playwright/test}
 LOG=$(mktemp -d)/table-server.log
@@ -29,6 +37,8 @@ run engine        $PY table/tests/engine_rules.py
 run gantry        $PY table/tests/gantry_test.py
 run fair          $PY table/tests/fair_test.py
 run phases        $PY table/tests/phase_test.py
+run migrate       $PY table/tests/migrate_test.py
+run captains      /usr/bin/python3 table/tests/captains_test.py
 run hearing-names $PY table/tests/hearing_names.py
 if [ "${1:-}" = quick ]; then
   run sensory     $PY table/tests/sense_run.py --tier regression

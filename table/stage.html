@@ -76,6 +76,7 @@ import { GTAOPass } from "/vendor/jsm/postprocessing/GTAOPass.js";
 import { UnrealBloomPass } from "/vendor/jsm/postprocessing/UnrealBloomPass.js";
 import { SMAAPass } from "/vendor/jsm/postprocessing/SMAAPass.js";
 import { OutputPass } from "/vendor/jsm/postprocessing/OutputPass.js";
+const escHtml = t => String(t).replace(/[<>&"']/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[ch]));
 
 // ── table state ─────────────────────────────────────────────────────────────────────────────
 const params = new URLSearchParams(location.search);
@@ -489,7 +490,7 @@ function hud() {
   for (const p of ordered) {
     const d = document.createElement("div");
     d.className = "seat" + (p.name === shown() ? " on" : "");
-    d.innerHTML = `<div class="t">${p.name}${p.name === turn ? " ◆" : ""}</div>
+    d.innerHTML = `<div class="t">${escHtml(p.name)}${p.name === turn ? " ◆" : ""}</div>
       <div class="s"><span>♥ ${p.life ?? "—"}</span><span>🂠 ${p.hand}</span></div>`;
     if (p.kind === "human") {
       const s2 = d.querySelector(".s");
@@ -525,7 +526,7 @@ addEventListener("keydown", ev => { if (ev.key === "s" || ev.key === "S") { stag
   caption("stage", stageSound ? "captain voices on" : "captain voices off"); } });
 function caption(who, text) {
   const c = document.getElementById("caption");
-  c.innerHTML = `<b>${who}</b> ${text.replace(/[<>&]/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[ch]))}`;
+  c.innerHTML = `<b>${escHtml(who)}</b> ${escHtml(text)}`;
   c.style.opacity = 1; clearTimeout(captionTimer);
   captionTimer = setTimeout(() => (c.style.opacity = 0), 6500);
   if (who === actorName) talking = performance.now() + Math.min(6000, 220 * text.split(" ").length);
@@ -589,8 +590,8 @@ async function phaseRefresh() {
   const human = p.player && !(p.ai || []).includes(p.player), waiting = (p.waiting || []).length > 0 && p.seconds_left > 0;
   const dots = p.steps.map((_, i) => `<span class="dot ${i < p.index ? "done" : i === p.index ? "on" : ""}"></span>`).join("");
   const label = !p.player ? "START" : p.index >= p.steps.length - 1 ? "END TURN" : "NEXT";
-  el.innerHTML = `<span><b>${p.player || "—"}</b> · ${p.step || ""}</span><span class="steps">${dots}</span>` +
-    (waiting ? `<span class="wait">${p.waiting.join(", ")} may respond… ${Math.ceil(p.seconds_left)}s</span>` : "") +
+  el.innerHTML = `<span><b>${escHtml(p.player || "—")}</b> · ${escHtml(p.step || "")}</span><span class="steps">${dots}</span>` +
+    (waiting ? `<span class="wait">${escHtml(p.waiting.join(", "))} may respond… ${Math.ceil(p.seconds_left)}s</span>` : "") +
     (human || !p.player ? `<button id="nextBtn" ${waiting ? "disabled" : ""}>${label} ▸</button>` : "");
   document.getElementById("nextBtn")?.addEventListener("click", pressNext);
 }

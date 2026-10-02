@@ -176,12 +176,17 @@ Marlin board.
 A human's turn is walked one step at a time with **NEXT** (the phone page `/me`, the stage's button,
 or the stage's **N** key): untap → upkeep → draw → main 1 → beginning of combat → declare attackers →
 declare blockers → combat damage → main 2 → end step → cleanup. At every step except untap and cleanup,
-each AI seat that could cast an instant *right now* gets a priority window (an `attention` event,
-`kind: "priority"`). NEXT is refused (HTTP 409, "waiting on …") until every such seat answers — a cast,
-or `tablectl --seat <name> pass` — or the window runs out (`--priority-secs`, default 45). Seats with
-nothing castable pass silently, so most steps never wait. After cleanup the turn moves to the next seat
-in `--order`; an AI seat is started for you, and an AI's `end` hands the turn on.
+**every** AI seat other than the active player gets the same priority window (an `attention` event,
+`kind: "priority"`, worded identically), and every window lasts a random beat (`--priority-beat`,
+default 1.5–3.5 s). That way an open window says nothing about anyone's hand: a seat with nothing to
+cast passes by itself when the beat ends, while a seat that *could* respond (a castable instant or
+flash — known only to the server, recorded privately in `brain.jsonl`) is waited on until it casts or
+`tablectl --seat <name> pass`, or the window runs out (`--priority-secs`, default 45). A long pause is
+a tell, as it is for a person; nothing else is. NEXT is refused (HTTP 409) while the window is open.
+After cleanup the turn moves to the next seat in `--order`; an AI seat is started for you, and an AI's
+`end` hands the turn on.
 
 Everything is saved to `.cache/research/<game>/snapshot.pkl` after every change; `--restore` (play.sh:
 `RESTORE=…`) resumes it, e.g. after a crash or a server update. `table/migrate_live.py` carries a game
-from an older server that predates snapshots. Tests: `table/tests/phase_test.py`.
+from an older server that predates snapshots. Tests: `table/tests/phase_test.py` (steps, uniform windows,
+proxy/tunnel requests, body cap, captain route, restore) and `table/tests/migrate_test.py`.

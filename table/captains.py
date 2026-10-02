@@ -31,18 +31,12 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 API = "https://api.divinci.app"
-CONF = json.loads((HERE / ".cache" / "captains.json").read_text())
+CONF_FILE = HERE / ".cache" / "captains.json"
+CONF: dict = {}                                            # loaded in main(): {commander: {release_id, voice, ...}}
 AUDIO = HERE / ".cache" / "captains" / "audio"
 LOG = HERE / ".cache" / "research" / "captains.jsonl"      # research data: every prompt, line and voice
-
-ap = argparse.ArgumentParser()
-ap.add_argument("--url", default="http://127.0.0.1:8800")
-ap.add_argument("--token-file", default=str(HERE / ".brain-token"))
-ap.add_argument("--gap", type=float, default=25.0, help="seconds between any two captain lines")
-ap.add_argument("--cooldown", type=float, default=75.0, help="seconds before the same captain speaks again")
-ap.add_argument("--chattiness", type=float, default=1.0, help="scales every trigger's chance (0.5 = half as often)")
-ap.add_argument("--try", nargs=2, metavar=("COMMANDER", "EVENT"), dest="try_", help="one line, played on this Mac")
-a = ap.parse_args()
+MAX_WORDS = 22
+a = None                                                   # the parsed command line, set in main()
 
 
 def http(url, body=None, headers=None, timeout=60):
@@ -75,11 +69,17 @@ def ask(commander: str, event: str) -> str:
         raise RuntimeError(f"HTTP {status}: {text[:200]}")
     if d.get("transcriptId"):
         TRANSCRIPT[commander] = d["transcriptId"]
-    line = (d["choices"][0]["message"]["content"] or "").strip().splitlines()[0] if d.get("choices") else ""
-    line = re.sub(r"^[\"'“”*_\s]+|[\"'“”*_\s]+$", "", line)
-    line = re.sub(r"\([^)]*\)|\*[^*]*\*", "", line).strip()          # no stage directions
-    words = line.split()
-    return " ".join(words[:22])
+    return clean_line(d["choices"][0]["message"].get("content") if d.get("choices") else "")
+
+
+def clean_line(raw) -> str:
+    """The first line of a reply, without quotes, markdown or stage directions, at most MAX_WORDS words."""
+    lines = [x for x in str(raw or "").strip().splitlines() if x.strip()]
+    if not lines:
+        return ""
+    line = re.sub(r"\([^)]*\)|\*[^*]*\*|\[[^\]]*\]", "", lines[0])          # (sighs) *grins* [laughs]
+    line = re.sub(r"^[\"'“”‘’`_\s]+|[\"'“”‘’`_\s]+$", "", line)
+    return " ".join(line.split()[:MAX_WORDS])
 
 
 def tts(commander: str, line: str) -> str:
@@ -105,19 +105,25 @@ def log(rec):
         fh.write(json.dumps({"ts": round(time.time(), 2), **rec}) + "\n")
 
 
-if a.try_:
-    cmd, ev = a.try_
-    t0 = time.time()
-    line = ask(cmd, ev)
-    f = tts(cmd, line)
-    print(f"{cmd} ({CONF[cmd]['voice']}, {time.time() - t0:.1f}s): {line}")
-    subprocess.run(["afplay", str(AUDIO / f)])
-    raise SystemExit
-
-TOKEN = Path(a.token_file).read_text().strip()
-SEAT_CMD: dict[str, str] = {}        # seat name → commander (from the server; a renamed seat still works)
-LAST = {"any": 0.0}
+TOKEN = ""
+SEAT_CMD: dict = {}                  # seat name → commander (from the server; a renamed seat still works)
 BUSY = threading.Lock()
+
+
+class Gate:
+    """When a captain may speak: at least `gap` s since any captain, `cooldown` s since this one."""
+
+    def __init__(self, gap: float, cooldown: float):
+        self.gap, self.cooldown, self.last = gap, cooldown, {"any": 0.0}
+
+    def ready(self, commander: str, now: float) -> bool:
+        return now - self.last["any"] >= self.gap and now - self.last.get(commander, 0.0) >= self.cooldown
+
+    def spoke(self, commander: str, now: float):
+        self.last["any"] = self.last[commander] = now
+
+
+GATE = Gate(25.0, 75.0)
 
 
 def seats():
@@ -128,14 +134,14 @@ def seats():
                 SEAT_CMD[s["name"]] = s["commander"]
 
 
-def triggers(e) -> list[tuple[str, float, str]]:
-    """(seat, chance, what happened — in words the captain of that seat hears)."""
+def triggers(e: dict, seat_cmd: dict = SEAT_CMD) -> list:
+    """[(seat, chance, what happened — in words the captain of that seat hears)]. Public events only."""
     t, out = e.get("type"), []
     if t == "phase" and e.get("step") == "untap" and e.get("player"):
         out.append((e["player"], 0.55, f"{e['player']}'s turn begins — your side is up."))
     elif t == "attention" and e.get("kind") == "turn" and e.get("addressee"):
         out.append((e["addressee"], 0.55, f"{e['addressee']}'s turn begins — your side is up."))
-    elif t == "say" and e.get("speaker") in SEAT_CMD and e.get("action") in ("cast", "attack", "damage", "turn-up"):
+    elif t == "say" and e.get("speaker") in seat_cmd and e.get("action") in ("cast", "attack", "damage", "turn-up"):
         p = {"cast": 0.3, "attack": 0.5, "damage": 0.45, "turn-up": 0.6}[e["action"]]
         out.append((e["speaker"], p, f"{e['speaker']}, your seat, says to the table: \"{e.get('text', '')}\""))
     elif t == "life" and e.get("delta"):
@@ -146,7 +152,7 @@ def triggers(e) -> list[tuple[str, float, str]]:
                 out.append((by, 0.3, f"Your seat, {by}, just took {-d} life off {who} (now {e.get('life')})."))
         else:
             out.append((who, 0.25, f"{who}, your seat, gained {d} life (now {e.get('life')})."))
-    return out
+    return [x for x in out if x[0] in seat_cmd]
 
 
 def speak(seat: str, commander: str, event: str):
@@ -169,6 +175,26 @@ def speak(seat: str, commander: str, event: str):
 
 
 def main():
+    global a, TOKEN, GATE
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--url", default="http://127.0.0.1:8800")
+    ap.add_argument("--token-file", default=str(HERE / ".brain-token"))
+    ap.add_argument("--gap", type=float, default=25.0, help="seconds between any two captain lines")
+    ap.add_argument("--cooldown", type=float, default=75.0, help="seconds before the same captain speaks again")
+    ap.add_argument("--chattiness", type=float, default=1.0, help="scales every trigger's chance (0.5 = half as often)")
+    ap.add_argument("--try", nargs=2, metavar=("COMMANDER", "EVENT"), dest="try_", help="one line, played on this Mac")
+    a = ap.parse_args()
+    CONF.update(json.loads(CONF_FILE.read_text()))
+    if a.try_:
+        cmd, ev = a.try_
+        t0 = time.time()
+        line = ask(cmd, ev)
+        f = tts(cmd, line)
+        print(f"{cmd} ({CONF[cmd]['voice']}, {time.time() - t0:.1f}s): {line}")
+        subprocess.run(["afplay", str(AUDIO / f)])
+        return
+    TOKEN = Path(a.token_file).read_text().strip()
+    GATE = Gate(a.gap, a.cooldown)
     seats()
     who = ", ".join(f"{s}→{c} ({CONF[c]['voice']})" for s, c in SEAT_CMD.items())
     print(f"captains: {who}", flush=True)
@@ -193,14 +219,15 @@ def main():
                 continue
             for seat, chance, what in triggers(e):
                 cmd, now = SEAT_CMD.get(seat), time.time()
-                if not cmd or now - LAST["any"] < a.gap or now - LAST.get(cmd, 0) < a.cooldown:
+                if not cmd or not GATE.ready(cmd, now):
                     continue
                 if random.random() > chance * a.chattiness or not BUSY.acquire(blocking=False):
                     continue
-                LAST["any"] = LAST[cmd] = now
+                GATE.spoke(cmd, now)
                 threading.Thread(target=speak, args=(seat, cmd, what), daemon=True).start()
                 break
         time.sleep(1)
 
 
-main()
+if __name__ == "__main__":
+    main()

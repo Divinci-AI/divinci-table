@@ -56,6 +56,9 @@ ap.add_argument("--restore", default="",
 ap.add_argument("--tls-cert", default="", help="also serve HTTPS (WebXR needs a secure page on phones/headsets)")
 ap.add_argument("--tls-key", default="")
 ap.add_argument("--tls-port", type=int, default=8443)
+ap.add_argument("--priority-beat", default="1.5,3.5",
+                help="every priority window lasts a random beat in this range (seconds, 'lo,hi'), whether or not "
+                     "anyone could respond — so an open window never tells the table who holds an instant")
 ap.add_argument("--priority-secs", type=float, default=45.0,
                 help="how long NEXT waits for an AI seat that holds an instant before passing for it")
 ap.add_argument("--fair-seed", choices=["local", "online", "off"], default="local",
@@ -213,7 +216,8 @@ STEPS = ["untap", "upkeep", "draw", "main 1", "beginning of combat", "declare at
 NO_PRIORITY = {"untap", "cleanup"}                    # the rules give no one priority here
 ORDER: list[str] = [x.strip() for x in args.order.split(",") if x.strip()]
 PHASE = {"player": None, "step": 0}
-PRIORITY = {"step": None, "waiting": [], "deadline": 0.0}
+PRIORITY = {"step": None, "waiting": [], "seats": [], "deadline": 0.0, "beat_until": 0.0}
+BEAT = tuple(float(x) for x in args.priority_beat.split(","))
 PHASE_LOCK = threading.RLock()
 HAND_N: dict[str, int] = {}                            # humans' hand sizes (public), set from the stage page
 
@@ -267,41 +271,59 @@ def instant_speed(vp) -> list[str]:
 
 
 def open_priority(step: str) -> list[str]:
-    """Every AI seat that could respond gets a window; seats with nothing to cast pass silently."""
+    """Every AI seat other than the active player gets the same window, worded the same way, and every
+    window lasts at least a random beat. Which seats could actually respond (hold a castable instant or
+    flash) is known only to the server: the table can't tell a seat with nothing from a seat that
+    thought and passed. A seat with nothing passes on its own; one that holds something is waited on
+    until it answers or the window runs out — a long pause is a tell, as it is for a person."""
     active = PHASE["player"]
-    waiting = []
+    seats, holders = [], []
     if step not in NO_PRIORITY:
         with VP_LOCK:
             for n, v in VPS.items():
-                if n != active and instant_speed(v):
-                    waiting.append(n)
-    PRIORITY.update(step=step, waiting=waiting, deadline=time.time() + args.priority_secs)
-    for n in waiting:
+                if n != active:
+                    seats.append(n)
+                    if instant_speed(v):
+                        holders.append(n)
+    now = time.time()
+    beat = secrets.SystemRandom().uniform(*BEAT) if seats else 0.0
+    PRIORITY.update(step=step, waiting=holders, seats=seats, deadline=now + args.priority_secs, beat_until=now + beat)
+    for n in seats:
         emit("attention", kind="priority", addressee=n,
              text=f"{active}: {step}. You may cast an instant now, or pass.", step=step, active=active)
-    return waiting
+    if holders:                                       # private: for the research record, never the event stream
+        _append("brain.jsonl", {"ts": round(now, 2), "priority": step, "holders": holders})
+    return seats
 
 
 def priority_done(seat_name: str):
     with PHASE_LOCK:
         if seat_name in PRIORITY["waiting"]:
             PRIORITY["waiting"].remove(seat_name)
-            if not PRIORITY["waiting"]:
-                emit("priority", kind="closed", step=PRIORITY["step"])
+
+
+def priority_open() -> bool:
+    """The window, as the table sees it: open during the beat, and after it while a holder thinks."""
+    now = time.time()
+    return bool(PRIORITY["seats"]) and (now < PRIORITY["beat_until"] or
+                                        (bool(PRIORITY["waiting"]) and now < PRIORITY["deadline"]))
 
 
 def phase_public() -> dict:
     with PHASE_LOCK:
-        left = max(0.0, PRIORITY["deadline"] - time.time()) if PRIORITY["waiting"] else 0.0
+        now, is_open = time.time(), priority_open()
+        left = 0.0
+        if is_open:
+            left = PRIORITY["beat_until"] - now if now < PRIORITY["beat_until"] else PRIORITY["deadline"] - now
         return {"player": PHASE["player"], "step": STEPS[PHASE["step"]], "index": PHASE["step"], "steps": STEPS,
-                "order": turn_order(), "waiting": list(PRIORITY["waiting"]), "seconds_left": round(left, 1),
-                "ai": list(VPS)}
+                "order": turn_order(), "waiting": list(PRIORITY["seats"]) if is_open else [],
+                "seconds_left": round(max(0.0, left), 1), "ai": list(VPS)}
 
 
 def start_turn(name: str):
     """Hand the turn to a seat: an AI seat plays its whole turn; a human starts at untap."""
     PHASE.update(player=name, step=0)
-    PRIORITY.update(step=None, waiting=[], deadline=0.0)
+    PRIORITY.update(step=None, waiting=[], seats=[], deadline=0.0, beat_until=0.0)
     emit("phase", player=name, step=STEPS[0], index=0)
     if name in VPS:
         if BRAIN_EXTERNAL:
@@ -318,11 +340,12 @@ def next_step(by: str | None = None) -> tuple[int, dict]:
             return 200, phase_public()
         if PHASE["player"] in VPS:
             return 409, {**phase_public(), "error": f"it's {PHASE['player']}'s turn — it ends its own turn"}
-        if PRIORITY["waiting"] and time.time() < PRIORITY["deadline"]:
-            return 409, {**phase_public(), "error": "waiting on " + ", ".join(PRIORITY["waiting"])}
-        for n in list(PRIORITY["waiting"]):           # their window ran out: they pass
-            emit("priority", kind="timeout", seat=n, step=PRIORITY["step"])
-        PRIORITY["waiting"] = []
+        if priority_open():
+            return 409, {**phase_public(), "error": "priority: waiting on " + ", ".join(PRIORITY["seats"])}
+        if PRIORITY["waiting"]:                       # a holder's window ran out: it passes (said privately —
+            _append("brain.jsonl", {"ts": round(time.time(), 2),   # naming it would say it held something)
+                                    "priority_timeout": PRIORITY["step"], "seats": PRIORITY["waiting"]})
+        PRIORITY.update(waiting=[], seats=[])
         if PHASE["step"] >= len(STEPS) - 1:
             order = turn_order()
             nxt = order[(order.index(PHASE["player"]) + 1) % len(order)] if PHASE["player"] in order else order[0]
@@ -1268,8 +1291,16 @@ class H(BaseHTTPRequestHandler):
         else:
             self.close_connection = True
 
+    JSON_MAX = 256_000                                  # every JSON body is small; audio/images use their own routes
+
     def _json(self):
-        n = int(self.headers.get("Content-Length", 0))
+        try:
+            n = int(self.headers.get("Content-Length", 0) or 0)
+        except ValueError:
+            raise BadRequest("bad Content-Length")
+        if n < 0 or n > self.JSON_MAX:
+            self._drain(n)
+            raise BadRequest(f"body too large (over {self.JSON_MAX} bytes)")
         try:
             b = json.loads(self.rfile.read(n) or b"{}")
         except json.JSONDecodeError:
@@ -1550,10 +1581,20 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    PROXY_HEADERS = ("X-Forwarded-For", "Forwarded", "X-Real-IP", "CF-Connecting-IP", "True-Client-IP")
+
+    def _is_local(self) -> bool:
+        """This laptop itself. A tunnel or reverse proxy (cloudflared, ngrok, Tailscale Funnel) also connects
+        from 127.0.0.1, so a request carrying any forwarding header is someone else, wherever it says it is
+        from: it gets only what a phone on the Wi-Fi gets."""
+        if self.client_address[0] not in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
+            return False
+        return not any(self.headers.get(h) for h in self.PROXY_HEADERS)
+
     def _lan_blocked(self, method: str) -> bool:
         """A request from another device to anything outside LAN_OK: refuse it (draining a POST body
         first, so the phone gets the 403 rather than a broken pipe)."""
-        if self.client_address[0] in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
+        if self._is_local():
             return False
         if (method, self.path.split("?")[0]) in LAN_OK:
             return False

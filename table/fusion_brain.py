@@ -271,6 +271,9 @@ def on_priority(t: Table, e: dict, dry: bool):
     """NEXT opened a window in someone else's turn: cast an instant now, or pass."""
     s = t.state()
     instants = [h for h in s.get("hand", []) if h.get("castable_now") and "Instant" in (h.get("type") or "")]
+    if not instants:                  # every AI seat gets every window (so a window says nothing about a hand);
+        t.act("pass", quiet=True)     # with nothing castable there's nothing to ask the release
+        return
     opts = [("pass — keep my mana", {"action": "pass"})]
     opts += [(f"cast {h['name']} ({h['cost']}): {(h.get('text') or '')[:120]}", {"action": "cast", "name": h["name"]})
              for h in instants]

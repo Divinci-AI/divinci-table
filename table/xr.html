@@ -47,6 +47,7 @@ import * as SkeletonUtils from "/vendor/jsm/utils/SkeletonUtils.js";
 import { RoomEnvironment } from "/vendor/jsm/environments/RoomEnvironment.js";
 import { ARButton } from "/vendor/jsm/webxr/ARButton.js";
 import { VRButton } from "/vendor/jsm/webxr/VRButton.js";
+const escHtml = t => String(t).replace(/[<>&"']/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[ch]));
 
 // ── the same decks → models → colours as the stage ─────────────────────────────────────────
 const LOOKS = [
@@ -224,7 +225,7 @@ function iosLinks(list) {                                     // iPhone/Vision P
   if (!isIOS) return;
   const el = document.getElementById("ios"); el.style.display = "flex";
   el.innerHTML = list.map(s => { const m = lookFor(s).model + ".v2";
-    return models.has(m) ? `<a rel="ar" href="/avatars/${encodeURIComponent(m)}.usdz"><img src="/avatars/${encodeURIComponent(m)}.png" alt="">${s.name}</a>` : ""; }).join("");
+    return models.has(m) ? `<a rel="ar" href="/avatars/${encodeURIComponent(m)}.usdz"><img src="/avatars/${encodeURIComponent(m)}.png" alt="">${escHtml(s.name)}</a>` : ""; }).join("");
 }
 async function refresh() {
   try {
@@ -241,7 +242,7 @@ async function phase() {
   if (!p || p.error || !p.steps) { ph.textContent = "—"; nb.style.display = "none"; return; }
   turn = p.player;
   const waiting = (p.waiting || []).length && p.seconds_left > 0;
-  ph.innerHTML = `<b>${p.player || "—"}</b> · ${p.step}` + (waiting ? ` <span class="wait">· ${p.waiting.join(", ")} ${Math.ceil(p.seconds_left)}s</span>` : "");
+  ph.innerHTML = `<b>${escHtml(p.player || "—")}</b> · ${escHtml(p.step)}` + (waiting ? ` <span class="wait">· ${escHtml(p.waiting.join(", "))} ${Math.ceil(p.seconds_left)}s</span>` : "");
   const human = p.player && !(p.ai || []).includes(p.player);
   nb.style.display = human || !p.player ? "" : "none"; nb.disabled = !!waiting;
   nb.textContent = !p.player ? "START ▸" : p.index >= p.steps.length - 1 ? "END TURN ▸" : "NEXT ▸";

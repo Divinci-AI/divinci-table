@@ -65,25 +65,51 @@ def brain(action, **body):
 
 
 BEFORE = set((HERE / ".cache" / "research").glob("*"))              # never touch an existing game's logs
-srv = start("--priority-secs", "30")
+srv = start("--priority-secs", "30", "--priority-beat", "0.6,0.6")
+BEAT = 0.7
 try:
     print("NEXT and priority")
-    for land in ("Swamp", "Plains", "Island"):
-        brain("search", name=land, to="battlefield")
-    brain("search", name="Mortify")
     code, p = call("POST", "/api/phase/next", {"by": "Ann"})
     check(code == 200 and p["player"] == "Ann" and p["step"] == "untap", "first NEXT starts the first seat's turn at untap")
+    check(p["waiting"] == [], "untap gives no one priority")
+    code, p = call("POST", "/api/phase/next", {"by": "Ann"})          # Claude has no lands yet: nothing castable
+    check(p["step"] == "upkeep" and p["waiting"] == ["Claude"],
+          "every AI seat gets the window, even one with nothing to cast")
     code, p = call("POST", "/api/phase/next", {"by": "Ann"})
-    check(p["step"] == "upkeep" and p["waiting"] == ["Claude"], "a seat holding a castable instant gets a window")
+    check(code == 409 and p.get("seconds_left", 0) > 0, "NEXT waits out the window's beat")
+    time.sleep(BEAT)
     code, p = call("POST", "/api/phase/next", {"by": "Ann"})
-    check(code == 409 and "Claude" in p.get("error", ""), "NEXT is refused while that seat holds priority")
+    check(code == 200 and p["step"] == "draw", "a seat with nothing to cast passes by itself after the beat")
+    for land in ("Swamp", "Plains", "Island"):                       # now Claude holds a castable instant
+        brain("search", name=land, to="battlefield")
+    brain("search", name="Mortify")
+    time.sleep(BEAT)
+    code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    check(p["step"] == "main 1" and p["waiting"] == ["Claude"], "a seat holding an instant gets the very same window")
+    time.sleep(BEAT)
+    code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    check(code == 409 and "Claude" in p.get("error", ""), "…and is waited on past the beat until it answers")
     brain("pass", quiet=True)
     code, p = call("GET", "/api/phase")
     check(p["waiting"] == [], "pass closes the window")
-    for _ in range(12):
+    code, ev = call("GET", "/api/events?since=0")
+    pri = [e for e in ev["events"] if e["type"] == "attention" and e.get("kind") == "priority"]
+    shape = {tuple(sorted(k for k in e if k not in ("id", "ts"))) for e in pri}
+    check(len(pri) == 3 and len(shape) == 1 and len({e["text"].split(". ")[1] for e in pri}) == 1,
+          "the public event for a seat with nothing and a seat with an instant look the same")
+    check(not any(e["type"] == "priority" for e in ev["events"]),
+          "no public event says a window closed early or who timed out")
+    holders = [json.loads(l) for d in set((HERE / ".cache" / "research").glob("*")) - BEFORE
+               for l in (d / "brain.jsonl").read_text().splitlines() if (d / "brain.jsonl").exists()]
+    check(any(r.get("priority") == "main 1" and r.get("holders") == ["Claude"] for r in holders) and
+          not any(r.get("priority") == "upkeep" for r in holders),
+          "who could respond is recorded privately (brain.jsonl) for research, not on the stream")
+    for _ in range(14):
+        time.sleep(BEAT)
         code, p = call("POST", "/api/phase/next", {"by": "Ann"})
-        if p.get("waiting"):
+        if code == 409:
             brain("pass", quiet=True)
+            continue
         if p.get("player") == "Claude":
             break
     check(p.get("player") == "Claude" and p.get("step") == "untap", "the last step hands the turn to the next seat")
@@ -92,6 +118,25 @@ try:
     time.sleep(1.5)
     code, p = call("GET", "/api/phase")
     check(p["player"] == "Ben", "an AI ending its turn hands it to the next seat in order")
+
+    print("who counts as this laptop")
+    def raw(path, headers=None, method="GET", data=None):
+        r = urllib.request.Request(BASE + path, method=method, headers=headers or {}, data=data)
+        try:
+            with urllib.request.urlopen(r, timeout=10) as resp:
+                return resp.status
+        except urllib.error.HTTPError as e:
+            return e.code
+    check(raw("/table") == 200, "the table page opens on the laptop itself")
+    for h in ("X-Forwarded-For", "CF-Connecting-IP", "Forwarded", "X-Real-IP"):
+        check(raw("/table", {h: "203.0.113.9"}) == 403, f"through a tunnel ({h}) it does not")
+    check(raw("/stage", {"X-Forwarded-For": "203.0.113.9"}) == 200, "a tunnelled visitor still gets the public stage")
+    tok = TOKEN.read_text().strip()
+    check(raw("/api/brain/state?seat=Claude", {"X-Forwarded-For": "203.0.113.9", "X-Brain-Token": tok}) == 403,
+          "the brain API is refused through a tunnel even with the token")
+    big = json.dumps({"player": "Ann", "delta": 1, "pad": "x" * 300_000}).encode()
+    check(raw("/api/life", {"Content-Type": "application/json"}, "POST", big) == 400,
+          "an oversized JSON body is refused, not read into memory")
 
     print("captain lines")
     audio = HERE / ".cache" / "captains" / "audio"
@@ -130,7 +175,7 @@ try:
     snaps = sorted((HERE / ".cache" / "research").glob("*/snapshot.pkl"), key=lambda x: x.stat().st_mtime)
     check(bool(snaps), "a snapshot is written after changes")
     srv.terminate(); srv.wait(10)
-    srv = start("--restore", str(snaps[-1]), "--priority-secs", "2")
+    srv = start("--restore", str(snaps[-1]), "--priority-secs", "2", "--priority-beat", "0.3,0.3")
     code, st = call("GET", "/api/brain/state?seat=Claude", brain=True)
     check(json.dumps([st["hand"], st["permanents"], st["life"]], sort_keys=True) == before,
           "restore brings back the same hand, board and life")
