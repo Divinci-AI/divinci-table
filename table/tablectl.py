@@ -196,6 +196,16 @@ def main():
         v = sub.add_parser(verb); v.add_argument("ref"); v.add_argument("--quiet", action="store_true")
     co = sub.add_parser("counter"); co.add_argument("ref"); co.add_argument("n", type=int)
     t = sub.add_parser("token"); t.add_argument("name"); t.add_argument("power", type=int); t.add_argument("toughness", type=int)
+    t.add_argument("--n", type=int, default=1); t.add_argument("--tapped", action="store_true")
+    pk = sub.add_parser("peek", help="PRIVATE: the top N cards of your library"); pk.add_argument("n", type=int)
+    pk.add_argument("--announce", action="store_true")
+    td = sub.add_parser("topdeck", help="a card from hand onto the top of your library"); td.add_argument("name")
+    bt = sub.add_parser("bottom", help="a card to the bottom (from hand, or --from-top)"); bt.add_argument("name")
+    bt.add_argument("--from-top", action="store_true")
+    sub.add_parser("shuffle")
+    pu = sub.add_parser("put", help="hand → battlefield without paying (ninjutsu)"); pu.add_argument("name")
+    pu.add_argument("--tapped", action="store_true")
+    bl = sub.add_parser("blink", help="exile a permanent and return it (ETBs trigger again)"); bl.add_argument("ref")
     t.add_argument("keywords", nargs="*")
     d = sub.add_parser("draw"); d.add_argument("n", type=int, nargs="?", default=1)
     di = sub.add_parser("discard"); di.add_argument("name")
@@ -250,7 +260,20 @@ def main():
     if a.cmd == "counter":
         return act("counter", ref=a.ref, n=a.n)
     if a.cmd == "token":
-        return act("token", name=a.name, power=a.power, toughness=a.toughness, keywords=a.keywords)
+        return act("token", name=a.name, power=a.power, toughness=a.toughness, keywords=a.keywords, n=a.n,
+                   tapped=a.tapped)
+    if a.cmd == "peek":
+        return act("peek", n=a.n, announce=a.announce)
+    if a.cmd == "topdeck":
+        return act("topdeck", name=a.name)
+    if a.cmd == "bottom":
+        return act("bottom", name=a.name, from_top=a.from_top)
+    if a.cmd == "shuffle":
+        return act("shuffle")
+    if a.cmd == "put":
+        return act("put", name=a.name, tapped=a.tapped)
+    if a.cmd == "blink":
+        return act("blink", ref=a.ref)
     if a.cmd == "draw":
         return act("draw", n=a.n)
     if a.cmd == "discard":

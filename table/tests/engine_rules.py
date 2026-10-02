@@ -267,5 +267,30 @@ p.begin_turn()
 check(len(tokens(p, "Saproling")) == 1, "Verdant Embrace: a Saproling on its upkeep")
 check(any("EACH opponent's upkeep" in t for t in p.todo), "…and a to-do for every opponent's upkeep")
 
+print("\n14. The Aminatou deck (Subjective Reality, 2026-10-01)")
+AM = HERE.parent.parent / "decks" / "aminatou.json"
+v = VirtualPlayer(str(AM), "Claude", seed=1)
+v.library += v.hand
+v.hand = []
+def amc(n):
+    return next(c for c in v.library + [v.commander] if c["name"] == n)
+for n in ("Plains", "Island", "Swamp"):
+    v.battlefield.append(Perm(amc(n), sick=False))
+v.battlefield.append(Perm(amc("Azorius Signet"), sick=False))
+check(v.available_mana() == 4, f"a Signet is net one mana: 3 lands + Signet = 4 (got {v.available_mana()})")
+v.manual_cast("commander", commander=True)
+am = next(x for x in v.battlefield if x.is_("Planeswalker"))
+check(am.counters == 3 and "loyalty 3" in v.describe(am), "Aminatou enters with loyalty 3")
+c = amc("Mulldrifter"); v.library.remove(c); v.hand.append(c)
+v.put("Mulldrifter")
+check(len(v.hand) == 2, "Mulldrifter put onto the battlefield draws two")
+v.blink("Mulldrifter")
+check(len(v.hand) == 4, "…and blinking it draws two more")
+top = v.peek(1)[0]
+v.topdeck(v.hand[0]["name"])
+check(v.peek(1)[0] != top or v.library[-1]["name"] == top, "topdeck puts a hand card on top")
+v.make_tokens("Zombie", 2, 2, n=13, tapped=True)
+check(len([x for x in v.battlefield if x.token and x.tapped]) == 13, "Army of the Damned: 13 tapped Zombies")
+
 print(f"\n{sum(results)}/{len(results)} engine checks passed")
 sys.exit(0 if all(results) else 1)

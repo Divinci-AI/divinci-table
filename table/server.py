@@ -1402,7 +1402,21 @@ class H(BaseHTTPRequestHandler):
                     p.counters += int(b.get("n", 1))
                     said = [f"{p.name} gets {int(b.get('n', 1)):+d}/{int(b.get('n', 1)):+d} counters."]
                 elif action == "token":
-                    said = VP.make_token(b["name"], int(b["power"]), int(b["toughness"]), b.get("keywords") or [])
+                    said = VP.make_tokens(b["name"], int(b["power"]), int(b["toughness"]), b.get("keywords") or [],
+                                          n=int(b.get("n") or 1), tapped=bool(b.get("tapped")))
+                elif action == "peek":                     # PRIVATE: only the brain sees the top cards
+                    private["top"] = VP.peek(int(b.get("n", 1)))
+                    said = [f"I look at the top {int(b.get('n', 1))} of my library."] if b.get("announce") else []
+                elif action == "topdeck":
+                    said = VP.topdeck(b["name"])
+                elif action == "bottom":
+                    said = VP.bottom(b["name"], from_top=bool(b.get("from_top")))
+                elif action == "shuffle":
+                    said = VP.shuffle_library()
+                elif action == "put":                      # ninjutsu / "put onto the battlefield" from hand
+                    said = VP.put(b["name"], tapped=bool(b.get("tapped")))
+                elif action == "blink":
+                    said = VP.blink(b["ref"])
                 elif action == "draw":
                     before = len(VP.hand)
                     VP.draw(int(b.get("n", 1)))

@@ -1,0 +1,1991 @@
+{
+ "name": "Subjective Reality",
+ "commander": [
+  {
+   "name": "Aminatou, the Fateshifter",
+   "count": 1,
+   "manaCost": "{W}{U}{B}",
+   "manaValue": 3.0,
+   "type": "Legendary Planeswalker \u2014 Aminatou",
+   "types": [
+    "Planeswalker"
+   ],
+   "subtypes": [
+    "Aminatou"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "[+1]: Draw a card, then put a card from your hand on top of your library.\n[\u22121]: Exile another target permanent you own, then return it to the battlefield under your control.\n[\u22126]: Choose left or right. Each player gains control of all nonland permanents other than Aminatou controlled by the next player in the chosen direction.\nAminatou, the Fateshifter can be your commander.",
+   "colors": [
+    "B",
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "B",
+    "U",
+    "W"
+   ],
+   "loyalty": "3"
+  }
+ ],
+ "mainBoard": [
+  {
+   "name": "Enigma Sphinx",
+   "count": 1,
+   "manaCost": "{4}{W}{U}{B}",
+   "manaValue": 7.0,
+   "type": "Artifact Creature \u2014 Sphinx",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "subtypes": [
+    "Sphinx"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhen this creature is put into your graveyard from the battlefield, put it into your library third from the top.\nCascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)",
+   "power": "5",
+   "toughness": "4",
+   "colors": [
+    "B",
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "B",
+    "U",
+    "W"
+   ],
+   "keywords": [
+    "Cascade",
+    "Flying"
+   ]
+  },
+  {
+   "name": "Serra Avatar",
+   "count": 1,
+   "manaCost": "{4}{W}{W}{W}",
+   "manaValue": 7.0,
+   "type": "Creature \u2014 Avatar",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Avatar"
+   ],
+   "supertypes": [],
+   "text": "Serra Avatar's power and toughness are each equal to your life total.\nWhen Serra Avatar is put into a graveyard from anywhere, shuffle it into its owner's library.",
+   "power": "*",
+   "toughness": "*",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ]
+  },
+  {
+   "name": "Adarkar Valkyrie",
+   "count": 1,
+   "manaCost": "{4}{W}{W}",
+   "manaValue": 6.0,
+   "type": "Snow Creature \u2014 Angel",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Angel"
+   ],
+   "supertypes": [
+    "Snow"
+   ],
+   "text": "Flying, vigilance\n{T}: When target creature other than this creature dies this turn, return that card to the battlefield under your control.",
+   "power": "4",
+   "toughness": "5",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Flying",
+    "Vigilance"
+   ]
+  },
+  {
+   "name": "Conundrum Sphinx",
+   "count": 1,
+   "manaCost": "{2}{U}{U}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Sphinx",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Sphinx"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhenever this creature attacks, each player chooses a card name. Then each player reveals the top card of their library. If the card a player revealed has the name they chose, that player puts it into their hand. If it doesn't, that player puts it on the bottom of their library.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Flying"
+   ]
+  },
+  {
+   "name": "Djinn of Wishes",
+   "count": 1,
+   "manaCost": "{3}{U}{U}",
+   "manaValue": 5.0,
+   "type": "Creature \u2014 Djinn",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Djinn"
+   ],
+   "supertypes": [],
+   "text": "Flying\nThis creature enters with three wish counters on it.\n{2}{U}{U}, Remove a wish counter from this creature: Reveal the top card of your library. You may play that card without paying its mana cost. If you don't, exile it.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Flying"
+   ]
+  },
+  {
+   "name": "Jeskai Infiltrator",
+   "count": 1,
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Human Monk",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Monk"
+   ],
+   "supertypes": [],
+   "text": "This creature can't be blocked as long as you control no other creatures.\nWhen this creature deals combat damage to a player, exile it and the top card of your library in a face-down pile, shuffle that pile, then manifest those cards. (To manifest a card, put it onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)",
+   "power": "2",
+   "toughness": "3",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Manifest"
+   ]
+  },
+  {
+   "name": "Sphinx of Jwar Isle",
+   "count": 1,
+   "manaCost": "{4}{U}{U}",
+   "manaValue": 6.0,
+   "type": "Creature \u2014 Sphinx",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Sphinx"
+   ],
+   "supertypes": [],
+   "text": "Flying\nShroud (This creature can't be the target of spells or abilities.)\nYou may look at the top card of your library any time.",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Flying",
+    "Shroud"
+   ]
+  },
+  {
+   "name": "Sphinx of Uthuun",
+   "count": 1,
+   "manaCost": "{5}{U}{U}",
+   "manaValue": 7.0,
+   "type": "Creature \u2014 Sphinx",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Sphinx"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhen this creature enters, reveal the top five cards of your library. An opponent separates those cards into two piles. Put one pile into your hand and the other into your graveyard.",
+   "power": "5",
+   "toughness": "6",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Flying"
+   ]
+  },
+  {
+   "name": "Phyrexian Delver",
+   "count": 1,
+   "manaCost": "{3}{B}{B}",
+   "manaValue": 5.0,
+   "type": "Creature \u2014 Phyrexian Zombie",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Phyrexian",
+    "Zombie"
+   ],
+   "supertypes": [],
+   "text": "When this creature enters, return target creature card from your graveyard to the battlefield. You lose life equal to that card's mana value.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "B"
+   ],
+   "colorIdentity": [
+    "B"
+   ]
+  },
+  {
+   "name": "Duskmantle Seer",
+   "count": 1,
+   "manaCost": "{2}{U}{B}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Vampire Wizard",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Vampire",
+    "Wizard"
+   ],
+   "supertypes": [],
+   "text": "Flying\nAt the beginning of your upkeep, each player reveals the top card of their library, loses life equal to that card's mana value, then puts it into their hand.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "B",
+    "U"
+   ],
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "keywords": [
+    "Flying"
+   ]
+  },
+  {
+   "name": "High Priest of Penance",
+   "count": 1,
+   "manaCost": "{W}{B}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Human Cleric",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Cleric"
+   ],
+   "supertypes": [],
+   "text": "Whenever this creature is dealt damage, you may destroy target nonland permanent.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "B",
+    "W"
+   ],
+   "colorIdentity": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Silent-Blade Oni",
+   "count": 1,
+   "manaCost": "{3}{U}{U}{B}{B}",
+   "manaValue": 7.0,
+   "type": "Creature \u2014 Demon Ninja",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Demon",
+    "Ninja"
+   ],
+   "supertypes": [],
+   "text": "Ninjutsu {4}{U}{B} ({4}{U}{B}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)\nWhenever this creature deals combat damage to a player, look at that player's hand. You may cast a spell from among those cards without paying its mana cost.",
+   "power": "6",
+   "toughness": "5",
+   "colors": [
+    "B",
+    "U"
+   ],
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "keywords": [
+    "Ninjutsu"
+   ]
+  },
+  {
+   "name": "Mulldrifter",
+   "count": 1,
+   "manaCost": "{4}{U}",
+   "manaValue": 5.0,
+   "type": "Creature \u2014 Elemental",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Elemental"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhen this creature enters, draw two cards.\nEvoke {2}{U} (You may cast this spell for its evoke cost. If you do, it's sacrificed when it enters.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Evoke",
+    "Flying"
+   ]
+  },
+  {
+   "name": "Ninja of the Deep Hours",
+   "count": 1,
+   "manaCost": "{3}{U}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Human Ninja",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Ninja"
+   ],
+   "supertypes": [],
+   "text": "Ninjutsu {1}{U} ({1}{U}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand tapped and attacking.)\nWhenever this creature deals combat damage to a player, you may draw a card.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Ninjutsu"
+   ]
+  },
+  {
+   "name": "Sigiled Starfish",
+   "count": 1,
+   "manaCost": "{1}{U}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Starfish",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Starfish"
+   ],
+   "supertypes": [],
+   "text": "{T}: Scry 1. (Look at the top card of your library. You may put that card on the bottom.)",
+   "power": "0",
+   "toughness": "3",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "name": "Pilgrim's Eye",
+   "count": 1,
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "type": "Artifact Creature \u2014 Thopter",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "subtypes": [
+    "Thopter"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhen this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [],
+   "colorIdentity": [],
+   "keywords": [
+    "Flying"
+   ]
+  },
+  {
+   "name": "Terminus",
+   "count": 1,
+   "manaCost": "{4}{W}{W}",
+   "manaValue": 6.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Put all creatures on the bottom of their owners' libraries.\nMiracle {W} (You may cast this card for its miracle cost when you draw it if it's the first card you drew this turn.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Miracle"
+   ]
+  },
+  {
+   "name": "Entreat the Angels",
+   "count": 1,
+   "manaCost": "{X}{X}{W}{W}{W}",
+   "manaValue": 3.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Create X 4/4 white Angel creature tokens with flying.\nMiracle {X}{W}{W} (You may cast this card for its miracle cost when you draw it if it's the first card you drew this turn.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Miracle"
+   ]
+  },
+  {
+   "name": "Army of the Damned",
+   "count": 1,
+   "manaCost": "{5}{B}{B}{B}",
+   "manaValue": 8.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Create thirteen tapped 2/2 black Zombie creature tokens.\nFlashback {7}{B}{B}{B} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "B"
+   ],
+   "colorIdentity": [
+    "B"
+   ],
+   "keywords": [
+    "Flashback"
+   ]
+  },
+  {
+   "name": "Akroma's Vengeance",
+   "count": 1,
+   "manaCost": "{4}{W}{W}",
+   "manaValue": 6.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy all artifacts, creatures, and enchantments.\nCycling {3} ({3}, Discard this card: Draw a card.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Cycling"
+   ]
+  },
+  {
+   "name": "Devastation Tide",
+   "count": 1,
+   "manaCost": "{3}{U}{U}",
+   "manaValue": 5.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Return all nonland permanents to their owners' hands.\nMiracle {1}{U} (You may cast this card for its miracle cost when you draw it if it's the first card you drew this turn.)",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Miracle"
+   ]
+  },
+  {
+   "name": "Dream Cache",
+   "count": 1,
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Draw three cards, then put two cards from your hand both on top of your library or both on the bottom of your library.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ]
+  },
+  {
+   "name": "Ponder",
+   "count": 1,
+   "manaCost": "{U}",
+   "manaValue": 1.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Look at the top three cards of your library, then put them back in any order. You may shuffle.\nDraw a card.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ]
+  },
+  {
+   "name": "Portent",
+   "count": 1,
+   "manaCost": "{U}",
+   "manaValue": 1.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Look at the top three cards of target player's library, then put them back in any order. You may have that player shuffle.\nDraw a card at the beginning of the next turn's upkeep.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ]
+  },
+  {
+   "name": "Treasure Hunt",
+   "count": 1,
+   "manaCost": "{1}{U}",
+   "manaValue": 2.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Reveal cards from the top of your library until you reveal a nonland card, then put all cards revealed this way into your hand.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ]
+  },
+  {
+   "name": "Utter End",
+   "count": 1,
+   "manaCost": "{2}{W}{B}",
+   "manaValue": 4.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Exile target nonland permanent.",
+   "colors": [
+    "B",
+    "W"
+   ],
+   "colorIdentity": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Banishing Stroke",
+   "count": 1,
+   "manaCost": "{5}{W}",
+   "manaValue": 6.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Put target artifact, creature, or enchantment on the bottom of its owner's library.\nMiracle {W} (You may cast this card for its miracle cost when you draw it if it's the first card you drew this turn.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Miracle"
+   ]
+  },
+  {
+   "name": "Return to Dust",
+   "count": 1,
+   "manaCost": "{2}{W}{W}",
+   "manaValue": 4.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Exile target artifact or enchantment. If you cast this spell during your main phase, you may exile up to one other target artifact or enchantment.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ]
+  },
+  {
+   "name": "Brainstorm",
+   "count": 1,
+   "manaCost": "{U}",
+   "manaValue": 1.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Draw three cards, then put two cards from your hand on top of your library in any order.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ]
+  },
+  {
+   "name": "Predict",
+   "count": 1,
+   "manaCost": "{1}{U}",
+   "manaValue": 2.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Choose a card name, then target player mills a card. If a card with the chosen name was milled this way, you draw two cards. Otherwise, you draw a card.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Mill"
+   ]
+  },
+  {
+   "name": "Telling Time",
+   "count": 1,
+   "manaCost": "{1}{U}",
+   "manaValue": 2.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Look at the top three cards of your library. Put one of those cards into your hand, one on top of your library, and one on the bottom of your library.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ]
+  },
+  {
+   "name": "Esper Charm",
+   "count": 1,
+   "manaCost": "{W}{U}{B}",
+   "manaValue": 3.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Choose one \u2014\n\u2022 Destroy target enchantment.\n\u2022 Draw two cards.\n\u2022 Target player discards two cards.",
+   "colors": [
+    "B",
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "B",
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Mortify",
+   "count": 1,
+   "manaCost": "{1}{W}{B}",
+   "manaValue": 3.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy target creature or enchantment.",
+   "colors": [
+    "B",
+    "W"
+   ],
+   "colorIdentity": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Azorius Signet",
+   "count": 1,
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{1}, {T}: Add {W}{U}.",
+   "colors": [],
+   "colorIdentity": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Commander's Sphere",
+   "count": 1,
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color in your commander's color identity.\nSacrifice this artifact: Draw a card.",
+   "colors": [],
+   "colorIdentity": []
+  },
+  {
+   "name": "Crystal Ball",
+   "count": 1,
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{1}, {T}: Scry 2. (Look at the top two cards of your library, then put any number of them on the bottom and the rest on top in any order.)",
+   "colors": [],
+   "colorIdentity": [],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "name": "Dimir Signet",
+   "count": 1,
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{1}, {T}: Add {U}{B}.",
+   "colors": [],
+   "colorIdentity": [
+    "B",
+    "U"
+   ]
+  },
+  {
+   "name": "Mind Stone",
+   "count": 1,
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.",
+   "colors": [],
+   "colorIdentity": []
+  },
+  {
+   "name": "Orzhov Signet",
+   "count": 1,
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{1}, {T}: Add {W}{B}.",
+   "colors": [],
+   "colorIdentity": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Seer's Lantern",
+   "count": 1,
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{2}, {T}: Scry 1. (Look at the top card of your library. You may put that card on the bottom.)",
+   "colors": [],
+   "colorIdentity": [],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "name": "Sol Ring",
+   "count": 1,
+   "manaCost": "{1}",
+   "manaValue": 1.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}{C}.",
+   "colors": [],
+   "colorIdentity": []
+  },
+  {
+   "name": "Lightform",
+   "count": 1,
+   "manaCost": "{1}{W}{W}",
+   "manaValue": 3.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "When this enchantment enters, it becomes an Aura with enchant creature. Manifest the top card of your library and attach this enchantment to it. (To manifest a card, put it onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)\nEnchanted creature has flying and lifelink.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Manifest"
+   ]
+  },
+  {
+   "name": "Cloudform",
+   "count": 1,
+   "manaCost": "{1}{U}{U}",
+   "manaValue": 3.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "When this enchantment enters, it becomes an Aura with enchant creature. Manifest the top card of your library and attach this enchantment to it. (To manifest a card, put it onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)\nEnchanted creature has flying and hexproof.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Manifest"
+   ]
+  },
+  {
+   "name": "Plains",
+   "count": 3,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Plains"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {W}.)",
+   "colors": [],
+   "colorIdentity": [
+    "W"
+   ]
+  },
+  {
+   "name": "Plains",
+   "count": 3,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Plains"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {W}.)",
+   "colors": [],
+   "colorIdentity": [
+    "W"
+   ]
+  },
+  {
+   "name": "Plains",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Plains"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {W}.)",
+   "colors": [],
+   "colorIdentity": [
+    "W"
+   ]
+  },
+  {
+   "name": "Island",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Island",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Island"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {U}.)",
+   "colors": [],
+   "colorIdentity": [
+    "U"
+   ]
+  },
+  {
+   "name": "Island",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Island",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Island"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {U}.)",
+   "colors": [],
+   "colorIdentity": [
+    "U"
+   ]
+  },
+  {
+   "name": "Island",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Island",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Island"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {U}.)",
+   "colors": [],
+   "colorIdentity": [
+    "U"
+   ]
+  },
+  {
+   "name": "Swamp",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Swamp",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Swamp"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {B}.)",
+   "colors": [],
+   "colorIdentity": [
+    "B"
+   ]
+  },
+  {
+   "name": "Swamp",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Swamp",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Swamp"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {B}.)",
+   "colors": [],
+   "colorIdentity": [
+    "B"
+   ]
+  },
+  {
+   "name": "Swamp",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Swamp",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Swamp"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {B}.)",
+   "colors": [],
+   "colorIdentity": [
+    "B"
+   ]
+  },
+  {
+   "name": "Arcane Sanctum",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {W}, {U}, or {B}.",
+   "colors": [],
+   "colorIdentity": [
+    "B",
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Azorius Chancery",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {W}{U}.",
+   "colors": [],
+   "colorIdentity": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Azorius Guildgate",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land \u2014 Gate",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Gate"
+   ],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {W} or {U}.",
+   "colors": [],
+   "colorIdentity": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Barren Moor",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {B}.\nCycling {B} ({B}, Discard this card: Draw a card.)",
+   "colors": [],
+   "colorIdentity": [
+    "B"
+   ],
+   "keywords": [
+    "Cycling"
+   ]
+  },
+  {
+   "name": "Command Tower",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color in your commander's color identity.",
+   "colors": [],
+   "colorIdentity": []
+  },
+  {
+   "name": "Dimir Aqueduct",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {U}{B}.",
+   "colors": [],
+   "colorIdentity": [
+    "B",
+    "U"
+   ]
+  },
+  {
+   "name": "Dimir Guildgate",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land \u2014 Gate",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Gate"
+   ],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {U} or {B}.",
+   "colors": [],
+   "colorIdentity": [
+    "B",
+    "U"
+   ]
+  },
+  {
+   "name": "Dismal Backwater",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {U} or {B}.",
+   "colors": [],
+   "colorIdentity": [
+    "B",
+    "U"
+   ]
+  },
+  {
+   "name": "Forsaken Sanctuary",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {W} or {B}.",
+   "colors": [],
+   "colorIdentity": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Halimar Depths",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, look at the top three cards of your library, then put them back in any order.\n{T}: Add {U}.",
+   "colors": [],
+   "colorIdentity": [
+    "U"
+   ]
+  },
+  {
+   "name": "Jwar Isle Refuge",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {U} or {B}.",
+   "colors": [],
+   "colorIdentity": [
+    "B",
+    "U"
+   ]
+  },
+  {
+   "name": "Lonely Sandbar",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {U}.\nCycling {U} ({U}, Discard this card: Draw a card.)",
+   "colors": [],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Cycling"
+   ]
+  },
+  {
+   "name": "Meandering River",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {W} or {U}.",
+   "colors": [],
+   "colorIdentity": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Mortuary Mire",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, you may put target creature card from your graveyard on top of your library.\n{T}: Add {B}.",
+   "colors": [],
+   "colorIdentity": [
+    "B"
+   ]
+  },
+  {
+   "name": "New Benalia",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {W}.",
+   "colors": [],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "name": "Orzhov Basilica",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {W}{B}.",
+   "colors": [],
+   "colorIdentity": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Orzhov Guildgate",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land \u2014 Gate",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Gate"
+   ],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {W} or {B}.",
+   "colors": [],
+   "colorIdentity": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Scoured Barrens",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {W} or {B}.",
+   "colors": [],
+   "colorIdentity": [
+    "B",
+    "W"
+   ]
+  },
+  {
+   "name": "Secluded Steppe",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {W}.\nCycling {W} ({W}, Discard this card: Draw a card.)",
+   "colors": [],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Cycling"
+   ]
+  },
+  {
+   "name": "Sejiri Refuge",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {W} or {U}.",
+   "colors": [],
+   "colorIdentity": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Submerged Boneyard",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {U} or {B}.",
+   "colors": [],
+   "colorIdentity": [
+    "B",
+    "U"
+   ]
+  },
+  {
+   "name": "Tranquil Cove",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {W} or {U}.",
+   "colors": [],
+   "colorIdentity": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Varina, Lich Queen",
+   "count": 1,
+   "manaCost": "{1}{W}{U}{B}",
+   "manaValue": 4.0,
+   "type": "Legendary Creature \u2014 Zombie Wizard",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Zombie",
+    "Wizard"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Whenever you attack with one or more Zombies, draw that many cards, then discard that many cards. You gain that much life.\n{2}, Exile two cards from your graveyard: Create a tapped 2/2 black Zombie creature token.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "B",
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "B",
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Yennett, Cryptic Sovereign",
+   "count": 1,
+   "manaCost": "{2}{W}{U}{B}",
+   "manaValue": 5.0,
+   "type": "Legendary Creature \u2014 Sphinx",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Sphinx"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Flying, vigilance, menace\nWhenever Yennett attacks, reveal the top card of your library. You may cast it without paying its mana cost if its mana value is odd. If you don't cast it, draw a card.",
+   "power": "3",
+   "toughness": "5",
+   "colors": [
+    "B",
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "B",
+    "U",
+    "W"
+   ],
+   "keywords": [
+    "Flying",
+    "Menace",
+    "Vigilance"
+   ]
+  },
+  {
+   "name": "Boreas Charger",
+   "count": 1,
+   "manaCost": "{2}{W}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Pegasus",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Pegasus"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhen this creature leaves the battlefield, choose an opponent who controls more lands than you. Search your library for a number of Plains cards equal to the difference, reveal those cards, put one of them onto the battlefield tapped and the rest into your hand, then shuffle.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Flying"
+   ]
+  },
+  {
+   "name": "Magus of the Balance",
+   "count": 1,
+   "manaCost": "{1}{W}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Human Wizard",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Wizard"
+   ],
+   "supertypes": [],
+   "text": "{4}{W}, {T}, Sacrifice this creature: Each player chooses a number of lands they control equal to the number of lands controlled by the player who controls the fewest, then sacrifices the rest. Players discard cards and sacrifice creatures the same way.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ]
+  },
+  {
+   "name": "Aminatou's Augury",
+   "count": 1,
+   "manaCost": "{6}{U}{U}",
+   "manaValue": 8.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Exile the top eight cards of your library. You may put a land card from among them onto the battlefield. Until end of turn, for each nonland card type, you may cast a spell of that type from among the exiled cards without paying its mana cost.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ]
+  },
+  {
+   "name": "Primordial Mist",
+   "count": 1,
+   "manaCost": "{4}{U}",
+   "manaValue": 5.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "At the beginning of your end step, you may manifest the top card of your library. (Put it onto the battlefield face down as a 2/2 creature. Turn it face up any time for its mana cost if it's a creature card.)\nExile a face-down permanent you control face up: You may play that card this turn. (You still pay its costs. Timing rules still apply.)",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Manifest"
+   ]
+  },
+  {
+   "name": "Entreat the Dead",
+   "count": 1,
+   "manaCost": "{X}{X}{B}{B}{B}",
+   "manaValue": 3.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Return X target creature cards from your graveyard to the battlefield.\nMiracle {X}{B}{B} (You may cast this card for its miracle cost when you draw it if it's the first card you drew this turn.)",
+   "colors": [
+    "B"
+   ],
+   "colorIdentity": [
+    "B"
+   ],
+   "keywords": [
+    "Miracle"
+   ]
+  },
+  {
+   "name": "Night Incarnate",
+   "count": 1,
+   "manaCost": "{4}{B}",
+   "manaValue": 5.0,
+   "type": "Creature \u2014 Elemental",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Elemental"
+   ],
+   "supertypes": [],
+   "text": "Deathtouch\nWhen this creature leaves the battlefield, all creatures get -3/-3 until end of turn.\nEvoke {3}{B} (You may cast this spell for its evoke cost. If you do, it's sacrificed when it enters.)",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "B"
+   ],
+   "colorIdentity": [
+    "B"
+   ],
+   "keywords": [
+    "Deathtouch",
+    "Evoke"
+   ]
+  },
+  {
+   "name": "Skull Storm",
+   "count": 1,
+   "manaCost": "{7}{B}{B}",
+   "manaValue": 9.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "When you cast this spell, copy it for each time you've cast your commander from the command zone this game.\nEach opponent sacrifices a creature of their choice. Each opponent who can't loses half their life, rounded up.",
+   "colors": [
+    "B"
+   ],
+   "colorIdentity": [
+    "B"
+   ]
+  },
+  {
+   "name": "Sower of Discord",
+   "count": 1,
+   "manaCost": "{4}{B}{B}",
+   "manaValue": 6.0,
+   "type": "Creature \u2014 Demon",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Demon"
+   ],
+   "supertypes": [],
+   "text": "Flying\nAs this creature enters, choose two players.\nWhenever damage is dealt to one of the chosen players, the other chosen player also loses that much life.",
+   "power": "6",
+   "toughness": "6",
+   "colors": [
+    "B"
+   ],
+   "colorIdentity": [
+    "B"
+   ],
+   "keywords": [
+    "Flying"
+   ]
+  },
+  {
+   "name": "Yuriko, the Tiger's Shadow",
+   "count": 1,
+   "manaCost": "{1}{U}{B}",
+   "manaValue": 3.0,
+   "type": "Legendary Creature \u2014 Human Ninja",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Ninja"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Commander ninjutsu {U}{B} ({U}{B}, Return an unblocked attacker you control to hand: Put this card onto the battlefield from your hand or the command zone tapped and attacking.)\nWhenever a Ninja you control deals combat damage to a player, reveal the top card of your library and put that card into your hand. Each opponent loses life equal to that card's mana value.",
+   "power": "1",
+   "toughness": "3",
+   "colors": [
+    "B",
+    "U"
+   ],
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "keywords": [
+    "Commander ninjutsu"
+   ]
+  },
+  {
+   "name": "Isolated Watchtower",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{2}, {T}: Scry 1, then you may reveal the top card of your library. If a basic land card is revealed this way, put it onto the battlefield tapped. Activate only if an opponent controls at least two more lands than you.",
+   "colors": [],
+   "colorIdentity": [],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "name": "Aethermage's Touch",
+   "count": 1,
+   "manaCost": "{2}{W}{U}",
+   "manaValue": 4.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Reveal the top four cards of your library. You may put a creature card from among them onto the battlefield. It gains \"At the beginning of your end step, return this creature to its owner's hand.\" Then put the rest of the cards revealed this way on the bottom of your library in any order.",
+   "colors": [
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "U",
+    "W"
+   ]
+  },
+  {
+   "name": "Loyal Unicorn",
+   "count": 1,
+   "manaCost": "{3}{W}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Unicorn",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Unicorn"
+   ],
+   "supertypes": [],
+   "text": "Vigilance\nLieutenant \u2014 At the beginning of combat on your turn, if you control your commander, prevent all combat damage that would be dealt to creatures you control this turn. Other creatures you control gain vigilance until end of turn.",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Lieutenant",
+    "Vigilance"
+   ]
+  },
+  {
+   "name": "Loyal Subordinate",
+   "count": 1,
+   "manaCost": "{2}{B}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Zombie",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Zombie"
+   ],
+   "supertypes": [],
+   "text": "Menace (This creature can't be blocked except by two or more creatures.)\nLieutenant \u2014 At the beginning of combat on your turn, if you control your commander, each opponent loses 3 life.",
+   "power": "3",
+   "toughness": "1",
+   "colors": [
+    "B"
+   ],
+   "colorIdentity": [
+    "B"
+   ],
+   "keywords": [
+    "Lieutenant",
+    "Menace"
+   ]
+  },
+  {
+   "name": "Geode Golem",
+   "count": 1,
+   "manaCost": "{5}",
+   "manaValue": 5.0,
+   "type": "Artifact Creature \u2014 Golem",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "subtypes": [
+    "Golem"
+   ],
+   "supertypes": [],
+   "text": "Trample\nWhenever this creature deals combat damage to a player, you may cast your commander from the command zone without paying its mana cost. (You still pay any additional costs.)",
+   "power": "5",
+   "toughness": "3",
+   "colors": [],
+   "colorIdentity": [],
+   "keywords": [
+    "Trample"
+   ]
+  },
+  {
+   "name": "Forge of Heroes",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{T}: Choose target commander that entered this turn. Put a +1/+1 counter on it if it's a creature and a loyalty counter on it if it's a planeswalker.",
+   "colors": [],
+   "colorIdentity": []
+  },
+  {
+   "name": "Crib Swap",
+   "count": 1,
+   "manaCost": "{2}{W}",
+   "manaValue": 3.0,
+   "type": "Kindred Instant \u2014 Shapeshifter",
+   "types": [
+    "Kindred",
+    "Instant"
+   ],
+   "subtypes": [
+    "Shapeshifter"
+   ],
+   "supertypes": [],
+   "text": "Changeling (This card is every creature type.)\nExile target creature. Its controller creates a 1/1 colorless Shapeshifter creature token with changeling.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Changeling"
+   ]
+  }
+ ]
+}

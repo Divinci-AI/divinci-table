@@ -247,6 +247,8 @@ class VirtualPlayer:
         return 0
 
     def describe(self, p: Perm) -> str:
+        if p.is_("Planeswalker"):
+            return f"{p.name} (loyalty {p.counters})" + (" [tapped]" if p.tapped else "")
         if p.is_("Creature"):
             pw, tg = self.stats(p)
             extra = [a.role + " Role" if a.role else a.name for a in self.battlefield if a.attached_to == p.id]
@@ -269,6 +271,10 @@ class VirtualPlayer:
             if p.is_("Land") or "{T}: Add" in text or "{T}: add" in text:
                 cols = produced_colors(p.card)
                 if cols:
+                    filt = re.search(r"\{1\}, \{T\}: Add \{([WUBRG])\}\{([WUBRG])\}", text)
+                    if filt:                                          # Signets: pay {1}, get two = net one
+                        out.append((p, "".join(sorted(set(filt.groups())))))
+                        continue
                     if re.search(r"Add X mana of any one colou?r, where X is the number of enchantments", text):
                         n = len(self.enchantments())                     # Sanctum Weaver
                     else:
@@ -464,6 +470,11 @@ class VirtualPlayer:
                     self.next_color = None
                 said = [f"I cast {c['name']} on {target.name}."]      # one sentence, not two
             said += triggered
+            if p.is_("Planeswalker"):
+                try:
+                    p.counters = int(c.get("loyalty") or 0)           # loyalty lives on the counters
+                except ValueError:
+                    pass
             self.battlefield.append(p)
             self.last_cast["perm"] = p.id
             said += self.enter_effects(p, choose_target)
@@ -511,6 +522,11 @@ class VirtualPlayer:
             handled = True
             self.draw()
             said.append("I draw a card.")
+        elif re.fullmatch(r"(?:you )?draw (a|one|two|three) cards?", clause.strip()):   # Mulldrifter, Pilgrim's Eye-less
+            handled = True
+            n = {"a": 1, "one": 1, "two": 2, "three": 3}[re.match(r"(?:you )?draw (\w+)", clause.strip()).group(1)]
+            self.draw(n)
+            said.append(f"I draw {'a card' if n == 1 else f'{n} cards'}.")
         if re.search(r"target opponent creates", clause):
             self.todo.append(f"{p.name}: name the opponent who gets the token (say it)")
         elif etb and not handled:
@@ -915,6 +931,74 @@ def _manual(cls):
         return [f"I search my library for {c['name'] if to == 'battlefield' or 'Basic' in (c.get('supertypes') or []) else 'a card'}, "
                 f"put it {'onto the battlefield' + (' tapped' if tapped else '') if to == 'battlefield' else 'into my hand'}, and shuffle."]
 
+    # ── library and zone tools the brain drives by hand (Brainstorm, Ponder, ninjutsu, blink) ──
+    def peek(self, n):
+        """Top n of the library, top first. PRIVATE: the brain sees it, the table doesn't."""
+        return [c["name"] for c in self.library[::-1][:n]]
+
+    def topdeck(self, name):
+        c = self.hand_card(name)
+        self.hand.remove(c)
+        self.library.append(c)                       # library.pop() draws from the end: the end is the top
+        return ["I put a card on top of my library."]
+
+    def bottom(self, name, from_top=False):
+        """A card to the bottom: from the hand, or (from_top) from the top of the library."""
+        if from_top:
+            c = _match(name, self.library[::-1][:10], lambda c: c["name"])
+            if not c:
+                raise IllegalAction(f"'{name}' isn't near the top of your library")
+            self.library.remove(c)
+        else:
+            c = self.hand_card(name)
+            self.hand.remove(c)
+        self.library.insert(0, c)
+        return ["I put a card on the bottom of my library."]
+
+    def shuffle_library(self):
+        self.rng.shuffle(self.library)
+        return ["I shuffle my library."]
+
+    def put(self, name, tapped=False):
+        """Hand → battlefield without paying (ninjutsu, "put onto the battlefield")."""
+        c = self.hand_card(name)
+        self.hand.remove(c)
+        p = Perm(c, sick=True, tapped=tapped)
+        if p.is_("Planeswalker"):
+            p.counters = int(c.get("loyalty") or 0)
+        self.battlefield.append(p)
+        said = [f"I put {c['name']} onto the battlefield" + (" tapped." if tapped else ".")]
+        said += self.enter_effects(p, lambda card, cands: max(cands, key=lambda k: self.stats(k)[0]))
+        if p.is_("Enchantment"):
+            said += self.on_enchantment_enters(p)
+        return said
+
+    def blink(self, ref):
+        """Exile one of its permanents and return it: a new object (no counters, untapped, summoning
+        sick), its Auras fall off, and its enters-the-battlefield effects trigger again."""
+        p = self.perm(ref)
+        for a in [a for a in self.battlefield if a.attached_to == p.id]:
+            self.battlefield.remove(a)
+            if not a.token:
+                self.graveyard.append(a.card)
+        self.battlefield.remove(p)
+        if p.token:
+            return [f"{p.name} is exiled. It's a token, so it doesn't come back."]
+        q = Perm(p.card, sick=True)
+        if q.is_("Planeswalker"):
+            q.counters = int(p.card.get("loyalty") or 0)
+        self.battlefield.append(q)
+        said = [f"I exile {p.name} and return it."]
+        said += self.enter_effects(q, lambda card, cands: max(cands, key=lambda k: self.stats(k)[0]))
+        return said
+
+    def make_tokens(self, name, power, toughness, keywords=(), n=1, tapped=False):
+        for _ in range(n):
+            tok = {"name": f"{name} token", "types": ["Creature"], "power": str(power), "toughness": str(toughness),
+                   "text": "", "keywords": list(keywords)}
+            self.battlefield.append(Perm(tok, token=True, tapped=tapped))
+        return [f"I create {n} {power}/{toughness} {name} token{'s' if n != 1 else ''}" + (", tapped." if tapped else ".")]
+
     def make_token(self, name, power, toughness, keywords=()):
         tok = {"name": f"{name} token", "types": ["Creature"], "power": str(power), "toughness": str(toughness),
                "text": "", "keywords": list(keywords)}
@@ -933,7 +1017,8 @@ def _manual(cls):
         return [f"I mill {len(milled)}: {', '.join(c['name'] for c in milled)}."]
 
     for f in (hand_card, perm, begin_turn, upkeep, manual_land, manual_cast, manual_attack, attack_triggers,
-              combat_damage, move, search_library, make_token, discard, mill):
+              combat_damage, move, search_library, make_token, make_tokens, discard, mill, peek, topdeck, bottom,
+              shuffle_library, put, blink):
         setattr(cls, f.__name__, f)
     return cls
 
