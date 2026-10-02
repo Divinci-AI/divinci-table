@@ -9,6 +9,9 @@
 #                 table/fusion_brain.py. FUSION_DECK=… picks its deck (default decks/ellivere.json).
 # FAIR_SEED=online  seal each AI deck with ANU quantum randomness + Cloudflare's drand (+ players' words).
 # LAN=1           players' phones can open http://<this Mac>:8800/me (public info only).
+# ORDER=…         turn order, "Fusion,Sam,Claude,Michael": NEXT walks each human's turn step by step, and
+#                 the turn passes itself along (AI seats are started for you).
+# RESTORE=…       resume a game from its snapshot.pkl (table/.cache/research/<game>/snapshot.pkl).
 # Claude (in Claude Code) follows the table with:  table/tablectl.py --seat Claude watch   — docs/claude-brain.md
 set -eu
 cd "$(dirname "$0")/.."
@@ -26,6 +29,8 @@ if [ "${FUSION:-}" = 1 ]; then
 fi
 HOST=(); [ "${LAN:-}" = 1 ] && HOST=(--host 0.0.0.0)
 FAIR=(--fair-seed "${FAIR_SEED:-local}")   # FAIR_SEED=online: ANU quantum + drand go into every AI deck's seal
+[ -n "${ORDER:-}" ] && FAIR+=(--order "$ORDER")
+[ -n "${RESTORE:-}" ] && FAIR+=(--restore "$RESTORE")
 LOG=table/.cache/game-$(date +%Y%m%d-%H%M).log
 mkdir -p table/.cache
 env -u TYPESAFE_API_KEY ${MODELS[@]+"${MODELS[@]}"} HF_HUB_OFFLINE=1 HF_DEACTIVATE_ASYNC_LOAD=1 ~/.venvs/table/bin/python table/server.py \
@@ -39,5 +44,6 @@ if [ "${FUSION:-}" = 1 ]; then
   echo "fusion: Divinci release playing seat Fusion   log: $FLOG"
 fi
 echo "table:  http://localhost:8800/table      log: $LOG"
+echo "stage:  http://localhost:8800/stage      (NEXT: phones at /me, or the stage's NEXT / N key)"
 [ "${LAN:-}" = 1 ] && echo "phones: http://$(ipconfig getifaddr en0 || ipconfig getifaddr en1):8800/me"
 echo "brain:  table/tablectl.py --seat Claude watch   (Claude drives with tablectl — docs/claude-brain.md)"

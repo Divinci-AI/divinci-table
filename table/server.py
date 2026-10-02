@@ -49,6 +49,12 @@ ap.add_argument("--brain", choices=["gemma", "external"], default="gemma",
                      "through /api/brain (tablectl) — then the server never answers or plays for it")
 ap.add_argument("--human", action="append", default=[],
                 help='a human player, "Name|Commander card name" (repeatable); their names go into the speech hint')
+ap.add_argument("--order", default="",
+                help='turn order, comma-separated names ("Fusion,Sam,Claude,Michael"); default: humans then AIs')
+ap.add_argument("--restore", default="",
+                help="resume a game from its snapshot.pkl (written automatically after every change)")
+ap.add_argument("--priority-secs", type=float, default=45.0,
+                help="how long NEXT waits for an AI seat that holds an instant before passing for it")
 ap.add_argument("--fair-seed", choices=["local", "online", "off"], default="local",
                 help="provably fair AI decks (fair.py): commit each AI seat's shuffle before the first draw. "
                      "local: OS entropy + players' secret words (offline); online: also ANU quantum + drand")
@@ -97,13 +103,13 @@ if args.ai_deck:
     if len(args.ai_deck) > len(AI_PLAYERS):
         sys.exit("more --ai-deck than --ai players: each deck belongs to an --ai, in order")
     _online = {}
-    if args.fair_seed == "online":
+    if args.fair_seed == "online" and not args.restore:
         import fair as _fair
         _online = _fair.online_parts()
         print(f"fair seed: {sorted(_online)}", flush=True)
     for _i, _deck in enumerate(args.ai_deck):
         _n = AI_PLAYERS[_i]["name"]
-        VPS[_n] = VirtualPlayer(_deck, _n, **({} if args.fair_seed == "off" else
+        VPS[_n] = VirtualPlayer(_deck, _n, **({} if args.fair_seed == "off" or args.restore else
                                               {"fair_words": {}, "fair_online": _online or False}))
         DECK_OF[_n] = _deck
         AI_PLAYERS[_i]["has_deck"] = True
@@ -198,6 +204,134 @@ EVENTS: list[dict] = []
 EV_LOCK = threading.Lock()
 _ev_id = [0]
 
+# ── turn structure: NEXT walks a human's turn step by step; each step opens a priority window ──
+STEPS = ["untap", "upkeep", "draw", "main 1", "beginning of combat", "declare attackers",
+         "declare blockers", "combat damage", "main 2", "end step", "cleanup"]
+NO_PRIORITY = {"untap", "cleanup"}                    # the rules give no one priority here
+ORDER: list[str] = [x.strip() for x in args.order.split(",") if x.strip()]
+PHASE = {"player": None, "step": 0}
+PRIORITY = {"step": None, "waiting": [], "deadline": 0.0}
+PHASE_LOCK = threading.RLock()
+HAND_N: dict[str, int] = {}                            # humans' hand sizes (public), set from the stage page
+
+
+def turn_order() -> list[str]:
+    names = [h["name"] for h in HUMANS] + list(VPS)
+    return [n for n in ORDER if n in names] + [n for n in names if n not in ORDER]
+
+
+def snapshot():
+    """The whole game, pickled next to the research logs after every change: a crash or a restart
+    (new code) resumes from here with --restore. Local only — it holds the AI's hands and libraries."""
+    import pickle
+    try:
+        with VP_LOCK, PHASE_LOCK:
+            blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
+                                 "ORDER": turn_order(), "HAND_N": HAND_N, "ev_id": _ev_id[0], "saved": time.time()})
+        p = research_dir() / "snapshot.pkl"
+        tmp = p.with_suffix(".tmp")
+        tmp.write_bytes(blob)
+        os.chmod(tmp, 0o600)
+        tmp.replace(p)
+    except Exception as e:                            # never let saving break the table
+        print(f"snapshot failed: {e}", flush=True)
+
+
+def restore(path: str):
+    import pickle
+    import player
+    d = pickle.loads(Path(path).read_bytes())
+    VPS.clear(); VPS.update(d["VPS"]); DECK_OF.update(d["DECK_OF"])
+    LIFE.update(d["LIFE"]); FAIR.update(d["FAIR"]); PHASE.update(d["PHASE"]); HAND_N.update(d.get("HAND_N", {}))
+    if not ORDER:
+        ORDER.extend(d.get("ORDER", []))
+    _ev_id[0] = d.get("ev_id", 0)                     # pages keep their cursors across the restart
+    top = max([p.id for v in VPS.values() for p in v.battlefield] + [0])
+    import itertools
+    player._ids = itertools.count(top + 1)            # new permanents never reuse a restored id
+    print(f"restored {path}: seats {list(VPS)}, life {life_table()}, turn {PHASE}", flush=True)
+
+
+def instant_speed(vp) -> list[str]:
+    """Spells this seat could cast right now outside its own turn: instants and flash."""
+    out = []
+    for _label, c, _pay, is_cmdr in vp.castable():
+        if is_cmdr:
+            continue
+        if "Instant" in (c.get("types") or []) or "Flash" in (c.get("keywords") or []):
+            out.append(c["name"])
+    return out
+
+
+def open_priority(step: str) -> list[str]:
+    """Every AI seat that could respond gets a window; seats with nothing to cast pass silently."""
+    active = PHASE["player"]
+    waiting = []
+    if step not in NO_PRIORITY:
+        with VP_LOCK:
+            for n, v in VPS.items():
+                if n != active and instant_speed(v):
+                    waiting.append(n)
+    PRIORITY.update(step=step, waiting=waiting, deadline=time.time() + args.priority_secs)
+    for n in waiting:
+        emit("attention", kind="priority", addressee=n,
+             text=f"{active}: {step}. You may cast an instant now, or pass.", step=step, active=active)
+    return waiting
+
+
+def priority_done(seat_name: str):
+    with PHASE_LOCK:
+        if seat_name in PRIORITY["waiting"]:
+            PRIORITY["waiting"].remove(seat_name)
+            if not PRIORITY["waiting"]:
+                emit("priority", kind="closed", step=PRIORITY["step"])
+
+
+def phase_public() -> dict:
+    with PHASE_LOCK:
+        left = max(0.0, PRIORITY["deadline"] - time.time()) if PRIORITY["waiting"] else 0.0
+        return {"player": PHASE["player"], "step": STEPS[PHASE["step"]], "index": PHASE["step"], "steps": STEPS,
+                "order": turn_order(), "waiting": list(PRIORITY["waiting"]), "seconds_left": round(left, 1),
+                "ai": list(VPS)}
+
+
+def start_turn(name: str):
+    """Hand the turn to a seat: an AI seat plays its whole turn; a human starts at untap."""
+    PHASE.update(player=name, step=0)
+    PRIORITY.update(step=None, waiting=[], deadline=0.0)
+    emit("phase", player=name, step=STEPS[0], index=0)
+    if name in VPS:
+        if BRAIN_EXTERNAL:
+            ev = emit("attention", kind="turn", text="(NEXT)", addressee=name)
+            hold_the_floor(ev["id"], name)
+
+
+def next_step(by: str | None = None) -> tuple[int, dict]:
+    """NEXT: move the active human's turn on one step. Refused while an AI still holds priority
+    (until its window times out); the last step passes the turn to the next seat in order."""
+    with PHASE_LOCK:
+        if PHASE["player"] is None:
+            start_turn(turn_order()[0])
+            return 200, phase_public()
+        if PHASE["player"] in VPS:
+            return 409, {**phase_public(), "error": f"it's {PHASE['player']}'s turn — it ends its own turn"}
+        if PRIORITY["waiting"] and time.time() < PRIORITY["deadline"]:
+            return 409, {**phase_public(), "error": "waiting on " + ", ".join(PRIORITY["waiting"])}
+        for n in list(PRIORITY["waiting"]):           # their window ran out: they pass
+            emit("priority", kind="timeout", seat=n, step=PRIORITY["step"])
+        PRIORITY["waiting"] = []
+        if PHASE["step"] >= len(STEPS) - 1:
+            order = turn_order()
+            nxt = order[(order.index(PHASE["player"]) + 1) % len(order)] if PHASE["player"] in order else order[0]
+            emit("phase", player=PHASE["player"], step="turn over", index=len(STEPS))
+            start_turn(nxt)
+            return 200, phase_public()
+        PHASE["step"] += 1
+        step = STEPS[PHASE["step"]]
+        emit("phase", player=PHASE["player"], step=step, index=PHASE["step"], by=by)
+        open_priority(step)
+        return 200, phase_public()
+
 
 RESEARCH = HERE / ".cache" / "research"          # every game, kept for research (gitignored, local only)
 
@@ -254,10 +388,12 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"),
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
-          ("GET", "/vendor/three.module.min.js"), ("GET", "/vendor/three.core.min.js")}
+          ("GET", "/vendor/three.module.min.js"), ("GET", "/vendor/three.core.min.js"),
+          ("GET", "/avatars/index.json")}
+LAN_PREFIXES = ("/vendor/", "/assets/", "/avatars/")       # static, public: the stage's code, light probe, models
 VENDOR = {"three.module.min.js", "three.core.min.js"}      # three.js r185, vendored so the table stays offline
-HAND_N: dict[str, int] = {}                                 # humans' hand sizes (public), set from the stage page
 
 
 class Table:
@@ -1155,9 +1291,19 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / "table.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/stage":            # the 3D avatar stage: public info only
             return self._send(200, body=(HERE / "stage.html").read_bytes(), ctype="text/html; charset=utf-8")
-        if self.path.startswith("/vendor/") and self.path[8:] in VENDOR:
-            return self._send(200, body=(HERE / "vendor" / self.path[8:]).read_bytes(),
-                              ctype="text/javascript; charset=utf-8")
+        p0 = self.path.split("?")[0]
+        for pre, root in (("/vendor/", HERE / "vendor"), ("/assets/", HERE / "assets"),
+                          ("/avatars/", HERE / ".cache" / "avatars")):
+            if p0.startswith(pre) and not p0.endswith("/index.json"):
+                fp = (root / p0[len(pre):]).resolve()
+                if fp.is_file() and root.resolve() in fp.parents and fp.suffix in (".js", ".hdr", ".glb"):
+                    return self._send(200, body=fp.read_bytes(), ctype={".js": "text/javascript; charset=utf-8",
+                                      ".glb": "model/gltf-binary"}.get(fp.suffix, "application/octet-stream"))
+        if p0 == "/avatars/index.json":
+            d = HERE / ".cache" / "avatars"
+            return self._send(200, sorted(x.stem for x in d.glob("*.glb")) if d.exists() else [])
+        if self.path == "/api/phase":
+            return self._send(200, phase_public())
         if self.path == "/api/stage":                      # seats, commanders, life, hand SIZES — never cards
             with VP_LOCK:
                 lt = life_table()
@@ -1239,6 +1385,13 @@ class H(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
+        try:
+            return self._do_post()
+        finally:
+            if not self.path.startswith(("/api/board", "/api/show", "/api/utterance", "/api/scan")):   # camera/mic: too often
+                snapshot()
+
+    def _do_post(self):
         global T                                           # /api/reset replaces the table (AI seats: reshuffle_all)
         if self._lan_blocked("POST"):
             return
@@ -1305,6 +1458,10 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/api/players":                # someone joins mid-game: {"name": "Jess", "commander": "…"}
                 b = self._json()
                 return self._send(*add_human(str(b.get("name", "")), str(b.get("commander") or "")))
+            if self.path == "/api/phase/next":             # the NEXT button: {"by": "Michael"} (optional)
+                code, out = next_step(str(self._json().get("by", ""))[:30] if self.headers.get("Content-Length") else None)
+                snapshot()
+                return self._send(code, out)
             if self.path == "/api/stage/hand":             # {"player": "Sam", "n": 6} or {"player": "Sam", "delta": -1}
                 b = self._json()
                 p = next((h["name"] for h in HUMANS if h["name"].lower() == str(b.get("player", "")).lower()), None)
@@ -1375,6 +1532,8 @@ class H(BaseHTTPRequestHandler):
             return False
         if (method, self.path.split("?")[0]) in LAN_OK:
             return False
+        if method == "GET" and self.path.split("?")[0].startswith(LAN_PREFIXES):
+            return False
         if method == "POST":
             self._drain(int(self.headers.get("Content-Length", 0) or 0))
         self._send(403, {"error": "this page is only available on the table's laptop"})
@@ -1402,7 +1561,9 @@ class H(BaseHTTPRequestHandler):
             with VP_LOCK:
                 VP.recent_draws.clear()
                 VP.todo.clear()
-                if action == "say":
+                if action == "pass":                       # no response in this priority window
+                    said = []
+                elif action == "say":
                     text = str(b.get("text", "")).strip()
                     hidden = VP.private_hand()
                     leak = voice_leak(text, hidden)
@@ -1515,6 +1676,17 @@ class H(BaseHTTPRequestHandler):
         except KeyError as e:
             return self._send(400, {"error": f"missing field {e}"})
         BRAIN_LAST[0] = time.time()
+        if action in ("pass", "cast", "turn-up") and VP.name in PRIORITY["waiting"]:
+            priority_done(VP.name)                    # answered (cast or pass): the window can close
+        if action == "end" and PHASE["player"] == VP.name:   # an AI ends its turn: on to the next seat
+            order = turn_order()
+            with PHASE_LOCK:
+                PHASE["step"] = len(STEPS) - 1
+                nxt = order[(order.index(VP.name) + 1) % len(order)]
+            threading.Timer(0.5, lambda: (start_turn(nxt), snapshot())).start()
+        if action == "begin":                         # the turn button or NEXT handed this seat its turn
+            with PHASE_LOCK:
+                PHASE.update(player=VP.name, step=0)
         _append("brain.jsonl", {"ts": round(time.time(), 2), "seat": VP.name, "action": action,
                                 "body": {k: v for k, v in b.items() if k != "seat"}, "said": said,
                                 "drew": list(VP.recent_draws), "todo": list(VP.todo),
@@ -1573,6 +1745,8 @@ signal.signal(signal.SIGTERM, _shutdown)
 signal.signal(signal.SIGINT, _shutdown)
 
 
+if args.restore:
+    restore(args.restore)
 threading.Thread(target=_warm, daemon=True).start()   # first Whisper load takes seconds
 mode = f"TEST MODE, any of {len(CATALOG)} card names" if args.any_card else f"deck: {len(DECK)} cards, {len(set(DECK))} distinct"
 print(f"{mode}. Table (camera + mic): http://localhost:{args.port}/table   "

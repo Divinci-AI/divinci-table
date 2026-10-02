@@ -21,6 +21,9 @@ h1{font-size:15px;font-weight:600;color:var(--dim);margin:0 0 10px;letter-spacin
 .btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 button{font:600 18px system-ui;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:10px 14px;min-width:56px}
 button.big{flex:1}
+#phase{margin-top:10px;font-size:14px;color:var(--dim)} #phase b{color:var(--ink)}
+#next{width:100%;margin-top:10px;font-size:26px;padding:18px;background:#2f6f4f;border-color:#3f8f66}
+#next:disabled{opacity:.45} #next.wait{background:#6b5a2a;border-color:#8b7a3a}
 .cap{font-size:17px;margin:6px 0} .cap b{color:var(--ai)}
 .cast .t{font-size:13px;color:var(--dim);font-style:italic} .cast .x{font-size:15px;white-space:pre-line;margin-top:4px}
 .fp{font:600 20px ui-monospace,Menlo,monospace;letter-spacing:.06em}
@@ -36,7 +39,9 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
 <div id="view" hidden>
   <div class="card"><div class="turn" id="turn">Waiting for the game…</div>
     <div class="life" id="life" style="margin-top:8px"></div>
-    <div class="btns" id="mybtns"></div></div>
+    <div class="btns" id="mybtns"></div>
+    <div id="phase"></div>
+    <button id="next" hidden onclick="nextStep()">NEXT ▸</button></div>
   <div class="card cast" id="castCard" hidden><div class="muted">Just played</div><div id="cast"></div></div>
   <div class="card"><div class="muted">At the table</div><div id="caps"><div class="muted">Nothing yet.</div></div></div>
   <div class="card"><div class="muted">Fair decks: the AI's shuffle is sealed before the first draw</div>
@@ -60,7 +65,7 @@ async function start(){
   $("title").textContent=`Divinci Table · ${me}`; $("view").hidden=false;
   if(humans.includes(me)) $("mybtns").innerHTML=[-5,-1,+1,+5].map(d=>`<button class="big" onclick="life(${d})">${d>0?"+":""}${d}</button>`).join("");
   else $("sendWord").parentElement.parentElement.querySelector("input").disabled=true;
-  await life0(); await fair(); poll();
+  await life0(); await fair(); phase(); poll();
 }
 async function life(d){ await j("/api/life",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({player:me,delta:d,by:me})}); life0(); }
 async function life0(){ const lt=await j("/api/life");
@@ -76,7 +81,19 @@ $("sendWord").onclick=async()=>{ const w=$("word").value.trim(); if(!w) return;
 async function showCast(name){ const c=await j("/api/card?name="+encodeURIComponent(name)); if(c.error) return;
   $("castCard").hidden=false; const pt=c.power!=null?` · ${c.power}/${c.toughness}`:"";
   $("cast").innerHTML=`<div><b>${esc(c.name)}</b> <span class="muted">${esc(c.cost||"")}</span></div><div class="t">${esc(c.type)}${esc(pt)}</div><div class="x">${esc(c.text||"")}</div>`; }
+// NEXT: step through your turn; an AI holding an instant gets a moment first (the server enforces it)
+async function phase(){ const p=await j("/api/phase"); if(p.error) return;
+  const mine=p.player===me, steps=p.steps||[];
+  $("phase").innerHTML=p.player?`<b>${esc(p.player)}</b> · ${esc(p.step)}`
+    +(p.waiting&&p.waiting.length?` · waiting on <b>${esc(p.waiting.join(", "))}</b> (${Math.ceil(p.seconds_left)}s)`:""):"Press NEXT to start the first turn.";
+  const nb=$("next"); nb.hidden=!(mine||!p.player); nb.disabled=!!(p.waiting&&p.waiting.length&&p.seconds_left>0);
+  nb.classList.toggle("wait",nb.disabled);
+  nb.textContent=!p.player?"START ▸":nb.disabled?"waiting…":(p.index>=steps.length-1?"END TURN ▸":`NEXT ▸ ${steps[p.index+1]||""}`); }
+async function nextStep(){ const r=await j("/api/phase/next",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({by:me})});
+  if(r.error) $("phase").innerHTML+=` · <span class="muted">${esc(r.error)}</span>`; else phase(); }
+setInterval(()=>{ if(me) phase(); },1500);
 function onEvent(e){
+  if(e.type==="phase"||e.type==="priority"||(e.type==="attention"&&e.kind==="priority")) phase();
   if(e.type==="say"){ caps.push(`<div class="cap"><b>${esc(e.speaker)}:</b> ${esc(e.text)}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join("");
     const t=e.text.match(/^(.+?), turn (\d+)\./); if(t) $("turn").innerHTML=`<b>${esc(t[1])}</b>'s turn ${esc(t[2])}`;
     const c=e.text.match(/\bI cast (.+?)(?: on | from |\.)/); if(c && c[1]!==lastCast){ lastCast=c[1]; showCast(c[1]); } }

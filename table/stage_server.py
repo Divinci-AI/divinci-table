@@ -9,6 +9,7 @@ the humans' hand sizes itself. A server started after this change serves /stage 
 """
 import argparse
 import json
+import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
@@ -75,7 +76,7 @@ class H(BaseHTTPRequestHandler):
                     return self._send(200, body=f.read_bytes(), ctype="model/gltf-binary")
             if p == "/api/stage":
                 return self._send(200, stage())
-            if p == "/api/events":
+            if p in ("/api/events", "/api/phase"):
                 return self._send(200, get(self.path))
         except OSError as e:
             return self._send(502, {"error": f"table server unreachable: {e}"})
@@ -84,6 +85,14 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0) or 0)
         b = json.loads(self.rfile.read(n) or b"{}")
+        if self.path == "/api/phase/next":             # forwarded to the table server (which enforces priority)
+            req = urllib.request.Request(args.table + self.path, data=json.dumps(b).encode(), method="POST",
+                                         headers={"Content-Type": "application/json"})
+            try:
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    return self._send(r.status, json.loads(r.read()))
+            except urllib.error.HTTPError as e:
+                return self._send(e.code, json.loads(e.read() or b"{}"))
         if self.path == "/api/stage/hand":
             p = next((h for h in HAND_N if h.lower() == str(b.get("player", "")).lower()), None)
             if not p:

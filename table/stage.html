@@ -35,6 +35,18 @@
   .seat button { all: unset; cursor: pointer; width: 22px; height: 22px; text-align: center; border-radius: 6px;
     background: #ffffff1a; font-weight: 800; line-height: 22px; }
   .seat button:hover { background: #ffffff33; }
+  #phase { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 2; display: flex; gap: 10px;
+    align-items: center; padding: 8px 10px 8px 16px; border-radius: 999px; background: #000a; backdrop-filter: blur(8px);
+    font-size: 15px; white-space: nowrap; }
+  #phase:empty { display: none; }
+  #phase .steps { display: flex; gap: 4px; }
+  #phase .dot { width: 8px; height: 8px; border-radius: 50%; background: #ffffff33; }
+  #phase .dot.on { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  #phase .dot.done { background: #ffffff88; }
+  #phase .wait { color: var(--accent); }
+  #phase button { all: unset; cursor: pointer; padding: 6px 14px; border-radius: 999px; background: var(--accent);
+    color: #120c06; font-weight: 800; }
+  #phase button[disabled] { opacity: 0.45; cursor: default; }
   #help { position: fixed; top: 24px; left: 50%; transform: translateX(-50%); color: #ffffff55; font-size: 12px; }
   @media (max-width: 640px) { #caption { bottom: 150px; } .seat { min-width: 120px; } }
 </style>
@@ -48,9 +60,10 @@
 <div id="bg"></div>
 <div id="who"><div class="name">—</div><div class="cmdr"></div><div class="turn">their turn</div></div>
 <div id="life"><div class="n">40</div><div class="l">life</div></div>
+<div id="phase"></div>
 <div id="caption"></div>
 <div id="seats"></div>
-<div id="help">click a seat to pin it · space follows the turn · F full screen · Q effects</div>
+<div id="help">click a seat to pin it · space follows the turn · N next step · F full screen · Q effects</div>
 <script type="module">
 import * as THREE from "three";
 import { GLTFLoader } from "/vendor/jsm/loaders/GLTFLoader.js";
@@ -76,10 +89,11 @@ const seatOf = n => seats.find(s => s.name.toLowerCase() === String(n || "").toL
 
 // ── look per commander: colours and an avatar builder ────────────────────────────────────────
 const LOOKS = [
-  { match: /aminatou/i,   bg: ["#1d2a44", "#05070d"], accent: "#f0a868", build: claudeAvatar },
-  { match: /kaust/i,      bg: ["#18301f", "#040805"], accent: "#d8b45a", build: dryadAvatar },
-  { match: /kilo/i,       bg: ["#2a1d2e", "#07050a"], accent: "#5fd3ff", build: robotAvatar },
-  { match: /ghathrod/i,   bg: ["#20183a", "#05040b"], accent: "#b58cff", build: flayerAvatar },
+  // model: the Meshy avatar generated for that deck (files are named after the seat that first played it)
+  { match: /aminatou/i,   bg: ["#1d2a44", "#05070d"], accent: "#f0a868", build: claudeAvatar, model: "Claude" },
+  { match: /kaust/i,      bg: ["#18301f", "#040805"], accent: "#d8b45a", build: dryadAvatar, model: "Fusion" },
+  { match: /kilo/i,       bg: ["#2a1d2e", "#07050a"], accent: "#5fd3ff", build: robotAvatar, model: "Michael" },
+  { match: /ghathrod/i,   bg: ["#20183a", "#05040b"], accent: "#b58cff", build: flayerAvatar, model: "Sam" },
 ];
 const lookFor = s => LOOKS.find(l => l.match.test(s?.commander || "")) ||
   { bg: ["#262626", "#070707"], accent: "#e6e6e6", build: genericAvatar };
@@ -335,8 +349,13 @@ let models = new Set();
 const gltfCache = {};
 const loader = new GLTFLoader();
 const WANT = params.get("avatars") || "v2";             // ?avatars=v1 shows the first, text-to-3D generation
-const modelFile = name => WANT !== "v1" && models.has(name + ".v2") ? name + ".v2" : name;
-const hasModel = name => models.has(name) || models.has(name + ".v2");
+const modelBase = name => {                                // the seat's own model, else its commander's
+  if (models.has(name) || models.has(name + ".v2")) return name;
+  const m = lookFor(seatOf(name)).model;
+  return m && (models.has(m) || models.has(m + ".v2")) ? m : name;
+};
+const modelFile = name => { const b = modelBase(name); return WANT !== "v1" && models.has(b + ".v2") ? b + ".v2" : b; };
+const hasModel = name => { const b = modelBase(name); return models.has(b) || models.has(b + ".v2"); };
 function loadModel(name) {
   const file = modelFile(name);
   return gltfCache[file] ||= new Promise((ok, bad) => loader.load(`/avatars/${encodeURIComponent(file)}.glb`, ok, undefined, bad));
@@ -551,7 +570,35 @@ async function poll() {
 }
 
 renderer.domElement.addEventListener("click", () => act("hello"));
+// ── NEXT: the active human steps through the turn; AI seats holding an instant get a window first ──
+let phaseInfo = null;
+async function phaseRefresh() {
+  try { phaseInfo = await (await fetch("/api/phase")).json(); } catch { phaseInfo = null; }
+  const el = document.getElementById("phase"), p = phaseInfo;
+  if (!p || p.error || !p.steps) { el.innerHTML = ""; return; }
+  if (p.player && seatOf(p.player) && seatOf(p.player).name !== turn) {     // the turn moved: swap the avatar
+    turn = seatOf(p.player).name; thinkUntil = performance.now() + 5000;
+    if (!pinned) stage(shown(), true);
+    hud();
+  }
+  const human = p.player && !(p.ai || []).includes(p.player), waiting = (p.waiting || []).length > 0 && p.seconds_left > 0;
+  const dots = p.steps.map((_, i) => `<span class="dot ${i < p.index ? "done" : i === p.index ? "on" : ""}"></span>`).join("");
+  const label = !p.player ? "START" : p.index >= p.steps.length - 1 ? "END TURN" : "NEXT";
+  el.innerHTML = `<span><b>${p.player || "—"}</b> · ${p.step || ""}</span><span class="steps">${dots}</span>` +
+    (waiting ? `<span class="wait">${p.waiting.join(", ")} may respond… ${Math.ceil(p.seconds_left)}s</span>` : "") +
+    (human || !p.player ? `<button id="nextBtn" ${waiting ? "disabled" : ""}>${label} ▸</button>` : "");
+  document.getElementById("nextBtn")?.addEventListener("click", pressNext);
+}
+async function pressNext() {
+  const p = phaseInfo; if (!p || ((p.waiting || []).length && p.seconds_left > 0)) return;
+  await fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ by: p.player || "stage" }) });
+  phaseRefresh();
+}
+setInterval(phaseRefresh, 1200); phaseRefresh();
+
 addEventListener("keydown", e => {
+  if (e.key.toLowerCase() === "n") pressNext();
   if (e.key.toLowerCase() === "q") post = !post;
   if (e.key === " ") { pinned = null; stage(shown(), true); hud(); }
   if (e.key.toLowerCase() === "f") document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();

@@ -198,6 +198,9 @@ def main():
     dm.add_argument("--no-life", action="store_true", help="triggers only: the players already said their life")
     ro = sub.add_parser("role"); ro.add_argument("ref"); ro.add_argument("kind")
     en = sub.add_parser("end"); en.add_argument("text", nargs="?")
+    sub.add_parser("pass", help="answer a priority window: no instant this time")
+    sub.add_parser("phase", help="whose turn, which step, who still holds priority")
+    nx = sub.add_parser("next", help="press NEXT for the active human (testing / remote play)"); nx.add_argument("--by")
     for verb in ("destroy", "exile", "bounce", "tap", "untap"):
         v = sub.add_parser(verb); v.add_argument("ref"); v.add_argument("--quiet", action="store_true")
     co = sub.add_parser("counter"); co.add_argument("ref"); co.add_argument("n", type=int)
@@ -263,6 +266,12 @@ def main():
         return act("role", ref=a.ref, kind=a.kind)
     if a.cmd == "end":
         return act("end", text=a.text)
+    if a.cmd == "pass":
+        return act("pass", quiet=True)
+    if a.cmd == "phase":
+        print(json.dumps(req("GET", "/api/phase", brain=False), indent=1)); return
+    if a.cmd == "next":
+        print(json.dumps(req("POST", "/api/phase/next", {"by": a.by} if a.by else {}, brain=False), indent=1)); return
     if a.cmd in ("destroy", "exile", "bounce", "tap", "untap"):
         return act(a.cmd, ref=a.ref, quiet=q, announce=not q)
     if a.cmd == "counter":

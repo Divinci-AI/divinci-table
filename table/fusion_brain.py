@@ -267,6 +267,22 @@ def on_removal(t: Table, e: dict):
         say(t, "Noted.")
 
 
+def on_priority(t: Table, e: dict, dry: bool):
+    """NEXT opened a window in someone else's turn: cast an instant now, or pass."""
+    s = t.state()
+    instants = [h for h in s.get("hand", []) if h.get("castable_now") and "Instant" in (h.get("type") or "")]
+    opts = [("pass — keep my mana", {"action": "pass"})]
+    opts += [(f"cast {h['name']} ({h['cost']}): {(h.get('text') or '')[:120]}", {"action": "cast", "name": h["name"]})
+             for h in instants]
+    pick, line = choose(s, opts, f"{e.get('text')} Only respond if it clearly helps you right now.", dry)
+    if pick.get("action") == "cast":
+        t.act("cast", name=pick["name"])
+        if line:
+            say(t, line)
+    else:
+        t.act("pass", quiet=True)
+
+
 def on_talk(t: Table, e: dict, dry: bool):
     s = t.state()
     _, line = choose(s, [("reply", {"action": "reply"})],
@@ -319,6 +335,8 @@ def main():
                     on_attacked(t, e, a.dry)
                 elif k == "removal":
                     on_removal(t, e)
+                elif k == "priority":
+                    on_priority(t, e, a.dry)
                 elif k in ("question", "chatter", "deal", "play"):
                     on_talk(t, e, a.dry)
             except Exception as ex:                          # noqa: BLE001 — one bad decision never stops the seat

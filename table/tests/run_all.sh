@@ -28,6 +28,7 @@ start8800() {      # the older suites expect a particular server config on :8800
 run engine        $PY table/tests/engine_rules.py
 run gantry        $PY table/tests/gantry_test.py
 run fair          $PY table/tests/fair_test.py
+run phases        $PY table/tests/phase_test.py
 run hearing-names $PY table/tests/hearing_names.py
 if [ "${1:-}" = quick ]; then
   run sensory     $PY table/tests/sense_run.py --tier regression

@@ -170,3 +170,18 @@ moves are clamped to the machine's travel (from `MACHINE_TYPE`, or `table/.cache
 the table. `scan` shoots a serpentine grid, stitches it with OpenCV, and `--post` sends the
 stitched frame to `/api/board`. `tests/gantry_test.py` checks the gate and limits against a fake
 Marlin board.
+
+## Turn steps, NEXT and priority (2026-10-02)
+
+A human's turn is walked one step at a time with **NEXT** (the phone page `/me`, the stage's button,
+or the stage's **N** key): untap → upkeep → draw → main 1 → beginning of combat → declare attackers →
+declare blockers → combat damage → main 2 → end step → cleanup. At every step except untap and cleanup,
+each AI seat that could cast an instant *right now* gets a priority window (an `attention` event,
+`kind: "priority"`). NEXT is refused (HTTP 409, "waiting on …") until every such seat answers — a cast,
+or `tablectl --seat <name> pass` — or the window runs out (`--priority-secs`, default 45). Seats with
+nothing castable pass silently, so most steps never wait. After cleanup the turn moves to the next seat
+in `--order`; an AI seat is started for you, and an AI's `end` hands the turn on.
+
+Everything is saved to `.cache/research/<game>/snapshot.pkl` after every change; `--restore` (play.sh:
+`RESTORE=…`) resumes it, e.g. after a crash or a server update. `table/migrate_live.py` carries a game
+from an older server that predates snapshots. Tests: `table/tests/phase_test.py`.
