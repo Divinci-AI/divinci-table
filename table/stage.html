@@ -51,6 +51,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "/vendor/jsm/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "/vendor/jsm/utils/SkeletonUtils.js";
+import { RoomEnvironment } from "/vendor/jsm/environments/RoomEnvironment.js";
 
 // ── table state ─────────────────────────────────────────────────────────────────────────────
 const params = new URLSearchParams(location.search);
@@ -80,6 +81,8 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.55;
 const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
 camera.position.set(0, 1.7, 4.6);
 camera.lookAt(0, 1.45, 0);
@@ -334,8 +337,9 @@ function stage(name, force = false) {
   if (fan) actor.userData.head.remove(fan);
   const meshy = actor.userData.meshy;
   fan = cardFan(s.hand, actor.userData.skin, !meshy);
-  fan.position.set(0, meshy ? -0.36 : -0.66, meshy ? 0.3 : 0.58);   // at the chin, eyes peeking over the top
-  if (meshy) fan.scale.setScalar(0.55);
+  if (meshy) {                                      // held out to the side: the whole character stays visible
+    fan.position.set(0.62, -0.5, 0.25); fan.rotation.set(-0.1, -0.35, -0.18); fan.scale.setScalar(0.6);
+  } else fan.position.set(0, -0.66, 0.58);          // the built avatars: at the chin, eyes over the top
   fan.rotation.x = -0.12;
   actor.userData.head.add(fan);
   hud();
@@ -436,7 +440,7 @@ renderer.setAnimationLoop(() => {
       const p = u.headBone.getWorldPosition(new THREE.Vector3()); actor.worldToLocal(p);
       u.head.position.lerp(p, 0.5);
     }
-    if (fan) fan.rotation.z = Math.sin(t * 1.1) * 0.03;
+    if (fan) fan.rotation.z = -0.18 + Math.sin(t * 1.1) * 0.03;
   } else if (actor) {
     const u = actor.userData, k = Math.min(1, (now - enterT) / 700);
     const ease = 1 - Math.pow(1 - k, 3);

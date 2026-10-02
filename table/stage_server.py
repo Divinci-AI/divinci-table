@@ -23,7 +23,8 @@ args = ap.parse_args()
 HUMANS = [dict(zip(("name", "commander"), (x.strip() for x in h.split("|", 1)))) for h in args.human]
 HAND_N = {h["name"]: 7 for h in HUMANS}
 VENDOR = {"three.module.min.js", "three.core.min.js", "jsm/loaders/GLTFLoader.js",
-          "jsm/utils/BufferGeometryUtils.js", "jsm/utils/SkeletonUtils.js"}
+          "jsm/utils/BufferGeometryUtils.js", "jsm/utils/SkeletonUtils.js",
+          "jsm/environments/RoomEnvironment.js"}
 AVATARS = HERE / ".cache" / "avatars"          # Meshy GLBs (table/meshy_avatars.py), local only
 
 
