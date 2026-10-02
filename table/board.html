@@ -37,7 +37,7 @@
 </style>
 </head>
 <body>
-<header><b>Table board</b><span id="phase">—</span><span class="meta" style="margin-left:auto">public information only · tap or hover a card</span></header>
+<header><b>Table board</b><span id="phase">—</span><button id="gyOrder" style="margin-left:auto;background:#2a2e37;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font:inherit;font-size:12.5px;cursor:pointer"></button><span class="meta">public information only · tap or hover a card</span></header>
 <main id="seats"></main>
 <div id="tip"></div>
 <script>
@@ -52,7 +52,15 @@ function bg(c) {
   if (cols.length > 1) return `linear-gradient(135deg, ${cols.map(k => COLORS[k]).join(", ")})`;
   return /Land/.test(c.type || "") ? "#c9bea8" : "#c8cbd0";
 }
-let cardsById = [];
+let cardsById = [], lastData = null;
+// Graveyards: newest first (the order things happened) or A–Z (to find a card). Remembered per device.
+let gyAZ = false;
+try { gyAZ = localStorage.getItem("board.gyOrder") === "az"; } catch {}
+const gyBtn = document.getElementById("gyOrder");
+const gyLabel = () => (gyBtn.textContent = gyAZ ? "Graveyards: A–Z" : "Graveyards: newest first");
+gyBtn.onclick = () => { gyAZ = !gyAZ; try { localStorage.setItem("board.gyOrder", gyAZ ? "az" : "new"); } catch {} gyLabel(); if (lastData) render(lastData); };
+gyLabel();
+const gyList = gy => gyAZ ? gy.slice().sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })) : gy.slice().reverse();
 function card(c, extra = "") {
   const i = cardsById.push(c) - 1;
   if (c.face_down) return `<div class="card down${c.tapped ? " tapped" : ""}" data-i="${i}"><div class="n">Face down</div><div class="t">${esc(c.pt || "")}</div></div>`;
@@ -66,7 +74,7 @@ function group(list, label) {
   return list.length ? `<h4>${label}</h4><div class="cards">${list.join("")}</div>` : "";
 }
 function render(d) {
-  cardsById = [];
+  lastData = d; cardsById = [];
   const isLand = c => !c.face_down && /Land/.test(c.type || ""), isCreature = c => c.face_down || /Creature/.test(c.type || "");
   document.getElementById("phase").innerHTML = d.turn ? `<span class="p">${esc(d.turn)}</span> · ${esc(d.step)}` : "not started";
   document.getElementById("seats").innerHTML = d.seats.map(s => {
@@ -83,7 +91,7 @@ function render(d) {
       ${group(perms.filter(c => !isLand(c) && !isCreature(c)).map(c => card(c)), "Other permanents")}
       ${group(lands.map(c => card(c)), "Lands")}
       ${cmd ? group([cmd], "Command zone") : ""}
-      ${gy.length ? `<h4>Graveyard (${gy.length})</h4><div class="gy">${gy.slice().reverse().map(esc).join(" · ")}</div>` : ""}
+      ${gy.length ? `<h4>Graveyard (${gy.length})${gyAZ ? " · A–Z" : ""}</h4><div class="gy">${gyList(gy).map(esc).join(" · ")}</div>` : ""}
       ${!perms.length && !cmd ? `<p class="empty">Nothing recorded yet.</p>` : ""}
     </section>`;
   }).join("");
