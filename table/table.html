@@ -160,6 +160,21 @@ setInterval(()=>{
     feed(`<span class="meta">speech engine was stuck — reset${left?" (a line was dropped)":""}</span>`);
   }
 }, 3000);
+// Captain lines arrive as mp3s (each commander has its own Aura-2 voice). Wait for the AI voices
+// to finish so the two never talk over each other; skip a line that waited too long.
+const captainQ=[];
+function captainAudio(url){
+  if(!$("speak").checked || !url) return;
+  captainQ.push({url, at:Date.now()});
+  if(captainQ.length===1) captainNext();
+}
+function captainNext(){
+  const c=captainQ[0]; if(!c) return;
+  if(Date.now()-c.at>20000){ captainQ.shift(); return captainNext(); }
+  if(window.speechSynthesis && speechSynthesis.speaking) return setTimeout(captainNext, 300);
+  const a=new Audio(c.url); a.onended=a.onerror=()=>{ captainQ.shift(); captainNext(); };
+  a.play().catch(()=>{ captainQ.shift(); captainNext(); });
+}
 function hush(){ pending.length=0; if(window.speechSynthesis) speechSynthesis.cancel(); }
 function addBoard(cards){
   for(const c of cards||[]) board.push(c);
@@ -235,6 +250,10 @@ async function pollEvents(){
       if(e.type==="say"){
         feed(`<span class="reply">${esc(e.speaker)}: ${esc(e.text)}</span>`, e.action && e.action!=="say" ? "turn" : "");
         if(!(d.restarted && Date.now()/1000 - e.ts > 15)) speak(e.speaker, e.text, e.speech);   // don't replay old lines aloud
+        touched=true;
+      } else if(e.type==="captain"){
+        feed(`<span class="reply">⚓ ${esc(e.captain)}: ${esc(e.text)}</span>`);
+        if(!(d.restarted && Date.now()/1000 - e.ts > 15)) captainAudio(e.audio);
         touched=true;
       } else if(e.type==="life"){ feed(`<span class="meta">life: ${esc(e.player)} ${e.delta>0?"+":""}${e.delta} → ${e.life} (${esc(e.by)})</span>`); touched=true; }
       else if(e.type==="new-game"){ board.length=0; addBoard([]); touched=true; }

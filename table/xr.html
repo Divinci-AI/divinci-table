@@ -261,6 +261,8 @@ async function poll() {
         if (e.action === "begin") act(a, "think"); else if (e.action === "cast") act(a, "cast");
         else if (e.action === "attack" || e.action === "damage") act(a, "win"); else if (e.action === "end") act(a, "done"); }
       if (e.type === "life" && a && e.delta) act(a, e.delta < 0 ? "hurt" : "react");
+      if (e.type === "captain") { const c = actors[e.seat]; if (c) { c.talkUntil = performance.now() + 4000; act(c, "react"); }
+        if (e.audio) new Audio(e.audio).play().catch(() => {}); }
       if (e.type === "life" || e.type === "hand" || (e.type === "say" && /draw|cast|land/.test(e.action || ""))) refresh();
     }
     cursor = r.last;

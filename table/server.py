@@ -397,7 +397,8 @@ LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", 
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
           ("GET", "/vendor/three.module.min.js"), ("GET", "/vendor/three.core.min.js"),
           ("GET", "/avatars/index.json")}
-LAN_PREFIXES = ("/vendor/", "/assets/", "/avatars/")       # static, public: the stage's code, light probe, models
+LAN_PREFIXES = ("/vendor/", "/assets/", "/avatars/", "/captains/")   # static, public: stage code, light probe, models, captain lines
+CAPTAIN_AUDIO = HERE / ".cache" / "captains" / "audio"     # mp3s made by table/captains.py
 VENDOR = {"three.module.min.js", "three.core.min.js"}      # three.js r185, vendored so the table stays offline
 
 
@@ -1300,12 +1301,13 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / "stage.html").read_bytes(), ctype="text/html; charset=utf-8")
         p0 = self.path.split("?")[0]
         for pre, root in (("/vendor/", HERE / "vendor"), ("/assets/", HERE / "assets"),
-                          ("/avatars/", HERE / ".cache" / "avatars")):
+                          ("/avatars/", HERE / ".cache" / "avatars"), ("/captains/", CAPTAIN_AUDIO)):
             if p0.startswith(pre) and not p0.endswith("/index.json"):
                 fp = (root / p0[len(pre):]).resolve()
-                if fp.is_file() and root.resolve() in fp.parents and fp.suffix in (".js", ".hdr", ".glb", ".usdz", ".png"):
+                if fp.is_file() and root.resolve() in fp.parents and fp.suffix in (".js", ".hdr", ".glb", ".usdz", ".png", ".mp3"):
                     return self._send(200, body=fp.read_bytes(), ctype={".js": "text/javascript; charset=utf-8",
-                                      ".glb": "model/gltf-binary", ".usdz": "model/vnd.usdz+zip", ".png": "image/png"}
+                                      ".glb": "model/gltf-binary", ".usdz": "model/vnd.usdz+zip", ".png": "image/png",
+                                      ".mp3": "audio/mpeg"}
                                       .get(fp.suffix, "application/octet-stream"))
         if p0 == "/avatars/index.json":
             d = HERE / ".cache" / "avatars"
@@ -1466,6 +1468,21 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/api/players":                # someone joins mid-game: {"name": "Jess", "commander": "…"}
                 b = self._json()
                 return self._send(*add_human(str(b.get("name", "")), str(b.get("commander") or "")))
+            if self.path == "/api/captain":                # a commander's line (table/captains.py): text + its mp3
+                if not secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN):
+                    return self._send(403, {"error": "brain token required"})
+                b = self._json()
+                cseat, audio = str(b.get("seat", ""))[:30], str(b.get("audio", ""))
+                text = " ".join(str(b.get("text", "")).split())[:200]
+                if not text or not re.fullmatch(r"[0-9a-f]{16}\.mp3", audio) or not (CAPTAIN_AUDIO / audio).is_file():
+                    return self._send(400, {"error": "need text and an mp3 made by captains.py"})
+                if cseat in VPS:                           # an AI seat's captain must not name its hidden cards
+                    with VP_LOCK:
+                        leak = voice_leak(text, VPS[cseat].private_hand())
+                    if leak:
+                        return self._send(409, {"error": "that line names a card still in the seat's hand"})
+                return self._send(200, emit("captain", seat=cseat, captain=str(b.get("captain", ""))[:60],
+                                            text=text, audio="/captains/" + audio))
             if self.path == "/api/phase/next":             # the NEXT button: {"by": "Michael"} (optional)
                 code, out = next_step(str(self._json().get("by", ""))[:30] if self.headers.get("Content-Length") else None)
                 snapshot()

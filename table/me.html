@@ -94,6 +94,7 @@ async function nextStep(){ const r=await j("/api/phase/next",{method:"POST",head
 setInterval(()=>{ if(me) phase(); },1500);
 function onEvent(e){
   if(e.type==="phase"||e.type==="priority"||(e.type==="attention"&&e.kind==="priority")) phase();
+  if(e.type==="captain"){ caps.push(`<div class="cap"><b>⚓ ${esc(e.captain)}:</b> ${esc(e.text)}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join(""); }
   if(e.type==="say"){ caps.push(`<div class="cap"><b>${esc(e.speaker)}:</b> ${esc(e.text)}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join("");
     const t=e.text.match(/^(.+?), turn (\d+)\./); if(t) $("turn").innerHTML=`<b>${esc(t[1])}</b>'s turn ${esc(t[2])}`;
     const c=e.text.match(/\bI cast (.+?)(?: on | from |\.)/); if(c && c[1]!==lastCast){ lastCast=c[1]; showCast(c[1]); } }

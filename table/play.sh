@@ -12,6 +12,8 @@
 # ORDER=…         turn order, "Fusion,Sam,Claude,Michael": NEXT walks each human's turn step by step, and
 #                 the turn passes itself along (AI seats are started for you).
 # RESTORE=…       resume a game from its snapshot.pkl (table/.cache/research/<game>/snapshot.pkl).
+# CAPTAINS=1      each commander speaks a short in-character line now and then, in its own voice
+#                 (table/captains.py; needs table/.cache/captains.json — see docs/captains.md).
 # TLS=1           also serve HTTPS on :8443 (self-signed, made once for this Mac's LAN address): WebXR —
 #                 the AR/VR table at /xr — only runs on secure pages. Phones/headsets accept it once.
 # Claude (in Claude Code) follows the table with:  table/tablectl.py --seat Claude watch   — docs/claude-brain.md
@@ -55,6 +57,13 @@ if [ "${FUSION:-}" = 1 ]; then
   FLOG=table/.cache/fusion-$(date +%Y%m%d-%H%M).log
   (infisical run --projectId="$WS" --env=prod --path=/ --silent -- /usr/bin/python3 table/fusion_brain.py --seat Fusion > "$FLOG" 2>&1 &)
   echo "fusion: Divinci release playing seat Fusion   log: $FLOG"
+fi
+if [ "${CAPTAINS:-}" = 1 ] && [ -f table/.cache/captains.json ]; then   # each commander's own voice, now and then
+  WS=${WS:-$(grep '^INFISICAL_WORKSPACE_ID=' "${INFISICAL_ENV_FILE:-$HOME/Documents/server/private-keys/production/infisical.env}" | cut -d= -f2- | tr -d '"')}
+  pkill -f "table/captains.py" 2>/dev/null || true
+  CLOG=table/.cache/captains-$(date +%Y%m%d-%H%M).log
+  (infisical run --projectId="$WS" --env=prod --path=/ --silent -- /usr/bin/python3 table/captains.py > "$CLOG" 2>&1 &)
+  echo "captains: commander voices on        log: $CLOG"
 fi
 echo "table:  http://localhost:8800/table      log: $LOG"
 echo "stage:  http://localhost:8800/stage      (NEXT: phones at /me, or the stage's NEXT / N key)"

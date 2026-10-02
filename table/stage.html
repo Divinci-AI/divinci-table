@@ -520,6 +520,9 @@ async function refresh() {
 
 // ── follow the table ────────────────────────────────────────────────────────────────────────
 let captionTimer = 0, talking = 0;
+let stageSound = new URLSearchParams(location.search).get("sound") === "1";   // S toggles captain voices here
+addEventListener("keydown", ev => { if (ev.key === "s" || ev.key === "S") { stageSound = !stageSound;
+  caption("stage", stageSound ? "captain voices on" : "captain voices off"); } });
 function caption(who, text) {
   const c = document.getElementById("caption");
   c.innerHTML = `<b>${who}</b> ${text.replace(/[<>&]/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[ch]))}`;
@@ -561,6 +564,8 @@ async function poll() {
         direct(e);
         if (e.type === "say" && e.action === "end" && seatOf(e.speaker)) turn = next(seatOf(e.speaker).name) || turn;
         if (e.type === "say" && e.speaker && e.speech !== "") caption(e.speaker, e.speech || e.text || "");
+        if (e.type === "captain") { caption("⚓ " + e.captain, e.text || "");
+          if (stageSound && e.audio) new Audio(e.audio).play().catch(() => {}); }
       }
       cursor = r.last;
     }

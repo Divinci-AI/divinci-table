@@ -93,6 +93,37 @@ try:
     code, p = call("GET", "/api/phase")
     check(p["player"] == "Ben", "an AI ending its turn hands it to the next seat in order")
 
+    print("captain lines")
+    audio = HERE / ".cache" / "captains" / "audio"
+    audio.mkdir(parents=True, exist_ok=True)
+    mp3 = audio / "0123456789abcdef.mp3"
+    made = not mp3.exists()
+    if made:
+        mp3.write_bytes(b"ID3test")
+    try:
+        code, e = call("POST", "/api/captain", {"seat": "Ann", "captain": "Kilo, Apogee Mind", "text": "One more counter.",
+                                                "audio": mp3.name}, brain=True)
+        check(code == 200 and e.get("type") == "captain" and e.get("audio") == "/captains/" + mp3.name,
+              "a captain line with its mp3 becomes a public event")
+        code, _ = call("POST", "/api/captain", {"seat": "Ann", "text": "hi", "audio": mp3.name})
+        check(code == 403, "captain lines need the brain token")
+        code, _ = call("POST", "/api/captain", {"seat": "Ann", "text": "hi", "audio": "../../.brain-token"}, brain=True)
+        check(code == 400, "the audio must be a file captains.py made, never a path")
+        code, st = call("GET", "/api/brain/state?seat=Claude", brain=True)
+        held = st["hand"][0]["name"]
+        code, _ = call("POST", "/api/captain", {"seat": "Claude", "text": f"Behold, {held}!", "audio": mp3.name}, brain=True)
+        check(code == 409, "an AI seat's captain cannot name a card still in that hand")
+        r = urllib.request.urlopen(f"{BASE}/captains/{mp3.name}", timeout=5)
+        check(r.status == 200 and r.headers["Content-Type"] == "audio/mpeg", "the mp3 is served to the pages")
+        try:
+            urllib.request.urlopen(f"{BASE}/captains/..%2F..%2Fcaptains.json", timeout=5)
+            check(False, "no path escapes the captain audio folder")
+        except urllib.error.HTTPError as err:
+            check(err.code == 404, "no path escapes the captain audio folder")
+    finally:
+        if made:
+            mp3.unlink()
+
     print("snapshot / restore")
     code, st = call("GET", "/api/brain/state?seat=Claude", brain=True)
     before = json.dumps([st["hand"], st["permanents"], st["life"]], sort_keys=True)
