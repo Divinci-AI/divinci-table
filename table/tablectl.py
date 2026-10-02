@@ -27,7 +27,9 @@ Magic decisions. Everything an action does is announced at the table in the AI's
   tablectl counter REF N · token NAME P T [KW..] · draw N · discard NAME · mill N
   tablectl search NAME [--to battlefield] [--tapped]
   tablectl life PLAYER DELTA              e.g. life Michael -5 · life me +3
-  tablectl new-game
+  tablectl new-game                      new game: reshuffles, sealing players' secret words in
+  tablectl fair · fair-reveal · fair-verify FILE   the AI decks' fingerprints; publish; check
+  tablectl --seat Fusion state           two AI players: act for one seat (or export TABLE_SEAT=Fusion)
 
 REF is a permanent's name or '#id' from `state`. Add --quiet to act without announcing.
 """
@@ -39,10 +41,12 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
 BASE = os.environ.get("TABLE_URL", "http://127.0.0.1:8800")
+SEAT = os.environ.get("TABLE_SEAT")        # with two AI players: which seat this brain plays
 TOKEN_FILE = Path(os.environ.get("TABLE_TOKEN_FILE") or Path(__file__).parent / ".brain-token")
 
 
@@ -69,6 +73,8 @@ def req(method, path, body=None, brain=True):
 
 
 def act(action, **body):
+    if SEAT:
+        body["seat"] = SEAT
     d = req("POST", f"/api/brain/{action}", {k: v for k, v in body.items() if v not in (None, [], False)})
     for line in d.get("said", []):
         print(f"🗣  {line}")
@@ -92,7 +98,9 @@ def fmt_event(e):
         elif e.get("kind") == "removal":
             extra = f" → {e.get('spell')} ({e.get('effect')}) on {e.get('target')}: " + (
                 f"ILLEGAL — {e['illegal']} (say so)" if e.get("illegal") else "apply it")
-        return f"[{t}] #{e['id']} ⚑ FOR YOU ({e['kind']}): \"{e['text']}\"{extra}"
+        mine = not SEAT or not e.get("addressee") or e["addressee"].lower() == SEAT.lower()
+        who = "FOR YOU" if mine else f"for {e['addressee']}"
+        return f"[{t}] #{e['id']} ⚑ {who} ({e['kind']}): \"{e['text']}\"{extra}"
     if k == "shown":
         return f"[{t}] #{e['id']} SHOWN {e['card']} (by {e['by']})"
     if k == "say":
@@ -103,7 +111,7 @@ def fmt_event(e):
 
 
 def cmd_state(_):
-    s = req("GET", "/api/brain/state")
+    s = req("GET", "/api/brain/state" + (f"?seat={urllib.parse.quote(SEAT)}" if SEAT else ""))
     print(f"== {s['name']} ({s['commander']}) — turn {s['turn']}, life {s['life']}, library {s['library']}, "
           f"land played: {s['land_played']}")
     print(f"life: " + ", ".join(f"{k} {v}" for k, v in s["life_table"].items()))
@@ -163,6 +171,7 @@ def cmd_watch(a):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--seat", help="which AI seat this brain plays (two-AI tables; or set TABLE_SEAT)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("state")
     e = sub.add_parser("events"); e.add_argument("--since", default="0")
@@ -180,6 +189,7 @@ def main():
     at = sub.add_parser("attack"); at.add_argument("pairs", nargs="+", help='"Creature=Player"'); at.add_argument("--role-on")
     dm = sub.add_parser("damage", help='attackers that hit a player: "Ellivere=Michael" "#14=Sam:5"')
     dm.add_argument("hits", nargs="+")
+    dm.add_argument("--no-life", action="store_true", help="triggers only: the players already said their life")
     ro = sub.add_parser("role"); ro.add_argument("ref"); ro.add_argument("kind")
     en = sub.add_parser("end"); en.add_argument("text", nargs="?")
     for verb in ("destroy", "exile", "bounce", "tap", "untap"):
@@ -194,7 +204,13 @@ def main():
     se.add_argument("--tapped", action="store_true")
     l = sub.add_parser("life"); l.add_argument("player"); l.add_argument("delta", type=int)
     sub.add_parser("new-game")
+    sub.add_parser("fair", help="the AI decks' published fingerprints (and the full proof once revealed)")
+    sub.add_parser("fair-reveal", help="after the game: publish the seeds and orders")
+    fv = sub.add_parser("fair-verify", help="check a revealed record yourself, offline"); fv.add_argument("file")
     a = ap.parse_args()
+    global SEAT
+    if getattr(a, "seat", None):
+        SEAT = a.seat
 
     if a.cmd == "state":
         return cmd_state(a)
@@ -224,7 +240,7 @@ def main():
             ref, rest = h.split("=", 1)
             who, _, n = rest.partition(":")
             hits[ref] = [who, int(n) if n else None]
-        return act("damage", hits=hits)
+        return act("damage", hits=hits, no_life=a.no_life)
     if a.cmd == "role":
         return act("role", ref=a.ref, kind=a.kind)
     if a.cmd == "end":
@@ -247,6 +263,17 @@ def main():
         return act("life", player=a.player, delta=a.delta)
     if a.cmd == "new-game":
         return act("new-game")
+    if a.cmd == "fair":
+        print(json.dumps(req("GET", "/api/fair", brain=False), indent=1))
+        return
+    if a.cmd == "fair-reveal":
+        return act("fair-reveal")
+    if a.cmd == "fair-verify":
+        sys.path.insert(0, str(Path(__file__).parent))
+        import fair
+        ok, msg = fair.verify(json.loads(Path(a.file).read_text()))
+        print(("✅ " if ok else "❌ ") + msg)
+        sys.exit(0 if ok else 1)
 
 
 if __name__ == "__main__":

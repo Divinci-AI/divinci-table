@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Divinci Table</title>
+<style>
+/* Built for a phone and for Ray-Ban Display (a ~600 px lens view): black reads as transparent on glasses. */
+:root{--bg:#000;--panel:#111418;--ink:#f2f1ec;--dim:#9aa1a9;--line:#262b31;--me:#d4ff3e;--ai:#7fd1ff;--warn:#ffb454}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--bg:#f6f5f0;--panel:#fff;--ink:#141414;--dim:#5d6268;--line:#e1ddd2;--me:#3b6d00;--ai:#005a8c;--warn:#a85b00}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.35 system-ui,-apple-system,sans-serif;padding:14px 16px 40px;max-width:640px;margin-inline:auto}
+h1{font-size:15px;font-weight:600;color:var(--dim);margin:0 0 10px;letter-spacing:.04em;text-transform:uppercase}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
+.life{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.p{border-radius:10px;padding:8px 10px;border:1px solid var(--line)}
+.p .n{font-size:14px;color:var(--dim);display:flex;justify-content:space-between}
+.p .v{font-size:40px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.p.me{border-color:var(--me)} .p.me .n{color:var(--me)} .p.ai .n{color:var(--ai)}
+.turn{font-size:15px;color:var(--dim)} .turn b{color:var(--ink)}
+.btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+button{font:600 18px system-ui;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:10px 14px;min-width:56px}
+button.big{flex:1}
+.cap{font-size:17px;margin:6px 0} .cap b{color:var(--ai)}
+.cast .t{font-size:13px;color:var(--dim);font-style:italic} .cast .x{font-size:15px;white-space:pre-line;margin-top:4px}
+.fp{font:600 20px ui-monospace,Menlo,monospace;letter-spacing:.06em}
+.muted{color:var(--dim);font-size:14px}
+input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);margin-top:6px}
+.pick button{display:block;width:100%;margin:8px 0;text-align:left}
+.ok{color:var(--me)} .warn{color:var(--warn)}
+</style>
+</head>
+<body>
+<h1 id="title">Divinci Table</h1>
+<div id="pick" class="card pick" hidden><div class="muted">Who are you?</div><div id="names"></div></div>
+<div id="view" hidden>
+  <div class="card"><div class="turn" id="turn">Waiting for the game…</div>
+    <div class="life" id="life" style="margin-top:8px"></div>
+    <div class="btns" id="mybtns"></div></div>
+  <div class="card cast" id="castCard" hidden><div class="muted">Just played</div><div id="cast"></div></div>
+  <div class="card"><div class="muted">At the table</div><div id="caps"><div class="muted">Nothing yet.</div></div></div>
+  <div class="card"><div class="muted">Fair decks: the AI's shuffle is sealed before the first draw</div>
+    <div id="fair" style="margin-top:6px"></div>
+    <div class="muted" style="margin-top:10px">Your secret word for the next shuffle (nobody sees it until the proof is published)</div>
+    <input id="word" autocomplete="off" placeholder="any word">
+    <div class="btns"><button class="big" id="sendWord">Seal it in</button></div>
+    <div id="wordMsg" class="muted"></div></div>
+</div>
+<script>
+const $=id=>document.getElementById(id), esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const me=new URLSearchParams(location.search).get("player");
+let AI=[], since=0, caps=[], lastCast=null;
+async function j(u,o){const r=await fetch(u,o);const t=await r.text();try{return JSON.parse(t)}catch{return {error:t.slice(0,120)}}}
+async function start(){
+  const cfg=await j("/api/voice-config"); AI=(cfg.ai_players||[]).map(p=>p.name);
+  const humans=(cfg.humans||[]).map(h=>h.name);
+  if(!me){ $("pick").hidden=false;
+    $("names").innerHTML=humans.map(n=>`<button onclick="location.search='?player=${encodeURIComponent(n)}'">${esc(n)}</button>`).join("")
+      +`<button onclick="location.search='?player=watcher'">Just watching</button>`; return; }
+  $("title").textContent=`Divinci Table · ${me}`; $("view").hidden=false;
+  if(humans.includes(me)) $("mybtns").innerHTML=[-5,-1,+1,+5].map(d=>`<button class="big" onclick="life(${d})">${d>0?"+":""}${d}</button>`).join("");
+  else $("sendWord").parentElement.parentElement.querySelector("input").disabled=true;
+  await life0(); await fair(); poll();
+}
+async function life(d){ await j("/api/life",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({player:me,delta:d,by:me})}); life0(); }
+async function life0(){ const lt=await j("/api/life");
+  $("life").innerHTML=Object.entries(lt).map(([n,v])=>`<div class="p ${n===me?"me":""} ${AI.includes(n)?"ai":""}"><div class="n"><span>${esc(n)}</span><span>${AI.includes(n)?"AI":""}</span></div><div class="v">${esc(v)}</div></div>`).join(""); }
+async function fair(){ const f=await j("/api/fair"); if(f.error){$("fair").innerHTML=`<span class="muted">not available</span>`;return;}
+  const rows=Object.entries(f.seats||{}).filter(([,v])=>v).map(([n,v])=>`<div>${esc(n)} <span class="fp">${esc(v.fingerprint)}</span></div>`);
+  $("fair").innerHTML=(rows.join("")||`<span class="muted">no sealed decks</span>`)
+    +(f.words_in&&f.words_in.length?`<div class="muted">words in for the next shuffle: ${esc(f.words_in.join(", "))}</div>`:"")
+    +(f.revealed?`<div class="ok">Proof published. <a href="/api/fair/verify" style="color:inherit">Check it</a></div>`:""); }
+$("sendWord").onclick=async()=>{ const w=$("word").value.trim(); if(!w) return;
+  const r=await j("/api/fair/word",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({player:me,word:w})});
+  $("wordMsg").innerHTML=r.error?`<span class="warn">${esc(r.error)}</span>`:`<span class="ok">Sealed in. It's used at the next new game.</span>`; $("word").value=""; fair(); };
+async function showCast(name){ const c=await j("/api/card?name="+encodeURIComponent(name)); if(c.error) return;
+  $("castCard").hidden=false; const pt=c.power!=null?` · ${c.power}/${c.toughness}`:"";
+  $("cast").innerHTML=`<div><b>${esc(c.name)}</b> <span class="muted">${esc(c.cost||"")}</span></div><div class="t">${esc(c.type)}${esc(pt)}</div><div class="x">${esc(c.text||"")}</div>`; }
+function onEvent(e){
+  if(e.type==="say"){ caps.push(`<div class="cap"><b>${esc(e.speaker)}:</b> ${esc(e.text)}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join("");
+    const t=e.text.match(/^(.+?), turn (\d+)\./); if(t) $("turn").innerHTML=`<b>${esc(t[1])}</b>'s turn ${esc(t[2])}`;
+    const c=e.text.match(/\bI cast (.+?)(?: on | from |\.)/); if(c && c[1]!==lastCast){ lastCast=c[1]; showCast(c[1]); } }
+  if(e.type==="attention"&&e.kind==="turn") $("turn").innerHTML=`<b>${esc(e.addressee)}</b>'s turn`;
+  if(e.type==="life"||e.type==="new-game"||e.type==="player-added") life0();
+  if(e.type==="fair"||e.type==="new-game") fair();
+}
+async function poll(){ for(;;){ try{ const d=await j(`/api/events?since=${since}`); if(d.restarted){since=0;}
+    for(const e of d.events||[]){ since=e.id; onEvent(e);} }catch(_){}
+  await new Promise(r=>setTimeout(r,1000)); } }
+start();
+</script>
+</body>
+</html>

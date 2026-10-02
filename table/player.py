@@ -112,14 +112,28 @@ class Perm:
 
 
 class VirtualPlayer:
-    def __init__(self, deck_file: str, name: str, seed: int | None = None):
+    def __init__(self, deck_file: str, name: str, seed: int | None = None, fair_words: dict | None = None,
+                 fair_online: bool = False):
+        """fair_words: seal the shuffle (fair.py): the library order is fixed by a published commit, from
+        local entropy plus these {player: secret word} inputs (and ANU/drand with fair_online)."""
         d = json.load(open(deck_file))
         self.deck_name = d["name"]
         self.commander = d["commander"][0]
         self.name = name
         self.rng = random.Random(seed)
         self.library = [c for c in d["mainBoard"] for _ in range(c.get("count", 1))]
-        self.rng.shuffle(self.library)
+        self.fair = None
+        if fair_words is not None:
+            import fair
+            rec = fair.seal(name, [c["name"] for c in self.library], fair_words, fair_online)
+            pool: dict[str, list] = {}
+            for c in self.library:
+                pool.setdefault(c["name"], []).append(c)
+            self.library = [pool[n].pop() for n in rec["library"]]
+            self.rng = random.Random(int(rec["seed"], 16))     # later shuffles follow from the same seed
+            self.fair = rec
+        else:
+            self.rng.shuffle(self.library)
         self.hand: list[dict] = []
         self.graveyard: list[dict] = []
         self.battlefield: list[Perm] = []
@@ -779,7 +793,11 @@ def _manual(cls):
             for c in cs:
                 said += self.attack_triggers(c, who, attackers, role_on)
             total = sum(self.stats(c)[0] for c in cs)
-            names = [c.name for c in cs]
+            # Short names keep the sentence speakable: "Siona", not "Siona, Captain of the Pyleas";
+            # past four attackers, a count ("five creatures") instead of a list.
+            names = [c.name.split(",")[0] for c in cs]
+            if len(names) > 4:
+                names = [f"{['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'][len(names)] if len(names) <= 8 else len(names)} creatures"]
             said.append(f"I attack {who} with " + (names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1])
                         + f", {total} damage.")                    # same words as the Gemma turn
         return said

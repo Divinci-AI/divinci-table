@@ -33,6 +33,36 @@ Knowing who is speaking makes these work:
 A voice the table doesn't know that says "I'm at 20" gets the reply "Who's that?". Answering with
 your name ("Jess.") enrolls your voice and applies the change.
 
+## Two AI seats, fair decks, and phones (2026-10-01)
+
+**Two AIs at one table:** `FUSION=1 NO_GEMMA=1 LAN=1 table/play.sh "Michael|" "Sam|"`.
+- **Seats.** "Claude" is played from Claude Code with `tablectl --seat Claude …` (or `export
+  TABLE_SEAT=Claude`). "Fusion" is a Divinci release, RAG over the rules and its deck, played by
+  `table/fusion_brain.py` (docs/fusion-player.md).
+- **What a seat owns.** Each seat has its own deck, hand, board and life. Lines go to the AI they
+  address ("Fusion, …"), name ("Sam attacks Fusion …"), or whose permanent they name. `watch` marks only
+  your seat's events "⚑ FOR YOU".
+- **How Fusion decides.** It picks from numbered legal options: what to cast, whom to attack, whether to
+  block. It never invents an action. Draws, land plays and announced removal are handled in code.
+- **After an attack.** Fusion waits for "no blocks" / "takes it", then resolves only the triggers with
+  `damage --no-life`. The players say their own life, so it is never counted twice.
+
+**Provably fair decks** (`table/fair.py`):
+- **Sealing.** Every AI seat's shuffle is sealed before the first draw, from local entropy plus each
+  player's secret word typed on `/me`. `--fair-seed online` also mixes in ANU quantum randomness and
+  Cloudflare's drand beacon; this is off by default, so play stays offline.
+- **Fingerprints.** `new-game` announces them ("Claude's deck fingerprint: EC2E 6914.").
+- **After the game.** `tablectl fair-reveal` publishes the seeds, the words and the orders.
+  `/api/fair/verify` and `tablectl fair-verify FILE` recompute them, so anyone can check that the order
+  was fixed before the first draw.
+
+**Players' phones (and Ray-Ban Display, which runs web pages):**
+- **The view.** `http://<the Mac>:8800/me` shows life totals with ± buttons, whose turn it is, the
+  AIs' lines as captions, the card an AI just cast with its rules text, and the fairness fingerprints
+  plus a secret-word box.
+- **What phones can't reach.** With `LAN=1` other devices reach only the `/me` view and its public
+  endpoints (`LAN_OK` in server.py). Never the scan pad, the mic, reset, AI state or the brain.
+
 ## The loop
 
 ```bash

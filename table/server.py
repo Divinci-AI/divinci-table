@@ -20,6 +20,7 @@ import os
 import secrets
 import sys
 import threading
+from contextlib import contextmanager
 import time
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -33,16 +34,24 @@ ap.add_argument("--deck", help="decklist text file (Moxfield/Archidekt export)")
 ap.add_argument("--any-card", action="store_true",
                 help="TEST MODE: accept any Magic card (Scryfall name catalog), unlimited copies")
 ap.add_argument("--port", type=int, default=8800)
+ap.add_argument("--host", default="127.0.0.1",
+                help="bind address. 0.0.0.0 lets players' phones open /me on the LAN; other devices then reach "
+                     "ONLY the public player view (see LAN_OK), never the scan pad, mic, reset or brain")
 ap.add_argument("--ai", action="append", default=[],
                 help='an AI player, "Name|Commander card name|macOS voice" (repeatable), '
                      'e.g. "Talrand|Talrand, Sky Summoner|Daniel"')
-ap.add_argument("--ai-deck", help="a virtual deck (decks/*.json) for the FIRST --ai player: it draws, "
-                                   "plays and announces its own cards instead of using physical ones")
+ap.add_argument("--ai-deck", action="append", default=[],
+                help="a virtual deck (decks/*.json) for an --ai player, in the same order (repeatable: the "
+                     "first deck goes to the first --ai, the second to the second): it draws, plays and "
+                     "announces its own cards instead of using physical ones")
 ap.add_argument("--brain", choices=["gemma", "external"], default="gemma",
                 help="who decides for the virtual AI player: the local Gemma, or an EXTERNAL brain driving it "
                      "through /api/brain (tablectl) — then the server never answers or plays for it")
 ap.add_argument("--human", action="append", default=[],
                 help='a human player, "Name|Commander card name" (repeatable); their names go into the speech hint')
+ap.add_argument("--fair-seed", choices=["local", "online", "off"], default="local",
+                help="provably fair AI decks (fair.py): commit each AI seat's shuffle before the first draw. "
+                     "local: OS entropy + players' secret words (offline); online: also ANU quantum + drand")
 ap.add_argument("--confirm-frames", type=int, default=2, help="same card on N frames in a row")
 ap.add_argument("--clear-secs", type=float, default=1.0, help="no card in view this long before the next scan")
 ap.add_argument("--token-file", default=None,
@@ -77,12 +86,99 @@ for spec in args.ai or ["Talrand|Talrand, Sky Summoner|Daniel"]:
     name, commander, voice_name = (spec.split("|") + ["", ""])[:3]
     AI_PLAYERS.append({"name": name.strip(), "commander": commander.strip() or None,
                        "voice": voice_name.strip() or None})
-VP = None
+# ── the virtual AI seats: one VirtualPlayer per --ai-deck ──────────────────────────────────────
+# Most code was written for one AI and reads the global VP. VP is a proxy for the seat the current
+# request acts for (set with `acting(name)`, per thread), defaulting to the first seat, so a
+# one-AI table behaves exactly as before and a two-AI table routes each action to its own seat.
+VPS: dict = {}
+DECK_OF: dict[str, str] = {}
 if args.ai_deck:
     from player import VirtualPlayer
-    VP = VirtualPlayer(args.ai_deck, AI_PLAYERS[0]["name"])
-    AI_PLAYERS[0]["has_deck"] = True
-    AI_PLAYERS[0]["deck"] = VP.deck_name
+    if len(args.ai_deck) > len(AI_PLAYERS):
+        sys.exit("more --ai-deck than --ai players: each deck belongs to an --ai, in order")
+    for _i, _deck in enumerate(args.ai_deck):
+        _n = AI_PLAYERS[_i]["name"]
+        VPS[_n] = VirtualPlayer(_deck, _n, **({} if args.fair_seed == "off" else
+                                              {"fair_words": {}, "fair_online": args.fair_seed == "online"}))
+        DECK_OF[_n] = _deck
+        AI_PLAYERS[_i]["has_deck"] = True
+        AI_PLAYERS[_i]["deck"] = VPS[_n].deck_name
+_SEAT = threading.local()
+
+
+class _SeatProxy:
+    def _vp(self):
+        n = getattr(_SEAT, "name", None)
+        return VPS[n] if n in VPS else next(iter(VPS.values()))
+
+    def __getattr__(self, a):
+        return getattr(self._vp(), a)
+
+    def __setattr__(self, a, v):
+        setattr(self._vp(), a, v)
+
+    def __bool__(self):
+        return bool(VPS)
+
+
+VP = _SeatProxy() if VPS else None
+
+
+def seat(name) -> str | None:
+    """The canonical seat name for name (any case), the first seat for None, or None if unknown."""
+    if not VPS:
+        return None
+    if not name:
+        return next(iter(VPS))
+    return next((n for n in VPS if n.lower() == str(name).strip().lower()), None)
+
+
+@contextmanager
+def acting(name):
+    prev = getattr(_SEAT, "name", None)
+    _SEAT.name = name
+    try:
+        yield
+    finally:
+        _SEAT.name = prev
+
+
+FAIR = {"game": time.strftime("%Y%m%d-%H%M%S"), "words": {}, "revealed": False}
+
+
+def reshuffle_all():
+    """A new game for every AI seat. With fair seeding, each shuffle is sealed with the players' secret
+    words collected since the last game (POST /api/fair/word), and the words are then cleared."""
+    from player import VirtualPlayer
+    words = dict(FAIR["words"])
+    FAIR.update(game=time.strftime("%Y%m%d-%H%M%S"), words={}, revealed=False)
+    for n in list(VPS):
+        VPS[n] = VirtualPlayer(DECK_OF[n], n, **({} if args.fair_seed == "off" else
+                                                 {"fair_words": words, "fair_online": args.fair_seed == "online"}))
+    save_fair()
+
+
+def save_fair():
+    import fair
+    for v in VPS.values():
+        if v.fair:
+            fair.save(v.fair, FAIR["game"])
+
+
+def fair_public() -> dict:
+    import fair
+    seats = {n: (fair.public(v.fair) if v.fair else None) for n, v in VPS.items()}
+    out = {"game": FAIR["game"], "seats": seats, "words_in": sorted(FAIR["words"]), "revealed": FAIR["revealed"]}
+    if FAIR["revealed"]:
+        out["records"] = {n: v.fair for n, v in VPS.items() if v.fair}
+    return out
+
+
+def fair_announcement() -> list[str]:
+    return [f"{n}'s deck fingerprint: {v.fair['fingerprint']}." for n, v in VPS.items() if v.fair]
+
+
+save_fair()
 VP_LOCK = threading.RLock()     # re-entrant: brain actions call helpers that lock again
 BRAIN_EXTERNAL = args.brain == "external"
 
@@ -121,6 +217,13 @@ TOKEN = secrets.token_urlsafe(24)
 tok_path = Path(args.token_file) if args.token_file else HERE / ".brain-token"
 tok_path.write_text(TOKEN)
 os.chmod(tok_path, 0o600)
+
+
+# What another device on the LAN may reach: the player view and public table state. Nothing that
+# reveals or changes the AI's cards, resets the game, or feeds the mic/camera.
+LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
+          ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
+          ("POST", "/api/fair/word"), ("POST", "/api/life")}
 
 
 class Table:
@@ -197,8 +300,8 @@ def whisper_hint():
     this lists the game's own names first and stops well before that."""
     everyone = AI_PLAYERS + HUMANS
     names = [p["name"] for p in everyone] + [p["commander"] for p in everyone if p["commander"]]
-    if VP:                                   # its own permanents: what removal will be aimed at
-        names += [p.name for p in VP.battlefield if not p.is_("Land") and not p.token]
+    for _v in VPS.values():                  # the AIs' own permanents: what removal will be aimed at
+        names += [p.name for p in _v.battlefield if not p.is_("Land") and not p.token]
     names += CONVO["announced"][-15:] + sorted(set(DECK))[:40]
     seen, out = set(), []
     for n in names:
@@ -271,7 +374,8 @@ def handle_utterance(wav: bytes):
     if VP and tablefacts.is_hold(text, VP.name):       # "Wait, Claude, hold on." — stop talking, don't act
         emit("hush", by=who)
         if BRAIN_EXTERNAL:
-            emit("attention", kind="hold", text=text, addressee=VP.name, by=who)
+            for _n in (VPS or [ai_names[0]]):
+                emit("attention", kind="hold", text=text, addressee=_n, by=who)
         return {"heard": text, "hold": True, "reply": None, "speaker_id": who, "stt_ms": t_stt}
     fix = tablefacts.correction(text)
     if fix and LAST_PLAY["cards"] and time.time() - LAST_PLAY["at"] < 120:
@@ -318,29 +422,31 @@ def handle_utterance(wav: bytes):
          for_ai=bool(reply) and speaker is not None, by=who)
     rules = table_rules(text, r, cards, who)
     if rules is not None:
-        base = {"heard": text, "route": r, "cards": cards, "speaker": VP.name if VP else speaker,
+        rseat = rules.get("seat") or (VP.name if VP else speaker)
+        base = {"heard": text, "route": r, "cards": cards, "speaker": rseat,
                 "blocked": False, "stt_ms": t_stt, "total_ms": round((time.time() - t0) * 1000),
                 "announced": CONVO["announced"][-10:], "rules": {k: v for k, v in rules.items() if k not in ("reply", "source")}}
         if rules.get("awaiting"):
             return {**base, "reply": None, "awaiting": "brain", "reply_source": "brain"}
         if rules.get("reply"):
             if BRAIN_EXTERNAL:
-                emit("say", speaker=VP.name, text=rules["reply"], action="rules", speech=spoken(rules["reply"]))
+                emit("say", speaker=rseat, text=rules["reply"], action="rules", speech=spoken(rules["reply"]))
                 return {**base, "reply": None, "reply_source": "rules-event"}
             return {**base, "reply": rules["reply"], "speech": spoken(rules["reply"]), "reply_source": "rules"}
-    if BRAIN_EXTERNAL and reply and VP and speaker == VP.name:
+    if BRAIN_EXTERNAL and reply and speaker in VPS:
         ev = emit("attention", kind=r["kind"], text=text, addressee=speaker)
-        hold_the_floor(ev["id"])
+        hold_the_floor(ev["id"], speaker)
         return {"heard": text, "route": r, "cards": cards, "speaker": speaker, "reply": None,
                 "awaiting": "brain", "blocked": False, "stt_ms": t_stt,
                 "total_ms": round((time.time() - t0) * 1000), "announced": CONVO["announced"][-10:]}
     reply_source, reply_ms = "template", 0
     turn = None
     if reply == voice.TURN:
-        if VP is None or speaker != VP.name:
+        if speaker not in VPS:
             reply = None                              # no virtual deck: the humans play its cards
         else:
-            turn = run_ai_turn()
+            with acting(speaker):
+                turn = run_ai_turn()
             turn["speech"] = spoken(turn["said"])
             return {"heard": text, "route": r, "cards": cards, "speaker": speaker, "reply": " ".join(turn["said"]),
                     "reply_source": "turn", "turn": turn, "blocked": False, "stt_ms": t_stt,
@@ -362,7 +468,7 @@ def handle_utterance(wav: bytes):
             board = list(CONVO["announced"])
         t1 = time.time()
         try:
-            own = VP.public()["battlefield"] if (VP and ai["name"] == VP.name) else None
+            own = VPS[ai["name"]].public()["battlefield"] if ai["name"] in VPS else None
             said = voice.persona_reply(ai, r["kind"], text, recent, board, decision, own)
             if said:
                 reply, reply_source = said, "persona"
@@ -382,9 +488,9 @@ def handle_utterance(wav: bytes):
     if reply:
         with T.lock:
             hidden = list(T.slots.values())
-        if VP:
-            with VP_LOCK:
-                hidden += VP.private_hand()
+        with VP_LOCK:
+            for _v in VPS.values():
+                hidden += _v.private_hand()
         blocked = voice.leaks_hand(reply, hidden, partial=reply_source == "persona")
         if blocked:
             print("reply blocked: it named a card in the hidden hand", flush=True)
@@ -397,8 +503,8 @@ def handle_utterance(wav: bytes):
 
 def life_table():
     t = dict(LIFE)
-    if VP:
-        t[VP.name] = VP.life
+    for n, v in VPS.items():
+        t[n] = v.life
     return t
 
 
@@ -407,15 +513,17 @@ def change_life(player, delta, by, set_to=None):
     if set_to is None and (not isinstance(delta, int) or isinstance(delta, bool)):
         return {"error": "delta must be an integer"}
     lt = life_table()
-    if VP and player.lower() in (VP.name.lower(), "me"):
-        player = VP.name
+    if VP and player.lower() == "me":
+        player = VP.name                              # the seat the brain is acting for
+    elif seat(player) and player.lower() in (n.lower() for n in VPS):
+        player = seat(player)
     elif player not in LIFE:
         return {"error": f"unknown player '{player}' (players: {list(lt)})"}
     if set_to is not None:
         delta = set_to - lt[player]
-    if VP and player == VP.name:
+    if player in VPS:
         with VP_LOCK:
-            VP.life += delta
+            VPS[player].life += delta
     else:
         LIFE[player] += delta
     emit("life", player=player, delta=delta, by=by, life=life_table()[player])
@@ -529,6 +637,31 @@ def is_echo(text: str) -> bool:
 
 # ── the table rules the code owns (tablefacts.py): life, attacks, removal, public questions ──
 def table_rules(text: str, r: dict, cards: list[str], who: str | None = None) -> dict | None:
+    """With two or more AI seats, decide which AI a line is about, then apply the one-AI rules as
+    that seat: the AI it addresses, else the AI it names, else the AI owning a permanent it names."""
+    if len(VPS) <= 1:
+        return _table_rules(text, r, cards, who)
+    import voice
+    names = list(VPS)
+    low = text.lower()
+    pick = voice.spoken_to(text, names)
+    if pick is None:
+        hits = sorted((low.find(n.lower()), n) for n in names if n.lower() in low)
+        pick = hits[0][1] if hits else None
+    if pick is None:
+        for n, v in VPS.items():
+            if any(p.name in cards or p.name.lower() in low for p in v.battlefield if not p.is_("Land")):
+                pick = n
+                break
+    pick = pick or names[0]
+    with acting(pick):
+        res = _table_rules(text, r, cards, who)
+    if res is not None:
+        res["seat"] = pick                            # who answers: the AI the line was about
+    return res
+
+
+def _table_rules(text: str, r: dict, cards: list[str], who: str | None = None) -> dict | None:
     """Returns {"reply": str|None, "source": "rules", ...} when the code handled the line, or None."""
     import tablefacts as F
     import oracle
@@ -737,7 +870,7 @@ BRAIN_LAST = [0.0]
 FILLERS = ["One moment.", "Hmm, let me think.", "Give me a second.", "Thinking.", "Hold on."]
 
 
-def hold_the_floor(attention_id: int, after: float = 3.0):
+def hold_the_floor(attention_id: int, speaker: str | None = None, after: float = 3.0):
     """External brain: if nothing has come back a few seconds after the table spoke to the AI,
     say so — silence at a table reads as not having heard."""
     asked = time.time()
@@ -746,7 +879,7 @@ def hold_the_floor(attention_id: int, after: float = 3.0):
         time.sleep(after)
         if BRAIN_LAST[0] < asked:
             line = FILLERS[attention_id % len(FILLERS)]
-            emit("say", speaker=VP.name, text=line, action="filler", speech=spoken(line))
+            emit("say", speaker=speaker or VP.name, text=line, action="filler", speech=spoken(line))
     threading.Thread(target=later, daemon=True).start()
 
 
@@ -970,6 +1103,18 @@ class H(BaseHTTPRequestHandler):
         return b
 
     def do_GET(self):
+        if self._lan_blocked("GET"):
+            return
+        if self.path.split("?")[0] == "/me":               # a player's phone / glasses view (public info only)
+            return self._send(200, body=(HERE / "me.html").read_bytes(), ctype="text/html; charset=utf-8")
+        if self.path.startswith("/api/card"):              # Oracle text for one card, by name (public)
+            import oracle
+            from urllib.parse import parse_qs, urlparse
+            name = parse_qs(urlparse(self.path).query).get("name", [""])[0]
+            c = oracle.card(name) if name else None
+            if not c:
+                return self._send(404, {"error": f"no card named '{name}'"})
+            return self._send(200, {"name": name, **{k: c.get(k) for k in ("cost", "type", "text", "power", "toughness")}})
         if self.path == "/":
             return self._send(200, body=(HERE / "scan.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path == "/table":
@@ -980,16 +1125,20 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / "voice.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path == "/api/voice-config":
             return self._send(200, {"ai_players": AI_PLAYERS, "humans": HUMANS, "brain": args.brain})
-        if self.path == "/api/ai/state":
+        if self.path.split("?")[0] == "/api/ai/state":     # ?seat=Name with two AIs (default: the first)
             if VP is None:
                 return self._send(404, {"error": "no virtual AI deck (start with --ai-deck)"})
+            sn = self._seat_q()
+            if sn is None:
+                return self._send(404, {"error": f"no AI seat by that name (seats: {list(VPS)})"})
             with VP_LOCK:
-                return self._send(200, VP.public())
-        if self.path == "/api/ai/hand":                    # the AI's own brain only
+                return self._send(200, VPS[sn].public())
+        if self.path.split("?")[0] == "/api/ai/hand":      # the AI's own brain only
             if not secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN):
                 return self._send(403, {"error": "brain token required"})
+            sn = self._seat_q()
             with VP_LOCK:
-                return self._send(200, {"hand": VP.private_hand() if VP else []})
+                return self._send(200, {"hand": VPS[sn].private_hand() if sn else []})
         if self.path.startswith("/api/events"):
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)
@@ -1003,12 +1152,27 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"last": last, "events": out, "restarted": restarted})
         if self.path == "/api/life":
             return self._send(200, self._life_table())
-        if self.path == "/api/brain/state":
+        if self.path == "/api/fair":                       # public: commits now, full records once revealed
+            with VP_LOCK:
+                return self._send(200, fair_public())
+        if self.path == "/api/fair/verify":                # recompute every revealed record on the server
+            import fair
+            with VP_LOCK:
+                if not FAIR["revealed"]:
+                    return self._send(409, {"error": "not revealed yet: the proof is published after the game"})
+                res = {n: dict(zip(("ok", "message"), fair.verify(v.fair))) for n, v in VPS.items() if v.fair}
+            return self._send(200, {"game": FAIR["game"], "results": res})
+        if self.path.split("?")[0] == "/api/brain/state":
             if not self._brain_ok():
                 return self._send(403, {"error": "brain token required"})
             from player import brain_view
+            sn = self._seat_q()
+            if sn is None:
+                return self._send(404, {"error": f"no AI seat by that name (seats: {list(VPS)})"})
             with VP_LOCK:
-                v = brain_view(VP) if VP else {}
+                v = brain_view(VPS[sn])
+            v["seat"] = sn
+            v["seats"] = list(VPS)
             with CONVO_LOCK:
                 v["announced_by_others"] = list(CONVO["announced"][-30:])
             v["life_table"] = self._life_table()
@@ -1028,7 +1192,9 @@ class H(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
-        global T, VP                                       # /api/reset replaces the table and the AI's game
+        global T                                           # /api/reset replaces the table (AI seats: reshuffle_all)
+        if self._lan_blocked("POST"):
+            return
         try:
             if self.path == "/api/scan":
                 n = int(self.headers.get("Content-Length", 0))
@@ -1071,11 +1237,24 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/api/ai/turn":
                 if VP is None:
                     return self._send(404, {"error": "no virtual AI deck (start with --ai-deck)"})
-                if BRAIN_EXTERNAL:                         # the button hands the turn to the brain
-                    ev = emit("attention", kind="turn", text="(turn button)", addressee=VP.name)
-                    hold_the_floor(ev["id"])
-                    return self._send(200, {"awaiting": "brain"})
-                return self._send(200, run_ai_turn())
+                sn = seat(self._json().get("seat")) if self.headers.get("Content-Length") else seat(None)
+                if sn is None:
+                    return self._send(404, {"error": f"no AI seat by that name (seats: {list(VPS)})"})
+                if BRAIN_EXTERNAL:                         # the button hands the turn to that seat's brain
+                    ev = emit("attention", kind="turn", text="(turn button)", addressee=sn)
+                    hold_the_floor(ev["id"], sn)
+                    return self._send(200, {"awaiting": "brain", "seat": sn})
+                with acting(sn):
+                    return self._send(200, run_ai_turn())
+            if self.path == "/api/fair/word":              # {"player": "Sam", "word": "..."}: sealed into the NEXT shuffle
+                b = self._json()
+                who, word = str(b.get("player", "")).strip()[:30], str(b.get("word", "")).strip()[:64]
+                if not who or not word:
+                    return self._send(400, {"error": "player and word are required"})
+                FAIR["words"][who] = word
+                emit("fair", kind="word", player=who, words_in=sorted(FAIR["words"]))   # never the word
+                return self._send(200, {"words_in": sorted(FAIR["words"]),
+                                        "note": "sealed into the next new game's shuffle"})
             if self.path == "/api/players":                # someone joins mid-game: {"name": "Jess", "commander": "…"}
                 b = self._json()
                 return self._send(*add_human(str(b.get("name", "")), str(b.get("commander") or "")))
@@ -1085,7 +1264,12 @@ class H(BaseHTTPRequestHandler):
             if self.path.startswith("/api/brain/"):
                 if not self._brain_ok():
                     return self._send(403, {"error": "brain token required"})
-                return self._brain(self.path.rsplit("/", 1)[-1], self._json())
+                b = self._json()
+                sn = seat(b.get("seat"))
+                if sn is None:
+                    return self._send(404, {"error": f"no AI seat '{b.get('seat')}' (seats: {list(VPS)})"})
+                with acting(sn):
+                    return self._brain(self.path.rsplit("/", 1)[-1], b)
             if self.path == "/api/reset":                  # new game: empty hand, full library, no history
                 with T.lock:
                     T = Table(DECK)
@@ -1100,10 +1284,10 @@ class H(BaseHTTPRequestHandler):
                 SPOKEN.clear()
                 with BOARD_LOCK:
                     BOARD.update(cards=[], missing={})
-                if VP is not None:
-                    from player import VirtualPlayer
+                if VPS:
                     with VP_LOCK:
-                        VP = VirtualPlayer(args.ai_deck, VP.name)      # reshuffle: a new game
+                        reshuffle_all()                            # every AI seat: a new game
+                    emit("fair", kind="sealed", **fair_public())
                 print("table reset", flush=True)
                 return self._send(200, T.public())
             if self.path == "/api/undo":                   # mis-scan: card goes back to the library
@@ -1128,8 +1312,24 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def _lan_blocked(self, method: str) -> bool:
+        """A request from another device to anything outside LAN_OK: refuse it (draining a POST body
+        first, so the phone gets the 403 rather than a broken pipe)."""
+        if self.client_address[0] in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
+            return False
+        if (method, self.path.split("?")[0]) in LAN_OK:
+            return False
+        if method == "POST":
+            self._drain(int(self.headers.get("Content-Length", 0) or 0))
+        self._send(403, {"error": "this page is only available on the table's laptop"})
+        return True
+
     def _brain_ok(self):
-        return VP is not None and secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN)
+        return bool(VPS) and secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN)
+
+    def _seat_q(self):
+        from urllib.parse import parse_qs, urlparse
+        return seat(parse_qs(urlparse(self.path).query).get("seat", [None])[0])
 
     def _life_table(self):
         return life_table()
@@ -1178,6 +1378,9 @@ class H(BaseHTTPRequestHandler):
                 elif action == "damage":                 # its attackers that hit a player: triggers + life
                     hits = {ref: (v[0], v[1]) for ref, v in b["hits"].items()}
                     said, deltas = VP.combat_damage(hits)
+                    if b.get("no_life"):                   # the players state their own life: triggers only
+                        said = [x for x in said if not re.match(r".+ deals \d+ to ", x)]
+                        deltas = {k: v for k, v in deltas.items() if k == VP.name}   # its lifelink still counts
                     for who, d in deltas.items():
                         r = self._change_life(who, d, "combat")
                         if "error" in r:
@@ -1217,13 +1420,18 @@ class H(BaseHTTPRequestHandler):
                         return self._send(400, r)
                     said = []
                 elif action == "new-game":
-                    from player import VirtualPlayer
-                    globals()["VP"] = VirtualPlayer(args.ai_deck, VP.name)
+                    reshuffle_all()
                     for k in LIFE:
                         LIFE[k] = 40
                     emit("new-game")
+                    emit("fair", kind="sealed", **fair_public())
                     SPOKEN.clear()
-                    said = ["New game. I shuffle up and draw seven."]
+                    said = ["New game. I shuffle up and draw seven."] + fair_announcement()
+                elif action == "fair-reveal":              # after the game: publish seeds, words and orders
+                    FAIR["revealed"] = True
+                    emit("fair", kind="revealed", **fair_public())
+                    said = ["The fairness proof is published. Anyone can check that the deck order was fixed "
+                            "before the first draw."]
                 else:
                     return self._send(400, {"error": f"unknown action '{action}'"})
         except IllegalAction as e:
@@ -1292,4 +1500,4 @@ print(f"{mode}. Table (camera + mic): http://localhost:{args.port}/table   "
 print("AI players: " + ", ".join(p["name"] for p in AI_PLAYERS)
       + (f" — brain: EXTERNAL (drive with table/tablectl.py)" if BRAIN_EXTERNAL else " — brain: local Gemma")
       + (" — no local model (ROUTER=code)" if NO_GEMMA else ""), flush=True)
-ThreadingHTTPServer(("127.0.0.1", args.port), H).serve_forever()
+ThreadingHTTPServer((args.host, args.port), H).serve_forever()
