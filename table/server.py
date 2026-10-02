@@ -267,7 +267,7 @@ def board3d() -> dict:
                 pw, tg = v.stats(p) if p.is_("Creature") or p.face_down else (None, None)
                 pt = f"{pw}/{tg}" if pw is not None else None
                 if p.face_down:
-                    how = getattr(p, "how", None) or ("disguise or cloak" if p.ward2 else "morph or manifest")
+                    how = getattr(p, "how", None) or "not recorded"   # the engine records it from cast/manifest/cloak
                     perms.append(_card_view(None, id=p.id, tapped=p.tapped, pt=pt, ward=p.ward2, how=how))
                 else:
                     perms.append(_card_view(p.name, id=p.id, tapped=p.tapped, token=p.token, counters=p.counters,
