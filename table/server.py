@@ -474,6 +474,8 @@ LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", 
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
           ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/table"), ("GET", "/api/ai/state"),     # the table page as a viewer: its mic, camera, reset
+                                                          # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
           ("GET", "/vendor/three.module.min.js"), ("GET", "/vendor/three.core.min.js"),
           ("GET", "/avatars/index.json")}

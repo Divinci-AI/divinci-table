@@ -129,9 +129,13 @@ try:
                 return resp.status
         except urllib.error.HTTPError as e:
             return e.code
-    check(raw("/table") == 200, "the table page opens on the laptop itself")
+    check(raw("/") == 200, "the scan pad (the AI's secret draws) opens on the laptop itself")
     for h in ("X-Forwarded-For", "CF-Connecting-IP", "Forwarded", "X-Real-IP"):
-        check(raw("/table", {h: "203.0.113.9"}) == 403, f"through a tunnel ({h}) it does not")
+        check(raw("/", {h: "203.0.113.9"}) == 403, f"through a tunnel ({h}) it does not")
+    check(raw("/table", {"X-Forwarded-For": "203.0.113.9"}) == 200, "the table page opens elsewhere as a viewer")
+    for path in ("/api/reset", "/api/ai/turn", "/api/utterance", "/api/players"):
+        check(raw(path, {"X-Forwarded-For": "203.0.113.9", "Content-Type": "application/json"}, "POST", b"{}") == 403,
+              f"…but its controls stay on the laptop ({path})")
     check(raw("/stage", {"X-Forwarded-For": "203.0.113.9"}) == 200, "a tunnelled visitor still gets the public stage")
     tok = TOKEN.read_text().strip()
     check(raw("/api/brain/state?seat=Claude", {"X-Forwarded-For": "203.0.113.9", "X-Brain-Token": tok}) == 403,

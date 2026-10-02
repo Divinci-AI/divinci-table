@@ -182,6 +182,15 @@ function addBoard(cards){
 }
 function feed(html, cls=""){ const li=document.createElement("li"); if(cls) li.className=cls; li.innerHTML=html; $("feed").prepend(li); }
 
+// Opened from another device (a player's laptop on the Wi-Fi): a viewer. The mic, camera, reset and
+// AI-turn controls only work on the table's own laptop (the server refuses them from anywhere else).
+const VIEWER = !["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+if (VIEWER) addEventListener("DOMContentLoaded", () => {
+  for (const b of document.querySelectorAll("button")) if (!/speak/i.test(b.id)) b.style.display = "none";
+  const n = document.createElement("p"); n.className = "note";
+  n.textContent = "Viewing the table from another device: the feed, life and voices follow along; the mic and camera stay on the table's laptop.";
+  document.body.prepend(n);
+});
 async function post(path, body, headers){
   const r=await fetch(path,{method:"POST",body,headers});
   const t=await r.text(); let d; try{ d=JSON.parse(t);}catch{ throw new Error(`server returned non-JSON (HTTP ${r.status})`); }
