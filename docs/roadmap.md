@@ -110,9 +110,13 @@ What the self-moving chess boards and sand tables already worked out (research 2
 - **What we refuse:** matou/3d-printer-chess drives a gripper with the extruder motor (`M302 P1`
   cold extrusion). Our G-code gate refuses that by design. A magnet on a switched output needs no
   extruder.
-- **Prior art:** arcade card machines patented a magnet under the table that pulls and carries cards
-  ("Card drive apparatus and card", US 5942744 / 6016959; "Card game machine", US 6543770). Read
-  these before filing anything.
+- **Prior art (checked 2026-10-01, not legal advice):** the closest patent is Sega's US 6543770,
+  "Card inverting device, card game machine": electromagnets under the table move and flip cards with
+  ferromagnetic inserts. It **expired on 2020-07-18** (fee-related), so the core idea is public domain.
+  US 5942744 and US 6016959 (Mitsubishi, "Card drive apparatus") are magnetic-stripe card *readers*,
+  not card movers, and both expired in 2015. Expired prior art cuts both ways: we're free to build it,
+  and it limits what we could patent to our specific additions (vision + rules engine + AI player +
+  routing). Get a freedom-to-operate search from a patent attorney before filing or selling.
 
 First experiment, no gantry needed: a sleeved card with a 10×1 mm neodymium disc, a 12 V lifting
 electromagnet under 3 mm acrylic, moved by hand. Does the card follow at 50–100 mm/s without
