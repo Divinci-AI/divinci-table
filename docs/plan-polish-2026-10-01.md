@@ -86,7 +86,23 @@ blockchain if a sponsor wants one. The proof doesn't need it; it adds a public t
   (see roadmap.md).
 - **Four-player turn flow:** priority, multiple defenders, monarch.
 
-## Open decisions
-1. **ANU/drand tonight, or offline-only?** We recommend offline-only tonight (players' words plus local
-   entropy), with online seeding behind a flag to try once the rest works.
-2. **Does the HUD need the LAN tonight** (phones at the table), or is localhost on the laptop enough?
+## Decisions
+1. **Phones at the table tonight: yes.** The server binds the LAN for `/me` (and later `/play`). Only
+   the read-only public pages and the existing player endpoints are reachable; brain actions still
+   need the brain token.
+2. **ANU/drand tonight:** offline-only by default (players' words plus local entropy). Online seeding
+   stays behind `--fair-seed online`.
+
+## Card images and Wizards IP (checked 2026-10-01, not legal advice)
+- Wizards' **Fan Content Policy** covers free fan content and allows sponsorships, ads and donations,
+  but it **excludes using Wizards' IP in other games and apps**, free or not. A digital play client
+  (#5) is therefore outside it, as are paid tables and paid events.
+- So:
+  - the repo never commits card images, logos or official mana-symbol art (it already doesn't; the
+    README carries the Fan Content disclaimer);
+  - any card images in `/play` are fetched at runtime by the user's own instance from Scryfall, with
+    the frame, artist and copyright line uncropped, and are off by default (text-only cards).
+- The physical-table mode is the clean one: people play their own real cards and the table reads them.
+- Before Cloudflare Connect (a public, sponsored event) or any table sale: ask Wizards for permission
+  or a licence, and have an IP attorney review. Wizards could also be the partner rather than the
+  risk.
