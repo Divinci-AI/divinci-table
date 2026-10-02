@@ -215,7 +215,7 @@ STEPS = ["untap", "upkeep", "draw", "main 1", "beginning of combat", "declare at
          "declare blockers", "combat damage", "main 2", "end step", "cleanup"]
 NO_PRIORITY = {"untap", "cleanup"}                    # the rules give no one priority here
 ORDER: list[str] = [x.strip() for x in args.order.split(",") if x.strip()]
-PHASE = {"player": None, "step": 0}
+PHASE = {"player": None, "step": 0, "begun": False}   # begun: an AI seat has started playing its turn
 PRIORITY = {"step": None, "waiting": [], "seats": [], "deadline": 0.0, "beat_until": 0.0}
 BEAT = tuple(float(x) for x in args.priority_beat.split(","))
 PHASE_LOCK = threading.RLock()
@@ -377,7 +377,7 @@ def phase_public() -> dict:
 
 def start_turn(name: str):
     """Hand the turn to a seat: an AI seat plays its whole turn; a human starts at untap."""
-    PHASE.update(player=name, step=0)
+    PHASE.update(player=name, step=0, begun=False)
     PRIORITY.update(step=None, waiting=[], seats=[], deadline=0.0, beat_until=0.0)
     emit("phase", player=name, step=STEPS[0], index=0)
     if name in VPS:
@@ -411,6 +411,33 @@ def next_step(by: str | None = None) -> tuple[int, dict]:
         step = STEPS[PHASE["step"]]
         emit("phase", player=PHASE["player"], step=step, index=PHASE["step"], by=by)
         open_priority(step)
+        return 200, phase_public()
+
+
+def prev_step(by: str | None = None) -> tuple[int, dict]:
+    """BACK, for a NEXT pressed too soon: one step back within a person's turn (no priority window
+    reopens), or from the very start of a turn back to the previous player's cleanup — but never into an
+    AI's turn, and never once an AI has started its own (its moves are already made)."""
+    with PHASE_LOCK:
+        cur = PHASE["player"]
+        if cur is None:
+            return 409, {**phase_public(), "error": "the game hasn't started"}
+        if cur in VPS and PHASE.get("begun"):
+            return 409, {**phase_public(), "error": f"{cur} has already started its turn — too late to go back"}
+        if PHASE["step"] > 0 and cur not in VPS:
+            PHASE["step"] -= 1
+            PRIORITY.update(waiting=[], seats=[], beat_until=0.0, deadline=0.0)
+            emit("phase", player=cur, step=STEPS[PHASE["step"]], index=PHASE["step"], by=by, back=True)
+            return 200, phase_public()
+        order = turn_order()
+        prev = order[(order.index(cur) - 1) % len(order)] if cur in order else None
+        if prev is None or prev in VPS:
+            return 409, {**phase_public(), "error": f"can't go back into {prev}'s turn — it already played it"}
+        PHASE.update(player=prev, step=len(STEPS) - 1, begun=False)
+        PRIORITY.update(waiting=[], seats=[], beat_until=0.0, deadline=0.0)
+        if cur in VPS:                                # tell that seat's brain its turn was taken back
+            emit("attention", kind="turn-cancelled", addressee=cur, text=f"Not yet — {prev}'s turn isn't over.")
+        emit("phase", player=prev, step=STEPS[-1], index=len(STEPS) - 1, by=by, back=True)
         return 200, phase_public()
 
 
@@ -473,7 +500,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1599,6 +1626,10 @@ class H(BaseHTTPRequestHandler):
                         return self._send(409, {"error": "that line names a card still in the seat's hand"})
                 return self._send(200, emit("captain", seat=cseat, captain=str(b.get("captain", ""))[:60],
                                             text=text, audio="/captains/" + audio))
+            if self.path == "/api/phase/back":             # BACK: a NEXT pressed too soon
+                code, out = prev_step(str(self._json().get("by", ""))[:30] if self.headers.get("Content-Length") else None)
+                snapshot()
+                return self._send(code, out)
             if self.path == "/api/phase/next":             # the NEXT button: {"by": "Michael"} (optional)
                 code, out = next_step(str(self._json().get("by", ""))[:30] if self.headers.get("Content-Length") else None)
                 snapshot()
@@ -1837,7 +1868,7 @@ class H(BaseHTTPRequestHandler):
             threading.Timer(0.5, lambda: (start_turn(nxt), snapshot())).start()
         if action == "begin":                         # the turn button or NEXT handed this seat its turn
             with PHASE_LOCK:
-                PHASE.update(player=VP.name, step=0)
+                PHASE.update(player=VP.name, step=0, begun=True)
         _append("brain.jsonl", {"ts": round(time.time(), 2), "seat": VP.name, "action": action,
                                 "body": {k: v for k, v in b.items() if k != "seat"}, "said": said,
                                 "drew": list(VP.recent_draws), "todo": list(VP.todo),

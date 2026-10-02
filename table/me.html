@@ -41,7 +41,8 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
     <div class="life" id="life" style="margin-top:8px"></div>
     <div class="btns" id="mybtns"></div>
     <div id="phase"></div>
-    <button id="next" hidden onclick="nextStep()">NEXT ▸</button></div>
+    <button id="next" hidden onclick="nextStep()">NEXT ▸</button>
+    <button id="back" hidden onclick="backStep()" style="margin-top:6px;opacity:.8">◂ BACK a step</button></div>
   <div class="card cast" id="castCard" hidden><div class="muted">Just played</div><div id="cast"></div></div>
   <div class="card"><div class="muted">At the table</div><div id="caps"><div class="muted">Nothing yet.</div></div></div>
   <div class="card"><div class="muted">Fair decks: the AI's shuffle is sealed before the first draw</div>
@@ -88,7 +89,10 @@ async function phase(){ const p=await j("/api/phase"); if(p.error) return;
     +(p.waiting&&p.waiting.length?` · waiting on <b>${esc(p.waiting.join(", "))}</b> (${Math.ceil(p.seconds_left)}s)`:""):"Press NEXT to start the first turn.";
   const nb=$("next"); nb.hidden=!(mine||!p.player); nb.disabled=!!(p.waiting&&p.waiting.length&&p.seconds_left>0);
   nb.classList.toggle("wait",nb.disabled);
-  nb.textContent=!p.player?"START ▸":nb.disabled?"waiting…":(p.index>=steps.length-1?"END TURN ▸":`NEXT ▸ ${steps[p.index+1]||""}`); }
+  nb.textContent=!p.player?"START ▸":nb.disabled?"waiting…":(p.index>=steps.length-1?"END TURN ▸":`NEXT ▸ ${steps[p.index+1]||""}`);
+  $("back").hidden=!(p.player&&(mine||p.index===0)); }
+async function backStep(){ const r=await j("/api/phase/back",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({by:me})});
+  if(r.error) $("phase").innerHTML+=` · <span class="muted">${esc(r.error)}</span>`; else phase(); }
 async function nextStep(){ const r=await j("/api/phase/next",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({by:me})});
   if(r.error) $("phase").innerHTML+=` · <span class="muted">${esc(r.error)}</span>`; else phase(); }
 setInterval(()=>{ if(me) phase(); },1500);

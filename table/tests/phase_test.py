@@ -115,11 +115,30 @@ try:
         if p.get("player") == "Claude":
             break
     check(p.get("player") == "Claude" and p.get("step") == "untap", "the last step hands the turn to the next seat")
+    code, p = call("POST", "/api/phase/back", {"by": "Ann"})
+    check(code == 200 and p["player"] == "Ann" and p["step"] == "cleanup",
+          "BACK at the start of an AI's turn (not begun) returns to the previous player's cleanup")
+    code, ev = call("GET", "/api/events?since=0")
+    check(any(e.get("kind") == "turn-cancelled" and e.get("addressee") == "Claude" for e in ev["events"]),
+          "…and tells that AI its turn was taken back")
+    code, p = call("POST", "/api/phase/back", {"by": "Ann"})
+    check(code == 200 and p["step"] == "end step" and p["waiting"] == [], "BACK within a turn steps back with no window")
+    time.sleep(BEAT)
+    call("POST", "/api/phase/next", {"by": "Ann"})
+    time.sleep(BEAT)
+    code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    if code == 409:
+        brain("pass", quiet=True); time.sleep(BEAT); code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    check(p.get("player") == "Claude", "NEXT then hands the turn on again")
     brain("begin")
+    code, p = call("POST", "/api/phase/back", {"by": "Ann"})
+    check(code == 409 and "already started" in p.get("error", ""), "BACK is refused once the AI has started its turn")
     brain("end", text="test")
     time.sleep(1.5)
     code, p = call("GET", "/api/phase")
     check(p["player"] == "Ben", "an AI ending its turn hands it to the next seat in order")
+    code, p = call("POST", "/api/phase/back", {"by": "Ben"})
+    check(code == 409 and "Claude" in p.get("error", ""), "BACK never goes into an AI's finished turn")
 
     print("who counts as this laptop")
     def raw(path, headers=None, method="GET", data=None):

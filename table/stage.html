@@ -63,7 +63,7 @@
 <div id="phase"></div>
 <div id="caption"></div>
 <div id="seats"></div>
-<div id="help">click a seat to pin it · space follows the turn · N next step · F full screen · Q effects</div>
+<div id="help">click a seat to pin it · space follows the turn · N next step · B back a step · F full screen · Q effects</div>
 <script type="module">
 import * as THREE from "three";
 import { GLTFLoader } from "/vendor/jsm/loaders/GLTFLoader.js";
@@ -592,8 +592,16 @@ async function phaseRefresh() {
   const label = !p.player ? "START" : p.index >= p.steps.length - 1 ? "END TURN" : "NEXT";
   el.innerHTML = `<span><b>${escHtml(p.player || "—")}</b> · ${escHtml(p.step || "")}</span><span class="steps">${dots}</span>` +
     (waiting ? `<span class="wait">${escHtml(p.waiting.join(", "))} may respond… ${Math.ceil(p.seconds_left)}s</span>` : "") +
+    (p.player ? `<button id="backBtn" title="B: back a step (a NEXT pressed too soon)" style="opacity:.75">◂</button>` : "") +
     (human || !p.player ? `<button id="nextBtn" ${waiting ? "disabled" : ""}>${label} ▸</button>` : "");
   document.getElementById("nextBtn")?.addEventListener("click", pressNext);
+  document.getElementById("backBtn")?.addEventListener("click", pressBack);
+}
+async function pressBack() {
+  const r = await fetch("/api/phase/back", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ by: phaseInfo?.player || "stage" }) });
+  if (!r.ok) { try { caption("stage", (await r.json()).error || "can't go back"); } catch {} }
+  phaseRefresh();
 }
 async function pressNext() {
   const p = phaseInfo; if (!p || ((p.waiting || []).length && p.seconds_left > 0)) return;
@@ -605,6 +613,7 @@ setInterval(phaseRefresh, 1200); phaseRefresh();
 
 addEventListener("keydown", e => {
   if (e.key.toLowerCase() === "n") pressNext();
+  if (e.key.toLowerCase() === "b") pressBack();
   if (e.key.toLowerCase() === "q") post = !post;
   if (e.key === " ") { pinned = null; stage(shown(), true); hud(); }
   if (e.key.toLowerCase() === "f") document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
