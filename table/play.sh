@@ -14,6 +14,7 @@
 # RESTORE=…       resume a game from its snapshot.pkl (table/.cache/research/<game>/snapshot.pkl).
 # FUSION_LOCAL_MODEL=tev1  Fusion's small decisions (instants in others' turns) go to a local Ollama
 #                 decision model instead of its Divinci release — free; the turn's real moves stay on the release.
+# PRIORITY_WINDOW=3  every step's priority window lasts exactly this many seconds (default 10)
 # CAPTAINS=1      each commander speaks a short in-character line now and then, in its own voice
 #                 (table/captains.py; needs table/.cache/captains.json — see docs/captains.md).
 # TLS=1           also serve HTTPS on :8443 (self-signed, made once for this Mac's LAN address): WebXR —
@@ -37,6 +38,7 @@ HOST=(); [ "${LAN:-}" = 1 ] && HOST=(--host 0.0.0.0)
 FAIR=(--fair-seed "${FAIR_SEED:-local}")   # FAIR_SEED=online: ANU quantum + drand go into every AI deck's seal
 [ -n "${ORDER:-}" ] && FAIR+=(--order "$ORDER")
 [ -n "${RESTORE:-}" ] && FAIR+=(--restore "$RESTORE")
+[ -n "${PRIORITY_WINDOW:-}" ] && FAIR+=(--priority-window "$PRIORITY_WINDOW")   # seconds every step's window lasts
 if [ "${TLS:-}" = 1 ]; then
   IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || echo 127.0.0.1)
   TLSD=table/.cache/tls; mkdir -p "$TLSD"; chmod 700 "$TLSD"
