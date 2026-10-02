@@ -258,7 +258,8 @@ def board3d() -> dict:
         seats.append({"name": h["name"], "kind": "human", "commander": h["commander"],
                       "commander_card": _card_view(h["commander"]) if h.get("commander") else None, "life": lt.get(h["name"]),
                       "hand": HAND_N.get(h["name"], 7), "commander_in_zone": not b.get("commander_out", False),
-                      "permanents": perms, "graveyard": [str(x)[:60] for x in b.get("graveyard", [])][-30:],
+                      "permanents": perms, "graveyard": [str(x)[:60] for x in b.get("graveyard", [])][-100:],
+                      "graveyard_count": len(b.get("graveyard", [])),
                       "updated": b.get("updated")})
     with VP_LOCK:
         for n, v in VPS.items():
@@ -277,7 +278,7 @@ def board3d() -> dict:
                           "commander_card": _card_view(v.commander.get("name")), "life": v.life,
                           "hand": len(v.hand), "library": len(v.library), "commander_in_zone": v.cmdr_in_zone,
                           "commander_tax": 2 * v.cmdr_casts, "permanents": perms,
-                          "graveyard": [c["name"] for c in v.graveyard][-30:]})
+                          "graveyard": [c["name"] for c in v.graveyard][-100:], "graveyard_count": len(v.graveyard)})
     order = turn_order()
     seats.sort(key=lambda x: order.index(x["name"]) if x["name"] in order else 99)
     return {"seats": seats, "turn": PHASE.get("player"), "step": STEPS[PHASE["step"]]}

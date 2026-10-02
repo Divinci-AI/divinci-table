@@ -92,7 +92,7 @@ function render(d) {
       ${group(perms.filter(c => !isLand(c) && !isCreature(c)).map(c => card(c)), "Other permanents")}
       ${group(lands.map(c => card(c)), "Lands")}
       ${cmd ? group([cmd], "Command zone") : ""}
-      ${gy.length ? `<h4>Graveyard (${gy.length})${gyAZ ? " · A–Z" : ""}</h4><div class="gy">${gyList(gy).map(esc).join(" · ")}</div>` : ""}
+      ${gy.length ? `<h4>Graveyard (${s.graveyard_count ?? gy.length})${gyAZ ? " · A–Z" : ""}</h4><div class="gy">${gyList(gy).map(esc).join(" · ")}</div>` : ""}
       ${!perms.length && !cmd ? `<p class="empty">Nothing recorded yet.</p>` : ""}
     </section>`;
   }).join("");

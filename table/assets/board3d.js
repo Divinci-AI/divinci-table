@@ -143,8 +143,9 @@ export function createBoard(THREE, { parent, y, radius, angleOf }) {
     }
     const gy = s.graveyard || [];
     if (gy.length) {
-      const m = side(span / 2 + 0.12, { name: gy[gy.length - 1], type: "Graveyard", text: gy.slice().reverse().join(" · "), cost: "" }, gy.length);
-      m.userData.card = { name: `${s.name}'s graveyard (${gy.length})`, text: gy.slice().reverse().join(" · ") };
+      const n = s.graveyard_count ?? gy.length;
+      const m = side(span / 2 + 0.12, { name: gy[gy.length - 1], type: "Graveyard", text: gy.slice().reverse().join(" · "), cost: "" }, n);
+      m.userData.card = { name: `${s.name}'s graveyard (${n})`, text: gy.slice().reverse().join(" · ") };
     }
     return g;
   }
