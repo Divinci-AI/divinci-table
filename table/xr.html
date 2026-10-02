@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Divinci Table XR</title>
+<style>
+  :root { --ink: #f4efe6; --dim: #a9a29a; --accent: #f0a868; --bg: #07090e; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
+    font-family: ui-rounded, "SF Pro Rounded", system-ui, sans-serif; }
+  canvas { display: block; }
+  #overlay { position: fixed; inset: 0; pointer-events: none; }
+  #bar { position: absolute; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+    display: flex; gap: 10px; align-items: center; padding: 10px 12px 10px 18px; border-radius: 999px;
+    background: #000b; backdrop-filter: blur(8px); pointer-events: auto; max-width: calc(100vw - 32px); }
+  #bar .ph { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
+  #bar .wait { color: var(--accent); }
+  #next { all: unset; cursor: pointer; padding: 10px 18px; border-radius: 999px; background: var(--accent);
+    color: #140d06; font-weight: 800; font-size: 16px; }
+  #next[disabled] { opacity: 0.45; }
+  #hint { position: absolute; top: max(16px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    padding: 8px 14px; border-radius: 999px; background: #000a; font-size: 14px; color: var(--dim); white-space: nowrap; }
+  #ios { position: fixed; left: 16px; right: 16px; top: 16px; display: none; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  #ios a { display: block; width: 120px; text-align: center; color: var(--ink); text-decoration: none; font-size: 13px; }
+  #ios img { width: 120px; height: 120px; object-fit: cover; border-radius: 16px; background: #ffffff14; display: block; }
+  #msg { position: fixed; top: 16px; right: 16px; font-size: 12px; color: var(--dim); max-width: 50vw; text-align: right; }
+  #XRButton, button.webxr { font-family: inherit !important; }
+</style>
+<script>
+  addEventListener("error", e => { const m = document.getElementById("msg"); if (m) m.textContent = "⚠ " + (e.message || e.error); });
+  addEventListener("unhandledrejection", e => { const m = document.getElementById("msg"); if (m) m.textContent = "⚠ " + e.reason; });
+</script>
+<script type="importmap">{ "imports": { "three": "/vendor/three.module.min.js" } }</script>
+</head>
+<body>
+<div id="overlay">
+  <div id="hint">Point at the table, then tap to place it</div>
+  <div id="bar"><span class="ph" id="ph">—</span><button id="next">NEXT ▸</button></div>
+</div>
+<div id="ios"></div>
+<div id="msg"></div>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "/vendor/jsm/loaders/GLTFLoader.js";
+import * as SkeletonUtils from "/vendor/jsm/utils/SkeletonUtils.js";
+import { RoomEnvironment } from "/vendor/jsm/environments/RoomEnvironment.js";
+import { ARButton } from "/vendor/jsm/webxr/ARButton.js";
+import { VRButton } from "/vendor/jsm/webxr/VRButton.js";
+
+// ── the same decks → models → colours as the stage ─────────────────────────────────────────
+const LOOKS = [
+  { match: /aminatou/i, accent: "#f0a868", model: "Claude" },
+  { match: /kaust/i,    accent: "#d8b45a", model: "Fusion" },
+  { match: /kilo/i,     accent: "#5fd3ff", model: "Michael" },
+  { match: /ghathrod/i, accent: "#b58cff", model: "Sam" },
+];
+const lookFor = s => LOOKS.find(l => l.match.test(s?.commander || "")) || { accent: "#e6e6e6", model: s?.name };
+const CLIPS = ["idle", "talk", "think", "cheer", "wave"];
+const POOLS = { idle: ["idle", /^Idle_0?2$/, /^Idle_5$/], talk: ["talk", /Talk_with_Hands_Open/],
+  think: ["think", /Look_Around/], cast: [/spell|cast/i], hurt: [/Hit_Reaction/], win: ["cheer", /Fist_Pump/],
+  react: [/Agree/, /Shrug/, /Finger_Wag/], done: [/Bow/, /Agree/] };
+const HANDS_FREE = new Set(["idle", "talk", "think"]);
+
+// ── renderer, XR ─────────────────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.9;
+renderer.shadowMap.enabled = true;
+renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x302820, 0.6));
+const sun = new THREE.DirectionalLight(0xfff1e0, 2); sun.position.set(1, 3, 1.5); sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -2, right: 2, top: 2, bottom: -2 });
+scene.add(sun);
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.01, 50);
+camera.position.set(0, 1.6, 2.4);
+addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+
+// the table: everything lives in this group, placed by hit-test in AR, in front of you in VR
+const table = new THREE.Group(); scene.add(table);
+const TABLE_R = 1.15;                                      // in avatar units (an avatar is 1.72 tall)
+const top = new THREE.Mesh(new THREE.CylinderGeometry(TABLE_R * 0.62, TABLE_R * 0.62, 0.06, 64),
+  new THREE.MeshStandardMaterial({ color: 0x3a2a1c, roughness: 0.7 }));
+top.position.y = 0.72; top.receiveShadow = true; top.castShadow = true; table.add(top);
+const shadowCatcher = new THREE.Mesh(new THREE.CircleGeometry(TABLE_R * 1.6, 48), new THREE.ShadowMaterial({ opacity: 0.3 }));
+shadowCatcher.rotation.x = -Math.PI / 2; shadowCatcher.receiveShadow = true; table.add(shadowCatcher);
+
+const ar = navigator.xr && await navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
+const vr = navigator.xr && await navigator.xr.isSessionSupported("immersive-vr").catch(() => false);
+if (ar) document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ["hit-test"],
+  optionalFeatures: ["dom-overlay"], domOverlay: { root: document.getElementById("overlay") } }));
+if (vr) document.body.appendChild(VRButton.createButton(renderer));
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+document.getElementById("hint").textContent = ar ? "Tap ‘Start AR’, point at the table, then tap to place it"
+  : vr ? "Tap ‘Enter VR’" : isIOS ? "Tap an avatar to see it in your room" : !isSecureContext
+  ? "AR/VR needs HTTPS: open this page on the table's https:// address" : "No AR/VR on this device — this is the preview";
+
+// AR: a reticle on real surfaces; a tap places (or moves) the table, a mini table ~25 cm across
+const reticle = new THREE.Mesh(new THREE.RingGeometry(0.06, 0.08, 32).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0xffffff })); reticle.matrixAutoUpdate = false; reticle.visible = false; scene.add(reticle);
+let hitSource = null, placed = false;
+renderer.xr.addEventListener("sessionstart", async () => {
+  const s = renderer.xr.getSession();
+  if (s.environmentBlendMode && s.environmentBlendMode !== "opaque") {     // AR: tabletop size, wait for a tap
+    table.scale.setScalar(0.14); table.visible = false; placed = false; top.visible = false;   // the real table is there
+    const space = await s.requestReferenceSpace("viewer");
+    hitSource = await s.requestHitTestSource?.({ space });
+  } else {                                                                  // VR: life-size, in front of you
+    table.scale.setScalar(1); table.position.set(0, 0, -2.2); table.visible = true;
+  }
+});
+renderer.xr.addEventListener("sessionend", () => { hitSource = null; table.visible = true; top.visible = true; table.scale.setScalar(1); table.position.set(0, 0, 0); });
+const controller = renderer.xr.getController(0); scene.add(controller);
+controller.addEventListener("select", () => {
+  if (!reticle.visible) return;
+  table.position.setFromMatrixPosition(reticle.matrix); table.visible = true; placed = true;
+  document.getElementById("hint").textContent = "Tap again to move the table";
+});
+
+// ── seats ────────────────────────────────────────────────────────────────────────────────
+const loader = new GLTFLoader(), cache = {};
+const load = f => cache[f] ||= new Promise((ok, bad) => loader.load(`/avatars/${encodeURIComponent(f)}.glb`, ok, undefined, bad));
+let models = new Set(), seats = [], order = [], turn = null, cursor = "latest";
+const actors = {};                                          // name → {group, mixer, actions, ...}
+const _v = () => new THREE.Vector3(), _q = () => new THREE.Quaternion();
+
+function label(text, color) {
+  const c = document.createElement("canvas"); c.width = 512; c.height = 128;
+  const g = c.getContext("2d"); g.fillStyle = "rgba(0,0,0,0.55)"; g.beginPath(); g.roundRect(8, 8, 496, 112, 56); g.fill();
+  g.fillStyle = color; g.font = "bold 56px system-ui"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, 256, 66);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false })); sp.scale.set(0.62, 0.155, 1); sp.renderOrder = 10;
+  return sp;
+}
+const backTex = (() => { const c = document.createElement("canvas"); c.width = 128; c.height = 178; const g = c.getContext("2d");
+  g.fillStyle = "#4a3020"; g.fillRect(0, 0, 128, 178); g.strokeStyle = "#c9a35f"; g.lineWidth = 3;
+  g.beginPath(); g.ellipse(64, 89, 40, 62, 0, 0, Math.PI * 2); g.stroke();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+function fan(n) {
+  const g = new THREE.Group(), geo = new THREE.PlaneGeometry(0.42, 0.59), m = new THREE.MeshStandardMaterial({ map: backTex, side: THREE.DoubleSide });
+  for (let i = 0; i < n; i++) { const p = new THREE.Group(); p.rotation.z = -((n === 1 ? 0 : i / (n - 1)) - 0.5) * Math.min(1.4, 0.16 * n);
+    const c = new THREE.Mesh(geo, m); c.position.set(0, 0.27, i * 0.004); p.add(c); g.add(p); }
+  g.scale.setScalar(0.55); g.userData.n = n; return g;
+}
+function rotateWorld(b, q) { const pq = b.parent.getWorldQuaternion(_q()); b.quaternion.premultiply(pq.clone().invert().multiply(q).multiply(pq)); b.updateMatrixWorld(true); }
+function solveArm(arm, target, pole) {                       // the same two-bone IK as the stage
+  const a = arm.upper.getWorldPosition(_v()), b = arm.lower.getWorldPosition(_v()), c = arm.hand.getWorldPosition(_v());
+  const l1 = a.distanceTo(b), l2 = b.distanceTo(c), d = Math.min(a.distanceTo(target), (l1 + l2) * 0.999);
+  const ba = a.clone().sub(b), bc = c.clone().sub(b);
+  const axis = _v().crossVectors(ba, bc); if (axis.lengthSq() < 1e-10) axis.set(1, 0, 0); axis.normalize();
+  rotateWorld(arm.lower, _q().setFromAxisAngle(axis, Math.acos(THREE.MathUtils.clamp((l1 * l1 + l2 * l2 - d * d) / (2 * l1 * l2), -1, 1)) - ba.angleTo(bc)));
+  const c2 = arm.hand.getWorldPosition(_v());
+  rotateWorld(arm.upper, _q().setFromUnitVectors(c2.sub(a).normalize(), target.clone().sub(a).normalize()));
+  const ax = target.clone().sub(a).normalize(), e = arm.lower.getWorldPosition(_v()).sub(a), p = pole.clone().sub(a);
+  e.sub(ax.clone().multiplyScalar(e.dot(ax))); p.sub(ax.clone().multiplyScalar(p.dot(ax)));
+  if (e.lengthSq() > 1e-10 && p.lengthSq() > 1e-10) rotateWorld(arm.upper, _q().setFromUnitVectors(e.normalize(), p.normalize()));
+}
+
+async function seatActor(s, i, n) {
+  const look = lookFor(s), base = models.has(look.model + ".v2") ? look.model + ".v2" : models.has(look.model) ? look.model : null;
+  const holder = new THREE.Group();
+  const ang = (i / n) * Math.PI * 2 + Math.PI / 2;
+  holder.position.set(Math.cos(ang) * TABLE_R, 0, Math.sin(ang) * TABLE_R);
+  holder.lookAt(0, 0, 0);
+  table.add(holder);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 48).rotateX(Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: look.accent, emissive: look.accent, emissiveIntensity: 1.5 }));
+  ring.position.y = 0.02; ring.visible = false; holder.add(ring);
+  const a = { holder, ring, look, name: s.name, pool: "idle", hold: 1, seed: Math.random() * 10, nextIdle: 0, onceUntil: 0, life: s.life, hand: s.hand };
+  actors[s.name] = a;
+  a.tag = label(`${s.name} · ${s.life}`, look.accent); a.tag.position.y = 2.15; holder.add(a.tag);
+  if (!base) { const pill = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 1.0, 6, 16), new THREE.MeshStandardMaterial({ color: look.accent })); pill.position.y = 0.8; holder.add(pill); return; }
+  const [gltf, ...more] = await Promise.all([load(base), ...[...models].filter(m => m.startsWith(base + ".more")).map(m => load(m).catch(() => null))]);
+  const model = SkeletonUtils.clone(gltf.scene);
+  model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+  let head = null; const bone = nm => { let b = null; model.traverse(o => { if (!b && o.isBone && o.name === nm) b = o; }); return b; };
+  head = bone("Head");
+  model.updateMatrixWorld(true);
+  const pts = []; model.traverse(o => { if (o.isBone) pts.push(o.getWorldPosition(_v())); });
+  const bb = new THREE.Box3().setFromPoints(pts), topY = head ? head.getWorldPosition(_v()).y : bb.max.y;
+  const k = 1.72 / ((topY - bb.min.y) || 1), c = bb.getCenter(_v());
+  model.scale.multiplyScalar(k); model.position.set(-c.x * k, -bb.min.y * k, -c.z * k);
+  holder.add(model);
+  a.mixer = new THREE.AnimationMixer(model); a.actions = {};
+  gltf.animations.forEach((clip, j) => { a.actions[CLIPS[j] || clip.name] = a.mixer.clipAction(clip); });
+  for (const g of more) for (const clip of g?.animations || []) a.actions[clip.name] ||= a.mixer.clipAction(clip);
+  a.arm = { upper: bone("LeftArm"), lower: bone("LeftForeArm"), hand: bone("LeftHand") };
+  if (!a.arm.upper) a.arm = null;
+  a.hips = bone("Hips"); a.hipsHome = a.hips?.position.clone();
+  a.fan = fan(s.hand ?? 7); holder.add(a.fan);
+  play(a, "idle");
+}
+function pick(a, pool) {
+  if (!a.actions) return null; const names = Object.keys(a.actions);
+  const f = POOLS[pool].map(p => typeof p === "string" ? (a.actions[p] ? p : null) : names.find(n => p.test(n))).filter(Boolean);
+  return f.length ? f[Math.floor(Math.random() * f.length)] : null;
+}
+function play(a, poolOrClip, once = false) {
+  const clip = POOLS[poolOrClip] ? pick(a, poolOrClip) : poolOrClip; if (!clip || !a.actions?.[clip]) return;
+  const next = a.actions[clip], prev = a.actions[a.current]; if (a.current === clip) return;
+  next.reset(); next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat); next.clampWhenFinished = once;
+  next.timeScale = 0.88 + Math.random() * 0.24; next.play(); if (prev) next.crossFadeFrom(prev, 0.3, true);
+  a.current = clip; a.pool = POOLS[poolOrClip] ? poolOrClip : a.pool;
+  a.onceUntil = once ? performance.now() + next.getClip().duration * 1000 / next.timeScale - 250 : 0;
+}
+const act = (a, pool) => { if (a) { a.pool = pool; play(a, pool, true); } };
+
+// ── the table's state: seats, life, hands, turn, speech ───────────────────────────────────
+async function j(u, o) { const r = await fetch(u, o); return r.json(); }
+async function build() {
+  try { models = new Set(await j("/avatars/index.json")); } catch { models = new Set(); }
+  seats = (await j("/api/stage")).seats;
+  try { const p = await j("/api/phase"); order = p.order || []; turn = p.player; } catch { order = []; }
+  const ordered = order.length ? order.map(n => seats.find(s => s.name === n)).filter(Boolean) : seats;
+  await Promise.all(ordered.map((s, i) => seatActor(s, i, ordered.length)));
+  iosLinks(ordered);
+}
+function iosLinks(list) {                                     // iPhone/Vision Pro: AR Quick Look, one avatar at a time
+  if (!isIOS) return;
+  const el = document.getElementById("ios"); el.style.display = "flex";
+  el.innerHTML = list.map(s => { const m = lookFor(s).model + ".v2";
+    return models.has(m) ? `<a rel="ar" href="/avatars/${encodeURIComponent(m)}.usdz"><img src="/avatars/${encodeURIComponent(m)}.png" alt="">${s.name}</a>` : ""; }).join("");
+}
+async function refresh() {
+  try {
+    const st = (await j("/api/stage")).seats;
+    for (const s of st) { const a = actors[s.name]; if (!a) continue;
+      if (s.life !== a.life) { a.life = s.life; a.holder.remove(a.tag); a.tag = label(`${s.name} · ${s.life}`, a.look.accent); a.tag.position.y = 2.15; a.holder.add(a.tag); }
+      if (a.fan && s.hand !== a.fan.userData.n) { a.holder.remove(a.fan); a.fan = fan(s.hand); a.holder.add(a.fan); } }
+  } catch {}
+}
+let phaseInfo = null;
+async function phase() {
+  try { phaseInfo = await j("/api/phase"); } catch { phaseInfo = null; }
+  const p = phaseInfo, ph = document.getElementById("ph"), nb = document.getElementById("next");
+  if (!p || p.error || !p.steps) { ph.textContent = "—"; nb.style.display = "none"; return; }
+  turn = p.player;
+  const waiting = (p.waiting || []).length && p.seconds_left > 0;
+  ph.innerHTML = `<b>${p.player || "—"}</b> · ${p.step}` + (waiting ? ` <span class="wait">· ${p.waiting.join(", ")} ${Math.ceil(p.seconds_left)}s</span>` : "");
+  const human = p.player && !(p.ai || []).includes(p.player);
+  nb.style.display = human || !p.player ? "" : "none"; nb.disabled = !!waiting;
+  nb.textContent = !p.player ? "START ▸" : p.index >= p.steps.length - 1 ? "END TURN ▸" : "NEXT ▸";
+  for (const a of Object.values(actors)) a.ring.visible = a.name === turn;
+}
+document.getElementById("next").addEventListener("click", async e => {
+  e.stopPropagation();
+  await fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ by: turn || "xr" }) });
+  phase();
+});
+async function poll() {
+  try {
+    const r = await j(`/api/events?since=${cursor}`);
+    if (cursor !== "latest" && !r.restarted) for (const e of r.events) {
+      const a = actors[e.speaker] || actors[e.player];
+      if (e.type === "say" && a) { a.talkUntil = performance.now() + Math.min(6000, 220 * (e.text || "").split(" ").length);
+        if (e.action === "begin") act(a, "think"); else if (e.action === "cast") act(a, "cast");
+        else if (e.action === "attack" || e.action === "damage") act(a, "win"); else if (e.action === "end") act(a, "done"); }
+      if (e.type === "life" && a && e.delta) act(a, e.delta < 0 ? "hurt" : "react");
+      if (e.type === "life" || e.type === "hand" || (e.type === "say" && /draw|cast|land/.test(e.action || ""))) refresh();
+    }
+    cursor = r.last;
+  } catch {}
+  setTimeout(poll, 800);
+}
+
+// ── frame ────────────────────────────────────────────────────────────────────────────────
+let last = performance.now();
+renderer.setAnimationLoop((t, frame) => {
+  const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (frame && hitSource && !placed) {                       // AR: find the real table under the reticle
+    const hits = frame.getHitTestResults(hitSource);
+    reticle.visible = hits.length > 0;
+    if (hits.length) reticle.matrix.fromArray(hits[0].getPose(renderer.xr.getReferenceSpace()).transform.matrix);
+  } else if (placed) reticle.visible = false;
+  if (!renderer.xr.isPresenting) {                           // preview: a slow orbit around the table
+    const r = 4.6; camera.position.set(Math.sin(now / 9000) * r, 2.9, Math.cos(now / 9000) * r); camera.lookAt(0, 0.95, 0);
+  }
+  for (const a of Object.values(actors)) {
+    if (!a.mixer) continue;
+    a.mixer.update(dt);
+    if (a.hips) { a.hips.position.x = a.hipsHome.x; a.hips.position.z = a.hipsHome.z; }
+    if (!(a.onceUntil > now)) {
+      const want = now < (a.talkUntil || 0) ? "talk" : "idle";
+      if (a.pool !== want || now > a.nextIdle) { play(a, want); a.pool = want; a.nextIdle = now + 6000 + Math.random() * 9000; }
+    }
+    if (a.arm && a.fan) {                                    // cards in the left hand, as on the stage
+      a.hold += ((HANDS_FREE.has(a.pool) ? 1 : 0) - a.hold) * 0.12;
+      const saved = [a.arm.upper.quaternion.clone(), a.arm.lower.quaternion.clone()];
+      a.holder.updateMatrixWorld(true);
+      solveArm(a.arm, a.holder.localToWorld(new THREE.Vector3(0.36, 1.22, 0.34)), a.holder.localToWorld(new THREE.Vector3(0.9, 0.7, -0.2)));
+      a.arm.upper.quaternion.slerpQuaternions(saved[0], a.arm.upper.quaternion.clone(), a.hold);
+      a.arm.lower.quaternion.slerpQuaternions(saved[1], a.arm.lower.quaternion.clone(), a.hold);
+      a.holder.updateMatrixWorld(true);
+      a.fan.position.copy(a.holder.worldToLocal(a.arm.hand.getWorldPosition(_v()))).add(new THREE.Vector3(0.03, -0.02, 0.06));
+      a.fan.rotation.set(-0.15, -0.25, -0.22); a.fan.visible = a.hold > 0.35;
+    }
+  }
+  renderer.render(scene, camera);
+});
+
+await build(); phase(); poll();
+setInterval(phase, 1500);
+</script>
+</body>
+</html>

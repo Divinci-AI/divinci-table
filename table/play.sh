@@ -12,6 +12,8 @@
 # ORDER=…         turn order, "Fusion,Sam,Claude,Michael": NEXT walks each human's turn step by step, and
 #                 the turn passes itself along (AI seats are started for you).
 # RESTORE=…       resume a game from its snapshot.pkl (table/.cache/research/<game>/snapshot.pkl).
+# TLS=1           also serve HTTPS on :8443 (self-signed, made once for this Mac's LAN address): WebXR —
+#                 the AR/VR table at /xr — only runs on secure pages. Phones/headsets accept it once.
 # Claude (in Claude Code) follows the table with:  table/tablectl.py --seat Claude watch   — docs/claude-brain.md
 set -eu
 cd "$(dirname "$0")/.."
@@ -31,6 +33,17 @@ HOST=(); [ "${LAN:-}" = 1 ] && HOST=(--host 0.0.0.0)
 FAIR=(--fair-seed "${FAIR_SEED:-local}")   # FAIR_SEED=online: ANU quantum + drand go into every AI deck's seal
 [ -n "${ORDER:-}" ] && FAIR+=(--order "$ORDER")
 [ -n "${RESTORE:-}" ] && FAIR+=(--restore "$RESTORE")
+if [ "${TLS:-}" = 1 ]; then
+  IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || echo 127.0.0.1)
+  TLSD=table/.cache/tls; mkdir -p "$TLSD"; chmod 700 "$TLSD"
+  if [ ! -f "$TLSD/cert-$IP.pem" ]; then        # one per LAN address; the key never leaves this Mac
+    openssl req -x509 -newkey rsa:2048 -nodes -days 365 -subj "/CN=divinci-table" \
+      -addext "subjectAltName=IP:$IP,IP:127.0.0.1,DNS:localhost" \
+      -keyout "$TLSD/key-$IP.pem" -out "$TLSD/cert-$IP.pem" 2>/dev/null
+    chmod 600 "$TLSD/key-$IP.pem"
+  fi
+  FAIR+=(--tls-cert "$TLSD/cert-$IP.pem" --tls-key "$TLSD/key-$IP.pem")
+fi
 LOG=table/.cache/game-$(date +%Y%m%d-%H%M).log
 mkdir -p table/.cache
 env -u TYPESAFE_API_KEY ${MODELS[@]+"${MODELS[@]}"} HF_HUB_OFFLINE=1 HF_DEACTIVATE_ASYNC_LOAD=1 ~/.venvs/table/bin/python table/server.py \
@@ -46,4 +59,5 @@ fi
 echo "table:  http://localhost:8800/table      log: $LOG"
 echo "stage:  http://localhost:8800/stage      (NEXT: phones at /me, or the stage's NEXT / N key)"
 [ "${LAN:-}" = 1 ] && echo "phones: http://$(ipconfig getifaddr en0 || ipconfig getifaddr en1):8800/me"
+[ "${TLS:-}" = 1 ] && echo "AR/VR:  https://${IP}:8443/xr   (accept the self-signed certificate once per device)"
 echo "brain:  table/tablectl.py --seat Claude watch   (Claude drives with tablectl — docs/claude-brain.md)"

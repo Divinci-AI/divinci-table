@@ -62,6 +62,8 @@ class H(BaseHTTPRequestHandler):
         try:
             if p in ("/", "/stage"):
                 return self._send(200, body=(HERE / "stage.html").read_bytes(), ctype="text/html; charset=utf-8")
+            if p == "/xr":
+                return self._send(200, body=(HERE / "xr.html").read_bytes(), ctype="text/html; charset=utf-8")
             for pre, root in (("/vendor/", HERE / "vendor"), ("/assets/", HERE / "assets")):
                 if p.startswith(pre):
                     f = (root / p[len(pre):]).resolve()
@@ -70,10 +72,11 @@ class H(BaseHTTPRequestHandler):
                                           if f.suffix == ".js" else "application/octet-stream")
             if p == "/avatars/index.json":           # which seats have a generated model
                 return self._send(200, sorted(x.stem for x in AVATARS.glob("*.glb")) if AVATARS.exists() else [])
-            if p.startswith("/avatars/") and p.endswith(".glb"):
+            if p.startswith("/avatars/") and Path(p).suffix in (".glb", ".usdz", ".png"):
                 f = AVATARS / Path(p).name           # Path(...).name: no ../ escapes
                 if f.is_file():
-                    return self._send(200, body=f.read_bytes(), ctype="model/gltf-binary")
+                    return self._send(200, body=f.read_bytes(), ctype={".glb": "model/gltf-binary",
+                                      ".usdz": "model/vnd.usdz+zip", ".png": "image/png"}[f.suffix])
             if p == "/api/stage":
                 return self._send(200, stage())
             if p in ("/api/events", "/api/phase"):

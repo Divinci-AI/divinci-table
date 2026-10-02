@@ -53,6 +53,9 @@ ap.add_argument("--order", default="",
                 help='turn order, comma-separated names ("Fusion,Sam,Claude,Michael"); default: humans then AIs')
 ap.add_argument("--restore", default="",
                 help="resume a game from its snapshot.pkl (written automatically after every change)")
+ap.add_argument("--tls-cert", default="", help="also serve HTTPS (WebXR needs a secure page on phones/headsets)")
+ap.add_argument("--tls-key", default="")
+ap.add_argument("--tls-port", type=int, default=8443)
 ap.add_argument("--priority-secs", type=float, default=45.0,
                 help="how long NEXT waits for an AI seat that holds an instant before passing for it")
 ap.add_argument("--fair-seed", choices=["local", "online", "off"], default="local",
@@ -339,7 +342,9 @@ RESEARCH = HERE / ".cache" / "research"          # every game, kept for research
 def research_dir() -> Path:
     game = globals().get("FAIR", {}).get("game") or time.strftime("%Y%m%d-%H%M%S")
     d = RESEARCH / game
-    d.mkdir(parents=True, exist_ok=True)
+    if not d.exists():
+        d.mkdir(parents=True, exist_ok=True)
+        os.chmod(d, 0o700)                            # private: brain.jsonl and snapshots hold the AI's hands
     return d
 
 
@@ -388,7 +393,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("GET", "/xr"),
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
           ("GET", "/vendor/three.module.min.js"), ("GET", "/vendor/three.core.min.js"),
           ("GET", "/avatars/index.json")}
@@ -1289,6 +1294,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / "scan.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path == "/table":
             return self._send(200, body=(HERE / "table.html").read_bytes(), ctype="text/html; charset=utf-8")
+        if self.path.split("?")[0] == "/xr":               # AR/VR: the avatars around your real table
+            return self._send(200, body=(HERE / "xr.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/stage":            # the 3D avatar stage: public info only
             return self._send(200, body=(HERE / "stage.html").read_bytes(), ctype="text/html; charset=utf-8")
         p0 = self.path.split("?")[0]
@@ -1296,9 +1303,10 @@ class H(BaseHTTPRequestHandler):
                           ("/avatars/", HERE / ".cache" / "avatars")):
             if p0.startswith(pre) and not p0.endswith("/index.json"):
                 fp = (root / p0[len(pre):]).resolve()
-                if fp.is_file() and root.resolve() in fp.parents and fp.suffix in (".js", ".hdr", ".glb"):
+                if fp.is_file() and root.resolve() in fp.parents and fp.suffix in (".js", ".hdr", ".glb", ".usdz", ".png"):
                     return self._send(200, body=fp.read_bytes(), ctype={".js": "text/javascript; charset=utf-8",
-                                      ".glb": "model/gltf-binary"}.get(fp.suffix, "application/octet-stream"))
+                                      ".glb": "model/gltf-binary", ".usdz": "model/vnd.usdz+zip", ".png": "image/png"}
+                                      .get(fp.suffix, "application/octet-stream"))
         if p0 == "/avatars/index.json":
             d = HERE / ".cache" / "avatars"
             return self._send(200, sorted(x.stem for x in d.glob("*.glb")) if d.exists() else [])
@@ -1755,4 +1763,12 @@ print("AI players: " + ", ".join(p["name"] for p in AI_PLAYERS)
       + (f" — brain: EXTERNAL (drive with table/tablectl.py)" if BRAIN_EXTERNAL else " — brain: local Gemma")
       + (" — no local model (ROUTER=code)" if NO_GEMMA else ""), flush=True)
 ThreadingHTTPServer.request_queue_size = 128   # pages import ~20 modules at once; the default 5 drops some
+if args.tls_cert:                              # a second, HTTPS listener: WebXR runs only on secure pages
+    import ssl
+    _ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    _ctx.load_cert_chain(args.tls_cert, args.tls_key or None)
+    _tls = ThreadingHTTPServer((args.host, args.tls_port), H)
+    _tls.socket = _ctx.wrap_socket(_tls.socket, server_side=True)
+    threading.Thread(target=_tls.serve_forever, daemon=True).start()
+    print(f"HTTPS (WebXR): https://<this Mac>:{args.tls_port}/xr", flush=True)
 ThreadingHTTPServer((args.host, args.port), H).serve_forever()

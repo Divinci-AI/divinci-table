@@ -149,6 +149,25 @@ def build_more(seat):
     print(f"✅ {seat} more clips", flush=True)
 
 
+def build_usdz(seat):
+    """iPhone / Vision Pro AR Quick Look: the v2 avatar idling, as USDZ → <Seat>.v2.usdz"""
+    key = seat + ".v2"
+    rig = load().get(key, {}).get("rig")
+    if not rig:
+        raise RuntimeError(f"{seat}: no v2 rig yet — run --v2 first")
+    if "usdz" not in load().get(key, {}):
+        r = call("POST", "/openapi/v1/animations", {"rig_task_id": rig, "action_id": 0,
+                                                    "post_process": {"operation_type": "fbx2usdz"}})
+        save(key, "usdz", r["result"])
+    anim = wait(f"/openapi/v1/animations/{load()[key]['usdz']}", seat, "usdz")
+    res = anim.get("result") or anim
+    url = res.get("processed_usdz_url") or anim.get("processed_usdz_url")
+    if not url:
+        raise RuntimeError(f"{seat}: no processed_usdz_url in {sorted(res)}")
+    urllib.request.urlretrieve(url, OUT / f"{seat}.v2.usdz")
+    print(f"✅ {seat} usdz: {OUT / (seat + '.v2.usdz')}", flush=True)
+
+
 def build(seat):
     s = load().get(seat, {})
     if "preview" not in s:
@@ -185,7 +204,8 @@ if __name__ == "__main__":
     if "--balance" in sys.argv:
         print(call("GET", "/openapi/v1/balance")); sys.exit()
     seats = [a for a in sys.argv[1:] if a in AVATARS] or list(AVATARS)
-    job = build_more if "--more" in sys.argv else build_v2 if "--v2" in sys.argv else build
+    job = (build_usdz if "--usdz" in sys.argv else build_more if "--more" in sys.argv
+           else build_v2 if "--v2" in sys.argv else build)
     with ThreadPoolExecutor(len(seats)) as ex:
         for f in [ex.submit(job, s) for s in seats]:
             try:
