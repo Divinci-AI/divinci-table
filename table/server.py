@@ -253,7 +253,11 @@ os.chmod(tok_path, 0o600)
 # reveals or changes the AI's cards, resets the game, or feeds the mic/camera.
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
-          ("POST", "/api/fair/word"), ("POST", "/api/life")}
+          ("POST", "/api/fair/word"), ("POST", "/api/life"),
+          ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
+          ("GET", "/vendor/three.module.min.js"), ("GET", "/vendor/three.core.min.js")}
+VENDOR = {"three.module.min.js", "three.core.min.js"}      # three.js r185, vendored so the table stays offline
+HAND_N: dict[str, int] = {}                                 # humans' hand sizes (public), set from the stage page
 
 
 class Table:
@@ -1149,6 +1153,19 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / "scan.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path == "/table":
             return self._send(200, body=(HERE / "table.html").read_bytes(), ctype="text/html; charset=utf-8")
+        if self.path.split("?")[0] == "/stage":            # the 3D avatar stage: public info only
+            return self._send(200, body=(HERE / "stage.html").read_bytes(), ctype="text/html; charset=utf-8")
+        if self.path.startswith("/vendor/") and self.path[8:] in VENDOR:
+            return self._send(200, body=(HERE / "vendor" / self.path[8:]).read_bytes(),
+                              ctype="text/javascript; charset=utf-8")
+        if self.path == "/api/stage":                      # seats, commanders, life, hand SIZES — never cards
+            with VP_LOCK:
+                lt = life_table()
+                seats = [{"name": h["name"], "commander": h["commander"], "kind": "human",
+                          "life": lt.get(h["name"]), "hand": HAND_N.get(h["name"], 7)} for h in HUMANS]
+                seats += [{"name": n, "commander": v.commander.get("name"), "kind": "ai", "life": v.life,
+                           "hand": len(v.hand)} for n, v in VPS.items()]
+            return self._send(200, {"seats": seats})
         if self.path == "/show":
             return self._send(200, body=(HERE / "show.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path == "/voice":
@@ -1288,6 +1305,15 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/api/players":                # someone joins mid-game: {"name": "Jess", "commander": "…"}
                 b = self._json()
                 return self._send(*add_human(str(b.get("name", "")), str(b.get("commander") or "")))
+            if self.path == "/api/stage/hand":             # {"player": "Sam", "n": 6} or {"player": "Sam", "delta": -1}
+                b = self._json()
+                p = next((h["name"] for h in HUMANS if h["name"].lower() == str(b.get("player", "")).lower()), None)
+                if not p:
+                    return self._send(400, {"error": "humans only — the AI seats' hands are counted by the engine"})
+                n = b["n"] if isinstance(b.get("n"), int) else HAND_N.get(p, 7) + int(b.get("delta", 0))
+                HAND_N[p] = max(0, min(30, n))
+                emit("hand", player=p, n=HAND_N[p])
+                return self._send(200, {"player": p, "hand": HAND_N[p]})
             if self.path == "/api/life":                   # anyone at the table: {"player": name, "delta": -3}
                 b = self._json()
                 return self._send(200, self._change_life(str(b.get("player", "")), b.get("delta"), b.get("by", "table")))

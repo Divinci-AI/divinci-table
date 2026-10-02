@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Divinci Table Stage</title>
+<style>
+  :root { --bg1: #1b2233; --bg2: #06080d; --accent: #f0a868; --ink: #f4efe6; --dim: #a9a29a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg2); color: var(--ink);
+    font-family: ui-rounded, "SF Pro Rounded", system-ui, sans-serif; }
+  #bg { position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 38%, var(--bg1) 0%, var(--bg2) 72%);
+    transition: background 1.2s ease; }
+  canvas { position: fixed; inset: 0; display: block; z-index: 1; }
+  #who, #life, #caption, #seats, #help { z-index: 2; }
+  #who { position: fixed; top: 24px; left: 32px; pointer-events: none; text-shadow: 0 2px 18px #000a; }
+  #who .name { font-size: clamp(32px, 6vw, 84px); font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+  #who .cmdr { font-size: clamp(14px, 1.8vw, 24px); color: var(--dim); margin-top: 6px; }
+  #who .turn { display: inline-block; margin-top: 12px; padding: 4px 12px; border-radius: 999px;
+    background: var(--accent); color: #140d06; font-weight: 700; font-size: clamp(12px, 1.3vw, 17px); }
+  #life { position: fixed; top: 20px; right: 36px; text-align: right; pointer-events: none; text-shadow: 0 2px 18px #000a; }
+  #life .n { font-size: clamp(56px, 11vw, 150px); font-weight: 900; line-height: 0.9; font-variant-numeric: tabular-nums; }
+  #life .l { font-size: clamp(12px, 1.4vw, 18px); color: var(--dim); letter-spacing: 0.2em; text-transform: uppercase; }
+  #caption { position: fixed; left: 50%; bottom: 128px; transform: translateX(-50%); max-width: min(900px, 90vw);
+    padding: 14px 22px; border-radius: 18px; background: #000b; backdrop-filter: blur(8px); font-size: clamp(16px, 2vw, 26px);
+    line-height: 1.35; opacity: 0; transition: opacity .4s; text-align: center; }
+  #caption b { color: var(--accent); }
+  #seats { position: fixed; left: 0; right: 0; bottom: 16px; display: flex; justify-content: center; gap: 12px;
+    padding: 0 16px; flex-wrap: wrap; }
+  .seat { min-width: 150px; padding: 10px 14px; border-radius: 16px; background: #ffffff10; border: 1px solid #ffffff1f;
+    cursor: pointer; transition: background .3s, transform .3s; user-select: none; }
+  .seat.on { background: #ffffff26; border-color: var(--accent); transform: translateY(-4px); }
+  .seat .t { font-weight: 800; font-size: 17px; }
+  .seat .s { color: var(--dim); font-size: 13px; margin-top: 2px; display: flex; gap: 10px; align-items: center; }
+  .seat button { all: unset; cursor: pointer; width: 22px; height: 22px; text-align: center; border-radius: 6px;
+    background: #ffffff1a; font-weight: 800; line-height: 22px; }
+  .seat button:hover { background: #ffffff33; }
+  #help { position: fixed; top: 24px; left: 50%; transform: translateX(-50%); color: #ffffff55; font-size: 12px; }
+  @media (max-width: 640px) { #caption { bottom: 150px; } .seat { min-width: 120px; } }
+</style>
+<script type="importmap">{ "imports": { "three": "/vendor/three.module.min.js" } }</script>
+</head>
+<body>
+<div id="bg"></div>
+<div id="who"><div class="name">—</div><div class="cmdr"></div><div class="turn">their turn</div></div>
+<div id="life"><div class="n">40</div><div class="l">life</div></div>
+<div id="caption"></div>
+<div id="seats"></div>
+<div id="help">click a seat to pin it · space follows the turn · F full screen</div>
+<script type="module">
+import * as THREE from "three";
+
+// ── table state ─────────────────────────────────────────────────────────────────────────────
+const params = new URLSearchParams(location.search);
+const ORDER = (params.get("order") || "Fusion,Sam,Claude,Michael").split(",").map(s => s.trim());
+let seats = [];                 // [{name, commander, kind, life, hand}]
+let turn = ORDER[0];            // whose turn, followed from the event stream
+let pinned = null;              // a seat the viewer clicked
+let cursor = "latest";
+const shown = () => pinned || turn;
+const seatOf = n => seats.find(s => s.name.toLowerCase() === String(n || "").toLowerCase());
+
+// ── look per commander: colours and an avatar builder ────────────────────────────────────────
+const LOOKS = [
+  { match: /aminatou/i,   bg: ["#1d2a44", "#05070d"], accent: "#f0a868", build: claudeAvatar },
+  { match: /kaust/i,      bg: ["#18301f", "#040805"], accent: "#d8b45a", build: dryadAvatar },
+  { match: /kilo/i,       bg: ["#2a1d2e", "#07050a"], accent: "#5fd3ff", build: robotAvatar },
+  { match: /ghathrod/i,   bg: ["#20183a", "#05040b"], accent: "#b58cff", build: flayerAvatar },
+];
+const lookFor = s => LOOKS.find(l => l.match.test(s?.commander || "")) ||
+  { bg: ["#262626", "#070707"], accent: "#e6e6e6", build: genericAvatar };
+
+// ── three.js scene ─────────────────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+camera.position.set(0, 1.7, 4.6);
+camera.lookAt(0, 1.45, 0);
+scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x231a14, 1.1));
+const key = new THREE.DirectionalLight(0xfff1e0, 2.4);
+key.position.set(2.5, 4, 3.5); key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x88aaff, 1.6); rim.position.set(-3, 2.5, -2.5); scene.add(rim);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(3, 64), new THREE.ShadowMaterial({ opacity: 0.35 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h); camera.aspect = w / h;
+  camera.position.z = w / h < 1 ? 6.8 : 4.6;              // portrait phones: step back so it all fits
+  camera.updateProjectionMatrix();
+}
+addEventListener("resize", resize); resize();
+
+const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0, ...o });
+function mesh(geo, mat, x = 0, y = 0, z = 0) {
+  const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; return m;
+}
+
+// a generic card back (not Wizards' art): drawn on a canvas
+const backTex = (() => {
+  const c = document.createElement("canvas"); c.width = 256; c.height = 356;
+  const g = c.getContext("2d");
+  g.fillStyle = "#16110c"; g.fillRect(0, 0, 256, 356);
+  const grad = g.createLinearGradient(0, 0, 256, 356); grad.addColorStop(0, "#5a3b22"); grad.addColorStop(1, "#2c1c10");
+  g.fillStyle = grad; g.beginPath(); g.roundRect(14, 14, 228, 328, 14); g.fill();
+  g.strokeStyle = "#c9a35f"; g.lineWidth = 4; g.beginPath(); g.ellipse(128, 178, 84, 124, 0, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = "#c9a35f"; g.font = "bold 30px serif"; g.textAlign = "center"; g.fillText("DIVINCI", 128, 188);
+  ["#f6f0d8", "#4a90d9", "#2a2a2a", "#d9483b", "#3f9b52"].forEach((col, i) => {
+    const a = -Math.PI / 2 + i * (Math.PI * 2 / 5); g.fillStyle = col;
+    g.beginPath(); g.arc(128 + Math.cos(a) * 46, 236 + Math.sin(a) * 26, 7, 0, Math.PI * 2); g.fill();
+  });
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+
+// the hand: n card backs fanned in front of the face, held by two hands
+function cardFan(n, skin) {
+  const g = new THREE.Group();
+  const cards = new THREE.Group(); g.add(cards);
+  const geo = new THREE.BoxGeometry(0.42, 0.59, 0.006);
+  const edge = M("#efe7da", { roughness: 0.8 });
+  const back = new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.6 });
+  const k = Math.max(n, 1), spread = Math.min(1.4, 0.16 * k);
+  for (let i = 0; i < n; i++) {
+    const t = k === 1 ? 0 : i / (k - 1) - 0.5;
+    const pivot = new THREE.Group();
+    pivot.rotation.z = -t * spread;
+    const c = new THREE.Mesh(geo, [edge, edge, edge, edge, back, back]);
+    c.position.set(0, 0.27, i * 0.004); c.castShadow = true;
+    pivot.add(c); cards.add(pivot);
+  }
+  const handMat = M(skin);
+  g.add(mesh(new THREE.SphereGeometry(0.09, 20, 16), handMat, -0.12, 0.02, 0.06));
+  g.add(mesh(new THREE.SphereGeometry(0.09, 20, 16), handMat, 0.12, 0.02, 0.06));
+  g.userData.count = n;
+  return g;
+}
+
+function body(robe, trim, y = 0) {                      // shoulders, torso and arms reaching up to the cards
+  const g = new THREE.Group();
+  g.add(mesh(new THREE.CylinderGeometry(0.42, 0.62, 1.2, 32), M(robe), 0, 0.6 + y, 0));
+  g.add(mesh(new THREE.SphereGeometry(0.43, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), M(robe), 0, 1.2 + y, 0));
+  const collar = mesh(new THREE.TorusGeometry(0.43, 0.035, 12, 48), M(trim, { metalness: 0.6, roughness: 0.3 }), 0, 1.2 + y, 0);
+  collar.rotation.x = Math.PI / 2; g.add(collar);
+  for (const s of [-1, 1]) {
+    const arm = mesh(new THREE.CapsuleGeometry(0.085, 0.62, 6, 12), M(robe), s * 0.36, 1.32 + y, 0.2);
+    arm.rotation.z = s * 0.5; arm.rotation.x = -0.9; g.add(arm);
+  }
+  return g;
+}
+
+function eyes(color, z, y, gap = 0.12, r = 0.045) {
+  const g = new THREE.Group();
+  for (const s of [-1, 1]) g.add(mesh(new THREE.SphereGeometry(r, 16, 12), M(color, { emissive: color, emissiveIntensity: 0.6 }), s * gap, y, z));
+  g.userData.blink = true; return g;
+}
+
+// ── avatars ─────────────────────────────────────────────────────────────────────────────────
+function claudeAvatar() {      // Claude playing Aminatou: Esper robes, a Claude-orange spark, orbiting fate-cards
+  const a = new THREE.Group();
+  a.add(body("#e9e4f2", "#3b6fd1"));
+  const head = new THREE.Group(); head.position.y = 1.62; a.add(head);
+  head.add(mesh(new THREE.SphereGeometry(0.34, 40, 32), M("#f3dcc4")));
+  const hair = mesh(new THREE.SphereGeometry(0.36, 40, 32, 0, Math.PI * 2, 0, Math.PI * 0.38), M("#1c1f2b"), 0, 0.02, -0.02);
+  hair.rotation.x = -0.35; head.add(hair);                                                              // dark hair, swept back
+  head.add(eyes("#2a6ff0", 0.33, 0.02, 0.12, 0.05));
+  const spark = new THREE.Group(); spark.position.set(0, 0.5, 0); head.add(spark);
+  const orange = M("#e8875a", { emissive: "#e8875a", emissiveIntensity: 0.8 });
+  for (let i = 0; i < 8; i++) {                                     // the Claude starburst, as a crown
+    const ray = mesh(new THREE.CapsuleGeometry(0.03, 0.18 + (i % 2) * 0.08, 4, 8), orange);
+    ray.rotation.z = (i / 8) * Math.PI * 2; ray.position.set(Math.sin(ray.rotation.z) * -0.12, Math.cos(ray.rotation.z) * 0.12, 0);
+    spark.add(ray);
+  }
+  spark.add(mesh(new THREE.SphereGeometry(0.06, 16, 12), orange));
+  a.userData.spin = spark;
+  const orbit = new THREE.Group(); orbit.position.y = 1.7; a.add(orbit);   // Aminatou's fate-cards: white, blue, black
+  ["#f7f3e8", "#3b6fd1", "#22232b"].forEach((col, i) => {
+    const c = mesh(new THREE.BoxGeometry(0.16, 0.22, 0.01), M(col, { emissive: col, emissiveIntensity: 0.25 }));
+    const ang = i * Math.PI * 2 / 3; c.position.set(Math.cos(ang) * 0.85, 0.1 * i, Math.sin(ang) * 0.85);
+    orbit.add(c);
+  });
+  a.userData.orbit = orbit;
+  a.userData.head = head; a.userData.skin = "#f3dcc4";
+  return a;
+}
+
+function dryadAvatar() {       // Fusion's own request: a leafy, moss-green dryad with a brass detective's monocle
+  const a = new THREE.Group();
+  a.add(body("#3d6b35", "#c9a24a"));
+  const head = new THREE.Group(); head.position.y = 1.62; a.add(head);
+  head.add(mesh(new THREE.SphereGeometry(0.33, 40, 32), M("#7fae5e", { roughness: 0.8 })));
+  head.add(eyes("#f2e27a", 0.32, 0.03, 0.12, 0.05));
+  const leafGeo = new THREE.SphereGeometry(0.11, 12, 8); leafGeo.scale(1, 0.35, 1.7);
+  const leafMats = ["#2f6d2a", "#4c8a35", "#6aa63d", "#87b84a"].map(c => M(c, { roughness: 0.9, side: THREE.DoubleSide }));
+  for (let i = 0; i < 46; i++) {                                    // a crown of leaves
+    const th = Math.random() * Math.PI * 2, ph = Math.random() * 1.1;
+    const l = mesh(leafGeo, leafMats[i % 4], Math.sin(ph) * Math.cos(th) * 0.36, 0.12 + Math.cos(ph) * 0.3, Math.sin(ph) * Math.sin(th) * 0.36 - 0.04);
+    l.lookAt(l.position.clone().multiplyScalar(3)); l.rotateX(Math.PI / 2); head.add(l);
+  }
+  const brass = M("#c9a24a", { metalness: 0.9, roughness: 0.25 });
+  const mono = mesh(new THREE.TorusGeometry(0.075, 0.014, 12, 32), brass, 0.12, 0.03, 0.315);
+  head.add(mono);
+  head.add(mesh(new THREE.CircleGeometry(0.068, 32), new THREE.MeshPhysicalMaterial({ color: "#e8f4ff", transparent: true, opacity: 0.35, roughness: 0, metalness: 0.2 }), 0.12, 0.03, 0.318));
+  const chain = mesh(new THREE.TorusGeometry(0.16, 0.006, 6, 24, Math.PI), brass, 0.2, -0.12, 0.3);
+  chain.rotation.z = Math.PI * 1.1; head.add(chain);
+  a.userData.head = head; a.userData.skin = "#7fae5e";
+  return a;
+}
+
+function robotAvatar() {       // Kilo, Apogee Mind: a robot artificer in blue and red
+  const a = new THREE.Group();
+  a.add(body("#3a4f7a", "#d24b3c"));
+  const head = new THREE.Group(); head.position.y = 1.64; a.add(head);
+  const steel = M("#9fb0c6", { metalness: 0.85, roughness: 0.3 });
+  head.add(mesh(new THREE.BoxGeometry(0.58, 0.5, 0.5), steel));
+  head.add(mesh(new THREE.BoxGeometry(0.46, 0.12, 0.02), M("#5fd3ff", { emissive: "#5fd3ff", emissiveIntensity: 1.4 }), 0, 0.04, 0.26));
+  head.userData.visor = true;
+  head.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.3, 8), steel, 0, 0.4, 0));
+  const tip = mesh(new THREE.SphereGeometry(0.04, 12, 8), M("#d24b3c", { emissive: "#d24b3c", emissiveIntensity: 1 }), 0, 0.56, 0);
+  head.add(tip); a.userData.blinker = tip;
+  for (const s of [-1, 1]) {                                        // ear gears
+    const gear = mesh(new THREE.TorusGeometry(0.09, 0.03, 6, 10), M("#d24b3c", { metalness: 0.6, roughness: 0.4 }), s * 0.31, 0, 0);
+    gear.rotation.y = Math.PI / 2; head.add(gear); (a.userData.gears ||= []).push(gear);
+  }
+  a.userData.head = head; a.userData.skin = "#9fb0c6";
+  return a;
+}
+
+function flayerAvatar() {      // Captain N'ghathrod: a mind-flayer pirate captain
+  const a = new THREE.Group();
+  a.add(body("#1f2a4a", "#c9a24a"));
+  const head = new THREE.Group(); head.position.y = 1.66; a.add(head);
+  const skin = M("#8a6f9e", { roughness: 0.45 });
+  const dome = new THREE.SphereGeometry(0.36, 40, 32); dome.scale(1, 1.18, 1);
+  head.add(mesh(dome, skin));
+  head.add(eyes("#f4f1ff", 0.335, 0.06, 0.14, 0.055));
+  const tents = [];
+  for (let i = 0; i < 4; i++) {                                     // four tentacles where a mouth would be
+    const t = new THREE.Group(); t.position.set((i - 1.5) * 0.09, -0.22, 0.24); head.add(t);
+    let parent = t;
+    for (let j = 0; j < 5; j++) {
+      const seg = mesh(new THREE.SphereGeometry(0.05 - j * 0.007, 12, 8), skin, 0, -0.07, 0);
+      parent.add(seg); parent = seg;
+    }
+    tents.push(t);
+  }
+  a.userData.tentacles = tents;
+  const hat = new THREE.Group(); hat.position.y = 0.4; head.add(hat);   // tricorn
+  hat.add(mesh(new THREE.CylinderGeometry(0.42, 0.46, 0.05, 3), M("#16141c")));
+  hat.add(mesh(new THREE.CylinderGeometry(0.22, 0.27, 0.22, 24), M("#16141c"), 0, 0.12, 0));
+  const band = mesh(new THREE.TorusGeometry(0.25, 0.015, 8, 32), M("#c9a24a", { metalness: 0.8, roughness: 0.3 }), 0, 0.03, 0);
+  band.rotation.x = Math.PI / 2; hat.add(band);
+  a.userData.head = head; a.userData.skin = "#8a6f9e";
+  return a;
+}
+
+function genericAvatar() {
+  const a = new THREE.Group(); a.add(body("#555", "#aaa"));
+  const head = new THREE.Group(); head.position.y = 1.62; a.add(head);
+  head.add(mesh(new THREE.SphereGeometry(0.34, 32, 24), M("#ccc"))); head.add(eyes("#222", 0.33, 0.02));
+  a.userData.head = head; a.userData.skin = "#ccc"; return a;
+}
+
+// ── who is on stage ─────────────────────────────────────────────────────────────────────────
+let actor = null, actorName = null, fan = null, enterT = 0;
+function stage(name, force = false) {
+  const s = seatOf(name); if (!s) return;
+  if (!force && name === actorName && fan?.userData.count === s.hand) return;
+  const look = lookFor(s);
+  if (name !== actorName || force) {
+    if (actor) scene.remove(actor);
+    actor = look.build(); actorName = name; enterT = performance.now();
+    actor.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    scene.add(actor);
+    document.documentElement.style.setProperty("--bg1", look.bg[0]);
+    document.documentElement.style.setProperty("--bg2", look.bg[1]);
+    document.documentElement.style.setProperty("--accent", look.accent);
+    fan = null;
+  }
+  if (fan) actor.userData.head.remove(fan);
+  fan = cardFan(s.hand, actor.userData.skin);
+  fan.position.set(0, -0.66, 0.58);                 // held up to the chin, eyes peeking over the top
+  fan.rotation.x = -0.12;
+  actor.userData.head.add(fan);
+  hud();
+}
+
+function hud() {
+  const s = seatOf(shown()); if (!s) return;
+  document.querySelector("#who .name").textContent = s.name;
+  document.querySelector("#who .cmdr").textContent = s.commander || "";
+  document.querySelector("#who .turn").style.visibility = s.name === turn ? "visible" : "hidden";
+  document.querySelector("#life .n").textContent = s.life ?? "—";
+  const el = document.getElementById("seats");
+  const ordered = [...seats].sort((a, b) => (ORDER.indexOf(a.name) + 99) % 99 - (ORDER.indexOf(b.name) + 99) % 99);
+  el.innerHTML = "";
+  for (const p of ordered) {
+    const d = document.createElement("div");
+    d.className = "seat" + (p.name === shown() ? " on" : "");
+    d.innerHTML = `<div class="t">${p.name}${p.name === turn ? " ◆" : ""}</div>
+      <div class="s"><span>♥ ${p.life ?? "—"}</span><span>🂠 ${p.hand}</span></div>`;
+    if (p.kind === "human") {
+      const s2 = d.querySelector(".s");
+      for (const [lbl, dl] of [["−", -1], ["+", 1]]) {
+        const b = document.createElement("button"); b.textContent = lbl; b.title = `${p.name}'s hand ${lbl}1`;
+        b.onclick = ev => { ev.stopPropagation(); setHand(p.name, dl); };
+        s2.appendChild(b);
+      }
+    }
+    d.onclick = () => { pinned = p.name === pinned ? null : p.name; stage(shown(), true); hud(); };
+    el.appendChild(d);
+  }
+}
+
+async function setHand(player, delta) {
+  await fetch("/api/stage/hand", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ player, delta }) });
+  await refresh();
+}
+
+async function refresh() {
+  try {
+    seats = (await (await fetch("/api/stage")).json()).seats;
+    stage(shown()); hud();
+  } catch { /* server restarting: try again next tick */ }
+}
+
+// ── follow the table ────────────────────────────────────────────────────────────────────────
+let captionTimer = 0, talking = 0;
+function caption(who, text) {
+  const c = document.getElementById("caption");
+  c.innerHTML = `<b>${who}</b> ${text.replace(/[<>&]/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[ch]))}`;
+  c.style.opacity = 1; clearTimeout(captionTimer);
+  captionTimer = setTimeout(() => (c.style.opacity = 0), 6500);
+  if (who === actorName) talking = performance.now() + Math.min(6000, 220 * text.split(" ").length);
+}
+function next(name) { const i = ORDER.findIndex(n => n.toLowerCase() === String(name).toLowerCase()); return i < 0 ? null : ORDER[(i + 1) % ORDER.length]; }
+
+async function poll() {
+  try {
+    const r = await (await fetch(`/api/events?since=${cursor}`)).json();
+    if (cursor === "latest" || r.restarted) { cursor = r.last; }
+    else {
+      for (const e of r.events) {
+        if (e.type === "attention" && e.kind === "turn" && seatOf(e.addressee)) turn = seatOf(e.addressee).name;
+        if (e.type === "say" && e.action === "begin" && seatOf(e.speaker)) turn = seatOf(e.speaker).name;
+        if (e.type === "say" && e.action === "end" && seatOf(e.speaker)) turn = next(seatOf(e.speaker).name) || turn;
+        if (e.type === "say" && e.speaker && e.speech !== "") caption(e.speaker, e.speech || e.text || "");
+      }
+      cursor = r.last;
+    }
+    if (r.events?.length || !seats.length) await refresh();
+  } catch { /* keep polling */ }
+  setTimeout(poll, 700);
+}
+
+addEventListener("keydown", e => {
+  if (e.key === " ") { pinned = null; stage(shown(), true); hud(); }
+  if (e.key.toLowerCase() === "f") document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+  const n = parseInt(e.key, 10); if (n >= 1 && n <= ORDER.length) { pinned = ORDER[n - 1]; stage(shown(), true); hud(); }
+});
+
+// ── animate ─────────────────────────────────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const t = clock.getElapsedTime(), now = performance.now();
+  if (actor) {
+    const u = actor.userData, k = Math.min(1, (now - enterT) / 700);
+    const ease = 1 - Math.pow(1 - k, 3);
+    actor.scale.setScalar(0.6 + 0.4 * ease);
+    actor.position.y = Math.sin(t * 1.4) * 0.025;
+    actor.rotation.y = Math.sin(t * 0.5) * 0.12;
+    const speaking = now < talking;
+    u.head.rotation.x = speaking ? Math.sin(t * 9) * 0.05 : Math.sin(t * 0.9) * 0.03;
+    u.head.rotation.z = Math.sin(t * 0.7) * 0.04;
+    if (u.spin) u.spin.rotation.z = t * 0.8;
+    if (u.orbit) u.orbit.rotation.y = t * 0.6;
+    if (u.gears) u.gears.forEach((g, i) => (g.rotation.x = t * (i ? 2 : -2)));
+    if (u.blinker) u.blinker.material.emissiveIntensity = 0.4 + 0.8 * (Math.sin(t * 4) > 0);
+    if (u.tentacles) u.tentacles.forEach((tt, i) => (tt.rotation.x = Math.sin(t * 2 + i) * (speaking ? 0.5 : 0.25)));
+    const blink = (t % 4.2) < 0.12 ? 0.1 : 1;
+    u.head.children.forEach(c => { if (c.userData.blink) c.scale.y = blink; });
+    if (fan) fan.rotation.z = Math.sin(t * 1.1) * 0.03;
+  }
+  renderer.render(scene, camera);
+});
+
+refresh().then(poll);
+</script>
+</body>
+</html>
