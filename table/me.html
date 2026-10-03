@@ -102,8 +102,10 @@ async function showCast(name){ const c=await j("/api/card?name="+encodeURICompon
   $("castCard").hidden=false; const pt=c.power!=null?` · ${c.power}/${c.toughness}`:"";
   $("cast").innerHTML=`<div><b>${esc(c.name)}</b> <span class="muted">${esc(c.cost||"")}</span></div><div class="t">${esc(c.type)}${esc(pt)}</div><div class="x">${esc(c.text||"")}</div>`; }
 // NEXT: step through your turn; an AI holding an instant gets a moment first (the server enforces it)
+let turnNum={};                                     // "Claude, turn 2." → the AI seats' turn numbers
 async function phase(){ const p=await j("/api/phase"); if(p.error) return;
   const mine=p.player===me, steps=p.steps||[];
+  if(p.player) $("turn").innerHTML=`<b>${esc(p.player)}</b>'s turn${turnNum[p.player]?" "+turnNum[p.player]:""}${mine?" — <b>yours</b>":""}`;
   $("phase").innerHTML=p.player?`<b>${esc(p.player)}</b> · ${esc(p.step)}`
     +(p.waiting&&p.waiting.length?` · waiting on <b>${esc(p.waiting.join(", "))}</b> (${Math.ceil(p.seconds_left)}s)`:""):"Press NEXT to start the first turn.";
   const ps=p.passes||{need:[],passed:[],next:null}, inRound=ps.need.includes(me), done=ps.passed.includes(me);
@@ -145,9 +147,9 @@ function onEvent(e){
   if(e.type==="chat"){ caps.push(`<div class="cap"><b>💬 ${esc(e.by)}:</b> ${esc(e.text)}${e.photo?`<br><a href="${esc(e.photo)}" target="_blank"><img src="${esc(e.photo)}" style="max-width:100%;max-height:180px;border-radius:8px;margin-top:4px"></a>`:""}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join(""); }
   if(e.type==="captain"){ caps.push(`<div class="cap"><b>⚓ ${esc(e.captain)}:</b> ${esc(e.text)}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join(""); }
   if(e.type==="say"){ caps.push(`<div class="cap"><b>${esc(e.speaker)}:</b> ${esc(e.text)}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join("");
-    const t=e.text.match(/^(.+?), turn (\d+)\./); if(t) $("turn").innerHTML=`<b>${esc(t[1])}</b>'s turn ${esc(t[2])}`;
+    const t=e.text.match(/^(.+?), turn (\d+)\./); if(t){ turnNum[t[1]]=t[2]; phase(); }
     const c=e.text.match(/\bI cast (.+?)(?: on | from |\.)/); if(c && c[1]!==lastCast){ lastCast=c[1]; showCast(c[1]); } }
-  if(e.type==="attention"&&e.kind==="turn") $("turn").innerHTML=`<b>${esc(e.addressee)}</b>'s turn`;
+  if(e.type==="attention"&&e.kind==="turn") phase();
   if(e.type==="life"||e.type==="new-game"||e.type==="player-added") life0();
   if(e.type==="fair"||e.type==="new-game") fair();
 }
