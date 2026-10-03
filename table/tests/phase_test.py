@@ -44,6 +44,14 @@ def call(method, path, body=None, brain=False):
         return e.code, json.loads(e.read() or b"{}")
 
 
+def nxt(by):
+    """NEXT as a whole table would press it: the active player passes, then everyone else in turn order."""
+    code, p = call("POST", "/api/phase/next", {"by": by})
+    while code == 200 and (p.get("passes") or {}).get("next") and p["passes"]["passed"]:   # a round under way
+        code, p = call("POST", "/api/phase/next", {"by": p["passes"]["next"]})
+    return code, p
+
+
 def start(*extra):
     env = {**os.environ, "ROUTER": "code", "REPLIES": "template", "HF_HUB_OFFLINE": "1"}
     p = subprocess.Popen([sys.executable, str(HERE / "server.py"), "--any-card", "--brain", "external",
@@ -71,16 +79,16 @@ srv = start("--priority-window", "0", "--priority-secs", "30", "--priority-beat"
 BEAT = 0.7
 try:
     print("NEXT and priority")
-    code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    code, p = nxt("Ann")
     check(code == 200 and p["player"] == "Ann" and p["step"] == "untap", "first NEXT starts the first seat's turn at untap")
     check(p["waiting"] == [], "untap gives no one priority")
-    code, p = call("POST", "/api/phase/next", {"by": "Ann"})          # Claude has no lands yet: nothing castable
+    code, p = nxt("Ann")          # Claude has no lands yet: nothing castable
     check(p["step"] == "upkeep" and p["waiting"] == ["Claude"],
           "every AI seat gets the window, even one with nothing to cast")
-    code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    code, p = nxt("Ann")
     check(code == 409 and p.get("seconds_left", 0) > 0, "NEXT waits out the window's beat")
     time.sleep(BEAT)
-    code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    code, p = nxt("Ann")
     check(code == 200 and p["step"] == "draw", "a seat with nothing to cast passes by itself after the beat")
     for land in ("Swamp", "Plains", "Island"):                       # now Claude holds a castable instant
         code, _ = brain("search", name=land, to="battlefield")
@@ -88,10 +96,10 @@ try:
             brain("put", name=land)
     brain("search", name="Mortify")                                  # (or already in hand: either way it's held)
     time.sleep(BEAT)
-    code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    code, p = nxt("Ann")
     check(p["step"] == "main 1" and p["waiting"] == ["Claude"], "a seat holding an instant gets the very same window")
     time.sleep(BEAT)
-    code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    code, p = nxt("Ann")
     check(code == 409 and "Claude" in p.get("error", ""), "…and is waited on past the beat until it answers")
     brain("pass", quiet=True)
     code, p = call("GET", "/api/phase")
@@ -110,7 +118,7 @@ try:
           "who could respond is recorded privately (brain.jsonl) for research, not on the stream")
     for _ in range(14):
         time.sleep(BEAT)
-        code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+        code, p = nxt("Ann")
         if code == 409:
             brain("pass", quiet=True)
             continue
@@ -126,11 +134,11 @@ try:
     code, p = call("POST", "/api/phase/back", {"by": "Ann"})
     check(code == 200 and p["step"] == "end step" and p["waiting"] == [], "BACK within a turn steps back with no window")
     time.sleep(BEAT)
-    call("POST", "/api/phase/next", {"by": "Ann"})
+    nxt("Ann")
     time.sleep(BEAT)
-    code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    code, p = nxt("Ann")
     if code == 409:
-        brain("pass", quiet=True); time.sleep(BEAT); code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+        brain("pass", quiet=True); time.sleep(BEAT); code, p = nxt("Ann")
     check(p.get("player") == "Claude", "NEXT then hands the turn on again")
     brain("begin")
     code, p = call("POST", "/api/phase/back", {"by": "Ann"})
@@ -247,13 +255,13 @@ try:
     check(urllib.request.urlopen(r3, timeout=5).status == 200, "anyone at the table can answer it")
     code, ev = call("GET", f"/api/events?since={ev0['last']}")
     check(any(e.get("kind") == "answered" and e.get("answer") == "Sol Ring" for e in ev["events"]), "…and the answer reaches the players")
-    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    code, p = nxt("Ben")
     check(code == 409 and "question" in p.get("error", ""), "NEXT waits while a player's question is open")
     code, _ = call("POST", "/api/todo/answer", {"id": qid, "text": "done, thanks", "by": "Ben", "resolve": True})
     code, d = call("GET", "/api/todos")
     check(not any(x["id"] == qid for x in d["open"]), "a resolved question leaves the open list")
     call("POST", "/api/phase/hold", {"on": True, "by": "Ben"})
-    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    code, p = nxt("Ben")
     check(code == 409 and "hold" in p.get("error", "") and p.get("hold"), "⏸ Hold freezes NEXT for everyone")
     code, p = call("POST", "/api/phase/hold", {"on": False})
     check(p.get("hold") is False, "…until it's released")
@@ -362,33 +370,64 @@ try:
     check(p["player"] == "Ben", "restore brings back whose turn it is")
 
     print("fixed windows (the default): every step lasts the same, whoever holds what")
-    code, p = call("POST", "/api/phase/next", {"by": "Ben"})           # untap → upkeep: a window opens
+    code, p = nxt("Ben")           # untap → upkeep: a window opens
     t0 = time.time()
     check(code == 200 and p["waiting"] == ["Claude"] and 1.0 < p["seconds_left"] <= 1.5, "a window opens with the full fixed time")
     brain("pass", quiet=True)
-    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    code, p = nxt("Ben")
     check(code == 409 and p["waiting"] == ["Claude"], "passing early does NOT close it (an early answer looks like none)")
     time.sleep(max(0, 1.6 - (time.time() - t0)))
-    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    code, p = nxt("Ben")
     check(code == 200, "it closes when the time is up")
     t1 = time.time()
-    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    code, p = nxt("Ben")
     check(code == 409, "a seat that says nothing is waited on for the same time…")
     time.sleep(max(0, 1.6 - (time.time() - t1)))
-    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    code, p = nxt("Ben")
     check(code == 200, "…and passes when it's up — no window lasts longer than another")
     print("step timeouts off")
     code, p = call("POST", "/api/phase/windows", {"on": False, "by": "Ben"})
     check(code == 200 and p["windows"] is False, "the table can switch step timeouts off")
     code, ev0 = call("GET", "/api/events?since=latest")
-    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
-    code2, p2 = call("POST", "/api/phase/next", {"by": "Ben"})
+    code, p = nxt("Ben")
+    code2, p2 = nxt("Ben")
     check(code == 200 and code2 == 200 and p2["waiting"] == [], "with timeouts off, NEXT never waits")
     code, ev = call("GET", f"/api/events?since={ev0['last']}")
     check(sum(1 for e in ev["events"] if e.get("kind") == "priority" and e.get("addressee") == "Claude") == 2,
           "…but every AI seat still hears every window")
     code, p = call("POST", "/api/phase/windows", {"on": True})
     check(p["windows"] is True and raw("/api/phase", {"X-Forwarded-For": "203.0.113.9"}) == 200, "and back on")
+
+    print("everyone passes priority, in turn order")
+    call("POST", "/api/phase/windows", {"on": False})       # no AI waits: this is about the people
+    code, p = call("GET", "/api/phase")
+    while p["player"] != "Ben" or p["step"] in ("untap", "cleanup"):
+        code, p = nxt(p["player"] if p["player"] in ("Ann", "Ben") else "Ben")
+    step = p["step"]
+    check(p["passes"]["need"] == ["Ben", "Ann"] and p["passes"]["next"] == "Ben",
+          "the active player passes first, then the others in turn order")
+    code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    check(code == 409 and "Ben passes first" in p.get("error", ""), "a player can't pass out of turn order")
+    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    check(code == 200 and p["step"] == step and p["passes"]["passed"] == ["Ben"], "one pass doesn't end the step")
+    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    check(code == 409 and "already passed" in p.get("error", ""), "nobody passes twice in a round")
+    code, ev0 = call("GET", "/api/events?since=latest")
+    code, r = call("POST", "/api/card-action", {"seat": "Ann", "index": 0, "name": "Rogue's Passage", "action": "activate",
+                                                "ability": "{4}: Target creature can't be blocked this turn."})
+    code, p = call("GET", "/api/phase")
+    code, ev = call("GET", f"/api/events?since={ev0['last']}")
+    check(p["passes"]["passed"] == [] and any(e["type"] == "pass" and e.get("kind") == "reset" for e in ev["events"]),
+          "an activated ability sends priority round again from the active player")
+    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    check(code == 200 and p["step"] != step, "when everyone has passed in a row, the step ends")
+    code, p = call("GET", "/api/phase")
+    while p["step"] != "cleanup":
+        code, p = nxt("Ben")
+    check(p["passes"]["need"] == ["Ben"], "untap and cleanup give no one priority: only the active player moves them on")
+    code, p = call("POST", "/api/phase/next", {})
+    check(code == 200 and p["player"] != "Ben", "a shared screen (no name) passes for whoever is next")
 finally:
     srv.terminate()
     import shutil

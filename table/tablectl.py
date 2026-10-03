@@ -110,6 +110,10 @@ def fmt_event(e):
         return f"[{t}] #{e['id']} LIFE {e['player']} {e['delta']:+d} → {e['life']} (by {e['by']})"
     if k == "captain":
         return f"[{t}] #{e['id']} ⚓ {e.get('captain')} ({e.get('seat')}): {e.get('text')}"
+    if k == "pass":
+        if e.get("kind") == "reset":
+            return f"[{t}] #{e['id']} ✋ PRIORITY round again — {e.get('why')}"
+        return f"[{t}] #{e['id']} ✋ {e.get('by')} passes ({e.get('player')} · {e.get('step')})" + (f" — waiting on {', '.join(e['left'])}" if e.get("left") else "")
     if k == "chat":
         return f"[{t}] #{e['id']} 💬 CHAT {e.get('by')}: {e.get('text')}" + (f"  📷 {e['photo']}" if e.get("photo") else "")
     if k == "declare":

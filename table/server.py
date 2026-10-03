@@ -423,6 +423,41 @@ def priority_open() -> bool:
                                         (bool(PRIORITY["waiting"]) and now < PRIORITY["deadline"]))
 
 
+PASS = {"key": None, "passed": []}   # who has passed priority this step (humans; the AIs answer their window)
+
+
+def passes_needed() -> list[str]:
+    """The people who must pass before a person's step ends, in turn order from the active player
+    (rule 117.3: priority goes round in turn order; the step ends once everyone passes in a row).
+    Untap and cleanup give no one priority, so only the active player moves those on."""
+    active = PHASE["player"]
+    if active is None or active in VPS:
+        return []
+    if STEPS[PHASE["step"]] in NO_PRIORITY:
+        return [active]
+    order = turn_order()
+    i = order.index(active) if active in order else 0
+    humans = {h["name"] for h in HUMANS}
+    return [n for n in order[i:] + order[:i] if n in humans and not is_out(n)]
+
+
+def passes_state() -> dict:
+    key = (PHASE["player"], PHASE["step"])
+    if PASS["key"] != key:                        # a new step (or BACK, or a new turn): nobody has passed yet
+        PASS.update(key=key, passed=[])
+    need = passes_needed()
+    passed = [n for n in PASS["passed"] if n in need]
+    return {"need": need, "passed": passed, "next": next((n for n in need if n not in passed), None)}
+
+
+def priority_reset(why: str):
+    """Something new happened (a spell, an ability): priority goes round again, from the active player."""
+    with PHASE_LOCK:
+        if PASS["passed"]:
+            PASS["passed"] = []
+            emit("pass", kind="reset", why=why[:120])
+
+
 def phase_public() -> dict:
     with PHASE_LOCK:
         now, is_open = time.time(), priority_open()
@@ -433,7 +468,8 @@ def phase_public() -> dict:
                 "order": turn_order(), "waiting": list(PRIORITY["seats"]) if is_open else [],
                 "seconds_left": round(max(0.0, left), 1), "ai": list(VPS),
                 "windows": WINDOWS["on"], "window_secs": args.priority_window, "hold": HOLD["on"],
-                "open_questions": sum(1 for t in TODOS if t.get("kind") == "question" and not t["done"])}
+                "open_questions": sum(1 for t in TODOS if t.get("kind") == "question" and not t["done"]),
+                "passes": passes_state()}
 
 
 def start_turn(name: str):
@@ -470,6 +506,21 @@ def next_step(by: str | None = None) -> tuple[int, dict]:
         q = next((t for t in TODOS if t.get("kind") == "question" and not t["done"]), None)
         if q:                                         # the table must settle what a player asked first
             return 409, {**phase_public(), "error": f"waiting on {q.get('ask')}'s question: {q['text'][:90]}"}
+        ps = passes_state()
+        if ps["next"]:                                # people still to pass: this press is one of them passing
+            who = next((n for n in ps["need"] if by and n.lower() == by.lower()), None)
+            if who is None and by and any(h["name"].lower() == by.lower() for h in HUMANS):
+                return 409, {**phase_public(), "error": f"{by} isn't in this step's priority round"}
+            who = who or ps["next"]                   # a shared screen (stage, XR) passes for whoever is next
+            if who in ps["passed"]:
+                return 409, {**phase_public(), "error": f"{who} already passed — waiting on {ps['next']}"}
+            if who != ps["next"]:
+                return 409, {**phase_public(), "error": f"{ps['next']} passes first (turn order), then {who}"}
+            PASS["passed"].append(who)
+            left = [n for n in ps["need"] if n not in PASS["passed"]]
+            emit("pass", by=who, player=PHASE["player"], step=STEPS[PHASE["step"]], left=left)
+            if left:
+                return 200, phase_public()
         if priority_open():
             return 409, {**phase_public(), "error": "priority: waiting on " + ", ".join(PRIORITY["seats"])}
         if PRIORITY["waiting"]:                       # a holder's window ran out: it passes (said privately —
@@ -1773,6 +1824,8 @@ class H(BaseHTTPRequestHandler):
                 board["updated"] = round(time.time(), 2)
                 emit("chat", by=owner, text=text, card_action=action)
                 emit("board3d", owner=owner, n=len(perms))
+                if action == "activate":
+                    priority_reset(text)
                 return self._send(200, {"ok": True, "text": text})
             if self.path.split("?")[0] == "/api/chat/photo":   # a photo from a phone: raw JPEG body; X-By, X-Caption headers
                 n = int(self.headers.get("Content-Length", 0) or 0)
@@ -1941,8 +1994,12 @@ class H(BaseHTTPRequestHandler):
                 sn = seat(b.get("seat"))
                 if sn is None:
                     return self._send(404, {"error": f"no AI seat '{b.get('seat')}' (seats: {list(VPS)})"})
+                act = self.path.rsplit("/", 1)[-1]
                 with acting(sn):
-                    return self._brain(self.path.rsplit("/", 1)[-1], b)
+                    out = self._brain(act, b)
+                if act in ("cast", "turn-up", "manifest") and PHASE["player"] != sn:
+                    priority_reset(f"{sn} responded ({act})")   # an AI answered in a person's step: round again
+                return out
             if self.path == "/api/reset":                  # new game: empty hand, full library, no history
                 with T.lock:
                     T = Table(DECK)

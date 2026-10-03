@@ -589,15 +589,17 @@ async function phaseRefresh() {
   }
   const human = p.player && !(p.ai || []).includes(p.player), waiting = (p.waiting || []).length > 0 && p.seconds_left > 0;
   const dots = p.steps.map((_, i) => `<span class="dot ${i < p.index ? "done" : i === p.index ? "on" : ""}"></span>`).join("");
-  const label = !p.player ? "START" : p.index >= p.steps.length - 1 ? "END TURN" : "NEXT";
+  const ps = p.passes || { need: [], passed: [], next: null }, left = ps.need.filter(n => !ps.passed.includes(n)).length;
+  const label = !p.player ? "START" : ps.next && left > 1 ? `✋ ${escHtml(ps.next)} passes` : p.index >= p.steps.length - 1 ? "END TURN" : "NEXT";
+  const passLine = p.player && ps.need.length > 1 ? `<span title="everyone passes priority, in turn order, before the step ends">✋ ${ps.need.map(n => ps.passed.includes(n) ? `${escHtml(n)} ✓` : n === ps.next ? `<b>${escHtml(n)}</b>` : escHtml(n)).join(" → ")}</span>` : "";
   el.innerHTML = `<span><b>${escHtml(p.player || "—")}</b> · ${escHtml(p.step || "")}</span><span class="steps">${dots}</span>` +
     (waiting ? `<span class="wait">${escHtml(p.waiting.join(", "))} may respond… ${Math.ceil(p.seconds_left)}s</span>` : "") +
-    (p.hold ? `<span class="wait">⏸ on hold</span>` : "") +
+    passLine + (p.hold ? `<span class="wait">⏸ on hold</span>` : "") +
     (p.open_questions ? `<span class="wait" id="openQ" title="open the question(s) to answer or resolve" style="cursor:pointer;text-decoration:underline">❓ ${p.open_questions} open question${p.open_questions > 1 ? "s" : ""}</span>` : "") +
     `<button id="holdBtn" title="H: freeze NEXT while the table sorts something out" style="opacity:.75">${p.hold ? "▶ release" : "⏸"}</button>` +
     `<button id="winBtn" title="W: step timeouts on/off — off, NEXT never waits (the AIs still hear every window)" style="opacity:.75">⏱ ${p.windows === false ? "off" : (p.window_secs || "") + "s"}</button>` +
     (p.player ? `<button id="backBtn" title="B: back a step (a NEXT pressed too soon)" style="opacity:.75">◂</button>` : "") +
-    (human || !p.player ? `<button id="nextBtn" ${waiting ? "disabled" : ""}>${label} ▸</button>` : "");
+    (human || !p.player ? `<button id="nextBtn" ${waiting && !(ps.next && left > 1) ? "disabled" : ""}>${label} ▸</button>` : "");
   document.getElementById("nextBtn")?.addEventListener("click", pressNext);
   document.getElementById("backBtn")?.addEventListener("click", pressBack);
   document.getElementById("winBtn")?.addEventListener("click", toggleWindows);
@@ -622,9 +624,9 @@ async function pressBack() {
   phaseRefresh();
 }
 async function pressNext() {
-  const p = phaseInfo; if (!p || ((p.waiting || []).length && p.seconds_left > 0)) return;
+  const p = phaseInfo; if (!p) return;
   await fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ by: p.player || "stage" }) });
+    body: JSON.stringify({ by: p.passes?.next || p.player || "stage" }) });   // passes for whoever is next
   phaseRefresh();
 }
 setInterval(phaseRefresh, 1200); phaseRefresh();

@@ -127,7 +127,7 @@ controller.addEventListener("select", () => {
 // ── seats ────────────────────────────────────────────────────────────────────────────────
 const loader = new GLTFLoader(), cache = {};
 const load = f => cache[f] ||= new Promise((ok, bad) => loader.load(`/avatars/${encodeURIComponent(f)}.glb`, ok, undefined, bad));
-let models = new Set(), seats = [], order = [], turn = null, cursor = "latest";
+let models = new Set(), seats = [], order = [], turn = null, passNext = null, cursor = "latest";
 const actors = {};                                          // name → {group, mixer, actions, ...}
 const _v = () => new THREE.Vector3(), _q = () => new THREE.Quaternion();
 
@@ -247,7 +247,9 @@ async function phase() {
   const human = p.player && !(p.ai || []).includes(p.player);
   nb.style.display = human || !p.player ? "" : "none"; nb.disabled = !!waiting;
   document.getElementById("back").style.display = p.player ? "" : "none";
-  nb.textContent = !p.player ? "START ▸" : p.index >= p.steps.length - 1 ? "END TURN ▸" : "NEXT ▸";
+  passNext = p.passes?.next || null;
+  const left = (p.passes?.need || []).filter(n => !(p.passes.passed || []).includes(n)).length;
+  nb.textContent = !p.player ? "START ▸" : passNext && left > 1 ? `✋ ${passNext} passes` : p.index >= p.steps.length - 1 ? "END TURN ▸" : "NEXT ▸";
   for (const a of Object.values(actors)) a.ring.visible = a.name === turn;
 }
 document.getElementById("back").addEventListener("click", async () => {
@@ -256,7 +258,7 @@ document.getElementById("back").addEventListener("click", async () => {
 });
 document.getElementById("next").addEventListener("click", async e => {
   e.stopPropagation();
-  await fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ by: turn || "xr" }) });
+  await fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ by: passNext || turn || "xr" }) });
   phase();
 });
 async function poll() {

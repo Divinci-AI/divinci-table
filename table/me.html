@@ -104,9 +104,16 @@ async function phase(){ const p=await j("/api/phase"); if(p.error) return;
   const mine=p.player===me, steps=p.steps||[];
   $("phase").innerHTML=p.player?`<b>${esc(p.player)}</b> · ${esc(p.step)}`
     +(p.waiting&&p.waiting.length?` · waiting on <b>${esc(p.waiting.join(", "))}</b> (${Math.ceil(p.seconds_left)}s)`:""):"Press NEXT to start the first turn.";
-  const nb=$("next"); nb.hidden=!(mine||!p.player); nb.disabled=!!(p.waiting&&p.waiting.length&&p.seconds_left>0);
+  const ps=p.passes||{need:[],passed:[],next:null}, inRound=ps.need.includes(me), done=ps.passed.includes(me);
+  const lastToPass=ps.next===me&&ps.need.filter(n=>!ps.passed.includes(n)).length===1;
+  if(p.player&&ps.need.length>1) $("phase").innerHTML+=` · ✋ `+ps.need.map(n=>ps.passed.includes(n)?`<span class="ok">${esc(n)} ✓</span>`:n===ps.next?`<b>${esc(n)}</b>…`:`<span class="muted">${esc(n)}</span>`).join(" → ");
+  const aiWait=!!(p.waiting&&p.waiting.length&&p.seconds_left>0);
+  const nb=$("next"); nb.hidden=!(!p.player||inRound||(mine&&!ps.next));
+  nb.disabled=!!p.player&&(ps.next?ps.next!==me:aiWait);
   nb.classList.toggle("wait",nb.disabled);
-  nb.textContent=!p.player?"START ▸":nb.disabled?"waiting…":(p.index>=steps.length-1?"END TURN ▸":`NEXT ▸ ${steps[p.index+1]||""}`);
+  const adv=p.index>=steps.length-1?"END TURN ▸":`NEXT ▸ ${steps[p.index+1]||""}`;
+  nb.textContent=!p.player?"START ▸":ps.next&&ps.next!==me?(done?`passed ✓ — waiting on ${ps.next}`:`waiting on ${ps.next} to pass`)
+    :ps.next===me?(lastToPass?`✋ Pass — ${adv}`:"✋ Pass priority"):aiWait?"waiting…":adv;
   $("back").hidden=!p.player;
   $("wordBox").hidden=!!p.player;                   // the shuffle word only matters before a game begins                       // anyone at the table can undo a NEXT pressed too soon
   holdOn=!!p.hold; $("hold").textContent=holdOn?"▶ Release hold (NEXT is frozen)":"⏸ Hold — freeze NEXT while we sort something out";
