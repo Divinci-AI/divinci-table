@@ -14,6 +14,11 @@
   #bar { position: absolute; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%);
     display: flex; gap: 10px; align-items: center; padding: 10px 12px 10px 18px; border-radius: 999px;
     background: #000b; backdrop-filter: blur(8px); pointer-events: auto; max-width: calc(100vw - 32px); }
+  body.top #bar { left: 12px; right: auto; bottom: auto; top: max(12px, env(safe-area-inset-top)); transform: none;
+    padding: 5px 6px 5px 12px; gap: 6px; max-width: min(60vw, 420px); }
+  body.top #bar .ph { font-size: 13px; }
+  body.top #next { padding: 6px 12px; font-size: 14px; }
+  body.top #hint { display: none; }
   #bar .ph { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
   #bar .wait { color: var(--accent); }
   #next { all: unset; cursor: pointer; padding: 10px 18px; border-radius: 999px; background: var(--accent);
@@ -102,6 +107,7 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platfor
 document.getElementById("hint").textContent = ar ? "Tap ‘Start AR’, point at the table, then tap to place it"
   : vr ? "Tap ‘Enter VR’" : isIOS ? "Tap an avatar to see it in your room" : !isSecureContext
   ? "AR/VR needs HTTPS: open this page on the table's https:// address" : "No AR/VR on this device — this is the preview";
+if (!ar && !vr) setTimeout(() => { document.getElementById("hint").style.display = "none"; }, 5000);   // a note, not a fixture
 
 // AR: a reticle on real surfaces; a tap places (or moves) the table, a mini table ~25 cm across
 const reticle = new THREE.Mesh(new THREE.RingGeometry(0.06, 0.08, 32).rotateX(-Math.PI / 2),
@@ -294,7 +300,10 @@ renderer.setAnimationLoop((t, frame) => {
     if (hits.length) reticle.matrix.fromArray(hits[0].getPose(renderer.xr.getReferenceSpace()).transform.matrix);
   } else if (placed) reticle.visible = false;
   if (!renderer.xr.isPresenting) {                           // preview: a slow orbit around the table
-    if (topView) { camera.position.set(0, 2.6, 0.001); camera.lookAt(0, 0.75, 0); }
+    if (topView) {                                   // high enough that the table AND the seat badges fit the narrower side
+      const fit = Math.max(1, 1.25 / Math.max(0.3, camera.aspect));
+      camera.position.set(0, 0.75 + 1.85 * fit, 0.001); camera.lookAt(0, 0.75, 0);
+    }
     else { const r = 4.6; camera.position.set(Math.sin(now / 9000) * r, 2.9, Math.cos(now / 9000) * r); camera.lookAt(0, 0.95, 0); }
   }
   for (const a of Object.values(actors)) {
@@ -350,6 +359,7 @@ addEventListener("pointermove", ev => {
 //   ?view=top  straight down at the cards     ?avatars=off  the board without the avatars
 const qs = new URLSearchParams(location.search);
 let topView = qs.get("view") === "top", showAvatars = qs.get("avatars") !== "off";
+document.body.classList.toggle("top", topView);
 const bar = document.createElement("div");
 bar.style.cssText = "position:fixed;top:10px;right:10px;display:flex;gap:6px;z-index:8;font:13px system-ui";
 document.body.appendChild(bar);
@@ -364,6 +374,7 @@ function toolbar() {
   a.style.cssText = btnCss + ";text-decoration:none"; bar.appendChild(a);
 }
 function sync() {
+  document.body.classList.toggle("top", topView);   // top-down: the bar moves to a corner, the hint goes
   const q = new URLSearchParams(location.search);
   topView ? q.set("view", "top") : q.delete("view"); showAvatars ? q.delete("avatars") : q.set("avatars", "off");
   history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : ""));
