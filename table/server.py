@@ -222,7 +222,8 @@ ORDER: list[str] = [x.strip() for x in args.order.split(",") if x.strip()]
 PHASE = {"player": None, "step": 0, "begun": False}   # begun: an AI seat has started playing its turn
 PRIORITY = {"step": None, "waiting": [], "seats": [], "deadline": 0.0, "beat_until": 0.0}
 BEAT = tuple(float(x) for x in args.priority_beat.split(","))
-WINDOWS = {"on": True}          # the table can switch step timeouts off: NEXT never waits (AIs still hear every window)
+WINDOWS = {"on": True}
+HOLD = {"on": False, "by": ""}  # the table freezes NEXT while it sorts something out          # the table can switch step timeouts off: NEXT never waits (AIs still hear every window)
 if args.priority_window > 0:                          # fixed windows: the beat IS the window, and the deadline
     BEAT = (args.priority_window, args.priority_window)
     args.priority_secs = args.priority_window
@@ -431,7 +432,8 @@ def phase_public() -> dict:
         return {"player": PHASE["player"], "step": STEPS[PHASE["step"]], "index": PHASE["step"], "steps": STEPS,
                 "order": turn_order(), "waiting": list(PRIORITY["seats"]) if is_open else [],
                 "seconds_left": round(max(0.0, left), 1), "ai": list(VPS),
-                "windows": WINDOWS["on"], "window_secs": args.priority_window}
+                "windows": WINDOWS["on"], "window_secs": args.priority_window, "hold": HOLD["on"],
+                "open_questions": sum(1 for t in TODOS if t.get("kind") == "question" and not t["done"])}
 
 
 def start_turn(name: str):
@@ -463,6 +465,11 @@ def next_step(by: str | None = None) -> tuple[int, dict]:
             return 200, phase_public()
         if PHASE["player"] in VPS:
             return 409, {**phase_public(), "error": f"it's {PHASE['player']}'s turn — it ends its own turn"}
+        if HOLD["on"]:
+            return 409, {**phase_public(), "error": f"on hold ({HOLD['by'] or 'the table'}) — release ⏸ Hold to go on"}
+        q = next((t for t in TODOS if t.get("kind") == "question" and not t["done"]), None)
+        if q:                                         # the table must settle what a player asked first
+            return 409, {**phase_public(), "error": f"waiting on {q.get('ask')}'s question: {q['text'][:90]}"}
         if priority_open():
             return 409, {**phase_public(), "error": "priority: waiting on " + ", ".join(PRIORITY["seats"])}
         if PRIORITY["waiting"]:                       # a holder's window ran out: it passes (said privately —
@@ -568,7 +575,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1866,6 +1873,11 @@ class H(BaseHTTPRequestHandler):
                         return self._send(409, {"error": "that line names a card still in the seat's hand"})
                 return self._send(200, emit("captain", seat=cseat, captain=str(b.get("captain", ""))[:60],
                                             text=text, audio="/captains/" + audio))
+            if self.path == "/api/phase/hold":             # {"on": true, "by": "Sam"}: freeze NEXT for everyone
+                b = self._json()
+                HOLD.update(on=bool(b.get("on", not HOLD["on"])), by=str(b.get("by", ""))[:30])
+                emit("phase", kind="hold", on=HOLD["on"], by=HOLD["by"])
+                return self._send(200, phase_public())
             if self.path == "/api/phase/windows":          # {"on": false}: step timeouts off for the table
                 b = self._json()
                 with PHASE_LOCK:

@@ -43,7 +43,9 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
     <div id="phase"></div>
     <button id="next" hidden onclick="nextStep()">NEXT ▸</button>
     <button id="back" hidden onclick="backStep()" style="margin-top:6px;opacity:.8">◂ BACK a step</button>
-    <button id="win" onclick="toggleWin()" style="margin-top:6px;opacity:.8">⏱ step timeouts</button></div>
+    <button id="win" onclick="toggleWin()" style="margin-top:6px;opacity:.8">⏱ step timeouts</button>
+    <button id="hold" onclick="toggleHold()" style="margin-top:6px;opacity:.8">⏸ Hold</button>
+    <div id="blocked" class="warn" style="margin-top:6px"></div></div>
   <div class="card"><div class="muted">💬 Tell the table — what you're doing, or a question</div>
     <div style="display:flex;gap:6px;margin-top:6px"><input id="chat" autocomplete="off" placeholder="I activate Rogue's Passage on Sewer Nemesis…" style="flex:1;min-width:0">
       <button id="sendChat">send</button></div><div id="chatMsg" class="muted"></div></div>
@@ -100,8 +102,11 @@ async function phase(){ const p=await j("/api/phase"); if(p.error) return;
   nb.textContent=!p.player?"START ▸":nb.disabled?"waiting…":(p.index>=steps.length-1?"END TURN ▸":`NEXT ▸ ${steps[p.index+1]||""}`);
   $("back").hidden=!p.player;
   $("wordBox").hidden=!!p.player;                   // the shuffle word only matters before a game begins                       // anyone at the table can undo a NEXT pressed too soon
+  holdOn=!!p.hold; $("hold").textContent=holdOn?"▶ Release hold (NEXT is frozen)":"⏸ Hold — freeze NEXT while we sort something out";
+  $("blocked").textContent=holdOn?"On hold: NEXT won't move until it's released.":p.open_questions?`NEXT is waiting: ${p.open_questions} open question(s) on the board — answer or resolve them.`:"";
   winOn=p.windows!==false; $("win").textContent=winOn?`⏱ step timeouts: ${p.window_secs||""}s (tap for off)`:"⏱ step timeouts: off (tap for on)"; }
-let winOn=true;
+let winOn=true, holdOn=false;
+async function toggleHold(){ await j("/api/phase/hold",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:!holdOn,by:me})}); phase(); }
 async function toggleWin(){ await j("/api/phase/windows",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:!winOn,by:me})}); phase(); }
 async function backStep(){ const r=await j("/api/phase/back",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({by:me})});
   if(r.error) $("phase").innerHTML+=` · <span class="muted">${esc(r.error)}</span>`; else phase(); }
