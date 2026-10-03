@@ -111,6 +111,7 @@ async function phase(){ const p=await j("/api/phase"); if(p.error) return;
   const mine=p.player===me, steps=p.steps||[];
   if(p.player) $("turn").innerHTML=`<b>${esc(p.player)}</b>'s turn${turnNum[p.player]?" "+turnNum[p.player]:""}${mine?" — <b>yours</b>":""}`;
   if(p.player!==activeP){ activeP=p.player||""; life0(); }   // re-mark whose tile has the turn
+  autoChecklist(p);
   $("phase").innerHTML=p.player?`<b>${esc(p.player)}</b> · ${esc(p.step)}`
     +(p.waiting&&p.waiting.length?` · waiting on <b>${esc(p.waiting.join(", "))}</b> (${Math.ceil(p.seconds_left)}s)`:""):"Press NEXT to start the first turn.";
   const ps=p.passes||{need:[],passed:[],next:null}, inRound=ps.need.includes(me), done=ps.passed.includes(me);
@@ -142,7 +143,41 @@ async function toggleHold(){ await j("/api/phase/hold",{method:"POST",headers:{"
 async function toggleWin(){ await j("/api/phase/windows",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:!winOn,by:me})}); phase(); }
 async function backStep(){ const r=await j("/api/phase/back",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({by:me})});
   if(r.error) $("phase").innerHTML+=` · <span class="muted">${esc(r.error)}</span>`; else phase(); }
+let ckKey="", ckDone=new Set(), ckOpen=false, ckSeen="";                      // checklist items handled in this step (Done or Skip)
+async function checklistFirst(){                     // → true when it's fine to pass now
+  const who=(window.TableSeat&&window.TableSeat.name())||me;
+  const c=await j("/api/checklist?player="+encodeURIComponent(who)); if(c.error||!c.items) return true;
+  const key=c.active+"|"+c.step; if(key!==ckKey){ ckKey=key; ckDone=new Set(); }
+  const todo=c.items.filter((it,i)=>!ckDone.has(it.card+"|"+it.kind)); if(!todo.length) return "none";
+  if(ckOpen) return false; ckOpen=true;
+  return await new Promise(res=>{
+    const w=document.createElement("div");
+    w.style.cssText="position:fixed;inset:0;z-index:96;background:rgba(0,0,0,.6);display:flex;align-items:flex-start;justify-content:center;padding:60px 12px;font:15px/1.45 system-ui;color:#eee";
+    const draw=()=>{ const left=c.items.filter(it=>!ckDone.has(it.card+"|"+it.kind));
+      w.innerHTML=`<div style="width:min(460px,100%);background:#14161b;border:1px solid #3a3f4a;border-radius:14px;padding:14px 16px">
+        <b style="font-size:17px">🧭 Before you pass — ${esc(c.step)}</b>
+        <div style="opacity:.7;font-size:13px;margin:2px 0 8px">From your board. Do it at the table, then tap Done — or Skip.</div>
+        ${c.items.map(it=>{const k=it.card+"|"+it.kind, d=ckDone.has(k); return `<div style="padding:8px 0;border-top:1px solid #2a2e37;opacity:${d?.5:1}">
+          <b>${esc(it.card)}</b> <span style="opacity:.75">${esc(it.text)}</span>
+          ${d?`<div style="color:#9be3b5;margin-top:4px">✓ handled</div>`:`<div style="display:flex;gap:8px;margin-top:6px"><button data-ck="${esc(k)}" data-v="done" style="flex:1;font-size:15px;padding:8px;background:#1f4d33;color:#c9f2d7">Done</button><button data-ck="${esc(k)}" data-v="skip" style="flex:1;font-size:15px;padding:8px">Skip</button></div>`}</div>`}).join("")}
+        <div style="display:flex;gap:8px;margin-top:10px"><button data-go style="flex:2;font-size:16px;padding:10px;background:${left.length?"#2a2e37":"#2e6b3f"};color:#fff">${left.length?"Pass anyway ▸":"✋ Pass ▸"}</button><button data-cancel style="flex:1;font-size:15px;padding:10px">Not yet</button></div></div>`; };
+    draw(); document.body.appendChild(w);
+    w.addEventListener("click",async ev=>{ const b=ev.target.closest("[data-ck]");
+      if(b){ ckDone.add(b.dataset.ck); const [card]=b.dataset.ck.split("|");
+        j("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({by:who,talk:true,text:`${b.dataset.v==="done"?"✓":"skip"}: ${card} (${c.step})`})});
+        draw(); return; }
+      if(ev.target.closest("[data-go]")){ w.remove(); ckOpen=false; res(true); }
+      if(ev.target.closest("[data-cancel]")||ev.target===w){ w.remove(); ckOpen=false; res(false); } }); }); }
+async function sendPass(){
+  const r=await j("/api/phase/next",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(window.TableSeat?window.TableSeat.body():{by:me})});
+  if(r.need_seat&&window.TableSeat) window.TableSeat.pick();
+  if(r.error) $("phase").innerHTML+=` · <span class="muted">${esc(r.error)}</span>`; else phase(); }
+async function autoChecklist(p){                      // a new step with something on my board for it: show it now
+  const who=(window.TableSeat&&window.TableSeat.name())||me; const key=p.player+"|"+p.step;
+  if(!who||!p.player||key===ckSeen) return; ckSeen=key;
+  const r=await checklistFirst(); if(r===true) sendPass(); }
 async function nextStep(){ if(window.TableSeat) await window.TableSeat.ready;
+  if((await checklistFirst())===false) return;
   const r=await j("/api/phase/next",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(window.TableSeat?window.TableSeat.body():{by:me})});
   if(r.need_seat&&window.TableSeat) window.TableSeat.pick();
   if(r.error) $("phase").innerHTML+=` · <span class="muted">${esc(r.error)}</span>`; else phase(); }

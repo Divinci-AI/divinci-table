@@ -889,7 +889,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1908,6 +1908,15 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, self._life_table())
         if self.path == "/api/highroll":
             return self._send(200, highroll_public())
+        if self.path.split("?")[0] == "/api/checklist":   # ?player=Michael → what on their board wants attention now
+            import checklist
+            from urllib.parse import parse_qs, urlparse
+            who = (parse_qs(urlparse(self.path).query).get("player") or [""])[0]
+            with PHASE_LOCK:
+                active, step = PHASE["player"], STEPS[PHASE["step"]] if PHASE["player"] else ""
+            seat_ = next((s for s in board3d()["seats"] if s["name"] == who), None)
+            its = checklist.items(seat_["permanents"], who, active, step) if seat_ and active else []
+            return self._send(200, {"player": who, "active": active, "step": step, "items": its})
         if self.path == "/api/seat/claims":
             fp = self._device()
             return self._send(200, {"humans": {h["name"]: h["name"] in SEAT_KEYS or h["name"] in SEAT_PROXY for h in HUMANS},
