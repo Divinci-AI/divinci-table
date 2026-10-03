@@ -70,6 +70,12 @@ class Table:
 
     def act(self, action, **body):
         code, d = self._req("POST", f"/api/brain/{action}", {"seat": self.seat, **body})
+        told = False
+        while code == 409 and d.get("waiting"):          # my turn walks its steps: the others are passing
+            if not told:
+                print(f"  … {action}: waiting on {d['waiting']}", flush=True); told = True
+            time.sleep(2)
+            code, d = self._req("POST", f"/api/brain/{action}", {"seat": self.seat, **body})
         line = " | ".join(d.get("said", [])) if code < 400 else f"REFUSED: {d.get('error')}"
         print(f"  → {action} {json.dumps(body)[:120]}  {line}", flush=True)
         return code < 400, d

@@ -68,6 +68,8 @@ def req(method, path, body=None, brain=True):
         data = json.loads(raw)
     except json.JSONDecodeError:
         sys.exit(f"server returned non-JSON (HTTP {code}): {raw[:200]}")
+    if code == 409 and data.get("waiting"):              # not refused: the table is waiting on passes
+        return data
     if code >= 400:
         sys.exit(f"refused: {data.get('error', raw[:200])}")
     return data
@@ -76,7 +78,13 @@ def req(method, path, body=None, brain=True):
 def act(action, **body):
     if SEAT:
         body["seat"] = SEAT
-    d = req("POST", f"/api/brain/{action}", {k: v for k, v in body.items() if v not in (None, [], False)})
+    payload = {k: v for k, v in body.items() if v not in (None, [], False)}
+    d = req("POST", f"/api/brain/{action}", payload)
+    if d.get("waiting"):                                 # my turn walks its steps: wait for the others' passes
+        print(f"…waiting on passes: {d['waiting']}", flush=True)
+        while d.get("waiting"):
+            time.sleep(2)
+            d = req("POST", f"/api/brain/{action}", payload)
     for line in d.get("said", []):
         print(f"🗣  {line}")
     if d.get("private"):

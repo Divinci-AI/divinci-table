@@ -432,8 +432,15 @@ def passes_needed() -> list[str]:
     (rule 117.3: priority goes round in turn order; the step ends once everyone passes in a row).
     Untap and cleanup give no one priority, so only the active player moves those on."""
     active = PHASE["player"]
-    if active is None or active in VPS:
+    if active is None:
         return []
+    if active in VPS:                                 # an AI's turn: the people still get every step's round
+        if STEPS[PHASE["step"]] in NO_PRIORITY:
+            return []
+        order = turn_order()
+        i = order.index(active) if active in order else 0
+        humans = {h["name"] for h in HUMANS}
+        return [n for n in order[i + 1:] + order[:i] if n in humans and not is_out(n)]
     if STEPS[PHASE["step"]] in NO_PRIORITY:
         return [active]
     order = turn_order()
@@ -457,6 +464,52 @@ def priority_reset(why: str):
         if PASS["passed"]:
             PASS["passed"] = []
             emit("pass", kind="reset", why=why[:120])
+
+
+AI_STEP_OF = {"begin": "main 1", "attack": "declare attackers", "damage": "combat damage", "end": "end step"}
+AI_MAIN_ACTIONS = {"land", "cast", "turn-up", "manifest", "put", "blink", "token"}
+AI_OPENED: dict = {"key": None}                      # (player, step) whose round has been announced
+
+
+def ai_advance(seat_name: str, action: str) -> str | None:
+    """An AI's turn walks the same steps as a person's: before it acts, every step between here and the
+    step that action belongs to opens its round (AI windows + each person passes). Returns None to go
+    ahead, or who is still to pass — the AI retries until the round is done."""
+    if PHASE["player"] != seat_name or not WINDOWS.get("ai_steps", True):
+        return None
+    target = AI_STEP_OF.get(action)
+    cur = PHASE["step"]
+    if action in AI_MAIN_ACTIONS and STEPS[cur] in ("beginning of combat", "declare attackers",
+                                                     "declare blockers", "combat damage"):
+        target = "main 2"
+    if target is None:
+        return None
+    goal = STEPS.index(target)
+    while PHASE["step"] < goal:
+        step = STEPS[PHASE["step"]]
+        if step not in NO_PRIORITY:
+            key = (PHASE["player"], PHASE["step"])
+            if AI_OPENED["key"] != key:               # announce the round once per step
+                AI_OPENED["key"] = key
+                open_priority(step)
+            ps = passes_state()
+            waiting = [n for n in ps["need"] if n not in ps["passed"]]
+            if waiting or priority_open():
+                return ", ".join(waiting + (list(PRIORITY["seats"]) if priority_open() else []))
+        PRIORITY.update(waiting=[], seats=[])
+        PHASE["step"] += 1
+        emit("phase", player=PHASE["player"], step=STEPS[PHASE["step"]], index=PHASE["step"])
+    if PHASE["step"] == goal and target in ("end step", "declare attackers") and STEPS[goal] not in NO_PRIORITY:
+        key = (PHASE["player"], PHASE["step"])
+        if target == "end step":                       # the end step's own round, before the turn passes on
+            if AI_OPENED["key"] != key:
+                AI_OPENED["key"] = key
+                open_priority(STEPS[goal])
+            ps = passes_state()
+            waiting = [n for n in ps["need"] if n not in ps["passed"]]
+            if waiting or priority_open():
+                return ", ".join(waiting + (list(PRIORITY["seats"]) if priority_open() else []))
+    return None
 
 
 HIGHROLL: dict = {"mode": None}   # who goes first: {"mode", "sides", "round", "contenders", "rolls", "winner", ...}
@@ -592,8 +645,19 @@ def next_step(by: str | None = None, shared: bool = False, confirm: bool = False
         if PHASE["player"] is None:
             start_turn(turn_order()[0])
             return 200, phase_public()
-        if PHASE["player"] in VPS:
-            return 409, {**phase_public(), "error": f"it's {PHASE['player']}'s turn — it ends its own turn"}
+        if PHASE["player"] in VPS:                   # an AI's turn: NEXT is the person passing this step's round
+            ps = passes_state()
+            who = next((n for n in ps["need"] if by and n.lower() == by.lower()), None) or ps["next"]
+            if not who:
+                return 409, {**phase_public(), "error": f"it's {PHASE['player']}'s turn — it moves on when it's ready"}
+            if who in ps["passed"]:
+                return 409, {**phase_public(), "error": f"{who} already passed — waiting on {ps['next']}"}
+            if who != ps["next"]:
+                return 409, {**phase_public(), "error": f"{ps['next']} passes first (turn order), then {who}"}
+            PASS["passed"].append(who)
+            left = [n for n in ps["need"] if n not in PASS["passed"]]
+            emit("pass", by=who, player=PHASE["player"], step=STEPS[PHASE["step"]], left=left)
+            return 200, phase_public()
         if HOLD["on"]:
             return 409, {**phase_public(), "error": f"on hold ({HOLD['by'] or 'the table'}) — release ⏸ Hold to go on"}
         q = next((t for t in TODOS if t.get("kind") == "question" and not t["done"]), None)
@@ -2106,6 +2170,11 @@ class H(BaseHTTPRequestHandler):
                 if sn is None:
                     return self._send(404, {"error": f"no AI seat '{b.get('seat')}' (seats: {list(VPS)})"})
                 act = self.path.rsplit("/", 1)[-1]
+                with PHASE_LOCK:
+                    blocked = ai_advance(sn, act)
+                if blocked:
+                    return self._send(409, {**phase_public(), "waiting": blocked,
+                                            "error": f"waiting on passes: {blocked} (retry)"})
                 with acting(sn):
                     out = self._brain(act, b)
                 if act in ("cast", "turn-up", "manifest") and PHASE["player"] != sn:
@@ -2336,8 +2405,10 @@ class H(BaseHTTPRequestHandler):
                 nxt = seat_after(VP.name) or order[(order.index(VP.name) + 1) % len(order)]
             threading.Timer(0.5, lambda: (start_turn(nxt), snapshot())).start()
         if action == "begin":                         # the turn button or NEXT handed this seat its turn
-            with PHASE_LOCK:
-                PHASE.update(player=VP.name, step=0, begun=True)
+            with PHASE_LOCK:                          # (the step is where ai_advance walked it: main 1)
+                PHASE.update(player=VP.name, begun=True)
+                if not WINDOWS.get("ai_steps", True):
+                    PHASE["step"] = 0
         _append("brain.jsonl", {"ts": round(time.time(), 2), "seat": VP.name, "action": action,
                                 "body": {k: v for k, v in b.items() if k != "seat"}, "said": said,
                                 "drew": list(VP.recent_draws), "todo": list(VP.todo),

@@ -74,6 +74,20 @@ def brain(action, **body):
     return call("POST", f"/api/brain/{action}", {"seat": "Claude", **body}, brain=True)
 
 
+def ai_act(action, **body):
+    """An AI acting on its own turn: while the people still have to pass a step, they pass (in order)."""
+    for _ in range(40):
+        code, d = brain(action, **body)
+        if not (code == 409 and d.get("waiting")):
+            return code, d
+        nx = (d.get("passes") or {}).get("next")
+        if nx:
+            call("POST", "/api/phase/next", {"by": nx})
+        else:
+            time.sleep(0.3)                           # an AI window still open
+    return code, d
+
+
 BEFORE = set(RESEARCH.glob("*"))              # never touch an existing game's logs
 srv = start("--priority-window", "0", "--priority-secs", "30", "--priority-beat", "0.6,0.6")
 BEAT = 0.7
@@ -169,10 +183,19 @@ try:
     if code == 409:
         brain("pass", quiet=True); time.sleep(BEAT); code, p = nxt("Ann")
     check(p.get("player") == "Claude", "NEXT then hands the turn on again")
-    brain("begin")
+    code, d = brain("begin")
+    check(code == 409 and d.get("waiting") == "Ben, Ann" and d["step"] == "upkeep",
+          "an AI's turn stops at its upkeep until each person passes, in turn order")
+    code, d = call("POST", "/api/phase/next", {"by": "Ann"})
+    check(code == 409 and "Ben passes first" in d.get("error", ""), "…in turn order after the AI")
+    ai_act("begin")
+    code, p = call("GET", "/api/phase")
+    check(p["player"] == "Claude" and p["step"] == "main 1", "…and then it reaches its main phase")
     code, p = call("POST", "/api/phase/back", {"by": "Ann"})
     check(code == 409 and "already started" in p.get("error", ""), "BACK is refused once the AI has started its turn")
-    brain("end", text="test")
+    code, d = brain("end", text="test")
+    check(code == 409 and bool(d.get("waiting")) and d["step"] == "main 1", "ending its turn walks the rest of its steps first")
+    ai_act("end", text="test")
     time.sleep(1.5)
     code, p = call("GET", "/api/phase")
     check(p["player"] == "Ben", "an AI ending its turn hands it to the next seat in order")

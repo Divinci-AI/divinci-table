@@ -599,7 +599,7 @@ async function phaseRefresh() {
     `<button id="holdBtn" title="H: freeze NEXT while the table sorts something out" style="opacity:.75">${p.hold ? "▶ release" : "⏸"}</button>` +
     `<button id="winBtn" title="W: step timeouts on/off — off, NEXT never waits (the AIs still hear every window)" style="opacity:.75">⏱ ${p.windows === false ? "off" : (p.window_secs || "") + "s"}</button>` +
     (p.player ? `<button id="backBtn" title="B: back a step (a NEXT pressed too soon)" style="opacity:.75">◂</button>` : "") +
-    (human || !p.player ? `<button id="nextBtn" ${waiting && !(ps.next && left > 1) ? "disabled" : ""}>${label} ▸</button>` : "");
+    (human || !p.player || ps.next ? `<button id="nextBtn" ${waiting && !(ps.next && left > 1) ? "disabled" : ""}>${label} ▸</button>` : "");
   document.getElementById("nextBtn")?.addEventListener("click", pressNext);
   document.getElementById("backBtn")?.addEventListener("click", pressBack);
   document.getElementById("winBtn")?.addEventListener("click", toggleWindows);
