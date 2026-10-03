@@ -484,12 +484,17 @@ def highroll_start(mode: str, sides: int, by: str) -> tuple[int, dict]:
     if mode == "quantum":
         import fair
         parts = fair.online_parts()                  # ANU (rate-limited: may wait up to a minute) + drand
+        if not parts.get("anu_qrng"):                 # ANU allows one request a minute: wait it out and try
+            first = parts.get("anu_qrng_error")       # once more before settling for drand
+            parts = fair.online_parts()
+            parts.setdefault("anu_first_error", first)
         src = parts.get("anu_qrng") or parts.get("drand_randomness")
         if not src:
             HIGHROLL.clear(); HIGHROLL["mode"] = None
             return 503, {"error": "no quantum (ANU) or drand randomness reachable — use a physical roll"}
         HIGHROLL.update(entropy=src, source="ANU quantum (qrng.anu.edu.au)" if parts.get("anu_qrng")
-                        else f"drand round {parts.get('drand_round')} (ANU unreachable)",
+                        else f"drand round {parts.get('drand_round')} (ANU unreachable twice: "
+                             f"{parts.get('anu_first_error')}, {parts.get('anu_qrng_error')})",
                         formula="fair.die_roll(entropy, 'highroll|<round>|<name>', sides)")
         while not HIGHROLL["winner"]:
             r = str(HIGHROLL["round"])
