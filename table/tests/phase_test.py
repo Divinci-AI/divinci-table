@@ -243,6 +243,7 @@ try:
     check(code == 200 and mills and ":" in mills[-1]["text"], "the game log has every mill, with the cards' names")
     check(not any(e.get("type") == "attention" and e.get("kind") == "priority" for e in h["events"]), "…and leaves out the noise")
     check(raw("/api/history", {"X-Forwarded-For": "203.0.113.9"}) == 200, "anyone at the table can read it")
+    check(raw("/log", {"X-Forwarded-For": "203.0.113.9"}) == 200, "…and pop it out into its own window (/log)")
 
     print("snapshot / restore")
     code, st = call("GET", "/api/brain/state?seat=Claude", brain=True)

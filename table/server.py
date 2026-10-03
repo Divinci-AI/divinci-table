@@ -522,7 +522,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("GET", "/api/history"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1436,6 +1436,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / "table.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/xr":               # AR/VR: the avatars around your real table
             return self._send(200, body=(HERE / "xr.html").read_bytes(), ctype="text/html; charset=utf-8")
+        if self.path.split("?")[0] == "/log":              # the game log on its own (pop-out window / second screen)
+            return self._send(200, body=(HERE / "log.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/board":            # the whole board in plain HTML: any device, no 3D
             return self._send(200, body=(HERE / "board.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/stage":            # the 3D avatar stage: public info only
