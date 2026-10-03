@@ -333,6 +333,45 @@ def on_talk(t: Table, e: dict, dry: bool):
     say(t, line or "Fair enough.")
 
 
+MULL_MEMO = Path(__file__).parent / ".cache" / "fusion-mulligans.json"
+
+
+def opening_hand(t: Table, dry: bool):
+    """Keep or mulligan, before turn 1: keep 2-5 lands; otherwise mulligan (the first is free in
+    Commander; after that one card goes to the bottom per extra mulligan — the priciest nonland). At most
+    two mulligans. Each hand we've already decided on is remembered by a hash, so restarting this
+    process never mulligans again. Only counts are logged: the hand is private."""
+    import hashlib
+    try:
+        memo = set(json.loads(MULL_MEMO.read_text()))
+    except (OSError, ValueError):
+        memo = set()
+    for n in range(3):
+        s = t.state()
+        if s.get("turn") or s.get("permanents"):
+            return                                       # the game is under way: too late
+        hand = s.get("hand") or []
+        sig = hashlib.sha256("|".join(sorted(h["name"] for h in hand)).encode()).hexdigest()[:16]
+        lands = sum(1 for h in hand if h.get("land"))
+        if sig in memo or 2 <= lands <= 5 or n == 2:
+            memo.add(sig)
+            MULL_MEMO.write_text(json.dumps(sorted(memo)))
+            print(f"  ✋ opening hand: keep ({lands} lands, after {n} mulligan(s))", flush=True)
+            return
+        memo.add(sig)
+        MULL_MEMO.write_text(json.dumps(sorted(memo)))
+        print(f"  ✋ opening hand: mulligan ({lands} lands)", flush=True)
+        if dry:
+            return
+        t.act("mulligan")
+        if n >= 1:                                       # the second mulligan costs a card: bottom the priciest
+            s = t.state()
+            nonland = [h for h in s.get("hand") or [] if not h.get("land")]
+            if nonland:
+                mv = lambda h: sum(int(x) if x.isdigit() else 1 for x in re.findall(r"\{([^}]+)\}", h.get("cost") or ""))
+                t.act("bottom", name=max(nonland, key=mv)["name"], quiet=True)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--seat", default="Fusion")
@@ -349,6 +388,10 @@ def main():
     decks = ", ".join(f"{k.split(',')[0]}→{v[-6:]}" for k, v in (_CONF.get("releases") or {}).items()) or RELEASE_ID[-6:]
     print(f"Fusion brain on seat {a.seat} — releases by commander: {decks}{' (DRY)' if a.dry else ''}; "
           f"watching from #{since}", flush=True)
+    try:
+        opening_hand(t, a.dry)
+    except Exception as ex:                                  # noqa: BLE001 — never block the seat on this
+        print(f"  ! opening hand check failed: {type(ex).__name__}: {ex}", flush=True)
     held = False
     while True:
         try:
