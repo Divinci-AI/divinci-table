@@ -493,8 +493,18 @@ try:
     check(code == 403 and p.get("need_seat"), "a screen that hasn't claimed a seat can't pass for anyone")
     code, p = call("POST", "/api/phase/next", {"by": "Ben", "key": KEYS["Ann"]})
     check(code == 403, "a device can't pass for another player with its own key")
-    code, p = call("POST", "/api/seat/claim", {"name": "Ben"})
-    check(code == 409, "a claimed seat can't be claimed by another device")
+    def claim_as(name, ua=None, xff=None):
+        h = {"Content-Type": "application/json", **({"User-Agent": ua} if ua else {})}
+        if xff:
+            h["X-Forwarded-For"] = xff
+        r = urllib.request.Request(BASE + "/api/seat/claim", method="POST", headers=h, data=json.dumps({"name": name}).encode())
+        try:
+            with urllib.request.urlopen(r, timeout=10) as resp:
+                return resp.status
+        except urllib.error.HTTPError as e:
+            return e.code
+    check(claim_as("Ben", "Mozilla/5.0 PhoneOfSomeoneElse", "203.0.113.50") == 409, "a claimed seat can't be claimed by another device")
+    check(claim_as("Ben") == 200, "…but another window on the same device (and browser) can take it")
     code, p = call("POST", "/api/seat/claim", {"name": "Ben", "key": KEYS["Ben"]})
     check(code == 200, "…but the same player can add a second device with their key")
     code, p = call("POST", "/api/phase/next", pb("Ben"))

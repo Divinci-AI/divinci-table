@@ -340,7 +340,7 @@ def snapshot():
         with VP_LOCK, PHASE_LOCK:
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
                                  "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
-                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "ev_id": _ev_id[0], "saved": time.time()})
+                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "ev_id": _ev_id[0], "saved": time.time()})
         p = research_dir() / "snapshot.pkl"
         tmp = p.with_suffix(".tmp")
         tmp.write_bytes(blob)
@@ -359,6 +359,7 @@ def restore(path: str):
     PUBLIC_BOARD.update(d.get("PUBLIC_BOARD", {})); WINDOWS.update(d.get("WINDOWS", {})); TODOS.extend(d.get("TODOS", [])); PLACED.update(d.get("PLACED", []))
     HIGHROLL.update(d.get("HIGHROLL") or {"mode": None})
     SEAT_KEYS.update(d.get("SEAT_KEYS") or {})
+    SEAT_DEVICES.update(d.get("SEAT_DEVICES") or {})
     if d.get("ORDER") and (not ORDER or HIGHROLL.get("winner")):
         ORDER[:] = d["ORDER"]                         # a high roll's order beats the --order the table was started with
     _ev_id[0] = d.get("ev_id", 0)                     # pages keep their cursors across the restart
@@ -514,12 +515,19 @@ def ai_advance(seat_name: str, action: str) -> str | None:
     return None
 
 
-SEAT_KEYS: dict = {}   # person → sha256 of the key a device got when it claimed that seat
+SEAT_KEYS: dict = {}   # person → [sha256 of each key a device of theirs was given]
+SEAT_DEVICES: dict = {}   # person → [device fingerprints that claimed it]
+
+
+def _keyhash(key: str) -> str:
+    return hashlib.sha256(key.encode()).hexdigest()
 
 
 def seat_key_ok(name: str, key: str) -> bool:
-    h = SEAT_KEYS.get(name)
-    return bool(h and key and secrets.compare_digest(h, hashlib.sha256(key.encode()).hexdigest()))
+    hs = SEAT_KEYS.get(name) or []
+    if isinstance(hs, str):                           # an older snapshot stored one hash
+        hs = SEAT_KEYS[name] = [hs]
+    return bool(key) and any(secrets.compare_digest(h, _keyhash(key)) for h in hs)
 
 
 HIGHROLL: dict = {"mode": None}   # who goes first: {"mode", "sides", "round", "contenders", "rolls", "winner", ...}
@@ -1821,7 +1829,9 @@ class H(BaseHTTPRequestHandler):
         if self.path == "/api/highroll":
             return self._send(200, highroll_public())
         if self.path == "/api/seat/claims":
-            return self._send(200, {"humans": {h["name"]: h["name"] in SEAT_KEYS for h in HUMANS}})
+            fp = self._device()
+            return self._send(200, {"humans": {h["name"]: h["name"] in SEAT_KEYS for h in HUMANS},
+                                    "this_device": [n for n, fps in SEAT_DEVICES.items() if fp in fps]})
         if self.path == "/api/fair":                       # public: commits now, full records once revealed
             with VP_LOCK:
                 return self._send(200, fair_public())
@@ -2155,13 +2165,19 @@ class H(BaseHTTPRequestHandler):
                 if not name:
                     return self._send(400, {"error": "only a person's seat can be claimed"})
                 key = str(b.get("key") or "")
+                fp = self._device()
                 if key and seat_key_ok(name, key):
+                    SEAT_DEVICES.setdefault(name, []).append(fp) if fp not in SEAT_DEVICES.get(name, []) else None
                     return self._send(200, {"name": name, "key": key})          # another device of the same player
-                if name in SEAT_KEYS:
+                if name in SEAT_KEYS and fp not in SEAT_DEVICES.get(name, []):
                     return self._send(409, {"error": f"{name}'s seat is claimed on another device — open the link from "
                                                      f"that device (👤), or release it from the host laptop"})
-                key = secrets.token_urlsafe(18)
-                SEAT_KEYS[name] = hashlib.sha256(key.encode()).hexdigest()
+                key = secrets.token_urlsafe(18)              # a new window on the same device gets its own key
+                SEAT_KEYS.setdefault(name, [])
+                if isinstance(SEAT_KEYS[name], str):
+                    SEAT_KEYS[name] = [SEAT_KEYS[name]]
+                SEAT_KEYS[name].append(_keyhash(key))
+                SEAT_DEVICES.setdefault(name, []).append(fp) if fp not in SEAT_DEVICES.get(name, []) else None
                 emit("seat", name=name, kind="claimed")
                 snapshot()
                 return self._send(200, {"name": name, "key": key})
@@ -2170,6 +2186,7 @@ class H(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "release a seat from the host laptop"})
                 name = str(self._json().get("name", ""))
                 SEAT_KEYS.pop(name, None)
+                SEAT_DEVICES.pop(name, None)
                 emit("seat", name=name, kind="released")
                 snapshot()
                 return self._send(200, {"released": name})
@@ -2189,6 +2206,9 @@ class H(BaseHTTPRequestHandler):
                 b = self._json() if self.headers.get("Content-Length") else {}
                 code, out = next_step(str(b.get("by", ""))[:30] or None, bool(b.get("shared")), bool(b.get("confirm")),
                                       str(b.get("key", ""))[:100])
+                pn = next((h["name"] for h in HUMANS if h["name"].lower() == str(b.get("by", "")).lower()), None)
+                if pn and seat_key_ok(pn, str(b.get("key", ""))) and self._device() not in SEAT_DEVICES.get(pn, []):
+                    SEAT_DEVICES.setdefault(pn, []).append(self._device())   # remember this device for its other windows
                 snapshot()
                 return self._send(code, out)
             if self.path == "/api/stage/hand":             # {"player": "Sam", "n": 6} or {"player": "Sam", "delta": -1}
@@ -2264,6 +2284,21 @@ class H(BaseHTTPRequestHandler):
         pass
 
     PROXY_HEADERS = ("X-Forwarded-For", "Forwarded", "X-Real-IP", "CF-Connecting-IP", "True-Client-IP")
+
+    def _device(self) -> str:
+        """Which device is asking: its network address (this laptop under any of its own addresses counts as
+        one — localhost and its LAN IP are the same machine) plus its browser. Two windows of one browser on
+        one device share it, so a player keeps their seat across tabs and addresses."""
+        ip = self.client_address[0].removeprefix("::ffff:")
+        try:
+            here = self.connection.getsockname()[0].removeprefix("::ffff:")
+        except OSError:
+            here = ""
+        if ip in ("127.0.0.1", "::1") or ip == here:
+            ip = "this-laptop"
+        if any(self.headers.get(h) for h in self.PROXY_HEADERS):
+            ip = "proxied:" + (self.headers.get("X-Forwarded-For") or "?").split(",")[0].strip()
+        return hashlib.sha256(f"{ip}|{self.headers.get('User-Agent', '')}".encode()).hexdigest()[:24]
 
     def _is_local(self) -> bool:
         """This laptop itself. A tunnel or reverse proxy (cloudflared, ngrok, Tailscale Funnel) also connects
