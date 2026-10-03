@@ -10,7 +10,8 @@
   btn.textContent = "⚔ Declare attack";
   btn.style.cssText = "position:fixed;left:12px;top:12px;z-index:60;padding:7px 12px;border-radius:9px;border:1px solid #6b3a3a;" +
     "background:#3a1d1d;color:#ffd9d9;font:600 13px system-ui,-apple-system,sans-serif;cursor:pointer;display:none";
-  document.body.appendChild(btn);
+  const slot = () => document.getElementById("declareSlot");   // a page can give it a place in its layout
+  (slot() || document.body).appendChild(btn);
   const sheet = document.createElement("div");
   sheet.style.cssText = "position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.55);display:none;align-items:flex-start;justify-content:center;" +
     "padding:60px 12px;font:13px/1.4 system-ui,-apple-system,sans-serif;color:#eee";
@@ -22,7 +23,9 @@
     try {
       phase = await (await fetch("/api/phase")).json();
       const human = phase.player && !(phase.ai || []).includes(phase.player);
-      btn.style.display = human ? "block" : "none";               // only on a person's turn
+      const seatName = (window.TableSeat && window.TableSeat.name()) || "";
+      const yours = seatName ? phase.player === seatName : human;  // a claimed device: only on its own turn
+      btn.style.display = human && yours ? "block" : "none";
     } catch {}
   }
   function open() {

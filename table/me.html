@@ -16,7 +16,10 @@ h1{font-size:15px;font-weight:600;color:var(--dim);margin:0 0 10px;letter-spacin
 .p{border-radius:10px;padding:8px 10px;border:1px solid var(--line)}
 .p .n{font-size:14px;color:var(--dim);display:flex;justify-content:space-between}
 .p .v{font-size:40px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
-.p.me{border-color:var(--me)} .p.me .n{color:var(--me)} .p.ai .n{color:var(--ai)}
+.p.me .n span:first-child::after{content:" (you)";font-weight:400;opacity:.8} .p.me .n{color:var(--me)} .p.ai .n{color:var(--ai)}
+.p.active{border:2px solid #f5b642;background:rgba(245,182,66,.12);box-shadow:0 0 0 3px rgba(245,182,66,.18)}
+.p.active .n span:last-child::after{content:"▶ TURN";margin-left:6px;font-size:11px;font-weight:800;letter-spacing:.06em;color:#1a1300;background:#f5b642;border-radius:5px;padding:1px 6px}
+#declareSlot button{position:static!important;display:block;width:100%;margin-top:10px}
 .turn{font-size:15px;color:var(--dim)} .turn b{color:var(--ink)}
 .btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 button{font:600 18px system-ui;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:10px 14px;min-width:56px}
@@ -38,7 +41,7 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
 <h1 id="title">Divinci Table</h1>
 <div id="pick" class="card pick" hidden><div class="muted">Who are you?</div><div id="names"></div></div>
 <div id="view" hidden>
-  <div class="card"><div class="turn" id="turn">Waiting for the game…</div>
+  <div class="card"><div class="turn" id="turn">Waiting for the game…</div><div id="declareSlot"></div>
     <div class="life" id="life" style="margin-top:8px"></div>
     <div class="btns" id="mybtns"></div>
     <div id="phase"></div>
@@ -81,7 +84,7 @@ async function start(){
 }
 async function life(d){ await j("/api/life",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({player:me,delta:d,by:me})}); life0(); }
 async function life0(){ const lt=await j("/api/life");
-  $("life").innerHTML=Object.entries(lt).map(([n,v])=>`<div class="p ${n===me?"me":""} ${AI.includes(n)?"ai":""}"><div class="n"><span>${esc(n)}</span><span>${AI.includes(n)?"AI":""}</span></div><div class="v">${esc(v)}</div></div>`).join(""); }
+  $("life").innerHTML=Object.entries(lt).map(([n,v])=>`<div class="p ${n===me?"me":""} ${AI.includes(n)?"ai":""} ${n===activeP?"active":""}"><div class="n"><span>${esc(n)}</span><span>${AI.includes(n)?"AI":""}</span></div><div class="v">${esc(v)}</div></div>`).join(""); }
 async function fair(){ const f=await j("/api/fair"); if(f.error){$("fair").innerHTML=`<span class="muted">not available</span>`;return;}
   const rows=Object.entries(f.seats||{}).filter(([,v])=>v).map(([n,v])=>`<div>${esc(n)} <span class="fp">${esc(v.fingerprint)}</span></div>`);
   $("fair").innerHTML=(rows.join("")||`<span class="muted">no sealed decks</span>`)
@@ -102,10 +105,11 @@ async function showCast(name){ const c=await j("/api/card?name="+encodeURICompon
   $("castCard").hidden=false; const pt=c.power!=null?` · ${c.power}/${c.toughness}`:"";
   $("cast").innerHTML=`<div><b>${esc(c.name)}</b> <span class="muted">${esc(c.cost||"")}</span></div><div class="t">${esc(c.type)}${esc(pt)}</div><div class="x">${esc(c.text||"")}</div>`; }
 // NEXT: step through your turn; an AI holding an instant gets a moment first (the server enforces it)
-let turnNum={};                                     // "Claude, turn 2." → the AI seats' turn numbers
+let turnNum={}, activeP="";                                     // "Claude, turn 2." → the AI seats' turn numbers
 async function phase(){ const p=await j("/api/phase"); if(p.error) return;
   const mine=p.player===me, steps=p.steps||[];
   if(p.player) $("turn").innerHTML=`<b>${esc(p.player)}</b>'s turn${turnNum[p.player]?" "+turnNum[p.player]:""}${mine?" — <b>yours</b>":""}`;
+  if(p.player!==activeP){ activeP=p.player||""; life0(); }   // re-mark whose tile has the turn
   $("phase").innerHTML=p.player?`<b>${esc(p.player)}</b> · ${esc(p.step)}`
     +(p.waiting&&p.waiting.length?` · waiting on <b>${esc(p.waiting.join(", "))}</b> (${Math.ceil(p.seconds_left)}s)`:""):"Press NEXT to start the first turn.";
   const ps=p.passes||{need:[],passed:[],next:null}, inRound=ps.need.includes(me), done=ps.passed.includes(me);
