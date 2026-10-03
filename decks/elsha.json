@@ -1,0 +1,1965 @@
+{
+ "name": "Mystic Intellect",
+ "commander": [
+  {
+   "name": "Elsha of the Infinite",
+   "count": 1,
+   "manaCost": "{2}{U}{R}{W}",
+   "manaValue": 5.0,
+   "type": "Legendary Creature \u2014 Djinn Monk",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Djinn",
+    "Monk"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.)\nYou may look at the top card of your library any time.\nYou may cast noncreature spells from the top of your library. If you cast a spell this way, you may cast it as though it had flash.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "R",
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "R",
+    "U",
+    "W"
+   ],
+   "keywords": [
+    "Prowess"
+   ],
+   "layout": "normal"
+  }
+ ],
+ "mainBoard": [
+  {
+   "name": "Sevinne, the Chronoclasm",
+   "count": 1,
+   "manaCost": "{2}{U}{R}{W}",
+   "manaValue": 5.0,
+   "type": "Legendary Creature \u2014 Human Wizard",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Wizard"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Prevent all damage that would be dealt to Sevinne.\nWhenever you cast your first instant or sorcery spell from your graveyard each turn, copy that spell. You may choose new targets for the copy.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "R",
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "R",
+    "U",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Ral Zarek",
+   "count": 1,
+   "manaCost": "{2}{U}{R}",
+   "manaValue": 4.0,
+   "type": "Legendary Planeswalker \u2014 Ral",
+   "types": [
+    "Planeswalker"
+   ],
+   "subtypes": [
+    "Ral"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "[+1]: Tap target permanent, then untap another target permanent.\n[\u22122]: Ral Zarek deals 3 damage to any target.\n[\u22127]: Flip five coins. Take an extra turn after this one for each coin that comes up heads.",
+   "loyalty": "4",
+   "colors": [
+    "R",
+    "U"
+   ],
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Pramikon, Sky Rampart",
+   "count": 1,
+   "manaCost": "{U}{R}{W}",
+   "manaValue": 3.0,
+   "type": "Legendary Creature \u2014 Wall",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Wall"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Flying, defender\nAs Pramikon enters, choose left or right.\nEach player may attack only the nearest opponent in the chosen direction and planeswalkers controlled by that opponent.",
+   "power": "1",
+   "toughness": "5",
+   "colors": [
+    "R",
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "R",
+    "U",
+    "W"
+   ],
+   "keywords": [
+    "Defender",
+    "Flying"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Thalia's Geistcaller",
+   "count": 1,
+   "manaCost": "{2}{W}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Human Cleric",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Cleric"
+   ],
+   "supertypes": [],
+   "text": "Lifelink\nWhenever you cast a spell from your graveyard, create a 1/1 white Spirit creature token with flying.\nSacrifice a Spirit: This creature gains indestructible until end of turn.",
+   "power": "3",
+   "toughness": "1",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Lifelink"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Wall of Stolen Identity",
+   "count": 1,
+   "manaCost": "{3}{U}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Shapeshifter Wall",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Shapeshifter",
+    "Wall"
+   ],
+   "supertypes": [],
+   "text": "You may have this creature enter as a copy of any creature on the battlefield, except it's a Wall in addition to its other types and has defender. When you do, tap the copied creature and it doesn't untap during its controller's untap step for as long as you control this creature.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Backdraft Hellkite",
+   "count": 1,
+   "manaCost": "{3}{R}{R}",
+   "manaValue": 5.0,
+   "type": "Creature \u2014 Dragon",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Dragon"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhenever this creature attacks, each instant and sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Flying"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Dockside Extortionist",
+   "count": 1,
+   "manaCost": "{1}{R}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Goblin Pirate",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Goblin",
+    "Pirate"
+   ],
+   "supertypes": [],
+   "text": "When this creature enters, create X Treasure tokens, where X is the number of artifacts and enchantments your opponents control. (Treasure tokens are artifacts with \"{T}, Sacrifice this token: Add one mana of any color.\")",
+   "power": "1",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Treasure"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Gerrard, Weatherlight Hero",
+   "count": 1,
+   "manaCost": "{2}{R}{W}",
+   "manaValue": 4.0,
+   "type": "Legendary Creature \u2014 Human Soldier",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Soldier"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "First strike\nWhen Gerrard dies, exile it and return to the battlefield all artifact and creature cards in your graveyard that were put there from the battlefield this turn.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "R",
+    "W"
+   ],
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "keywords": [
+    "First strike"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Pristine Angel",
+   "count": 1,
+   "manaCost": "{4}{W}{W}",
+   "manaValue": 6.0,
+   "type": "Creature \u2014 Angel",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Angel"
+   ],
+   "supertypes": [],
+   "text": "Flying\nAs long as this creature is untapped, it has protection from artifacts and from each color.\nWhenever you cast a spell, you may untap this creature.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Flying"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Sun Titan",
+   "count": 1,
+   "manaCost": "{4}{W}{W}",
+   "manaValue": 6.0,
+   "type": "Creature \u2014 Giant",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Giant"
+   ],
+   "supertypes": [],
+   "text": "Vigilance\nWhenever this creature enters or attacks, you may return target permanent card with mana value 3 or less from your graveyard to the battlefield.",
+   "power": "6",
+   "toughness": "6",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Vigilance"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Clever Impersonator",
+   "count": 1,
+   "manaCost": "{2}{U}{U}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Shapeshifter",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Shapeshifter"
+   ],
+   "supertypes": [],
+   "text": "You may have this creature enter as a copy of any nonland permanent on the battlefield.",
+   "power": "0",
+   "toughness": "0",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Zetalpa, Primal Dawn",
+   "count": 1,
+   "manaCost": "{6}{W}{W}",
+   "manaValue": 8.0,
+   "type": "Legendary Creature \u2014 Elder Dinosaur",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Elder",
+    "Dinosaur"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Flying, double strike, vigilance, trample, indestructible",
+   "power": "4",
+   "toughness": "8",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Double strike",
+    "Flying",
+    "Indestructible",
+    "Trample",
+    "Vigilance"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "River Kelpie",
+   "count": 1,
+   "manaCost": "{3}{U}{U}",
+   "manaValue": 5.0,
+   "type": "Creature \u2014 Beast",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Beast"
+   ],
+   "supertypes": [],
+   "text": "Whenever this creature or another permanent enters from a graveyard, draw a card.\nWhenever a player casts a spell from a graveyard, draw a card.\nPersist (When this creature dies, if it had no -1/-1 counters on it, return it to the battlefield under its owner's control with a -1/-1 counter on it.)",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Persist"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Talrand, Sky Summoner",
+   "count": 1,
+   "manaCost": "{2}{U}{U}",
+   "manaValue": 4.0,
+   "type": "Legendary Creature \u2014 Merfolk Wizard",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Merfolk",
+    "Wizard"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Whenever you cast an instant or sorcery spell, create a 2/2 blue Drake creature token with flying.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Pristine Skywise",
+   "count": 1,
+   "manaCost": "{4}{W}{U}",
+   "manaValue": 6.0,
+   "type": "Creature \u2014 Dragon",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Dragon"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhenever you cast a noncreature spell, untap this creature. It gains protection from the color of your choice until end of turn.",
+   "power": "6",
+   "toughness": "4",
+   "colors": [
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "keywords": [
+    "Flying"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Cliffside Rescuer",
+   "count": 1,
+   "manaCost": "{1}{W}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Kor Soldier",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Kor",
+    "Soldier"
+   ],
+   "supertypes": [],
+   "text": "Vigilance\n{T}, Sacrifice this creature: Target permanent you control gains protection from each of your opponents until end of turn. (It can't be blocked, targeted, dealt damage, enchanted, or equipped by anything controlled by those players.)",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Vigilance"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Scaretiller",
+   "count": 1,
+   "manaCost": "{4}",
+   "manaValue": 4.0,
+   "type": "Artifact Creature \u2014 Scarecrow",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "subtypes": [
+    "Scarecrow"
+   ],
+   "supertypes": [],
+   "text": "Whenever this creature becomes tapped, choose one \u2014\n\u2022 You may put a land card from your hand onto the battlefield tapped.\n\u2022 Return target land card from your graveyard to the battlefield tapped.",
+   "power": "1",
+   "toughness": "4",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Guttersnipe",
+   "count": 1,
+   "manaCost": "{2}{R}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Goblin Shaman",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Goblin",
+    "Shaman"
+   ],
+   "supertypes": [],
+   "text": "Whenever you cast an instant or sorcery spell, this creature deals 2 damage to each opponent.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Crackling Drake",
+   "count": 1,
+   "manaCost": "{U}{U}{R}{R}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Drake",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Drake"
+   ],
+   "supertypes": [],
+   "text": "Flying\nCrackling Drake's power is equal to the total number of instant and sorcery cards you own in exile and in your graveyard.\nWhen this creature enters, draw a card.",
+   "power": "*",
+   "toughness": "4",
+   "colors": [
+    "R",
+    "U"
+   ],
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "keywords": [
+    "Flying"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Burnished Hart",
+   "count": 1,
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "type": "Artifact Creature \u2014 Elk",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "subtypes": [
+    "Elk"
+   ],
+   "supertypes": [],
+   "text": "{3}, Sacrifice this creature: Search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Sevinne's Reclamation",
+   "count": 1,
+   "manaCost": "{2}{W}",
+   "manaValue": 3.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Return target permanent card with mana value 3 or less from your graveyard to the battlefield. If this spell was cast from a graveyard, you may copy this spell and may choose a new target for the copy.\nFlashback {4}{W} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Mass Diminish",
+   "count": 1,
+   "manaCost": "{1}{U}",
+   "manaValue": 2.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Until your next turn, creatures target player controls have base power and toughness 1/1.\nFlashback {3}{U} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Ignite the Future",
+   "count": 1,
+   "manaCost": "{3}{R}",
+   "manaValue": 4.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Exile the top three cards of your library. Until the end of your next turn, you may play those cards. If this spell was cast from a graveyard, you may play cards this way without paying their mana costs.\nFlashback {7}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Divine Reckoning",
+   "count": 1,
+   "manaCost": "{2}{W}{W}",
+   "manaValue": 4.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Each player chooses a creature they control. Destroy the rest.\nFlashback {5}{W}{W} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Dusk // Dawn",
+   "count": 1,
+   "manaCost": "{2}{W}{W}",
+   "manaValue": 9.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy all creatures with power 3 or greater.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Aftermath"
+   ],
+   "layout": "aftermath",
+   "side": "a",
+   "faceName": "Dusk"
+  },
+  {
+   "name": "Increasing Devotion",
+   "count": 1,
+   "manaCost": "{3}{W}{W}",
+   "manaValue": 5.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Create five 1/1 white Human creature tokens. If this spell was cast from a graveyard, create ten of those tokens instead.\nFlashback {7}{W}{W} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Storm Herd",
+   "count": 1,
+   "manaCost": "{8}{W}{W}",
+   "manaValue": 10.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Create X 1/1 white Pegasus creature tokens with flying, where X is your life total.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Devil's Play",
+   "count": 1,
+   "manaCost": "{X}{R}",
+   "manaValue": 1.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Devil's Play deals X damage to any target.\nFlashback {X}{R}{R}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Deep Analysis",
+   "count": 1,
+   "manaCost": "{3}{U}",
+   "manaValue": 4.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Target player draws two cards.\nFlashback\u2014{1}{U}, Pay 3 life. (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Mystic Retrieval",
+   "count": 1,
+   "manaCost": "{3}{U}",
+   "manaValue": 4.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Return target instant or sorcery card from your graveyard to your hand.\nFlashback {2}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Runic Repetition",
+   "count": 1,
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Return target exiled card with flashback you own to your hand.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Faithless Looting",
+   "count": 1,
+   "manaCost": "{R}",
+   "manaValue": 1.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Draw two cards, then discard two cards.\nFlashback {2}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Rolling Temblor",
+   "count": 1,
+   "manaCost": "{2}{R}",
+   "manaValue": 3.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Rolling Temblor deals 2 damage to each creature without flying.\nFlashback {4}{R}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Mandate of Peace",
+   "count": 1,
+   "manaCost": "{1}{W}",
+   "manaValue": 2.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Cast this spell only during combat.\nYour opponents can't cast spells this turn.\nEnd the combat phase. (Remove all attackers and blockers from combat. Exile all spells and abilities from the stack, including this spell.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Increasing Vengeance",
+   "count": 1,
+   "manaCost": "{R}{R}",
+   "manaValue": 2.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Copy target instant or sorcery spell you control. If this spell was cast from a graveyard, copy that spell twice instead. You may choose new targets for the copies.\nFlashback {3}{R}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Magmaquake",
+   "count": 1,
+   "manaCost": "{X}{R}{R}",
+   "manaValue": 2.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Magmaquake deals X damage to each creature without flying and each planeswalker.",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Refuse // Cooperate",
+   "count": 1,
+   "manaCost": "{3}{R}",
+   "manaValue": 7.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Refuse deals damage to target spell's controller equal to that spell's mana value.",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "keywords": [
+    "Aftermath"
+   ],
+   "layout": "aftermath",
+   "side": "a",
+   "faceName": "Refuse"
+  },
+  {
+   "name": "Leadership Vacuum",
+   "count": 1,
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Target player returns each commander they control from the battlefield to the command zone.\nDraw a card.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Prismatic Strands",
+   "count": 1,
+   "manaCost": "{2}{W}",
+   "manaValue": 3.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Prevent all damage that sources of the color of your choice would deal this turn.\nFlashback\u2014Tap an untapped white creature you control. (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Purify the Grave",
+   "count": 1,
+   "manaCost": "{W}",
+   "manaValue": 1.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Exile target card from a graveyard.\nFlashback {W} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Ray of Distortion",
+   "count": 1,
+   "manaCost": "{3}{W}",
+   "manaValue": 4.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy target artifact or enchantment.\nFlashback {4}{W}{W} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Chemister's Insight",
+   "count": 1,
+   "manaCost": "{3}{U}",
+   "manaValue": 4.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Draw two cards.\nJump-start (You may cast this card from your graveyard by discarding a card in addition to paying its other costs. Then exile this card.)",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Jump",
+    "Jump-start"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Fact or Fiction",
+   "count": 1,
+   "manaCost": "{3}{U}",
+   "manaValue": 4.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Reveal the top five cards of your library. An opponent separates those cards into two piles. Put one pile into your hand and the other into your graveyard.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Fervent Denial",
+   "count": 1,
+   "manaCost": "{3}{U}{U}",
+   "manaValue": 5.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Counter target spell.\nFlashback {5}{U}{U} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Oona's Grace",
+   "count": 1,
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Target player draws a card.\nRetrace (You may cast this card from your graveyard by discarding a land card in addition to paying its other costs.)",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Retrace"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Think Twice",
+   "count": 1,
+   "manaCost": "{1}{U}",
+   "manaValue": 2.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Draw a card.\nFlashback {2}{U} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Desperate Ravings",
+   "count": 1,
+   "manaCost": "{1}{R}",
+   "manaValue": 2.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Draw two cards, then discard a card at random.\nFlashback {2}{U} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Farm // Market",
+   "count": 1,
+   "manaCost": "{2}{W}",
+   "manaValue": 6.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy target attacking or blocking creature.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "keywords": [
+    "Aftermath"
+   ],
+   "layout": "aftermath",
+   "side": "a",
+   "faceName": "Farm"
+  },
+  {
+   "name": "Empowered Autogenerator",
+   "count": 1,
+   "manaCost": "{4}",
+   "manaValue": 4.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This artifact enters tapped.\n{T}: Put a charge counter on this artifact. Add X mana of any one color, where X is the number of charge counters on this artifact.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Bloodthirsty Blade",
+   "count": 1,
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "type": "Artifact \u2014 Equipment",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [
+    "Equipment"
+   ],
+   "supertypes": [],
+   "text": "Equipped creature gets +2/+0 and is goaded. (It attacks each combat if able and attacks a player other than you if able.)\n{1}: Attach this Equipment to target creature an opponent controls. Activate only as a sorcery.",
+   "colors": [],
+   "colorIdentity": [],
+   "keywords": [
+    "Goad"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Armillary Sphere",
+   "count": 1,
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{2}, {T}, Sacrifice this artifact: Search your library for up to two basic land cards, reveal them, put them into your hand, then shuffle.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Azorius Locket",
+   "count": 1,
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {W} or {U}.\n{W/U}{W/U}{W/U}{W/U}, {T}, Sacrifice this artifact: Draw two cards.",
+   "colors": [],
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Commander's Sphere",
+   "count": 1,
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color in your commander's color identity.\nSacrifice this artifact: Draw a card.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Izzet Locket",
+   "count": 1,
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {U} or {R}.\n{U/R}{U/R}{U/R}{U/R}, {T}, Sacrifice this artifact: Draw two cards.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Sol Ring",
+   "count": 1,
+   "manaCost": "{1}",
+   "manaValue": 1.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}{C}.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Jace's Sanctum",
+   "count": 1,
+   "manaCost": "{3}{U}",
+   "manaValue": 4.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Instant and sorcery spells you cast cost {1} less to cast.\nWhenever you cast an instant or sorcery spell, scry 1.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Scry"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Ghostly Prison",
+   "count": 1,
+   "manaCost": "{2}{W}",
+   "manaValue": 3.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Secrets of the Dead",
+   "count": 1,
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever you cast a spell from your graveyard, draw a card.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Burning Vengeance",
+   "count": 1,
+   "manaCost": "{2}{R}",
+   "manaValue": 3.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever you cast a spell from your graveyard, this enchantment deals 2 damage to any target.",
+   "colors": [
+    "R"
+   ],
+   "colorIdentity": [
+    "R"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Exotic Orchard",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color that a land an opponent controls could produce.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Prairie Stream",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land \u2014 Plains Island",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Plains",
+    "Island"
+   ],
+   "supertypes": [],
+   "text": "({T}: Add {W} or {U}.)\nThis land enters tapped unless you control two or more basic lands.",
+   "colors": [],
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Plains",
+   "count": 3,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Plains"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {W}.)",
+   "colors": [],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Plains",
+   "count": 3,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Plains"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {W}.)",
+   "colors": [],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Plains",
+   "count": 3,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Plains"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {W}.)",
+   "colors": [],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Island",
+   "count": 3,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Island",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Island"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {U}.)",
+   "colors": [],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Island",
+   "count": 3,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Island",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Island"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {U}.)",
+   "colors": [],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Island",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Island",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Island"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {U}.)",
+   "colors": [],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Mountain",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Mountain",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Mountain"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {R}.)",
+   "colors": [],
+   "colorIdentity": [
+    "R"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Mountain",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Mountain",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Mountain"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {R}.)",
+   "colors": [],
+   "colorIdentity": [
+    "R"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Mountain",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Mountain",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Mountain"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {R}.)",
+   "colors": [],
+   "colorIdentity": [
+    "R"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Ash Barrens",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\nBasic landcycling {1} ({1}, Discard this card: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.)",
+   "colors": [],
+   "colorIdentity": [],
+   "keywords": [
+    "Basic landcycling",
+    "Cycling",
+    "Landcycling",
+    "Typecycling"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Azorius Chancery",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {W}{U}.",
+   "colors": [],
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Boros Garrison",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {R}{W}.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Boros Guildgate",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land \u2014 Gate",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Gate"
+   ],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {R} or {W}.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Command Tower",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color in your commander's color identity.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Evolving Wilds",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Highland Lake",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {U} or {R}.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Izzet Boilerworks",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {U}{R}.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Izzet Guildgate",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land \u2014 Gate",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Gate"
+   ],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {U} or {R}.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Myriad Landscape",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Search your library for up to two basic land cards that share a land type, put them onto the battlefield tapped, then shuffle.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Mystic Monastery",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {U}, {R}, or {W}.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "U",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Stone Quarry",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {R} or {W}.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Swiftwater Cliffs",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {U} or {R}.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Temple of the False God",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}{C}. Activate only if you control five or more lands.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Terramorphic Expanse",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Tranquil Cove",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {W} or {U}.",
+   "colors": [],
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Wind-Scarred Crag",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {R} or {W}.",
+   "colors": [],
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "layout": "normal"
+  }
+ ],
+ "source": "MTGJSON MysticIntellect_C19 (unmodified precon); commander swapped to Elsha of the Infinite, face commander moved to the 99",
+ "eligibleCommanders": [
+  "Elsha of the Infinite",
+  "Pramikon, Sky Rampart",
+  "Sevinne, the Chronoclasm"
+ ]
+}

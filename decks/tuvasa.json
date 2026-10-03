@@ -1,0 +1,2013 @@
+{
+ "name": "Adaptive Enchantment",
+ "commander": [
+  {
+   "name": "Tuvasa the Sunlit",
+   "count": 1,
+   "manaCost": "{G}{W}{U}",
+   "manaValue": 3.0,
+   "type": "Legendary Creature \u2014 Merfolk Shaman",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Merfolk",
+    "Shaman"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Tuvasa gets +1/+1 for each enchantment you control.\nWhenever you cast your first enchantment spell each turn, draw a card.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "G",
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "G",
+    "U",
+    "W"
+   ],
+   "layout": "normal"
+  }
+ ],
+ "mainBoard": [
+  {
+   "name": "Estrid, the Masked",
+   "count": 1,
+   "manaCost": "{1}{G}{W}{U}",
+   "manaValue": 4.0,
+   "type": "Legendary Planeswalker \u2014 Estrid",
+   "types": [
+    "Planeswalker"
+   ],
+   "subtypes": [
+    "Estrid"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "[+2]: Untap each enchanted permanent you control.\n[\u22121]: Create a white Aura enchantment token named Mask attached to another target permanent. The token has enchant permanent and umbra armor.\n[\u22127]: Mill seven cards. Return all non-Aura enchantment cards from your graveyard to the battlefield, then do the same for Aura cards.\nEstrid, the Masked can be your commander.",
+   "loyalty": "3",
+   "colors": [
+    "G",
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "G",
+    "U",
+    "W"
+   ],
+   "keywords": [
+    "Mill"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Bruna, Light of Alabaster",
+   "count": 1,
+   "manaCost": "{3}{W}{W}{U}",
+   "manaValue": 6.0,
+   "type": "Legendary Creature \u2014 Angel",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Angel"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Flying, vigilance\nWhenever Bruna attacks or blocks, you may attach to it any number of Auras on the battlefield and you may put onto the battlefield attached to it any number of Aura cards that could enchant it from your graveyard and/or hand.",
+   "power": "5",
+   "toughness": "5",
+   "colors": [
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "keywords": [
+    "Flying",
+    "Vigilance"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Eidolon of Blossoms",
+   "count": 1,
+   "manaCost": "{2}{G}{G}",
+   "manaValue": 4.0,
+   "type": "Enchantment Creature \u2014 Spirit",
+   "types": [
+    "Enchantment",
+    "Creature"
+   ],
+   "subtypes": [
+    "Spirit"
+   ],
+   "supertypes": [],
+   "text": "Constellation \u2014 Whenever this creature or another enchantment you control enters, draw a card.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Constellation"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Hydra Omnivore",
+   "count": 1,
+   "manaCost": "{4}{G}{G}",
+   "manaValue": 6.0,
+   "type": "Creature \u2014 Hydra",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Hydra"
+   ],
+   "supertypes": [],
+   "text": "Whenever this creature deals combat damage to an opponent, it deals that much damage to each other opponent.",
+   "power": "8",
+   "toughness": "8",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Ajani's Chosen",
+   "count": 1,
+   "manaCost": "{2}{W}{W}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Cat Soldier",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Cat",
+    "Soldier"
+   ],
+   "supertypes": [],
+   "text": "Whenever an enchantment you control enters, create a 2/2 white Cat creature token. If that enchantment is an Aura, you may attach it to the token.",
+   "power": "3",
+   "toughness": "3",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Celestial Archon",
+   "count": 1,
+   "manaCost": "{3}{W}{W}",
+   "manaValue": 5.0,
+   "type": "Enchantment Creature \u2014 Archon",
+   "types": [
+    "Enchantment",
+    "Creature"
+   ],
+   "subtypes": [
+    "Archon"
+   ],
+   "supertypes": [],
+   "text": "Bestow {5}{W}{W} (If you cast this card for its bestow cost, it's an Aura spell with enchant creature. It becomes a creature again if it's not attached.)\nFlying, first strike\nEnchanted creature gets +4/+4 and has flying and first strike.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Bestow",
+    "First strike",
+    "Flying"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Silent Sentinel",
+   "count": 1,
+   "manaCost": "{5}{W}{W}",
+   "manaValue": 7.0,
+   "type": "Creature \u2014 Archon",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Archon"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhenever this creature attacks, you may return target enchantment card from your graveyard to the battlefield.",
+   "power": "4",
+   "toughness": "6",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Flying"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Boon Satyr",
+   "count": 1,
+   "manaCost": "{1}{G}{G}",
+   "manaValue": 3.0,
+   "type": "Enchantment Creature \u2014 Satyr",
+   "types": [
+    "Enchantment",
+    "Creature"
+   ],
+   "subtypes": [
+    "Satyr"
+   ],
+   "supertypes": [],
+   "text": "Flash\nBestow {3}{G}{G} (If you cast this card for its bestow cost, it's an Aura spell with enchant creature. It becomes a creature again if it's not attached.)\nEnchanted creature gets +4/+2.",
+   "power": "4",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Bestow",
+    "Flash"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Herald of the Pantheon",
+   "count": 1,
+   "manaCost": "{1}{G}",
+   "manaValue": 2.0,
+   "type": "Creature \u2014 Centaur Shaman",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Centaur",
+    "Shaman"
+   ],
+   "supertypes": [],
+   "text": "Enchantment spells you cast cost {1} less to cast.\nWhenever you cast an enchantment spell, you gain 1 life.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Cold-Eyed Selkie",
+   "count": 1,
+   "manaCost": "{1}{G/U}{G/U}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Merfolk Rogue",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Merfolk",
+    "Rogue"
+   ],
+   "supertypes": [],
+   "text": "Islandwalk (This creature can't be blocked as long as defending player controls an Island.)\nWhenever this creature deals combat damage to a player, you may draw that many cards.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "G",
+    "U"
+   ],
+   "colorIdentity": [
+    "G",
+    "U"
+   ],
+   "keywords": [
+    "Islandwalk",
+    "Landwalk"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Daxos of Meletis",
+   "count": 1,
+   "manaCost": "{1}{W}{U}",
+   "manaValue": 3.0,
+   "type": "Legendary Creature \u2014 Human Soldier",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Soldier"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Daxos can't be blocked by creatures with power 3 or greater.\nWhenever Daxos deals combat damage to a player, exile the top card of that player's library. You gain life equal to that card's mana value. Until end of turn, you may cast that card and you may spend mana as though it were mana of any color to cast that spell.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Elderwood Scion",
+   "count": 1,
+   "manaCost": "{3}{G}{W}",
+   "manaValue": 5.0,
+   "type": "Creature \u2014 Elemental",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Elemental"
+   ],
+   "supertypes": [],
+   "text": "Trample, lifelink\nSpells you cast that target this creature cost {2} less to cast.\nSpells your opponents cast that target this creature cost {2} more to cast.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G",
+    "W"
+   ],
+   "colorIdentity": [
+    "G",
+    "W"
+   ],
+   "keywords": [
+    "Lifelink",
+    "Trample"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Archetype of Imagination",
+   "count": 1,
+   "manaCost": "{4}{U}{U}",
+   "manaValue": 6.0,
+   "type": "Enchantment Creature \u2014 Human Wizard",
+   "types": [
+    "Enchantment",
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Wizard"
+   ],
+   "supertypes": [],
+   "text": "Creatures you control have flying.\nCreatures your opponents control lose flying and can't have or gain flying.",
+   "power": "3",
+   "toughness": "2",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Whitewater Naiads",
+   "count": 1,
+   "manaCost": "{3}{U}{U}",
+   "manaValue": 5.0,
+   "type": "Enchantment Creature \u2014 Nymph",
+   "types": [
+    "Enchantment",
+    "Creature"
+   ],
+   "subtypes": [
+    "Nymph"
+   ],
+   "supertypes": [],
+   "text": "Constellation \u2014 Whenever this creature or another enchantment you control enters, target creature can't be blocked this turn.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Constellation"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Aura Gnarlid",
+   "count": 1,
+   "manaCost": "{2}{G}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Beast",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Beast"
+   ],
+   "supertypes": [],
+   "text": "Creatures with power less than this creature's power can't block it.\nThis creature gets +1/+1 for each Aura on the battlefield.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Reclamation Sage",
+   "count": 1,
+   "manaCost": "{2}{G}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Elf Shaman",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Elf",
+    "Shaman"
+   ],
+   "supertypes": [],
+   "text": "When this creature enters, you may destroy target artifact or enchantment.",
+   "power": "2",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Yavimaya Enchantress",
+   "count": 1,
+   "manaCost": "{2}{G}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Human Druid",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Human",
+    "Druid"
+   ],
+   "supertypes": [],
+   "text": "This creature gets +1/+1 for each enchantment on the battlefield.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Martial Coup",
+   "count": 1,
+   "manaCost": "{X}{W}{W}",
+   "manaValue": 2.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Create X 1/1 white Soldier creature tokens. If X is 5 or more, destroy all other creatures.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Phyrexian Rebirth",
+   "count": 1,
+   "manaCost": "{4}{W}{W}",
+   "manaValue": 6.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy all creatures, then create an X/X colorless Phyrexian Horror artifact creature token, where X is the number of creatures destroyed this way.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Winds of Rath",
+   "count": 1,
+   "manaCost": "{3}{W}{W}",
+   "manaValue": 5.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy all creatures that aren't enchanted. They can't be regenerated.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Creeping Renaissance",
+   "count": 1,
+   "manaCost": "{3}{G}{G}",
+   "manaValue": 5.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Choose a permanent type. Return all cards of the chosen type from your graveyard to your hand.\nFlashback {5}{G}{G} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Flashback"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Kruphix's Insight",
+   "count": 1,
+   "manaCost": "{2}{G}",
+   "manaValue": 3.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Reveal the top six cards of your library. Put up to three enchantment cards from among them into your hand and the rest of the revealed cards into your graveyard.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Dismantling Blow",
+   "count": 1,
+   "manaCost": "{2}{W}",
+   "manaValue": 3.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Kicker {2}{U} (You may pay an additional {2}{U} as you cast this spell.)\nDestroy target artifact or enchantment. If this spell was kicked, draw two cards.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "keywords": [
+    "Kicker"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Bant Charm",
+   "count": 1,
+   "manaCost": "{G}{W}{U}",
+   "manaValue": 3.0,
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Choose one \u2014\n\u2022 Destroy target artifact.\n\u2022 Put target creature on the bottom of its owner's library.\n\u2022 Counter target instant spell.",
+   "colors": [
+    "G",
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "G",
+    "U",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Sol Ring",
+   "count": 1,
+   "manaCost": "{1}",
+   "manaValue": 1.0,
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}{C}.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Sigil of the Empty Throne",
+   "count": 1,
+   "manaCost": "{3}{W}{W}",
+   "manaValue": 5.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever you cast an enchantment spell, create a 4/4 white Angel creature token with flying.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Dictate of Kruphix",
+   "count": 1,
+   "manaCost": "{1}{U}{U}",
+   "manaValue": 3.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Flash (You may cast this spell any time you could cast an instant.)\nAt the beginning of each player's draw step, that player draws an additional card.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Flash"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Bear Umbra",
+   "count": 1,
+   "manaCost": "{2}{G}{G}",
+   "manaValue": 4.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant creature\nEnchanted creature gets +2/+2 and has \"Whenever this creature attacks, untap all lands you control.\"\nUmbra armor (If enchanted creature would be destroyed, instead remove all damage from it and destroy this Aura.)",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Enchant",
+    "Umbra armor"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Enchantress's Presence",
+   "count": 1,
+   "manaCost": "{2}{G}",
+   "manaValue": 3.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever you cast an enchantment spell, draw a card.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Epic Proportions",
+   "count": 1,
+   "manaCost": "{4}{G}{G}",
+   "manaValue": 6.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Flash\nEnchant creature\nEnchanted creature gets +5/+5 and has trample.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Enchant",
+    "Flash"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Ground Seal",
+   "count": 1,
+   "manaCost": "{1}{G}",
+   "manaValue": 2.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "When this enchantment enters, draw a card.\nCards in graveyards can't be the targets of spells or abilities.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Spawning Grounds",
+   "count": 1,
+   "manaCost": "{6}{G}{G}",
+   "manaValue": 8.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant land\nEnchanted land has \"{T}: Create a 5/5 green Beast creature token with trample.\"",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Enchant"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Finest Hour",
+   "count": 1,
+   "manaCost": "{2}{G}{W}{U}",
+   "manaValue": 5.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Exalted (Whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn.)\nWhenever a creature you control attacks alone, if it's the first combat phase of the turn, untap that creature. After this phase, there is an additional combat phase.",
+   "colors": [
+    "G",
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "G",
+    "U",
+    "W"
+   ],
+   "keywords": [
+    "Exalted"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Righteous Authority",
+   "count": 1,
+   "manaCost": "{3}{W}{U}",
+   "manaValue": 5.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant creature\nEnchanted creature gets +1/+1 for each card in its controller's hand.\nAt the beginning of the draw step of enchanted creature's controller, that player draws an additional card.",
+   "colors": [
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "keywords": [
+    "Enchant"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Sage's Reverie",
+   "count": 1,
+   "manaCost": "{3}{W}",
+   "manaValue": 4.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant creature\nWhen this Aura enters, draw a card for each Aura you control that's attached to a creature.\nEnchanted creature gets +1/+1 for each Aura you control that's attached to a creature.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Enchant"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Soul Snare",
+   "count": 1,
+   "manaCost": "{W}",
+   "manaValue": 1.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{W}, Sacrifice this enchantment: Exile target creature that's attacking you or a planeswalker you control.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Unquestioned Authority",
+   "count": 1,
+   "manaCost": "{2}{W}",
+   "manaValue": 3.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant creature\nWhen this Aura enters, draw a card.\nEnchanted creature has protection from creatures.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Enchant"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Eel Umbra",
+   "count": 1,
+   "manaCost": "{1}{U}",
+   "manaValue": 2.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Flash (You may cast this spell any time you could cast an instant.)\nEnchant creature\nEnchanted creature gets +1/+1.\nUmbra armor (If enchanted creature would be destroyed, instead remove all damage from it and destroy this Aura.)",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Enchant",
+    "Flash",
+    "Umbra armor"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Vow of Flight",
+   "count": 1,
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant creature\nEnchanted creature gets +2/+2, has flying, and can't attack you or planeswalkers you control.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Enchant"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Dawn's Reflection",
+   "count": 1,
+   "manaCost": "{3}{G}",
+   "manaValue": 4.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional two mana in any combination of colors.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Enchant"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Fertile Ground",
+   "count": 1,
+   "manaCost": "{1}{G}",
+   "manaValue": 2.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional one mana of any color.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Enchant"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Overgrowth",
+   "count": 1,
+   "manaCost": "{2}{G}",
+   "manaValue": 3.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional {G}{G}.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Enchant"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Snake Umbra",
+   "count": 1,
+   "manaCost": "{2}{G}",
+   "manaValue": 3.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant creature\nEnchanted creature gets +1/+1 and has \"Whenever this creature deals damage to an opponent, you may draw a card.\"\nUmbra armor (If enchanted creature would be destroyed, instead remove all damage from it and destroy this Aura.)",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Enchant",
+    "Umbra armor"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Vow of Wildness",
+   "count": 1,
+   "manaCost": "{2}{G}",
+   "manaValue": 3.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant creature\nEnchanted creature gets +3/+3, has trample, and can't attack you or planeswalkers you control.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Enchant"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Wild Growth",
+   "count": 1,
+   "manaCost": "{G}",
+   "manaValue": 1.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional {G}.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Enchant"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Unflinching Courage",
+   "count": 1,
+   "manaCost": "{1}{G}{W}",
+   "manaValue": 3.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant creature\nEnchanted creature gets +2/+2 and has trample and lifelink. (Damage dealt by the creature also causes its controller to gain that much life.)",
+   "colors": [
+    "G",
+    "W"
+   ],
+   "colorIdentity": [
+    "G",
+    "W"
+   ],
+   "keywords": [
+    "Enchant"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Plains",
+   "count": 3,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Plains"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {W}.)",
+   "colors": [],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Plains",
+   "count": 3,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Plains"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {W}.)",
+   "colors": [],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Plains",
+   "count": 3,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Plains",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Plains"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {W}.)",
+   "colors": [],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Island",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Island",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Island"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {U}.)",
+   "colors": [],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Island",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Island",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Island"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {U}.)",
+   "colors": [],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Island",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Island",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Island"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {U}.)",
+   "colors": [],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Forest",
+   "count": 3,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Forest",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Forest"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {G}.)",
+   "colors": [],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Forest",
+   "count": 3,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Forest",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Forest"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {G}.)",
+   "colors": [],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Forest",
+   "count": 2,
+   "manaValue": 0.0,
+   "type": "Basic Land \u2014 Forest",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [
+    "Forest"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {G}.)",
+   "colors": [],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Azorius Chancery",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {W}{U}.",
+   "colors": [],
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Blossoming Sands",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {G} or {W}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Command Tower",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color in your commander's color identity.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Evolving Wilds",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Krosan Verge",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Search your library for a Forest card and a Plains card, put them onto the battlefield tapped, then shuffle.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Meandering River",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {W} or {U}.",
+   "colors": [],
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Mosswort Bridge",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Hideaway 4 (When this land enters, look at the top four cards of your library, exile one face down, then put the rest on the bottom in a random order.)\nThis land enters tapped.\n{T}: Add {G}.\n{G}, {T}: You may play the exiled card without paying its mana cost if creatures you control have total power 10 or greater.",
+   "colors": [],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Hideaway"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Seaside Citadel",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {G}, {W}, or {U}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "U",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Selesnya Sanctuary",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {G}{W}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Simic Growth Chamber",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {G}{U}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Terramorphic Expanse",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  },
+  {
+   "name": "Thornwood Falls",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {G} or {U}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Tranquil Cove",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, you gain 1 life.\n{T}: Add {W} or {U}.",
+   "colors": [],
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Tranquil Expanse",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {G} or {W}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Woodland Stream",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {G} or {U}.",
+   "colors": [],
+   "colorIdentity": [
+    "G",
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Kestia, the Cultivator",
+   "count": 1,
+   "manaCost": "{1}{G}{W}{U}",
+   "manaValue": 4.0,
+   "type": "Legendary Enchantment Creature \u2014 Nymph",
+   "types": [
+    "Enchantment",
+    "Creature"
+   ],
+   "subtypes": [
+    "Nymph"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Bestow {3}{G}{W}{U} (If you cast this card for its bestow cost, it's an Aura spell with enchant creature. It becomes a creature again if it's not attached.)\nEnchanted creature gets +4/+4.\nWhenever an enchanted creature or enchantment creature you control attacks, draw a card.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G",
+    "U",
+    "W"
+   ],
+   "colorIdentity": [
+    "G",
+    "U",
+    "W"
+   ],
+   "keywords": [
+    "Bestow"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Empyrial Storm",
+   "count": 1,
+   "manaCost": "{4}{W}{W}",
+   "manaValue": 6.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "When you cast this spell, copy it for each time you've cast your commander from the command zone this game.\nCreate a 4/4 white Angel creature token with flying.",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Heavenly Blademaster",
+   "count": 1,
+   "manaCost": "{5}{W}",
+   "manaValue": 6.0,
+   "type": "Creature \u2014 Angel",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Angel"
+   ],
+   "supertypes": [],
+   "text": "Flying, double strike\nWhen this creature enters, you may attach any number of Auras and Equipment you control to it.\nOther creatures you control get +1/+1 for each Aura and Equipment attached to this creature.",
+   "power": "3",
+   "toughness": "6",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Double strike",
+    "Flying"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Estrid's Invocation",
+   "count": 1,
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "You may have this enchantment enter as a copy of an enchantment you control, except it has \"At the beginning of your upkeep, you may exile this enchantment. If you do, return it to the battlefield under its owner's control.\"",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Ever-Watching Threshold",
+   "count": 1,
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever an opponent attacks, if they attacked you and/or a planeswalker you control, draw a card.",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Octopus Umbra",
+   "count": 1,
+   "manaCost": "{3}{U}{U}",
+   "manaValue": 5.0,
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant creature\nEnchanted creature has base power and toughness 8/8 and has \"Whenever this creature attacks, you may tap target creature with power 8 or less.\"\nUmbra armor (If enchanted creature would be destroyed, instead remove all damage from it and destroy this Aura.)",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Enchant",
+    "Umbra armor"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Genesis Storm",
+   "count": 1,
+   "manaCost": "{4}{G}{G}",
+   "manaValue": 6.0,
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "When you cast this spell, copy it for each time you've cast your commander from the command zone this game.\nReveal cards from the top of your library until you reveal a nonland permanent card. You may put that card onto the battlefield. Then put all cards revealed this way that weren't put onto the battlefield on the bottom of your library in a random order.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Myth Unbound",
+   "count": 1,
+   "manaCost": "{2}{G}",
+   "manaValue": 3.0,
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Your commander costs {1} less to cast for each time it's been cast from the command zone this game.\nWhenever your commander is put into the command zone from anywhere, draw a card.",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Nylea's Colossus",
+   "count": 1,
+   "manaCost": "{6}{G}",
+   "manaValue": 7.0,
+   "type": "Enchantment Creature \u2014 Giant",
+   "types": [
+    "Enchantment",
+    "Creature"
+   ],
+   "subtypes": [
+    "Giant"
+   ],
+   "supertypes": [],
+   "text": "Constellation \u2014 Whenever this creature or another enchantment you control enters, double target creature's power and toughness until end of turn.",
+   "power": "6",
+   "toughness": "6",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Constellation",
+    "Double"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Ravenous Slime",
+   "count": 1,
+   "manaCost": "{2}{G}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Ooze",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Ooze"
+   ],
+   "supertypes": [],
+   "text": "This creature can't be blocked by creatures with power 2 or less.\nIf a creature an opponent controls would die, instead exile it and put a number of +1/+1 counters equal to that creature's power on this creature.",
+   "power": "1",
+   "toughness": "1",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Arixmethes, Slumbering Isle",
+   "count": 1,
+   "manaCost": "{2}{G}{U}",
+   "manaValue": 4.0,
+   "type": "Legendary Creature \u2014 Kraken",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Kraken"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Arixmethes enters tapped with five slumber counters on it.\nAs long as Arixmethes has a slumber counter on it, it's a land. (It's not a creature.)\nWhenever you cast a spell, you may remove a slumber counter from Arixmethes.\n{T}: Add {G}{U}.",
+   "power": "12",
+   "toughness": "12",
+   "colors": [
+    "G",
+    "U"
+   ],
+   "colorIdentity": [
+    "G",
+    "U"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Loyal Unicorn",
+   "count": 1,
+   "manaCost": "{3}{W}",
+   "manaValue": 4.0,
+   "type": "Creature \u2014 Unicorn",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Unicorn"
+   ],
+   "supertypes": [],
+   "text": "Vigilance\nLieutenant \u2014 At the beginning of combat on your turn, if you control your commander, prevent all combat damage that would be dealt to creatures you control this turn. Other creatures you control gain vigilance until end of turn.",
+   "power": "3",
+   "toughness": "4",
+   "colors": [
+    "W"
+   ],
+   "colorIdentity": [
+    "W"
+   ],
+   "keywords": [
+    "Lieutenant",
+    "Vigilance"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Loyal Drake",
+   "count": 1,
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "type": "Creature \u2014 Drake",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Drake"
+   ],
+   "supertypes": [],
+   "text": "Flying\nLieutenant \u2014 At the beginning of combat on your turn, if you control your commander, draw a card.",
+   "power": "2",
+   "toughness": "2",
+   "colors": [
+    "U"
+   ],
+   "colorIdentity": [
+    "U"
+   ],
+   "keywords": [
+    "Flying",
+    "Lieutenant"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Loyal Guardian",
+   "count": 1,
+   "manaCost": "{4}{G}",
+   "manaValue": 5.0,
+   "type": "Creature \u2014 Rhino",
+   "types": [
+    "Creature"
+   ],
+   "subtypes": [
+    "Rhino"
+   ],
+   "supertypes": [],
+   "text": "Trample\nLieutenant \u2014 At the beginning of combat on your turn, if you control your commander, put a +1/+1 counter on each creature you control.",
+   "power": "4",
+   "toughness": "4",
+   "colors": [
+    "G"
+   ],
+   "colorIdentity": [
+    "G"
+   ],
+   "keywords": [
+    "Lieutenant",
+    "Trample"
+   ],
+   "layout": "normal"
+  },
+  {
+   "name": "Forge of Heroes",
+   "count": 1,
+   "manaValue": 0.0,
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{T}: Choose target commander that entered this turn. Put a +1/+1 counter on it if it's a creature and a loyalty counter on it if it's a planeswalker.",
+   "colors": [],
+   "colorIdentity": [],
+   "layout": "normal"
+  }
+ ],
+ "source": "MTGJSON AdaptiveEnchantment_C18 (unmodified precon); commander swapped to Tuvasa the Sunlit, face commander moved to the 99",
+ "eligibleCommanders": [
+  "Estrid, the Masked",
+  "Kestia, the Cultivator",
+  "Tuvasa the Sunlit"
+ ]
+}
