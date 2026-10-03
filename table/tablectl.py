@@ -110,6 +110,10 @@ def fmt_event(e):
         return f"[{t}] #{e['id']} LIFE {e['player']} {e['delta']:+d} → {e['life']} (by {e['by']})"
     if k == "captain":
         return f"[{t}] #{e['id']} ⚓ {e.get('captain')} ({e.get('seat')}): {e.get('text')}"
+    if k == "chat":
+        return f"[{t}] #{e['id']} 💬 CHAT {e.get('by')}: {e.get('text')}"
+    if k == "declare":
+        return f"[{t}] #{e['id']} ⚔ DECLARED by {e.get('by')}: " + "; ".join(f"{a['attacker']} ({a.get('power')}) → {a['target']}" for a in e.get('attacks', []))
     if k == "todo" and e.get("kind") == "answered":
         return (f"[{t}] #{e['id']} 💬 ANSWER to {e.get('ask')}'s question \"{e.get('question')}\": "
                 f"\"{e.get('answer')}\" (by {e.get('by') or '?'}){' — resolved' if e.get('resolved') else ''}")

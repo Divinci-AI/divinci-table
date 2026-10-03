@@ -281,6 +281,16 @@ try:
     code, _ = call("POST", "/api/declare/attack", {"by": "Ben", "attacks": [{"attacker": "X", "target": "Ben"}]})
     check(code == 400, "no attacking yourself (or nobody)")
 
+    print("typed table talk")
+    code, ev0 = call("GET", "/api/events?since=latest")
+    r5 = urllib.request.Request(BASE + "/api/chat", method="POST", data=json.dumps({"by": "Ann", "text": "I'm at 30."}).encode(),
+                                headers={"Content-Type": "application/json", "X-Forwarded-For": "203.0.113.9"})
+    check(urllib.request.urlopen(r5, timeout=20).status == 200, "anyone can type to the table from any device")
+    code, ev = call("GET", f"/api/events?since={ev0['last']}")
+    check(any(e["type"] == "chat" and e["by"] == "Ann" for e in ev["events"]), "the line goes to everyone")
+    code, life = call("GET", "/api/life")
+    check(life.get("Ann") == 30, "…and is read like a spoken line (a life report changes the life total)")
+
     print("snapshot / restore")
     code, st = call("GET", "/api/brain/state?seat=Claude", brain=True)
     before = json.dumps([st["hand"], st["permanents"], st["life"]], sort_keys=True)

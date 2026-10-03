@@ -545,7 +545,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -701,6 +701,15 @@ def handle_utterance(wav: bytes):
                 "speaker": ai_names[0], "speaker_id": enrolling, "stt_ms": t_stt}
     if who and who not in ai_names and margin >= 0.2:
         speakers().enroll(who, audio)                  # a confident match sharpens that voice
+    return respond_text(text, who, t0, t_stt)
+
+
+def respond_text(text: str, who: str | None, t0: float, t_stt: int = 0):
+    """Everything after hearing a line: holds, corrections, routing, table rules, AI replies. Spoken lines
+    (handle_utterance) and typed ones (the chat box, /api/chat) both come through here."""
+    import tablefacts
+    import voice
+    ai_names = [p["name"] for p in AI_PLAYERS]
     if VP and tablefacts.is_hold(text, VP.name):       # "Wait, Claude, hold on." — stop talking, don't act
         emit("hush", by=who)
         if BRAIN_EXTERNAL:
@@ -1691,6 +1700,20 @@ class H(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "key is '<log seq>:<card index>'"})
                 (PLACED.add if b.get("on", True) else PLACED.discard)(key)
                 return self._send(200, {"key": key, "on": key in PLACED})
+            if self.path == "/api/chat":                   # typed table talk from a phone or the board: {"by": "Sam", "text": "..."}
+                b = self._json()
+                by = str(b.get("by", ""))[:30]
+                text = " ".join(str(b.get("text", "")).split())[:400]
+                if not text:
+                    return self._send(400, {"error": "say something"})
+                who = by if by in [h["name"] for h in HUMANS] else None
+                emit("chat", by=by or "someone", text=text)          # everyone sees it; the AIs hear it as if said aloud
+                try:
+                    out = respond_text(text, who, time.time())
+                except Exception as e:                    # the line is in the log either way
+                    print(f"chat handling failed: {type(e).__name__}: {e}", flush=True)
+                    out = {"heard": text}
+                return self._send(200, {"ok": True, **{k: v for k, v in (out or {}).items() if k in ("heard", "reply", "awaiting", "cards")}})
             if self.path == "/api/declare/attack":         # a player declares attacks from a phone or the board:
                 b = self._json()                           # {"by": "Sam", "attacks": [{"attacker", "target", "power", "trample"}]}
                 by = str(b.get("by", ""))[:30]

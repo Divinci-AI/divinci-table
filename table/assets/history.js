@@ -34,6 +34,7 @@
       html: e.back ? `◂ back to ${name(e.player)} · ${esc(e.step)}` : `── ${name(e.player)}'s turn ──` };
     if (t === "declare" && e.kind === "attack") return { who: e.by, kind: "combat",
       html: `⚔ ${name(e.by)} attacks: ` + (e.attacks || []).map(a => `${esc(a.attacker)}${a.power != null ? ` (${esc(a.power)})` : ""} → ${name(a.target)}${a.trample ? " · trample" : ""}`).join(", ") };
+    if (t === "chat") return { who: e.by, kind: "chat", html: `💬 ${name(e.by)}: ${esc(e.text)}` };
     if (t === "captain") return { who: e.seat, kind: "captain", html: `⚓ <i>${esc(e.captain)}</i>: ${esc(e.text)}` };
     if (t === "todo" && e.kind === "added") return { who: "", kind: "table",
       html: (e.items || []).map(x => `🃏 ${x.for ? name(x.for) + ": " : ""}${esc(x.text)}`).join("<br>") };
@@ -42,10 +43,24 @@
     if (t === "new-game") return { who: "", kind: "table", html: "── new game ──" };
     return null;
   }
-  const KINDS = { cast: "casts", mill: "mills", combat: "combat", life: "life", turn: "turns", play: "other plays",
+  const KINDS = { chat: "chat", cast: "casts", mill: "mills", combat: "combat", life: "life", turn: "turns", play: "other plays",
     talk: "talk", captain: "captains", table: "table" };
   let hidden = new Set(JSON.parse(store("history.hidden") || '["talk"]'));
-  let placed = new Set(), placedSig = "";
+  let placed = new Set(), placedSig = "", seatNames = [];
+  const urlPlayer = new URLSearchParams(location.search).get("player");
+  const seatsForChat = () => seatNames.length ? seatNames : [urlPlayer || "someone"];
+  const chatAs = () => urlPlayer || store("chat.as") || seatsForChat()[0];
+  fetch("/api/phase").then(r => r.json()).then(p => {
+    seatNames = (p.order || []).filter(n => !(p.ai || []).includes(n));          // the people at the table
+    drawn = -1; render();
+  }).catch(() => {});
+  async function sayIt() {
+    const i = box.querySelector("[data-chat]"), as = box.querySelector("[data-as]")?.value || chatAs();
+    const text = (i?.value || "").trim(); if (!text) return;
+    store("chat.as", as); i.value = ""; i.placeholder = "sent ✓";
+    await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ by: as, text }) });
+    setTimeout(poll, 400);
+  }
   function rowHtml(r) {
     if (!r.mill) return r.html;
     const { seq, cards } = r.mill, done = cards.filter((_, i) => placed.has(`${seq}:${i}`)).length;
@@ -87,6 +102,12 @@
         ${Object.entries(KINDS).map(([k, l]) => `<label style="font-size:11.5px;opacity:${hidden.has(k) ? .45 : 1};cursor:pointer"><input type="checkbox" data-kind="${k}" ${hidden.has(k) ? "" : "checked"} style="vertical-align:-2px"> ${l}</label>`).join("")}
       </div>
       <div style="padding:0 12px 6px"><input data-act="q" value="${esc(query)}" placeholder="search: a card, a player…" style="width:100%;box-sizing:border-box;background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:7px;padding:5px 8px;font:inherit"></div>
+      <div style="display:flex;gap:5px;padding:0 12px 8px">
+        <select data-as title="who's talking" style="background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:7px;padding:3px">
+          ${seatsForChat().map(n => `<option ${n === chatAs() ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
+        <input data-chat placeholder="tell the table: “I activate Rogue's Passage on Sewer Nemesis”…" style="flex:1;min-width:0;background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:7px;padding:5px 8px;font:inherit">
+        <button data-act="say" style="border:0;background:#2d5a8a;color:#fff;border-radius:7px;padding:3px 10px;cursor:pointer;font:inherit">send</button>
+      </div>
       <div data-list style="${PAGE || tall ? "flex:1;min-height:0" : "max-height:min(52vh,460px)"};overflow:auto;padding:0 12px 10px">
         ${shown.length ? shown.slice().reverse().map(r => `<div style="padding:4px 0;border-top:1px solid #23262e"><span style="opacity:.45;font-size:11px">${new Date(r.ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span> ${rowHtml(r)}</div>`).join("")
           : `<div style="opacity:.6;padding:6px 0">Nothing matches.</div>`}
@@ -97,6 +118,7 @@
   box.addEventListener("click", ev => {
     const a = ev.target.closest("[data-act]")?.dataset.act;
     if (a === "open" || a === "close") { open = a === "open"; store("history.open", open ? "1" : "0"); render(); return; }
+    if (a === "say") { sayIt(); return; }
     if (a === "tall") { tall = !tall; store("history.tall", tall ? "1" : "0"); render(); return; }
     if (a === "pop") { window.open("/log", "game-log", "width=480,height=900"); open = false; store("history.open", "0"); render(); return; }
     const pc = ev.target.closest("[data-placed]");
@@ -111,6 +133,7 @@
     const k = ev.target.closest("[data-kind]");
     if (k) { k.checked ? hidden.delete(k.dataset.kind) : hidden.add(k.dataset.kind); store("history.hidden", JSON.stringify([...hidden])); render(); }
   });
+  box.addEventListener("keydown", ev => { if (ev.target.dataset.chat !== undefined && ev.key === "Enter") sayIt(); });
   box.addEventListener("input", ev => {
     if (ev.target.dataset.act !== "q") return;
     query = ev.target.value; const pos = ev.target.selectionStart;
@@ -131,7 +154,7 @@
       }
       try { const p = await (await fetch("/api/placed")).text();
             if (p !== placedSig) { placedSig = p; placed = new Set(JSON.parse(p)); drawn = -1; } } catch {}
-      const typing = box.contains(document.activeElement) && document.activeElement.dataset.act === "q";
+      const typing = box.contains(document.activeElement) && (document.activeElement.dataset.act === "q" || document.activeElement.dataset.chat !== undefined);
       if (rows.length !== drawn && !typing) render();   // only when something changed: no scroll jumps
     } catch {}
   }
