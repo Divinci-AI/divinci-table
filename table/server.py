@@ -2614,6 +2614,23 @@ class H(BaseHTTPRequestHandler):
                     VP.graveyard.remove(hit)
                     to = str(b.get("to", ""))[:60]
                     said = [f"{hit['name']} leaves my graveyard" + (f" — {to}." if to else ".")]
+                elif action == "animate":                  # "becomes an X/Y artifact creature" (Depthshaker Titan, vehicles)
+                    p = VP.perm(b["ref"])
+                    card = dict(p.card)
+                    card["types"] = list(dict.fromkeys((card.get("types") or []) + ["Creature"]))
+                    card["power"], card["toughness"] = str(b["power"]), str(b["toughness"])
+                    card["keywords"] = list(dict.fromkeys((card.get("keywords") or []) + list(b.get("keywords") or [])))
+                    p.card = card
+                    said = [f"{p.name} becomes a {b['power']}/{b['toughness']} artifact creature."]
+                elif action == "take":                     # "cast a card from an opponent's hand" (Silent-Blade Oni)
+                    src = VPS.get(b.get("from") or "")
+                    if src is None or src is VP:
+                        raise ValueError("take needs --from another engine seat")
+                    i = next((i for i, c in enumerate(src.hand) if c["name"].lower() == b["name"].lower()), None)
+                    if i is None:
+                        raise ValueError(f"{b['from']} has no {b['name']} in hand")
+                    VP.hand.append(src.hand.pop(i))
+                    said = [f"I take {VP.hand[-1]['name']} from {b['from']}'s hand to cast it."]
                 elif action == "put":                      # ninjutsu / "put onto the battlefield" from hand
                     said = VP.put(b["name"], tapped=bool(b.get("tapped")))
                 elif action == "blink":

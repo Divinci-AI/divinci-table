@@ -1,0 +1,2029 @@
+{
+ "name": "Counter Intelligence",
+ "commander": [
+  {
+   "colorIdentity": [
+    "R",
+    "U",
+    "W"
+   ],
+   "colors": [
+    "R",
+    "U",
+    "W"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{U}{R}{W}",
+   "manaValue": 3.0,
+   "name": "Inspirit, Flagship Vessel",
+   "power": "5",
+   "subtypes": [
+    "Spacecraft"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Station (Tap another creature you control: Put charge counters equal to its power on this Spacecraft. Station only as a sorcery. It's an artifact creature at 8+.)\n1+ | At the beginning of combat on your turn, put your choice of a +1/+1 counter or two charge counters on up to one other target artifact.\n8+ | Flying\nOther artifacts you control have hexproof and indestructible.",
+   "toughness": "5",
+   "type": "Legendary Artifact \u2014 Spacecraft",
+   "types": [
+    "Artifact"
+   ],
+   "keywords": [
+    "Station"
+   ]
+  }
+ ],
+ "mainBoard": [
+  {
+   "colorIdentity": [
+    "R",
+    "U",
+    "W"
+   ],
+   "colors": [
+    "R",
+    "U",
+    "W"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{U}{R}{W}",
+   "manaValue": 3.0,
+   "name": "Kilo, Apogee Mind",
+   "power": "3",
+   "subtypes": [
+    "Robot",
+    "Artificer"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Haste\nWhenever Kilo becomes tapped, proliferate. (Choose any number of permanents and/or players, then give each another counter of each kind already there.)",
+   "toughness": "3",
+   "type": "Legendary Artifact Creature \u2014 Robot Artificer",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "keywords": [
+    "Haste",
+    "Proliferate"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "W"
+   ],
+   "colors": [
+    "W"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{W}",
+   "manaValue": 3.0,
+   "name": "Patrolling Peacemaker",
+   "power": "0",
+   "subtypes": [
+    "Robot",
+    "Soldier"
+   ],
+   "supertypes": [],
+   "text": "This creature enters with two +1/+1 counters on it.\nWhenever an opponent commits a crime, proliferate. (They commit a crime if they target an opponent, anything an opponent controls, and/or cards in an opponent's graveyard. To proliferate, you choose any number of permanents and/or players, then give each another counter of each kind already there.)",
+   "toughness": "0",
+   "type": "Artifact Creature \u2014 Robot Soldier",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "keywords": [
+    "Proliferate"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "name": "Insight Engine",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{2}, {T}: Put a charge counter on this artifact, then draw a card for each charge counter on it.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "name": "Uthros Research Craft",
+   "power": "0",
+   "subtypes": [
+    "Spacecraft"
+   ],
+   "supertypes": [],
+   "text": "Station (Tap another creature you control: Put charge counters equal to its power on this Spacecraft. Station only as a sorcery. It's an artifact creature at 12+.)\n3+ | Whenever you cast an artifact spell, draw a card. Put a charge counter on this Spacecraft.\n12+ | Flying\nThis Spacecraft gets +1/+0 for each artifact you control.",
+   "toughness": "8",
+   "type": "Artifact \u2014 Spacecraft",
+   "types": [
+    "Artifact"
+   ],
+   "keywords": [
+    "Station"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R"
+   ],
+   "colors": [
+    "R"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{5}{R}{R}",
+   "manaValue": 7.0,
+   "name": "Depthshaker Titan",
+   "power": "5",
+   "subtypes": [
+    "Robot"
+   ],
+   "supertypes": [],
+   "text": "When this creature enters, any number of target noncreature artifacts you control become 3/3 artifact creatures. Sacrifice them at the beginning of the next end step.\nEach artifact creature you control has melee, trample, and haste. (Whenever a creature with melee attacks, it gets +1/+1 until end of turn for each opponent you attacked this combat.)",
+   "toughness": "5",
+   "type": "Artifact Creature \u2014 Robot",
+   "types": [
+    "Artifact",
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R"
+   ],
+   "colors": [
+    "R"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{R}",
+   "manaValue": 3.0,
+   "name": "Long-Range Sensor",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever you attack a player, put a charge counter on this artifact.\n{1}, Remove two charge counters from this artifact: Discover 4. Activate only as a sorcery. (Exile cards from the top of your library until you exile a nonland card with mana value 4 or less. Cast it without paying its mana cost or put it into your hand. Put the rest on the bottom in a random order.)",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "keywords": [
+    "Discover"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Moxite Refinery",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{2}, {T}, Remove X counters from an artifact or creature you control: Choose one. Activate only as a sorcery.\n\u2022 Put X charge counters on target artifact.\n\u2022 Put X +1/+1 counters on target creature.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "name": "Solar Array",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color. When you next cast an artifact spell this turn, that spell gains sunburst. (If it's a creature, it enters with a +1/+1 counter on it for each color of mana spent to cast it. Otherwise, it enters with that many charge counters on it.)",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "name": "Surge Conductor",
+   "power": "3",
+   "subtypes": [
+    "Robot"
+   ],
+   "supertypes": [],
+   "text": "Whenever another nontoken artifact you control enters, proliferate. (Choose any number of permanents and/or players, then give each another counter of each kind already there.)",
+   "toughness": "2",
+   "type": "Artifact Creature \u2014 Robot",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "keywords": [
+    "Proliferate"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Glittering Massif",
+   "subtypes": [
+    "Mountain",
+    "Plains"
+   ],
+   "supertypes": [],
+   "text": "({T}: Add {R} or {W}.)\nThis land enters tapped.\nCycling {2} ({2}, Discard this card: Draw a card.)",
+   "type": "Land \u2014 Mountain Plains",
+   "types": [
+    "Land"
+   ],
+   "keywords": [
+    "Cycling"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Radiant Summit",
+   "subtypes": [
+    "Mountain",
+    "Plains"
+   ],
+   "supertypes": [],
+   "text": "({T}: Add {R} or {W}.)\nThis land enters tapped unless you control two or more basic lands.",
+   "type": "Land \u2014 Mountain Plains",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{U}",
+   "manaValue": 1.0,
+   "name": "Swan Song",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Counter target enchantment, instant, or sorcery spell. Its controller creates a 2/2 blue Bird creature token with flying.",
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R"
+   ],
+   "colors": [
+    "R"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{R}",
+   "manaValue": 3.0,
+   "name": "Chaos Warp",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "The owner of target permanent shuffles it into their library, then reveals the top card of their library. If it's a permanent card, they put it onto the battlefield.",
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "name": "Cloud Key",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "As this artifact enters, choose artifact, creature, enchantment, instant, or sorcery.\nSpells you cast of the chosen type cost {1} less to cast.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Gavel of the Righteous",
+   "subtypes": [
+    "Equipment"
+   ],
+   "supertypes": [],
+   "text": "At the beginning of combat on your turn, put a charge counter on this Equipment.\nEquipped creature gets +1/+1 for each counter on this Equipment.\nAs long as this Equipment has four or more counters on it, equipped creature has double strike.\nEquip\u2014Pay {3} or remove a counter from this Equipment.",
+   "type": "Artifact \u2014 Equipment",
+   "types": [
+    "Artifact"
+   ],
+   "keywords": [
+    "Equip"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Battlefield Forge",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{T}: Add {R} or {W}. This land deals 1 damage to you.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "W"
+   ],
+   "colors": [
+    "W"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{5}{W}{W}",
+   "manaValue": 7.0,
+   "name": "Angel of the Ruins",
+   "power": "5",
+   "subtypes": [
+    "Angel"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhen this creature enters, exile up to two target artifacts and/or enchantments.\nPlainscycling {2} ({2}, Discard this card: Search your library for a Plains card, reveal it, put it into your hand, then shuffle.)",
+   "toughness": "7",
+   "type": "Artifact Creature \u2014 Angel",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "keywords": [
+    "Cycling",
+    "Flying",
+    "Landcycling",
+    "Plainscycling",
+    "Typecycling"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "W"
+   ],
+   "colors": [
+    "W"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{W}{W}",
+   "manaValue": 5.0,
+   "name": "Fumigate",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy all creatures. You gain 1 life for each creature destroyed this way.",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "W"
+   ],
+   "colors": [
+    "W"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{8}{W}{W}",
+   "manaValue": 10.0,
+   "name": "Organic Extinction",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Improvise (Your artifacts can help cast this spell. Each artifact you tap after you're done activating mana abilities pays for {1}.)\nDestroy all nonartifact creatures.",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "keywords": [
+    "Improvise"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "W"
+   ],
+   "colors": [
+    "W"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{W}",
+   "manaValue": 3.0,
+   "name": "Resourceful Defense",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever a permanent you control leaves the battlefield, if it had counters on it, put those counters on target permanent you control.\n{4}{W}: Move any number of counters from target permanent you control onto a second target permanent you control.",
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "name": "Chrome Host Seedshark",
+   "power": "2",
+   "subtypes": [
+    "Phyrexian",
+    "Shark"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhenever you cast a noncreature spell, incubate X, where X is that spell's mana value. (Create an Incubator token with X +1/+1 counters on it and \"{2}: Transform this token.\" It transforms into a 0/0 Phyrexian artifact creature.)",
+   "toughness": "4",
+   "type": "Creature \u2014 Phyrexian Shark",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Flying",
+    "Incubate",
+    "Transform"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{5}{U}",
+   "manaValue": 6.0,
+   "name": "Cyberdrive Awakener",
+   "power": "4",
+   "subtypes": [
+    "Construct"
+   ],
+   "supertypes": [],
+   "text": "Flying\nOther artifact creatures you control have flying.\nWhen this creature enters, each noncreature artifact you control becomes a 4/4 artifact creature until end of turn.",
+   "toughness": "4",
+   "type": "Artifact Creature \u2014 Construct",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "keywords": [
+    "Flying"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{4}{U}",
+   "manaValue": 5.0,
+   "name": "Deepglow Skate",
+   "power": "3",
+   "subtypes": [
+    "Fish"
+   ],
+   "supertypes": [],
+   "text": "When this creature enters, double the number of each kind of counter on any number of target permanents.",
+   "toughness": "3",
+   "type": "Creature \u2014 Fish",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Double"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "name": "Emry, Lurker of the Loch",
+   "power": "1",
+   "subtypes": [
+    "Merfolk",
+    "Wizard"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Affinity for artifacts (This spell costs {1} less to cast for each artifact you control.)\nWhen Emry enters, mill four cards.\n{T}: Choose target artifact card in your graveyard. You may cast that card this turn. (You still pay its costs. Timing rules still apply.)",
+   "toughness": "2",
+   "type": "Legendary Creature \u2014 Merfolk Wizard",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Affinity",
+    "Mill"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{5}{U}",
+   "manaValue": 6.0,
+   "name": "Kappa Cannoneer",
+   "power": "4",
+   "subtypes": [
+    "Turtle",
+    "Warrior"
+   ],
+   "supertypes": [],
+   "text": "Improvise (Your artifacts can help cast this spell. Each artifact you tap after you're done activating mana abilities pays for {1}.)\nWard {4}\nWhenever this creature or another artifact you control enters, put a +1/+1 counter on this creature. It can't be blocked this turn.",
+   "toughness": "4",
+   "type": "Artifact Creature \u2014 Turtle Warrior",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "keywords": [
+    "Improvise",
+    "Ward"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{U/P}",
+   "manaValue": 4.0,
+   "name": "Phyrexian Metamorph",
+   "power": "0",
+   "subtypes": [
+    "Phyrexian",
+    "Shapeshifter"
+   ],
+   "supertypes": [],
+   "text": "({U/P} can be paid with either {U} or 2 life.)\nYou may have this creature enter as a copy of any artifact or creature on the battlefield, except it's an artifact in addition to its other types.",
+   "toughness": "0",
+   "type": "Artifact Creature \u2014 Phyrexian Shapeshifter",
+   "types": [
+    "Artifact",
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{X}{U}{U}",
+   "manaValue": 2.0,
+   "name": "Pull from Tomorrow",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Draw X cards, then discard a card.",
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{1}{U}",
+   "manaValue": 2.0,
+   "name": "Ripples of Potential",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Proliferate, then choose any number of permanents you control that had a counter put on them this way. Those permanents phase out. (To proliferate, choose any number of permanents and/or players, then give each another counter of each kind already there. Treat phased-out permanents and anything attached to them as though they don't exist until their controller's next turn.)",
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "keywords": [
+    "Proliferate"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}{U}",
+   "manaValue": 4.0,
+   "name": "Tekuthal, Inquiry Dominus",
+   "power": "3",
+   "subtypes": [
+    "Phyrexian",
+    "Horror"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Flying\nIf you would proliferate, proliferate twice instead.\n{1}{U/P}{U/P}, Remove three counters from among other artifacts, creatures, and planeswalkers you control: Put an indestructible counter on Tekuthal. ({U/P} can be paid with either {U} or 2 life.)",
+   "toughness": "5",
+   "type": "Legendary Creature \u2014 Phyrexian Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Flying",
+    "Proliferate"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{6}{U}",
+   "manaValue": 7.0,
+   "name": "Thought Monitor",
+   "power": "2",
+   "subtypes": [
+    "Construct"
+   ],
+   "supertypes": [],
+   "text": "Affinity for artifacts (This spell costs {1} less to cast for each artifact you control.)\nFlying\nWhen this creature enters, draw two cards.",
+   "toughness": "2",
+   "type": "Artifact Creature \u2014 Construct",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "keywords": [
+    "Affinity",
+    "Flying"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{X}{U}{U}{U}",
+   "manaValue": 3.0,
+   "name": "Universal Surveillance",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Improvise (Your artifacts can help cast this spell. Each artifact you tap after you're done activating mana abilities pays for {1}.)\nDraw X cards.",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "keywords": [
+    "Improvise"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R"
+   ],
+   "colors": [
+    "R"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{R}{R}",
+   "manaValue": 4.0,
+   "name": "Chain Reaction",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Chain Reaction deals X damage to each creature, where X is the number of creatures on the battlefield.",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "colors": [
+    "R",
+    "W"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{R}{W}",
+   "manaValue": 5.0,
+   "name": "Alibou, Ancient Witness",
+   "power": "4",
+   "subtypes": [
+    "Golem"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Other artifact creatures you control have haste.\nWhenever one or more artifact creatures you control attack, Alibou deals X damage to any target and you scry X, where X is the number of tapped artifacts you control.",
+   "toughness": "5",
+   "type": "Legendary Artifact Creature \u2014 Golem",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "colors": [
+    "R",
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}{R}",
+   "manaValue": 4.0,
+   "name": "Jhoira, Weatherlight Captain",
+   "power": "3",
+   "subtypes": [
+    "Human",
+    "Artificer"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Whenever you cast a historic spell, draw a card. (Artifacts, legendaries, and Sagas are historic.)",
+   "toughness": "3",
+   "type": "Legendary Creature \u2014 Human Artificer",
+   "types": [
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "colors": [
+    "R",
+    "W"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{5}{R}{W}",
+   "manaValue": 7.0,
+   "name": "Wake the Past",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Return all artifact cards from your graveyard to the battlefield. They gain haste until end of turn.",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{X}{X}{X}",
+   "manaValue": 0.0,
+   "name": "Astral Cornucopia",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This artifact enters with X charge counters on it.\n{T}: Choose a color. Add one mana of that color for each charge counter on this artifact.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{4}",
+   "manaValue": 4.0,
+   "name": "Crystalline Crawler",
+   "power": "1",
+   "subtypes": [
+    "Construct"
+   ],
+   "supertypes": [],
+   "text": "Converge \u2014 This creature enters with a +1/+1 counter on it for each color of mana spent to cast it.\nRemove a +1/+1 counter from this creature: Add one mana of any color.\n{T}: Put a +1/+1 counter on this creature.",
+   "toughness": "1",
+   "type": "Artifact Creature \u2014 Construct",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "keywords": [
+    "Converge"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{4}",
+   "manaValue": 4.0,
+   "name": "Darksteel Reactor",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Indestructible (Effects that say \"destroy\" don't destroy this artifact.)\nAt the beginning of your upkeep, you may put a charge counter on this artifact.\nWhen this artifact has twenty or more charge counters on it, you win the game.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "keywords": [
+    "Indestructible"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{4}",
+   "manaValue": 4.0,
+   "name": "Empowered Autogenerator",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This artifact enters tapped.\n{T}: Put a charge counter on this artifact. Add X mana of any one color, where X is the number of charge counters on this artifact.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{X}{X}",
+   "manaValue": 0.0,
+   "name": "Hangarback Walker",
+   "power": "0",
+   "subtypes": [
+    "Construct"
+   ],
+   "supertypes": [],
+   "text": "This creature enters with X +1/+1 counters on it.\nWhen this creature dies, create a 1/1 colorless Thopter artifact creature token with flying for each +1/+1 counter on this creature.\n{1}, {T}: Put a +1/+1 counter on this creature.",
+   "toughness": "0",
+   "type": "Artifact Creature \u2014 Construct",
+   "types": [
+    "Artifact",
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{4}",
+   "manaValue": 4.0,
+   "name": "Lux Artillery",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever you cast an artifact creature spell, it gains sunburst. (It enters with a +1/+1 counter on it for each color of mana spent to cast it.)\nAt the beginning of your end step, if there are thirty or more counters among artifacts and creatures you control, this artifact deals 10 damage to each opponent.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{4}",
+   "manaValue": 4.0,
+   "name": "Lux Cannon",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Put a charge counter on this artifact.\n{T}, Remove three charge counters from this artifact: Destroy target permanent.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Steel Overseer",
+   "power": "1",
+   "subtypes": [
+    "Construct"
+   ],
+   "supertypes": [],
+   "text": "{T}: Put a +1/+1 counter on each artifact creature you control.",
+   "toughness": "1",
+   "type": "Artifact Creature \u2014 Construct",
+   "types": [
+    "Artifact",
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{7}",
+   "manaValue": 7.0,
+   "name": "Threefold Thunderhulk",
+   "power": "0",
+   "subtypes": [
+    "Gnome"
+   ],
+   "supertypes": [],
+   "text": "This creature enters with three +1/+1 counters on it.\nWhenever this creature enters or attacks, create a number of 1/1 colorless Gnome artifact creature tokens equal to its power.\n{2}, Sacrifice another artifact: Put a +1/+1 counter on this creature.",
+   "toughness": "0",
+   "type": "Artifact Creature \u2014 Gnome",
+   "types": [
+    "Artifact",
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "name": "Titan Forge",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{3}, {T}: Put a charge counter on this artifact.\n{T}, Remove three charge counters from this artifact: Create a 9/9 colorless Golem artifact creature token.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Adarkar Wastes",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{T}: Add {W} or {U}. This land deals 1 damage to you.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Cascade Bluffs",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{U/R}, {T}: Add {U}{U}, {U}{R}, or {R}{R}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Clifftop Retreat",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped unless you control a Mountain or a Plains.\n{T}: Add {R} or {W}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Exotic Orchard",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color that a land an opponent controls could produce.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Glacial Fortress",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped unless you control a Plains or an Island.\n{T}: Add {W} or {U}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Irrigated Farmland",
+   "subtypes": [
+    "Plains",
+    "Island"
+   ],
+   "supertypes": [],
+   "text": "({T}: Add {W} or {U}.)\nThis land enters tapped.\nCycling {2} ({2}, Discard this card: Draw a card.)",
+   "type": "Land \u2014 Plains Island",
+   "types": [
+    "Land"
+   ],
+   "keywords": [
+    "Cycling"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Karn's Bastion",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{4}, {T}: Proliferate. (Choose any number of permanents and/or players, then give each another counter of each kind already there.)",
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "keywords": [
+    "Proliferate"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "The Mycosynth Gardens",
+   "subtypes": [
+    "Sphere"
+   ],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{1}, {T}: Add one mana of any color.\n{X}, {T}: This land becomes a copy of target nontoken artifact you control with mana value X.",
+   "type": "Land \u2014 Sphere",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Rugged Prairie",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{R/W}, {T}: Add {R}{R}, {R}{W}, or {W}{W}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Shivan Reef",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{T}: Add {U} or {R}. This land deals 1 damage to you.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Skycloud Expanse",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{1}, {T}: Add {W}{U}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Spire of Industry",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{T}, Pay 1 life: Add one mana of any color. Activate only if you control an artifact.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Sulfur Falls",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped unless you control an Island or a Mountain.\n{T}: Add {U} or {R}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Temple of Enlightenment",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {W} or {U}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Temple of Epiphany",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {U} or {R}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Temple of Triumph",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {R} or {W}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "W"
+   ],
+   "colors": [
+    "W"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{W}",
+   "manaValue": 1.0,
+   "name": "Swords to Plowshares",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Exile target creature. Its controller gains life equal to its power.",
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{U/P}",
+   "manaValue": 4.0,
+   "name": "Tezzeret's Gambit",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "({U/P} can be paid with either {U} or 2 life.)\nDraw two cards, then proliferate. (Choose any number of permanents and/or players, then give each another counter of each kind already there.)",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "keywords": [
+    "Proliferate"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "name": "Thirst for Knowledge",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Draw three cards. Then discard two cards unless you discard an artifact card.",
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Arcane Signet",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color in your commander's color identity.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Pentad Prism",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Sunburst (This artifact enters with a charge counter on it for each color of mana spent to cast it.)\nRemove a charge counter from this artifact: Add one mana of any color.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "keywords": [
+    "Sunburst"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{1}",
+   "manaValue": 1.0,
+   "name": "Sol Ring",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}{C}.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Command Tower",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color in your commander's color identity.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "W"
+   ],
+   "colors": [
+    "W"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{W}",
+   "manaValue": 1.0,
+   "name": "Dispatch",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Tap target creature.\nMetalcraft \u2014 If you control three or more artifacts, exile that creature.",
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "keywords": [
+    "Metalcraft"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{1}{U}",
+   "manaValue": 2.0,
+   "name": "Etherium Sculptor",
+   "power": "1",
+   "subtypes": [
+    "Vedalken",
+    "Artificer"
+   ],
+   "supertypes": [],
+   "text": "Artifact spells you cast cost {1} less to cast.",
+   "toughness": "2",
+   "type": "Artifact Creature \u2014 Vedalken Artificer",
+   "types": [
+    "Artifact",
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{1}{U}",
+   "manaValue": 2.0,
+   "name": "Experimental Augury",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Look at the top three cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order. Proliferate. (Choose any number of permanents and/or players, then give each another counter of each kind already there.)",
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "keywords": [
+    "Proliferate"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{1}{U}",
+   "manaValue": 2.0,
+   "name": "Thrummingbird",
+   "power": "1",
+   "subtypes": [
+    "Phyrexian",
+    "Bird",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhenever this creature deals combat damage to a player, proliferate. (Choose any number of permanents and/or players, then give each another counter of each kind already there.)",
+   "toughness": "1",
+   "type": "Creature \u2014 Phyrexian Bird Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Flying",
+    "Proliferate"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "colors": [
+    "R",
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{U}{R}",
+   "manaValue": 2.0,
+   "name": "Enthusiastic Mechanaut",
+   "power": "2",
+   "subtypes": [
+    "Goblin",
+    "Artificer"
+   ],
+   "supertypes": [],
+   "text": "Flying\nArtifact spells you cast cost {1} less to cast.",
+   "toughness": "2",
+   "type": "Artifact Creature \u2014 Goblin Artificer",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "keywords": [
+    "Flying"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Coretapper",
+   "power": "1",
+   "subtypes": [
+    "Myr"
+   ],
+   "supertypes": [],
+   "text": "{T}: Put a charge counter on target artifact.\nSacrifice this creature: Put two charge counters on target artifact.",
+   "toughness": "1",
+   "type": "Artifact Creature \u2014 Myr",
+   "types": [
+    "Artifact",
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{4}",
+   "manaValue": 4.0,
+   "name": "Etched Oracle",
+   "power": "0",
+   "subtypes": [
+    "Wizard"
+   ],
+   "supertypes": [],
+   "text": "Sunburst (This creature enters with a +1/+1 counter on it for each color of mana spent to cast it.)\n{1}, Remove four +1/+1 counters from this creature: Target player draws three cards.",
+   "toughness": "0",
+   "type": "Artifact Creature \u2014 Wizard",
+   "types": [
+    "Artifact",
+    "Creature"
+   ],
+   "keywords": [
+    "Sunburst"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{0}",
+   "manaValue": 0.0,
+   "name": "Everflowing Chalice",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Multikicker {2} (You may pay an additional {2} any number of times as you cast this spell.)\nThis artifact enters with a charge counter on it for each time it was kicked.\n{T}: Add {C} for each charge counter on this artifact.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "keywords": [
+    "Multikicker"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "name": "Golem Foundry",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever you cast an artifact spell, you may put a charge counter on this artifact.\nRemove three charge counters from this artifact: Create a 3/3 colorless Golem artifact creature token.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{4}",
+   "manaValue": 4.0,
+   "name": "Mindless Automaton",
+   "power": "0",
+   "subtypes": [
+    "Construct"
+   ],
+   "supertypes": [],
+   "text": "This creature enters with two +1/+1 counters on it.\n{1}, Discard a card: Put a +1/+1 counter on this creature.\nRemove two +1/+1 counters from this creature: Draw a card.",
+   "toughness": "0",
+   "type": "Artifact Creature \u2014 Construct",
+   "types": [
+    "Artifact",
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{1}",
+   "manaValue": 1.0,
+   "name": "Soul-Guide Lantern",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "When this artifact enters, exile target card from a graveyard.\n{T}, Sacrifice this artifact: Exile each opponent's graveyard.\n{1}, {T}, Sacrifice this artifact: Draw a card.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Ancient Den",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {W}.",
+   "type": "Artifact Land",
+   "types": [
+    "Artifact",
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Buried Ruin",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Return target artifact card from your graveyard to your hand.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Evolving Wilds",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Great Furnace",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {R}.",
+   "type": "Artifact Land",
+   "types": [
+    "Artifact",
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Lonely Sandbar",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {U}.\nCycling {U} ({U}, Discard this card: Draw a card.)",
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "keywords": [
+    "Cycling"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "U",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Mystic Monastery",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {U}, {R}, or {W}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Razortide Bridge",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nIndestructible\n{T}: Add {W} or {U}.",
+   "type": "Artifact Land",
+   "types": [
+    "Artifact",
+    "Land"
+   ],
+   "keywords": [
+    "Indestructible"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Rustvale Bridge",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nIndestructible\n{T}: Add {R} or {W}.",
+   "type": "Artifact Land",
+   "types": [
+    "Artifact",
+    "Land"
+   ],
+   "keywords": [
+    "Indestructible"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Seat of the Synod",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {U}.",
+   "type": "Artifact Land",
+   "types": [
+    "Artifact",
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "W"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Secluded Steppe",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {W}.\nCycling {W} ({W}, Discard this card: Draw a card.)",
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "keywords": [
+    "Cycling"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Silverbluff Bridge",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nIndestructible\n{T}: Add {U} or {R}.",
+   "type": "Artifact Land",
+   "types": [
+    "Artifact",
+    "Land"
+   ],
+   "keywords": [
+    "Indestructible"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "W"
+   ],
+   "colors": [],
+   "count": 3,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Plains",
+   "subtypes": [
+    "Plains"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {W}.)",
+   "type": "Basic Land \u2014 Plains",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [],
+   "count": 3,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Island",
+   "subtypes": [
+    "Island"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {U}.)",
+   "type": "Basic Land \u2014 Island",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "R"
+   ],
+   "colors": [],
+   "count": 3,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Mountain",
+   "subtypes": [
+    "Mountain"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {R}.)",
+   "type": "Basic Land \u2014 Mountain",
+   "types": [
+    "Land"
+   ]
+  }
+ ],
+ "source": "MTGJSON CounterIntelligence_EOC (unmodified precon), led by Inspirit, Flagship Vessel as Michael played it",
+ "eligibleCommanders": [
+  "Inspirit, Flagship Vessel"
+ ]
+}

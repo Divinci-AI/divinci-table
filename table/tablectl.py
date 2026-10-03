@@ -251,6 +251,8 @@ def main():
     for verb in ("destroy", "exile", "bounce", "tap", "untap"):
         v = sub.add_parser(verb); v.add_argument("ref"); v.add_argument("--quiet", action="store_true")
     co = sub.add_parser("counter"); co.add_argument("ref"); co.add_argument("n", type=int)
+    t = sub.add_parser("animate"); t.add_argument("ref"); t.add_argument("power"); t.add_argument("toughness"); t.add_argument("keywords", nargs="*")
+    t = sub.add_parser("take"); t.add_argument("name"); t.add_argument("--from", dest="from_", required=True)
     t = sub.add_parser("token"); t.add_argument("name"); t.add_argument("power", type=int); t.add_argument("toughness", type=int)
     t.add_argument("--n", type=int, default=1); t.add_argument("--tapped", action="store_true")
     pk = sub.add_parser("peek", help="PRIVATE: the top N cards of your library"); pk.add_argument("n", type=int)
@@ -347,6 +349,10 @@ def main():
         return act(a.cmd, ref=a.ref, quiet=q, announce=not q)
     if a.cmd == "counter":
         return act("counter", ref=a.ref, n=a.n)
+    if a.cmd == "animate":
+        return act("animate", ref=a.ref, power=a.power, toughness=a.toughness, keywords=a.keywords)
+    if a.cmd == "take":
+        return act("take", name=a.name, **{"from": a.from_})
     if a.cmd == "token":
         return act("token", name=a.name, power=a.power, toughness=a.toughness, keywords=a.keywords, n=a.n,
                    tapped=a.tapped)
