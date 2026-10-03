@@ -260,7 +260,10 @@ def _card_view(name: str | None, **kw) -> dict:
     if name is None:
         return {"name": None, "face_down": True, **kw}
     c = oracle.card(name) or {}
-    pt = kw.pop("pt", None) or (f"{c['power']}/{c['toughness']}" if c.get("power") is not None else None)
+    printed = f"{c['power']}/{c['toughness']}" if c.get("power") is not None else None
+    if any(t in (c.get("type") or "") for t in ("Spacecraft", "Vehicle")):
+        printed = None                                # not a creature until stationed / crewed: no P/T unless told
+    pt = kw.pop("pt", None) or printed
     return {"name": name, "cost": c.get("cost", ""), "type": c.get("type") or kw.pop("type", ""),
             "text": (c.get("text") or "")[:400], "pt": pt, **kw}
 
