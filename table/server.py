@@ -416,6 +416,15 @@ def start_turn(name: str):
     PHASE.update(player=name, step=0, begun=False)
     PRIORITY.update(step=None, waiting=[], seats=[], deadline=0.0, beat_until=0.0)
     emit("phase", player=name, step=STEPS[0], index=0)
+    with VP_LOCK:                                     # Seedborn Muse: "untap all permanents you control during
+        for n, v in VPS.items():                      # each other player's untap step"
+            if n != name and any(p.name == "Seedborn Muse" and not p.face_down for p in v.battlefield):
+                tapped = [p for p in v.battlefield if p.tapped]
+                for p in tapped:
+                    p.tapped = False
+                if tapped:
+                    emit("say", speaker=n, text=f"Seedborn Muse untaps my permanents during {name}'s untap step.",
+                         action="untap", speech=f"Seedborn Muse untaps my permanents.")
     if name in VPS:
         if BRAIN_EXTERNAL:
             ev = emit("attention", kind="turn", text="(NEXT)", addressee=name)
