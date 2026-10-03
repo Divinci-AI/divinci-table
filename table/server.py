@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import hashlib
 import json
 import os
 import secrets
@@ -339,7 +340,7 @@ def snapshot():
         with VP_LOCK, PHASE_LOCK:
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
                                  "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
-                                 "HIGHROLL": HIGHROLL, "ev_id": _ev_id[0], "saved": time.time()})
+                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "ev_id": _ev_id[0], "saved": time.time()})
         p = research_dir() / "snapshot.pkl"
         tmp = p.with_suffix(".tmp")
         tmp.write_bytes(blob)
@@ -357,6 +358,7 @@ def restore(path: str):
     LIFE.update(d["LIFE"]); FAIR.update(d["FAIR"]); PHASE.update(d["PHASE"]); HAND_N.update(d.get("HAND_N", {}))
     PUBLIC_BOARD.update(d.get("PUBLIC_BOARD", {})); WINDOWS.update(d.get("WINDOWS", {})); TODOS.extend(d.get("TODOS", [])); PLACED.update(d.get("PLACED", []))
     HIGHROLL.update(d.get("HIGHROLL") or {"mode": None})
+    SEAT_KEYS.update(d.get("SEAT_KEYS") or {})
     if d.get("ORDER") and (not ORDER or HIGHROLL.get("winner")):
         ORDER[:] = d["ORDER"]                         # a high roll's order beats the --order the table was started with
     _ev_id[0] = d.get("ev_id", 0)                     # pages keep their cursors across the restart
@@ -512,6 +514,14 @@ def ai_advance(seat_name: str, action: str) -> str | None:
     return None
 
 
+SEAT_KEYS: dict = {}   # person → sha256 of the key a device got when it claimed that seat
+
+
+def seat_key_ok(name: str, key: str) -> bool:
+    h = SEAT_KEYS.get(name)
+    return bool(h and key and secrets.compare_digest(h, hashlib.sha256(key.encode()).hexdigest()))
+
+
 HIGHROLL: dict = {"mode": None}   # who goes first: {"mode", "sides", "round", "contenders", "rolls", "winner", ...}
 
 
@@ -638,18 +648,26 @@ def start_turn(name: str):
             hold_the_floor(ev["id"], name)
 
 
-def next_step(by: str | None = None, shared: bool = False, confirm: bool = False) -> tuple[int, dict]:
+def next_step(by: str | None = None, shared: bool = False, confirm: bool = False, key: str = "") -> tuple[int, dict]:
     """NEXT: move the active human's turn on one step. Refused while an AI still holds priority
     (until its window times out); the last step passes the turn to the next seat in order."""
+    person = next((h["name"] for h in HUMANS if by and h["name"].lower() == by.lower()), None)
+    if not person or not seat_key_ok(person, key):    # only a device that claimed this seat passes for it
+        return 403, {**phase_public(), "error": ("claim your seat first (👤 at the top)" if not person or person not in SEAT_KEYS
+                                                 else f"this device isn't {person}'s — claim your own seat (👤)"),
+                     "need_seat": True}
+    by = person
     with PHASE_LOCK:
         if PHASE["player"] is None:
             start_turn(turn_order()[0])
             return 200, phase_public()
         if PHASE["player"] in VPS:                   # an AI's turn: NEXT is the person passing this step's round
             ps = passes_state()
-            who = next((n for n in ps["need"] if by and n.lower() == by.lower()), None) or ps["next"]
-            if not who:
+            who = next((n for n in ps["need"] if n.lower() == by.lower()), None)
+            if not ps["next"]:
                 return 409, {**phase_public(), "error": f"it's {PHASE['player']}'s turn — it moves on when it's ready"}
+            if not who:
+                return 409, {**phase_public(), "error": f"{by} isn't in this step's priority round"}
             if who in ps["passed"]:
                 return 409, {**phase_public(), "error": f"{who} already passed — waiting on {ps['next']}"}
             if who != ps["next"]:
@@ -665,13 +683,9 @@ def next_step(by: str | None = None, shared: bool = False, confirm: bool = False
             return 409, {**phase_public(), "error": f"waiting on {q.get('ask')}'s question: {q['text'][:90]}"}
         ps = passes_state()
         if ps["next"]:                                # people still to pass: this press is one of them passing
-            who = next((n for n in ps["need"] if by and n.lower() == by.lower()), None)
-            if who is None and by and any(h["name"].lower() == by.lower() for h in HUMANS):
+            who = next((n for n in ps["need"] if n.lower() == by.lower()), None)
+            if who is None:
                 return 409, {**phase_public(), "error": f"{by} isn't in this step's priority round"}
-            who = who or ps["next"]                   # a shared screen (stage, XR) passes for whoever is next
-            if (shared and who == PHASE["player"] and STEPS[PHASE["step"]] in ("main 1", "main 2") and not confirm):
-                return 409, {**phase_public(), "confirm": f"{who}: done with your {STEPS[PHASE['step']]}?",
-                             "error": f"{who}'s main phase: {who} confirms passing it (their phone, or confirm here)"}
             if who in ps["passed"]:
                 return 409, {**phase_public(), "error": f"{who} already passed — waiting on {ps['next']}"}
             if who != ps["next"]:
@@ -787,7 +801,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1806,6 +1820,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, self._life_table())
         if self.path == "/api/highroll":
             return self._send(200, highroll_public())
+        if self.path == "/api/seat/claims":
+            return self._send(200, {"humans": {h["name"]: h["name"] in SEAT_KEYS for h in HUMANS}})
         if self.path == "/api/fair":                       # public: commits now, full records once revealed
             with VP_LOCK:
                 return self._send(200, fair_public())
@@ -2133,6 +2149,30 @@ class H(BaseHTTPRequestHandler):
                 code, out = prev_step(str(self._json().get("by", ""))[:30] if self.headers.get("Content-Length") else None)
                 snapshot()
                 return self._send(code, out)
+            if self.path == "/api/seat/claim":             # {"name": "Sam"} or {"name": "Sam", "key": "<from Sam's other device>"}
+                b = self._json()
+                name = next((h["name"] for h in HUMANS if h["name"].lower() == str(b.get("name", "")).lower()), None)
+                if not name:
+                    return self._send(400, {"error": "only a person's seat can be claimed"})
+                key = str(b.get("key") or "")
+                if key and seat_key_ok(name, key):
+                    return self._send(200, {"name": name, "key": key})          # another device of the same player
+                if name in SEAT_KEYS:
+                    return self._send(409, {"error": f"{name}'s seat is claimed on another device — open the link from "
+                                                     f"that device (👤), or release it from the host laptop"})
+                key = secrets.token_urlsafe(18)
+                SEAT_KEYS[name] = hashlib.sha256(key.encode()).hexdigest()
+                emit("seat", name=name, kind="claimed")
+                snapshot()
+                return self._send(200, {"name": name, "key": key})
+            if self.path == "/api/seat/release":           # host laptop only: {"name": "Sam"} (a lost phone)
+                if not self._is_local():
+                    return self._send(403, {"error": "release a seat from the host laptop"})
+                name = str(self._json().get("name", ""))
+                SEAT_KEYS.pop(name, None)
+                emit("seat", name=name, kind="released")
+                snapshot()
+                return self._send(200, {"released": name})
             if self.path == "/api/highroll/start":         # {"mode": "physical"|"quantum", "sides": 20, "by": "Sam"}
                 b = self._json()
                 with PHASE_LOCK:
@@ -2147,7 +2187,8 @@ class H(BaseHTTPRequestHandler):
                 return self._send(code, out)
             if self.path == "/api/phase/next":             # the NEXT button: {"by": "Michael"} (optional)
                 b = self._json() if self.headers.get("Content-Length") else {}
-                code, out = next_step(str(b.get("by", ""))[:30] or None, bool(b.get("shared")), bool(b.get("confirm")))
+                code, out = next_step(str(b.get("by", ""))[:30] or None, bool(b.get("shared")), bool(b.get("confirm")),
+                                      str(b.get("key", ""))[:100])
                 snapshot()
                 return self._send(code, out)
             if self.path == "/api/stage/hand":             # {"player": "Sam", "n": 6} or {"player": "Sam", "delta": -1}

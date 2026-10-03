@@ -32,6 +32,7 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
 .pick button{display:block;width:100%;margin:8px 0;text-align:left}
 .ok{color:var(--me)} .warn{color:var(--warn)}
 </style>
+<script src="/assets/seat.js" defer></script>
 </head>
 <body>
 <h1 id="title">Divinci Table</h1>
@@ -126,7 +127,9 @@ async function toggleHold(){ await j("/api/phase/hold",{method:"POST",headers:{"
 async function toggleWin(){ await j("/api/phase/windows",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:!winOn,by:me})}); phase(); }
 async function backStep(){ const r=await j("/api/phase/back",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({by:me})});
   if(r.error) $("phase").innerHTML+=` · <span class="muted">${esc(r.error)}</span>`; else phase(); }
-async function nextStep(){ const r=await j("/api/phase/next",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({by:me})});
+async function nextStep(){ if(window.TableSeat) await window.TableSeat.ready;
+  const r=await j("/api/phase/next",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(window.TableSeat?window.TableSeat.body():{by:me})});
+  if(r.need_seat&&window.TableSeat) window.TableSeat.pick();
   if(r.error) $("phase").innerHTML+=` · <span class="muted">${esc(r.error)}</span>`; else phase(); }
 setInterval(()=>{ if(me) phase(); },1500);
 function onEvent(e){

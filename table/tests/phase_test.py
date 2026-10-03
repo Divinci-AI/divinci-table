@@ -44,11 +44,22 @@ def call(method, path, body=None, brain=False):
         return e.code, json.loads(e.read() or b"{}")
 
 
+KEYS = {}
+
+
+def pb(by, **extra):
+    """A NEXT body from the device that claimed `by`'s seat (claiming it the first time)."""
+    if by not in KEYS:
+        code, d = call("POST", "/api/seat/claim", {"name": by})
+        KEYS[by] = d.get("key", "")
+    return {"by": by, "key": KEYS[by], **extra}
+
+
 def nxt(by):
     """NEXT as a whole table would press it: the active player passes, then everyone else in turn order."""
-    code, p = call("POST", "/api/phase/next", {"by": by})
+    code, p = call("POST", "/api/phase/next", pb(by))
     while code == 200 and (p.get("passes") or {}).get("next") and p["passes"]["passed"]:   # a round under way
-        code, p = call("POST", "/api/phase/next", {"by": p["passes"]["next"]})
+        code, p = call("POST", "/api/phase/next", pb(p["passes"]["next"]))
     return code, p
 
 
@@ -82,7 +93,7 @@ def ai_act(action, **body):
             return code, d
         nx = (d.get("passes") or {}).get("next")
         if nx:
-            call("POST", "/api/phase/next", {"by": nx})
+            call("POST", "/api/phase/next", pb(nx))
         else:
             time.sleep(0.3)                           # an AI window still open
     return code, d
@@ -186,7 +197,7 @@ try:
     code, d = brain("begin")
     check(code == 409 and d.get("waiting") == "Ben, Ann" and d["step"] == "upkeep",
           "an AI's turn stops at its upkeep until each person passes, in turn order")
-    code, d = call("POST", "/api/phase/next", {"by": "Ann"})
+    code, d = call("POST", "/api/phase/next", pb("Ann"))
     check(code == 409 and "Ben passes first" in d.get("error", ""), "…in turn order after the AI")
     ai_act("begin")
     code, p = call("GET", "/api/phase")
@@ -458,11 +469,11 @@ try:
     step = p["step"]
     check(p["passes"]["need"] == ["Ben", "Ann"] and p["passes"]["next"] == "Ben",
           "the active player passes first, then the others in turn order")
-    code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    code, p = call("POST", "/api/phase/next", pb("Ann"))
     check(code == 409 and "Ben passes first" in p.get("error", ""), "a player can't pass out of turn order")
-    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    code, p = call("POST", "/api/phase/next", pb("Ben"))
     check(code == 200 and p["step"] == step and p["passes"]["passed"] == ["Ben"], "one pass doesn't end the step")
-    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    code, p = call("POST", "/api/phase/next", pb("Ben"))
     check(code == 409 and "already passed" in p.get("error", ""), "nobody passes twice in a round")
     code, ev0 = call("GET", "/api/events?since=latest")
     code, r = call("POST", "/api/card-action", {"seat": "Ann", "index": 0, "name": "Rogue's Passage", "action": "activate",
@@ -471,23 +482,30 @@ try:
     code, ev = call("GET", f"/api/events?since={ev0['last']}")
     check(p["passes"]["passed"] == [] and any(e["type"] == "pass" and e.get("kind") == "reset" for e in ev["events"]),
           "an activated ability sends priority round again from the active player")
-    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
-    code, p = call("POST", "/api/phase/next", {"by": "Ann"})
+    code, p = call("POST", "/api/phase/next", pb("Ben"))
+    code, p = call("POST", "/api/phase/next", pb("Ann"))
     check(code == 200 and p["step"] != step, "when everyone has passed in a row, the step ends")
     code, p = call("GET", "/api/phase")
     while p["step"] != "cleanup":
         code, p = nxt("Ben")
     check(p["passes"]["need"] == ["Ben"], "untap and cleanup give no one priority: only the active player moves them on")
     code, p = call("POST", "/api/phase/next", {})
-    check(code == 200 and p["player"] != "Ben", "a shared screen (no name) passes for whoever is next")
+    check(code == 403 and p.get("need_seat"), "a screen that hasn't claimed a seat can't pass for anyone")
+    code, p = call("POST", "/api/phase/next", {"by": "Ben", "key": KEYS["Ann"]})
+    check(code == 403, "a device can't pass for another player with its own key")
+    code, p = call("POST", "/api/seat/claim", {"name": "Ben"})
+    check(code == 409, "a claimed seat can't be claimed by another device")
+    code, p = call("POST", "/api/seat/claim", {"name": "Ben", "key": KEYS["Ben"]})
+    check(code == 200, "…but the same player can add a second device with their key")
+    code, p = call("POST", "/api/phase/next", pb("Ben"))
+    check(code == 200 and p["player"] != "Ben", "the active player passes cleanup from their own device")
     code, p = call("GET", "/api/phase")
     while not (p["player"] in ("Ann", "Ben") and p["step"] == "main 1"):
         code, p = nxt(p["player"] if p["player"] in ("Ann", "Ben") else "Ben")
     active = p["player"]
-    code, p = call("POST", "/api/phase/next", {"by": active, "shared": True})
-    check(code == 409 and p.get("confirm"), "a shared screen can't pass for the active player's main phase without confirming")
-    code, p = call("POST", "/api/phase/next", {"by": active, "shared": True, "confirm": True})
-    check(code == 200 and active in p["passes"]["passed"], "…and with the confirmation it can")
+    other = "Ben" if active == "Ann" else "Ann"
+    code, p = call("POST", "/api/phase/next", {"by": active, "key": KEYS[other]})
+    check(code == 403, "nobody passes the active player's main phase but that player")
 finally:
     srv.terminate()
     import shutil
