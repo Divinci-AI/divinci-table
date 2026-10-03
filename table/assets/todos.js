@@ -21,12 +21,19 @@
       const d = JSON.parse(t);
       if (!d.open.length && !d.done.length) { box.style.display = "none"; return; }
       box.style.display = "block";
-      const head = `<div data-act="fold" style="display:flex;justify-content:space-between;gap:10px;padding:8px 12px;cursor:pointer;font-weight:700">
-        <span>🃏 At the table${d.open.length ? ` · ${d.open.length} to do` : " · all done"}</span><span style="opacity:.6">${collapsed ? "▸" : "▾"}</span></div>`;
+      if (collapsed) {                       // tucked away: a small badge with the count; tap it to bring the list back
+        box.style.borderRadius = "999px";
+        box.innerHTML = `<div data-act="fold" title="At the table: tap to open" style="padding:7px 12px;cursor:pointer;font-weight:700">🃏 ${d.open.length || "✓"}</div>`;
+        return;
+      }
+      box.style.borderRadius = "12px";
+      const head = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 8px 8px 12px;font-weight:700">
+        <span>🃏 At the table${d.open.length ? ` · ${d.open.length} to do` : " · all done"}</span>
+        <button data-act="fold" title="tuck it away (tap the 🃏 badge to bring it back)" style="border:0;background:#2a2e37;color:#eee;border-radius:7px;padding:2px 9px;cursor:pointer;font:inherit">–</button></div>`;
       const row = (x, done) => `<label style="display:flex;gap:8px;align-items:flex-start;padding:5px 12px;${done ? "opacity:.45;text-decoration:line-through" : ""}">
         <input type="checkbox" data-id="${x.id}" ${done ? "checked" : ""} style="margin-top:2px">
         <span>${x.for ? `<b>${esc(x.for)}:</b> ` : ""}${esc(x.text)}</span></label>`;
-      box.innerHTML = head + (collapsed ? "" : `<div style="max-height:40vh;overflow:auto;padding-bottom:6px">${d.open.map(x => row(x, false)).join("")}${d.done.slice(-3).map(x => row(x, true)).join("")}</div>`);
+      box.innerHTML = head + `<div style="max-height:40vh;overflow:auto;padding-bottom:6px">${d.open.map(x => row(x, false)).join("")}${d.done.slice(-3).map(x => row(x, true)).join("")}</div>`;
     } catch {}
   }
   box.addEventListener("click", async ev => {
