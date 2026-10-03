@@ -576,13 +576,13 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
           ("GET", "/vendor/three.module.min.js"), ("GET", "/vendor/three.core.min.js"),
           ("GET", "/avatars/index.json")}
-LAN_PREFIXES = ("/vendor/", "/assets/", "/avatars/", "/captains/")   # static, public: stage code, light probe, models, captain lines
+LAN_PREFIXES = ("/vendor/", "/assets/", "/avatars/", "/captains/", "/photos/")   # static, public: stage code, light probe, models, captain lines
 CAPTAIN_AUDIO = HERE / ".cache" / "captains" / "audio"     # mp3s made by table/captains.py
 VENDOR = {"three.module.min.js", "three.core.min.js"}      # three.js r185, vendored so the table stays offline
 
@@ -1507,13 +1507,14 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / "stage.html").read_bytes(), ctype="text/html; charset=utf-8")
         p0 = self.path.split("?")[0]
         for pre, root in (("/vendor/", HERE / "vendor"), ("/assets/", HERE / "assets"),
-                          ("/avatars/", HERE / ".cache" / "avatars"), ("/captains/", CAPTAIN_AUDIO)):
+                          ("/avatars/", HERE / ".cache" / "avatars"), ("/captains/", CAPTAIN_AUDIO),
+                          ("/photos/", research_dir() / "photos")):
             if p0.startswith(pre) and not p0.endswith("/index.json"):
                 fp = (root / p0[len(pre):]).resolve()
-                if fp.is_file() and root.resolve() in fp.parents and fp.suffix in (".js", ".hdr", ".glb", ".usdz", ".png", ".mp3"):
+                if fp.is_file() and root.resolve() in fp.parents and fp.suffix in (".js", ".hdr", ".glb", ".usdz", ".png", ".mp3", ".jpg"):
                     return self._send(200, body=fp.read_bytes(), ctype={".js": "text/javascript; charset=utf-8",
                                       ".glb": "model/gltf-binary", ".usdz": "model/vnd.usdz+zip", ".png": "image/png",
-                                      ".mp3": "audio/mpeg"}
+                                      ".mp3": "audio/mpeg", ".jpg": "image/jpeg"}
                                       .get(fp.suffix, "application/octet-stream"))
         if p0 == "/avatars/index.json":
             d = HERE / ".cache" / "avatars"
@@ -1635,7 +1636,7 @@ class H(BaseHTTPRequestHandler):
         try:
             return self._do_post()
         finally:
-            if not self.path.startswith(("/api/board", "/api/show", "/api/utterance", "/api/scan")):   # camera/mic: too often
+            if not self.path.startswith(("/api/board", "/api/show", "/api/utterance", "/api/scan", "/api/chat/photo")):   # camera/mic/photos: too often, and nothing to restore
                 snapshot()
 
     def _do_post(self):
@@ -1773,6 +1774,31 @@ class H(BaseHTTPRequestHandler):
                 emit("chat", by=owner, text=text, card_action=action)
                 emit("board3d", owner=owner, n=len(perms))
                 return self._send(200, {"ok": True, "text": text})
+            if self.path.split("?")[0] == "/api/chat/photo":   # a photo from a phone: raw JPEG body; X-By, X-Caption headers
+                n = int(self.headers.get("Content-Length", 0) or 0)
+                if not 0 < n <= 8_000_000:
+                    self._drain(n)
+                    return self._send(413, {"error": "a photo must be under 8 MB"})
+                data = self.rfile.read(n)
+                if not (data[:3] == b"\xff\xd8\xff" or data[:8] == b"\x89PNG\r\n\x1a\n"):
+                    return self._send(400, {"error": "send a JPEG or PNG"})
+                from urllib.parse import unquote
+                by = unquote(self.headers.get("X-By", ""))[:30] or "someone"
+                caption = " ".join(unquote(self.headers.get("X-Caption", "")).split())[:300]
+                d = research_dir() / "photos"
+                d.mkdir(exist_ok=True)
+                os.chmod(d, 0o700)
+                ext = ".jpg" if data[:3] == b"\xff\xd8\xff" else ".png"
+                name = f"{time.strftime('%H%M%S')}-{secrets.token_hex(4)}{ext}"
+                (d / name).write_bytes(data)
+                os.chmod(d / name, 0o600)
+                emit("chat", by=by, text=caption or "📷 a photo of the table", photo="/photos/" + name)
+                if caption:
+                    try:
+                        respond_text(caption, by if by in [h["name"] for h in HUMANS] else None, time.time())
+                    except Exception as e:
+                        print(f"photo caption handling failed: {e}", flush=True)
+                return self._send(200, {"ok": True, "photo": "/photos/" + name})
             if self.path == "/api/chat":                   # typed table talk from a phone or the board: {"by": "Sam", "text": "..."}
                 b = self._json()
                 by = str(b.get("by", ""))[:30]

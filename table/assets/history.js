@@ -34,7 +34,8 @@
       html: e.back ? `◂ back to ${name(e.player)} · ${esc(e.step)}` : `── ${name(e.player)}'s turn ──` };
     if (t === "declare" && e.kind === "attack") return { who: e.by, kind: "combat",
       html: `⚔ ${name(e.by)} attacks: ` + (e.attacks || []).map(a => `${esc(a.attacker)}${a.power != null ? ` (${esc(a.power)})` : ""} → ${name(a.target)}${a.trample ? " · trample" : ""}`).join(", ") };
-    if (t === "chat") return { who: e.by, kind: "chat", html: `💬 ${name(e.by)}: ${esc(e.text)}` };
+    if (t === "chat") return { who: e.by, kind: "chat", html: `💬 ${name(e.by)}: ${esc(e.text)}` +
+      (e.photo ? `<br><a href="${esc(e.photo)}" target="_blank"><img src="${esc(e.photo)}" style="max-width:100%;max-height:200px;border-radius:8px;margin-top:4px"></a>` : "") };
     if (t === "captain") return { who: e.seat, kind: "captain", html: `⚓ <i>${esc(e.captain)}</i>: ${esc(e.text)}` };
     if (t === "todo" && e.kind === "added") return { who: "", kind: "table",
       html: (e.items || []).map(x => `🃏 ${x.for ? name(x.for) + ": " : ""}${esc(x.text)}`).join("<br>") };
@@ -107,6 +108,7 @@
           ${seatsForChat().map(n => `<option ${n === chatAs() ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
         <input data-chat placeholder="tell the table: “I activate Rogue's Passage on Sewer Nemesis”…" style="flex:1;min-width:0;background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:7px;padding:5px 8px;font:inherit">
         <button data-act="say" style="border:0;background:#2d5a8a;color:#fff;border-radius:7px;padding:3px 10px;cursor:pointer;font:inherit">send</button>
+        <label title="send a photo of the table" style="border:0;background:#2a2e37;color:#eee;border-radius:7px;padding:3px 9px;cursor:pointer">📷<input data-photo type="file" accept="image/*" capture="environment" hidden></label>
       </div>
       <div data-openq style="display:none;margin:0 12px 8px;padding:7px 10px;border-radius:9px;background:#3b2a0c;border:1px solid #f0a868;cursor:pointer;font-weight:600"></div>
       <div data-list style="${PAGE || tall ? "flex:1;min-height:0" : "max-height:min(52vh,460px)"};overflow:auto;padding:0 12px 10px">
@@ -141,6 +143,14 @@
     if (k) { k.checked ? hidden.delete(k.dataset.kind) : hidden.add(k.dataset.kind); store("history.hidden", JSON.stringify([...hidden])); render(); }
   });
   box.addEventListener("keydown", ev => { if (ev.target.dataset.chat !== undefined && ev.key === "Enter") sayIt(); });
+  box.addEventListener("change", async ev => {
+    if (ev.target.dataset.photo === undefined) return;
+    const f = ev.target.files[0]; if (!f || !window.sendTablePhoto) return;
+    const i = box.querySelector("[data-chat]"), as = box.querySelector("[data-as]")?.value || chatAs();
+    i.placeholder = "sending the photo…";
+    const r = await window.sendTablePhoto(f, as, i.value.trim());
+    i.value = ""; i.placeholder = r.error ? "photo failed: " + r.error : "photo sent ✓"; setTimeout(poll, 400);
+  });
   box.addEventListener("input", ev => {
     if (ev.target.dataset.act !== "q") return;
     query = ev.target.value; const pos = ev.target.selectionStart;

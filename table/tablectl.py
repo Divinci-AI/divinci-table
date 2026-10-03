@@ -111,7 +111,7 @@ def fmt_event(e):
     if k == "captain":
         return f"[{t}] #{e['id']} ⚓ {e.get('captain')} ({e.get('seat')}): {e.get('text')}"
     if k == "chat":
-        return f"[{t}] #{e['id']} 💬 CHAT {e.get('by')}: {e.get('text')}"
+        return f"[{t}] #{e['id']} 💬 CHAT {e.get('by')}: {e.get('text')}" + (f"  📷 {e['photo']}" if e.get("photo") else "")
     if k == "declare":
         return f"[{t}] #{e['id']} ⚔ DECLARED by {e.get('by')}: " + "; ".join(f"{a['attacker']} ({a.get('power')}) → {a['target']}" for a in e.get('attacks', []))
     if k == "todo" and e.get("kind") == "answered":

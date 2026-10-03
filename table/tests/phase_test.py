@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 import urllib.error
-import urllib.request
+import urllib.request, urllib.parse, urllib.error
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
@@ -319,6 +319,29 @@ try:
     check(any(e["type"] == "chat" and e["by"] == "Ann" for e in ev["events"]), "the line goes to everyone")
     code, life = call("GET", "/api/life")
     check(life.get("Ann") == 30, "…and is read like a spoken line (a life report changes the life total)")
+
+    print("photos")
+    jpg = bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9")
+    def photo(body, caption="", ip="203.0.113.9"):
+        q = urllib.request.Request(BASE + "/api/chat/photo", method="POST", data=body,
+            headers={"Content-Type": "image/jpeg", "X-By": "Ann", "X-Caption": urllib.parse.quote(caption), "X-Forwarded-For": ip})
+        try: r = urllib.request.urlopen(q, timeout=20); return r.status, json.loads(r.read())
+        except urllib.error.HTTPError as e: return e.code, {}
+    code, ev0 = call("GET", "/api/events?since=latest")
+    c, r = photo(jpg, "my board, attacking with Toski")
+    check(c == 200 and r.get("photo", "").startswith("/photos/"), "a player can send a photo of the table from their phone")
+    code, ev = call("GET", f"/api/events?since={ev0['last']}")
+    check(any(e["type"] == "chat" and e.get("photo") == r.get("photo") for e in ev["events"]), "…it lands in the game log with its caption")
+    g = urllib.request.urlopen(BASE + r["photo"], timeout=10)
+    check(g.status == 200 and g.read()[:2] == b"\xff\xd8", "…and the picture is served back")
+    c, _ = photo(b"<html>not an image</html>")
+    check(c == 400, "something that isn't a JPEG/PNG is refused")
+    c, _ = photo(jpg[:2] + b"\0" * (9 << 20))
+    check(c in (400, 413), "a photo over 8 MB is refused")
+    for bad in ("/photos/../snapshot.pkl", "/photos/%2e%2e/snapshot.pkl", "/photos/x.pkl"):
+        try: code = urllib.request.urlopen(BASE + bad, timeout=10).status
+        except urllib.error.HTTPError as e: code = e.code
+        check(code == 404, f"no path tricks under /photos/ ({bad})")
 
     print("snapshot / restore")
     code, st = call("GET", "/api/brain/state?seat=Claude", brain=True)

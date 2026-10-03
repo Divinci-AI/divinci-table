@@ -48,7 +48,10 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
     <div id="blocked" class="warn" style="margin-top:6px"></div></div>
   <div class="card"><div class="muted">💬 Tell the table — what you're doing, or a question</div>
     <div style="display:flex;gap:6px;margin-top:6px"><input id="chat" autocomplete="off" placeholder="I activate Rogue's Passage on Sewer Nemesis…" style="flex:1;min-width:0">
-      <button id="sendChat">send</button></div><div id="chatMsg" class="muted"></div></div>
+      <button id="sendChat">send</button></div>
+    <label style="display:inline-block;margin-top:6px"><input id="photo" type="file" accept="image/*" capture="environment" hidden>
+      <span class="big" style="display:inline-block;padding:8px 12px;border-radius:8px;background:#2a2e37;cursor:pointer">📷 Photo of the table</span></label>
+    <div id="chatMsg" class="muted"></div></div>
   <div class="card cast" id="castCard" hidden><div class="muted">Just played</div><div id="cast"></div></div>
   <div class="card"><div class="muted">At the table</div><div id="caps"><div class="muted">Nothing yet.</div></div></div>
   <div class="card"><div class="muted">Fair decks: the AI's shuffle is sealed before the first draw</div>
@@ -85,6 +88,10 @@ async function fair(){ const f=await j("/api/fair"); if(f.error){$("fair").inner
 async function sendChat(){ const t=$("chat").value.trim(); if(!t) return;
   const r=await j("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({by:me,text:t})});
   $("chatMsg").innerHTML=r.error?`<span class="warn">${esc(r.error)}</span>`:`<span class="ok">Sent — it's in the game log.</span>`; $("chat").value=""; }
+$("photo").onchange=async()=>{ const f=$("photo").files[0]; if(!f) return;
+  $("chatMsg").textContent="Sending the photo…";
+  const r=await window.sendTablePhoto(f, me, $("chat").value.trim());
+  $("chatMsg").innerHTML=r.error?`<span class="warn">${esc(r.error)}</span>`:`<span class="ok">Photo sent — it's in the game log.</span>`; $("chat").value=""; $("photo").value=""; };
 $("sendChat").onclick=sendChat; $("chat").addEventListener("keydown",e=>{ if(e.key==="Enter") sendChat(); });
 $("sendWord").onclick=async()=>{ const w=$("word").value.trim(); if(!w) return;
   const r=await j("/api/fair/word",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({player:me,word:w})});
@@ -117,7 +124,7 @@ async function nextStep(){ const r=await j("/api/phase/next",{method:"POST",head
 setInterval(()=>{ if(me) phase(); },1500);
 function onEvent(e){
   if(e.type==="phase"||e.type==="priority"||(e.type==="attention"&&e.kind==="priority")) phase();
-  if(e.type==="chat"){ caps.push(`<div class="cap"><b>💬 ${esc(e.by)}:</b> ${esc(e.text)}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join(""); }
+  if(e.type==="chat"){ caps.push(`<div class="cap"><b>💬 ${esc(e.by)}:</b> ${esc(e.text)}${e.photo?`<br><a href="${esc(e.photo)}" target="_blank"><img src="${esc(e.photo)}" style="max-width:100%;max-height:180px;border-radius:8px;margin-top:4px"></a>`:""}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join(""); }
   if(e.type==="captain"){ caps.push(`<div class="cap"><b>⚓ ${esc(e.captain)}:</b> ${esc(e.text)}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join(""); }
   if(e.type==="say"){ caps.push(`<div class="cap"><b>${esc(e.speaker)}:</b> ${esc(e.text)}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join("");
     const t=e.text.match(/^(.+?), turn (\d+)\./); if(t) $("turn").innerHTML=`<b>${esc(t[1])}</b>'s turn ${esc(t[2])}`;
@@ -135,5 +142,6 @@ start();
 <script src="/assets/history.js" defer></script>
 <script src="/assets/declare.js" defer></script>
 <script src="/assets/questions.js" defer></script>
+<script src="/assets/photo.js" defer></script>
 </body>
 </html>
