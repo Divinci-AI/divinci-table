@@ -42,7 +42,8 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
     <div class="btns" id="mybtns"></div>
     <div id="phase"></div>
     <button id="next" hidden onclick="nextStep()">NEXT ▸</button>
-    <button id="back" hidden onclick="backStep()" style="margin-top:6px;opacity:.8">◂ BACK a step</button></div>
+    <button id="back" hidden onclick="backStep()" style="margin-top:6px;opacity:.8">◂ BACK a step</button>
+    <button id="win" onclick="toggleWin()" style="margin-top:6px;opacity:.8">⏱ step timeouts</button></div>
   <div class="card cast" id="castCard" hidden><div class="muted">Just played</div><div id="cast"></div></div>
   <div class="card"><div class="muted">At the table</div><div id="caps"><div class="muted">Nothing yet.</div></div></div>
   <div class="card"><div class="muted">Fair decks: the AI's shuffle is sealed before the first draw</div>
@@ -90,7 +91,10 @@ async function phase(){ const p=await j("/api/phase"); if(p.error) return;
   const nb=$("next"); nb.hidden=!(mine||!p.player); nb.disabled=!!(p.waiting&&p.waiting.length&&p.seconds_left>0);
   nb.classList.toggle("wait",nb.disabled);
   nb.textContent=!p.player?"START ▸":nb.disabled?"waiting…":(p.index>=steps.length-1?"END TURN ▸":`NEXT ▸ ${steps[p.index+1]||""}`);
-  $("back").hidden=!(p.player&&(mine||p.index===0)); }
+  $("back").hidden=!(p.player&&(mine||p.index===0));
+  winOn=p.windows!==false; $("win").textContent=winOn?`⏱ step timeouts: ${p.window_secs||""}s (tap for off)`:"⏱ step timeouts: off (tap for on)"; }
+let winOn=true;
+async function toggleWin(){ await j("/api/phase/windows",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:!winOn,by:me})}); phase(); }
 async function backStep(){ const r=await j("/api/phase/back",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({by:me})});
   if(r.error) $("phase").innerHTML+=` · <span class="muted">${esc(r.error)}</span>`; else phase(); }
 async function nextStep(){ const r=await j("/api/phase/next",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({by:me})});

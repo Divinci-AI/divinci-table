@@ -222,6 +222,7 @@ ORDER: list[str] = [x.strip() for x in args.order.split(",") if x.strip()]
 PHASE = {"player": None, "step": 0, "begun": False}   # begun: an AI seat has started playing its turn
 PRIORITY = {"step": None, "waiting": [], "seats": [], "deadline": 0.0, "beat_until": 0.0}
 BEAT = tuple(float(x) for x in args.priority_beat.split(","))
+WINDOWS = {"on": True}          # the table can switch step timeouts off: NEXT never waits (AIs still hear every window)
 if args.priority_window > 0:                          # fixed windows: the beat IS the window, and the deadline
     BEAT = (args.priority_window, args.priority_window)
     args.priority_secs = args.priority_window
@@ -296,7 +297,7 @@ def snapshot():
     try:
         with VP_LOCK, PHASE_LOCK:
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
-                                 "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD,
+                                 "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS,
                                  "ev_id": _ev_id[0], "saved": time.time()})
         p = research_dir() / "snapshot.pkl"
         tmp = p.with_suffix(".tmp")
@@ -313,7 +314,7 @@ def restore(path: str):
     d = pickle.loads(Path(path).read_bytes())
     VPS.clear(); VPS.update(d["VPS"]); DECK_OF.update(d["DECK_OF"])
     LIFE.update(d["LIFE"]); FAIR.update(d["FAIR"]); PHASE.update(d["PHASE"]); HAND_N.update(d.get("HAND_N", {}))
-    PUBLIC_BOARD.update(d.get("PUBLIC_BOARD", {}))
+    PUBLIC_BOARD.update(d.get("PUBLIC_BOARD", {})); WINDOWS.update(d.get("WINDOWS", {}))
     if not ORDER:
         ORDER.extend(d.get("ORDER", []))
     _ev_id[0] = d.get("ev_id", 0)                     # pages keep their cursors across the restart
@@ -350,6 +351,12 @@ def open_priority(step: str) -> list[str]:
                     if instant_speed(v):
                         holders.append(n)
     now = time.time()
+    if not WINDOWS["on"]:                             # timeouts off: everyone still hears the window, nothing waits
+        for n in seats:
+            emit("attention", kind="priority", addressee=n,
+                 text=f"{active}: {step}. You may cast an instant now, or pass.", step=step, active=active)
+        PRIORITY.update(step=step, waiting=[], seats=[], deadline=0.0, beat_until=0.0)
+        return seats
     beat = secrets.SystemRandom().uniform(*BEAT) if seats else 0.0
     PRIORITY.update(step=step, waiting=holders, seats=seats, deadline=now + args.priority_secs, beat_until=now + beat)
     for n in seats:
@@ -383,7 +390,8 @@ def phase_public() -> dict:
             left = PRIORITY["beat_until"] - now if now < PRIORITY["beat_until"] else PRIORITY["deadline"] - now
         return {"player": PHASE["player"], "step": STEPS[PHASE["step"]], "index": PHASE["step"], "steps": STEPS,
                 "order": turn_order(), "waiting": list(PRIORITY["seats"]) if is_open else [],
-                "seconds_left": round(max(0.0, left), 1), "ai": list(VPS)}
+                "seconds_left": round(max(0.0, left), 1), "ai": list(VPS),
+                "windows": WINDOWS["on"], "window_secs": args.priority_window}
 
 
 def start_turn(name: str):
@@ -511,7 +519,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1637,6 +1645,15 @@ class H(BaseHTTPRequestHandler):
                         return self._send(409, {"error": "that line names a card still in the seat's hand"})
                 return self._send(200, emit("captain", seat=cseat, captain=str(b.get("captain", ""))[:60],
                                             text=text, audio="/captains/" + audio))
+            if self.path == "/api/phase/windows":          # {"on": false}: step timeouts off for the table
+                b = self._json()
+                with PHASE_LOCK:
+                    WINDOWS["on"] = bool(b.get("on", not WINDOWS["on"]))
+                    if not WINDOWS["on"]:
+                        PRIORITY.update(waiting=[], seats=[], deadline=0.0, beat_until=0.0)
+                emit("phase", kind="windows", on=WINDOWS["on"], by=str(b.get("by", ""))[:30])
+                snapshot()
+                return self._send(200, phase_public())
             if self.path == "/api/phase/back":             # BACK: a NEXT pressed too soon
                 code, out = prev_step(str(self._json().get("by", ""))[:30] if self.headers.get("Content-Length") else None)
                 snapshot()

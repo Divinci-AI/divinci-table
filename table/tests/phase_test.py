@@ -253,6 +253,18 @@ try:
     time.sleep(max(0, 1.6 - (time.time() - t1)))
     code, p = call("POST", "/api/phase/next", {"by": "Ben"})
     check(code == 200, "…and passes when it's up — no window lasts longer than another")
+    print("step timeouts off")
+    code, p = call("POST", "/api/phase/windows", {"on": False, "by": "Ben"})
+    check(code == 200 and p["windows"] is False, "the table can switch step timeouts off")
+    code, ev0 = call("GET", "/api/events?since=latest")
+    code, p = call("POST", "/api/phase/next", {"by": "Ben"})
+    code2, p2 = call("POST", "/api/phase/next", {"by": "Ben"})
+    check(code == 200 and code2 == 200 and p2["waiting"] == [], "with timeouts off, NEXT never waits")
+    code, ev = call("GET", f"/api/events?since={ev0['last']}")
+    check(sum(1 for e in ev["events"] if e.get("kind") == "priority" and e.get("addressee") == "Claude") == 2,
+          "…but every AI seat still hears every window")
+    code, p = call("POST", "/api/phase/windows", {"on": True})
+    check(p["windows"] is True and raw("/api/phase", {"X-Forwarded-For": "203.0.113.9"}) == 200, "and back on")
 finally:
     srv.terminate()
     import shutil
