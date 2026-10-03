@@ -8,7 +8,7 @@
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch {} return null; };
   const box = document.createElement("div");
   box.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:50;width:min(420px,calc(100vw - 24px));" +
-    "font:13px/1.35 system-ui,-apple-system,sans-serif;color:#eee;background:rgba(14,16,22,.94);border:1px solid #3a3f4a;" +
+    "font:13px/1.35 system-ui,-apple-system,sans-serif;color:#eee;background:#0e1016;border:1px solid #3a3f4a;" +
     "border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.4)";
   document.body.appendChild(box);
   const PAGE = !!window.HISTORY_PAGE;                  // /log: the log is the whole window
@@ -71,9 +71,13 @@
           (on ? "background:#1f4d33;color:#9be3b5;border:1px solid #2e7a4f;text-decoration:line-through" : "background:#23262e;color:#cfd6e4;border:1px solid #3a3f4a") +
           `">${on ? "✓ " : ""}${esc(c)}</span>`; }).join("");
   }
+  const phone = () => innerWidth < 640;                // a phone: open = full screen, filters folded away
+  let showFilters = false;
   function place() {                                   // compact (bottom-right), tall (full-height right), or the page
     const s = box.style;
     if (PAGE) { Object.assign(s, { top: "0", bottom: "0", right: "0", left: "0", width: "auto", borderRadius: "0", border: "0" }); return; }
+    if (open && phone()) { Object.assign(s, { top: "0", bottom: "0", right: "0", left: "0", width: "auto", borderRadius: "0", zIndex: "95" }); return; }
+    Object.assign(s, { left: "auto", right: "12px", zIndex: "50" });
     if (open && tall) Object.assign(s, { top: "12px", bottom: "12px", width: "min(460px,calc(100vw - 24px))" });
     else Object.assign(s, { top: "auto", bottom: "12px" });
   }
@@ -95,14 +99,15 @@
     box.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;padding:8px 8px 6px 12px;font-weight:700">
         <span style="flex:1">📜 Game log <span style="opacity:.55;font-weight:400">${shown.length}/${rows.length}</span></span>
-        ${PAGE ? "" : `<button data-act="tall" title="${tall ? "back to compact" : "full height"}" style="border:0;background:#2a2e37;color:#eee;border-radius:7px;padding:2px 8px;cursor:pointer;font:inherit">${tall ? "⤡" : "⤢"}</button>
+        <button data-act="filters" title="who and what to show" style="border:0;background:${showFilters ? "#3a3f4a" : "#2a2e37"};color:#eee;border-radius:7px;padding:2px 8px;cursor:pointer;font:inherit;font-size:12px">Filters ${showFilters ? "▴" : "▾"}</button>
+        ${PAGE ? "" : phone() ? `<button data-act="close" style="border:0;background:#2a2e37;color:#eee;border-radius:7px;padding:4px 12px;cursor:pointer;font:inherit">✕ Close</button>` : `<button data-act="tall" title="${tall ? "back to compact" : "full height"}" style="border:0;background:#2a2e37;color:#eee;border-radius:7px;padding:2px 8px;cursor:pointer;font:inherit">${tall ? "⤡" : "⤢"}</button>
         <button data-act="pop" title="pop out into its own window (/log)" style="border:0;background:#2a2e37;color:#eee;border-radius:7px;padding:2px 8px;cursor:pointer;font:inherit">↗</button>
         <button data-act="close" title="tuck away" style="border:0;background:#2a2e37;color:#eee;border-radius:7px;padding:2px 9px;cursor:pointer;font:inherit">–</button>`}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px;padding:0 12px 6px">
+      <div style="display:${showFilters ? "flex" : "none"};flex-wrap:wrap;gap:5px;padding:0 12px 6px">
         ${["", ...players].map(p => `<button data-who="${esc(p)}" style="border:1px solid ${p === who ? "#888" : "#3a3f4a"};background:${p === who ? "#3a3f4a" : "transparent"};color:${COL[p] || "#ddd"};border-radius:7px;padding:1px 8px;cursor:pointer;font:inherit;font-size:12px">${p ? esc(p) : "everyone"}</button>`).join("")}
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:5px;padding:0 12px 6px">
-        ${Object.entries(KINDS).map(([k, l]) => `<label style="font-size:11.5px;opacity:${hidden.has(k) ? .45 : 1};cursor:pointer"><input type="checkbox" data-kind="${k}" ${hidden.has(k) ? "" : "checked"} style="vertical-align:-2px"> ${l}</label>`).join("")}
+      <div style="display:${showFilters ? "flex" : "none"};flex-wrap:wrap;gap:5px;padding:0 12px 6px">
+        ${Object.entries(KINDS).map(([k, l]) => `<label style="font-size:11.5px;white-space:nowrap;opacity:${hidden.has(k) ? .45 : 1};cursor:pointer"><input type="checkbox" data-kind="${k}" ${hidden.has(k) ? "" : "checked"} style="vertical-align:-2px;width:14px;height:14px;margin:0 2px 0 0"> ${l}</label>`).join("")}
       </div>
       <div style="padding:0 12px 6px"><input data-act="q" value="${esc(query)}" placeholder="search: a card, a player…" style="width:100%;box-sizing:border-box;background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:7px;padding:5px 8px;font:inherit"></div>
       <div style="display:flex;gap:5px;padding:0 12px 8px">
@@ -131,6 +136,7 @@
     if (a === "chat") { open = true; store("history.open", "1"); render(); box.querySelector("[data-chat]")?.focus(); return; }
     if (ev.target.closest("[data-openq]")) { window.openQuestions?.(); return; }
     if (a === "say") { sayIt(); return; }
+    if (a === "filters") { showFilters = !showFilters; render(); return; }
     if (a === "tall") { tall = !tall; store("history.tall", tall ? "1" : "0"); render(); return; }
     if (a === "pop") { window.open("/log", "game-log", "width=480,height=900"); open = false; store("history.open", "0"); render(); return; }
     const pc = ev.target.closest("[data-placed]");
