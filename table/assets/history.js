@@ -32,6 +32,8 @@
     if (t === "phase" && e.kind === "windows") return { who: "", kind: "table", html: `⏱ step timeouts ${e.on ? "on" : "off"}` };
     if (t === "phase" && (e.index === 0 || e.back)) return { who: e.player, kind: "turn",
       html: e.back ? `◂ back to ${name(e.player)} · ${esc(e.step)}` : `── ${name(e.player)}'s turn ──` };
+    if (t === "declare" && e.kind === "attack") return { who: e.by, kind: "combat",
+      html: `⚔ ${name(e.by)} attacks: ` + (e.attacks || []).map(a => `${esc(a.attacker)}${a.power != null ? ` (${esc(a.power)})` : ""} → ${name(a.target)}${a.trample ? " · trample" : ""}`).join(", ") };
     if (t === "captain") return { who: e.seat, kind: "captain", html: `⚓ <i>${esc(e.captain)}</i>: ${esc(e.text)}` };
     if (t === "todo" && e.kind === "added") return { who: "", kind: "table",
       html: (e.items || []).map(x => `🃏 ${x.for ? name(x.for) + ": " : ""}${esc(x.text)}`).join("<br>") };

@@ -266,6 +266,21 @@ try:
     code, _ = call("POST", "/api/placed", {"key": "../x", "on": True})
     check(code == 400, "…and only a real log position")
 
+    print("declaring attacks from a phone or the board")
+    code, ev0 = call("GET", "/api/events?since=latest")
+    r4 = urllib.request.Request(BASE + "/api/declare/attack", method="POST",
+        data=json.dumps({"by": "Ben", "attacks": [{"attacker": "Hunted Horror", "target": "Claude", "power": 7, "trample": True},
+                                                  {"attacker": "Centaur", "target": "Ann", "power": 3}]}).encode(),
+        headers={"Content-Type": "application/json", "X-Forwarded-For": "203.0.113.9"})
+    check(urllib.request.urlopen(r4, timeout=5).status == 200, "a player declares attacks from any device")
+    code, ev = call("GET", f"/api/events?since={ev0['last']}")
+    att = [e for e in ev["events"] if e.get("kind") == "attacked"]
+    check(len(att) == 1 and att[0]["addressee"] == "Claude" and att[0]["amount"] == 7 and att[0]["trample"],
+          "an attacked AI seat gets its block decision, with the power and trample")
+    check(any(e["type"] == "declare" and len(e["attacks"]) == 2 for e in ev["events"]), "the whole attack goes to the game log")
+    code, _ = call("POST", "/api/declare/attack", {"by": "Ben", "attacks": [{"attacker": "X", "target": "Ben"}]})
+    check(code == 400, "no attacking yourself (or nobody)")
+
     print("snapshot / restore")
     code, st = call("GET", "/api/brain/state?seat=Claude", brain=True)
     before = json.dumps([st["hand"], st["permanents"], st["life"]], sort_keys=True)

@@ -545,7 +545,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1691,6 +1691,31 @@ class H(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "key is '<log seq>:<card index>'"})
                 (PLACED.add if b.get("on", True) else PLACED.discard)(key)
                 return self._send(200, {"key": key, "on": key in PLACED})
+            if self.path == "/api/declare/attack":         # a player declares attacks from a phone or the board:
+                b = self._json()                           # {"by": "Sam", "attacks": [{"attacker", "target", "power", "trample"}]}
+                by = str(b.get("by", ""))[:30]
+                seats = [h["name"] for h in HUMANS] + list(VPS)
+                if by not in seats:
+                    return self._send(400, {"error": "who is attacking?"})
+                out = []
+                for a in (b.get("attacks") or [])[:20]:
+                    attacker, target = str(a.get("attacker", ""))[:80], str(a.get("target", ""))[:30]
+                    if not attacker or target not in seats or target == by:
+                        continue
+                    try:
+                        power = int(a.get("power")) if a.get("power") not in (None, "") else None
+                    except (TypeError, ValueError):
+                        power = None
+                    trample = bool(a.get("trample"))
+                    text = f"{by} attacks {target} with {attacker}" + (f" for {power}" if power is not None else "") + (", trample" if trample else "") + "."
+                    out.append({"attacker": attacker, "target": target, "power": power, "trample": trample})
+                    if target in VPS:                     # an AI seat decides its blocks, as when the attack is said aloud
+                        emit("attention", kind="attacked", text=text, addressee=target, attacker=attacker, amount=power,
+                             trample=trample, by=by)
+                if not out:
+                    return self._send(400, {"error": "no attack: pick an attacker and someone to attack"})
+                emit("declare", kind="attack", by=by, attacks=out)
+                return self._send(200, {"declared": out})
             if self.path == "/api/todo/answer":            # anyone answers a player's question: {"id": 7, "text": "...", "by": "Sam"}
                 b = self._json()
                 t = next((x for x in TODOS if x["id"] == b.get("id") and x.get("kind") == "question"), None)
