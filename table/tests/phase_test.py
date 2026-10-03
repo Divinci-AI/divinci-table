@@ -236,6 +236,14 @@ try:
     code, d = call("GET", "/api/todos")
     check(len(d["open"]) == 1 and d["done"][-1]["id"] == tid, "a ticked item moves to done for everybody")
 
+    print("game log")
+    brain("mill", n=2)
+    code, h = call("GET", "/api/history?from=0")
+    mills = [e for e in h["events"] if e.get("type") == "say" and e.get("action") == "mill"]
+    check(code == 200 and mills and ":" in mills[-1]["text"], "the game log has every mill, with the cards' names")
+    check(not any(e.get("type") == "attention" and e.get("kind") == "priority" for e in h["events"]), "…and leaves out the noise")
+    check(raw("/api/history", {"X-Forwarded-For": "203.0.113.9"}) == 200, "anyone at the table can read it")
+
     print("snapshot / restore")
     code, st = call("GET", "/api/brain/state?seat=Claude", brain=True)
     before = json.dumps([st["hand"], st["permanents"], st["life"]], sort_keys=True)

@@ -522,7 +522,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("GET", "/api/history"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1488,6 +1488,26 @@ class H(BaseHTTPRequestHandler):
             sn = self._seat_q()
             with VP_LOCK:
                 return self._send(200, {"hand": VPS[sn].private_hand() if sn else []})
+        if self.path.split("?")[0] == "/api/history":     # the whole game's public log, from the research file
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            start = max(0, int((q.get("from") or ["0"])[0] or 0))
+            p = research_dir() / "events.jsonl"
+            try:
+                lines = p.read_text().splitlines() if p.exists() else []
+            except OSError:
+                lines = []
+            out = []
+            for i, line in enumerate(lines[start:start + 2000], start):
+                try:
+                    e = json.loads(line)
+                except ValueError:
+                    continue
+                if e.get("type") in ("board3d", "hand", "heard") or (e.get("type") == "attention" and e.get("kind") == "priority"):
+                    continue                              # noise for a reader; everything else is the game
+                e["seq"] = i
+                out.append(e)
+            return self._send(200, {"next": min(len(lines), start + 2000), "events": out})
         if self.path.startswith("/api/events"):
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)
