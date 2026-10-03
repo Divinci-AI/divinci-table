@@ -1829,6 +1829,14 @@ class H(BaseHTTPRequestHandler):
                     said = VP.bottom(b["name"], from_top=bool(b.get("from_top")))
                 elif action == "shuffle":
                     said = VP.shuffle_library()
+                elif action == "graveyard-out":            # a card leaves my graveyard (stolen, exiled, returned)
+                    name = str(b.get("name", "")).strip().lower()
+                    hit = next((c for c in reversed(VP.graveyard) if c["name"].lower() == name), None)
+                    if hit is None:
+                        return self._send(400, {"error": f"no '{b.get('name')}' in your graveyard"})
+                    VP.graveyard.remove(hit)
+                    to = str(b.get("to", ""))[:60]
+                    said = [f"{hit['name']} leaves my graveyard" + (f" — {to}." if to else ".")]
                 elif action == "put":                      # ninjutsu / "put onto the battlefield" from hand
                     said = VP.put(b["name"], tapped=bool(b.get("tapped")))
                 elif action == "blink":

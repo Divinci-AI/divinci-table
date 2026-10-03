@@ -287,7 +287,7 @@ renderer.setAnimationLoop((t, frame) => {
     else { const r = 4.6; camera.position.set(Math.sin(now / 9000) * r, 2.9, Math.cos(now / 9000) * r); camera.lookAt(0, 0.95, 0); }
   }
   for (const a of Object.values(actors)) {
-    a.holder.visible = !(topView && !renderer.xr.isPresenting);    // looking straight down: the cards, not the heads
+    a.holder.visible = showAvatars && !(topView && !renderer.xr.isPresenting);   // top-down: the cards, not the heads
     if (!a.mixer) continue;
     a.mixer.update(dt);
     if (a.hips) { a.hips.position.x = a.hipsHome.x; a.hips.position.z = a.hipsHome.z; }
@@ -334,8 +334,36 @@ addEventListener("pointermove", ev => {
   tip.style.left = Math.min(ev.clientX + 14, innerWidth - 340) + "px"; tip.style.top = Math.min(ev.clientY + 14, innerHeight - 160) + "px";
   tip.style.display = "block";
 });
-let topView = new URLSearchParams(location.search).get("view") === "top";
-addEventListener("keydown", ev => { if (ev.key === "t" || ev.key === "T") topView = !topView; });
+// The page's versions, as toggles (and in the URL, so a link opens the same way):
+//   ?view=top  straight down at the cards     ?avatars=off  the board without the avatars
+const qs = new URLSearchParams(location.search);
+let topView = qs.get("view") === "top", showAvatars = qs.get("avatars") !== "off";
+const bar = document.createElement("div");
+bar.style.cssText = "position:fixed;top:10px;right:10px;display:flex;gap:6px;z-index:8;font:13px system-ui";
+document.body.appendChild(bar);
+const btnCss = "padding:6px 10px;border-radius:8px;border:1px solid #444;background:rgba(20,20,26,.85);color:#eee;cursor:pointer";
+function toolbar() {
+  bar.innerHTML = "";
+  const b = (label, title, fn) => { const x = document.createElement("button"); x.textContent = label; x.title = title;
+    x.style.cssText = btnCss; x.onclick = () => { fn(); sync(); }; bar.appendChild(x); };
+  b(topView ? "◉ Top-down" : "◎ Orbit", "T: switch between the orbiting view and straight down at the cards", () => (topView = !topView));
+  b(showAvatars ? "Avatars: on" : "Avatars: off", "A: show or hide the avatars", () => (showAvatars = !showAvatars));
+  const a = document.createElement("a"); a.href = "/board"; a.textContent = "2D board ↗"; a.title = "the whole board without 3D";
+  a.style.cssText = btnCss + ";text-decoration:none"; bar.appendChild(a);
+}
+function sync() {
+  const q = new URLSearchParams(location.search);
+  topView ? q.set("view", "top") : q.delete("view"); showAvatars ? q.delete("avatars") : q.set("avatars", "off");
+  history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : ""));
+  toolbar();
+}
+toolbar();
+renderer.xr.addEventListener("sessionstart", () => (bar.style.display = "none"));
+renderer.xr.addEventListener("sessionend", () => (bar.style.display = "flex"));
+addEventListener("keydown", ev => {
+  if (ev.key === "t" || ev.key === "T") { topView = !topView; sync(); }
+  if (ev.key === "a" || ev.key === "A") { showAvatars = !showAvatars; sync(); }
+});
 
 await build(); phase(); poll(); boardRefresh();
 setInterval(phase, 1500); setInterval(boardRefresh, 2500);

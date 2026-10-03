@@ -204,6 +204,8 @@ def main():
     ro = sub.add_parser("role"); ro.add_argument("ref"); ro.add_argument("kind")
     en = sub.add_parser("end"); en.add_argument("text", nargs="?")
     sub.add_parser("pass", help="answer a priority window: no instant this time")
+    go = sub.add_parser("graveyard-out", help="a card leaves your graveyard (stolen, exiled, returned)")
+    go.add_argument("name"); go.add_argument("--to", default="", help='e.g. "to Sam\'s battlefield"')
     sub.add_parser("phase", help="whose turn, which step, who still holds priority")
     pb = sub.add_parser("public-board", help="record a HUMAN's board for the 3D view (from photos / what they said)")
     pb.add_argument("seat"); pb.add_argument("cards", nargs="*", help='"Swamp" "Mountain:tapped" "Centaur:token:3/3" "Nihilith:suspended:5"')
@@ -276,6 +278,8 @@ def main():
         return act("end", text=a.text)
     if a.cmd == "pass":
         return act("pass", quiet=True)
+    if a.cmd == "graveyard-out":
+        return act("graveyard-out", name=a.name, to=a.to)
     if a.cmd == "phase":
         print(json.dumps(req("GET", "/api/phase", brain=False), indent=1)); return
     if a.cmd == "public-board":
