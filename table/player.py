@@ -745,7 +745,20 @@ def _manual(cls):
             raise IllegalAction(f"{c['name']} is not a land")
         if self.land_played:
             raise IllegalAction("you already played a land this turn")
-        return [self.play_land(c)]
+        said = [self.play_land(c)]
+        if "return a land you control to its owner's hand" in (c.get("text") or ""):
+            # bounce lands (Simic Growth Chamber & co.): another land back to hand — a tapped basic first,
+            # then any basic, then any other land; with no other land, it returns itself
+            this = next((p for p in reversed(self.battlefield) if p.card is c), None)
+            others = [p for p in self.battlefield if p.is_("Land") and p is not this]
+            basic = lambda p: "Basic" in (p.card.get("supertypes") or [])
+            pick = (next((p for p in others if basic(p) and p.tapped), None) or next((p for p in others if basic(p)), None)
+                    or (others[0] if others else this))
+            if pick is not None:
+                self.battlefield.remove(pick)
+                self.hand.append(pick.card)
+                said.append(f"{c['name']} returns {pick.name} to my hand.")
+        return said
 
     def manual_cast(self, name, on=None, role_on=None, modes=None, targets=None, commander=False, x=0, discount=0,
                     color=None):
