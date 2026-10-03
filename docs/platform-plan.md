@@ -92,8 +92,9 @@ changes the game, and only sometimes chimes in on its own — more often for cha
    row, never during another seat's decision. Default is conservative: wake word, direct address or
    "needed" only. A chatty personality lowers its threshold, but keeps a budget.
 
-**The judge is the local System One model.** `voice.py` already supports a local router
-(`ROUTER=so1`, or Gemma through Ollama) as well as TypeSafe's hosted Jev. Local matters here: an open
+**The judge is tev1, the local System One decision model** (served by Ollama on `/v1/systemone`;
+`fusion_brain.py` already uses it for Fusion's small decisions, and `voice.py` routes through Ollama by
+default, with TypeSafe's hosted Jev as an option). Local matters here: an open
 mic hears side conversations, and a local router keeps those transcripts on the table host. In the
 cloud version this becomes a placement decision — the judge has to run where the audio is processed.
 

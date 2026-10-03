@@ -1,0 +1,28 @@
+// divinci-table in the cloud: a public lobby (this Worker) and one container per table room.
+// The account comes from `wrangler login` / CLOUDFLARE_ACCOUNT_ID at deploy time; nothing account-specific
+// is committed (this repo is public). Secrets: `wrangler secret put DIVINCI_FUSION_API_KEY` and FUSION_CONFIG.
+{
+  "name": "divinci-table",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-12-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "containers": [
+    {
+      "class_name": "TableRoom",
+      "image": "./Dockerfile",
+      "image_build_context": "..",
+      "instance_type": "basic",
+      "max_instances": 8
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOM", "class_name": "TableRoom" },
+      { "name": "LOBBY", "class_name": "Lobby" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["TableRoom", "Lobby"] }
+  ],
+  "observability": { "enabled": true }
+}

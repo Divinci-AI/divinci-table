@@ -8,3 +8,6 @@ __pycache__/
 .venv/
 .DS_Store
 .wrangler/
+
+cloud/node_modules
+cloud/.wrangler

@@ -77,9 +77,14 @@ ap.add_argument("--token-file", default=None,
                      "test run, needs its own so it doesn't lock the live game's brain out")
 args = ap.parse_args()
 
-if sys.platform != "darwin":
-    sys.exit("ocr_mac needs macOS; swap in another read_lines backend on Linux")
-from ocr_mac import read_lines  # noqa: E402
+# CLOUD mode (Linux container, e.g. Cloudflare Containers): no Apple Vision, no local Whisper/Gemma/`say`.
+# Card scanning and the open mic are off until their cloud backends exist; everything else works.
+CLOUD = os.environ.get("TABLE_CLOUD") == "1" or sys.platform != "darwin"
+if CLOUD:
+    def read_lines(*_a, **_k):                     # no OCR backend in the cloud yet: scanning finds nothing
+        return []
+else:
+    from ocr_mac import read_lines  # noqa: E402
 
 if not args.deck and not args.any_card:
     sys.exit("pass --deck FILE, or --any-card to test with any Magic card")
@@ -2729,6 +2734,8 @@ def _warm():
 
 def _shutdown(signum, frame):
     """Unpin Gemma so its memory comes back, then exit."""
+    if CLOUD:
+        os._exit(0)
     try:
         import voice
         voice.ollama_unload([voice.OLLAMA_MODEL, voice.REPLY_MODEL])
@@ -2744,7 +2751,8 @@ signal.signal(signal.SIGINT, _shutdown)
 
 if args.restore:
     restore(args.restore)
-threading.Thread(target=_warm, daemon=True).start()   # first Whisper load takes seconds
+if not CLOUD:
+    threading.Thread(target=_warm, daemon=True).start()   # first Whisper load takes seconds
 mode = f"TEST MODE, any of {len(CATALOG)} card names" if args.any_card else f"deck: {len(DECK)} cards, {len(set(DECK))} distinct"
 print(f"{mode}. Table (camera + mic): http://localhost:{args.port}/table   "
       f"Scan pad (AI's hand): http://localhost:{args.port}/   Show: /show   Voice: /voice", flush=True)

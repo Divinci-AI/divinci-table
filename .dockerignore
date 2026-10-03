@@ -1,0 +1,5 @@
+table/.cache
+**/__pycache__
+harness
+.git
+table/tests
