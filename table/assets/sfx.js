@@ -67,7 +67,7 @@
 
   // follow the table: phases, passes, life, attacks, chat, photos, dice
   const me = () => (window.TableSeat && window.TableSeat.name()) || new URLSearchParams(location.search).get("player") || "";
-  let since = null, wasMine = false;
+  let since = null, wasMine = false, tick = 0;
   async function poll() {
     try {
       if (since === null) { since = (await (await fetch("/api/events?since=latest")).json()).last || 0; }
@@ -81,13 +81,14 @@
         else if (e.type === "chat") (e.photo ? FX.photo : FX.chat)();
         else if (e.type === "highroll") (e.winner ? FX.win : FX.dice)();
       }
+      if (++tick % 3) return;                                      // the phase only every ~3 s (fewer connections)
       const p = await (await fetch("/api/phase")).json();          // a ping when it becomes your turn to pass
       const mine = !!me() && p.passes && p.passes.next === me();
       if (mine && !wasMine) FX.yours();
       wasMine = mine;
     } catch {}
   }
-  setInterval(poll, 900); poll();
+  setInterval(poll, 1000); poll();
 
   // 🔊 / 🔇 toggle, top right under the 👤 seat chip
   const btn = document.createElement("button");

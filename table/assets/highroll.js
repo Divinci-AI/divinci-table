@@ -77,5 +77,7 @@
     }
   });
   sheet.addEventListener("keydown", ev => { const i = ev.target.closest("[data-roll]"); if (i && ev.key === "Enter") sheet.querySelector(`[data-enter="${CSS.escape(i.dataset.roll)}"]`)?.click(); });
-  refresh(); setInterval(refresh, 2000);
+  refresh();
+  const iv = setInterval(() => { if (started && !h.mode) { clearInterval(iv); btn.style.display = "none"; return; }   // game on: stop asking
+                                  if (started && sheet.style.display !== "flex") { clearInterval(iv); return; } refresh(); }, 2000);
 })();
