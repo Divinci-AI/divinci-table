@@ -206,6 +206,8 @@ def main():
     ro = sub.add_parser("role"); ro.add_argument("ref"); ro.add_argument("kind")
     en = sub.add_parser("end"); en.add_argument("text", nargs="?")
     sub.add_parser("pass", help="answer a priority window: no instant this time")
+    td = sub.add_parser("todo", help='ask the physical table to do something: todo "Move Hunted Horror to your graveyard" --for Sam')
+    td.add_argument("text", nargs="+"); td.add_argument("--for", dest="for_", default="")
     go = sub.add_parser("graveyard-out", help="a card leaves your graveyard (stolen, exiled, returned)")
     go.add_argument("name"); go.add_argument("--to", default="", help='e.g. "to Sam\'s battlefield"')
     sub.add_parser("phase", help="whose turn, which step, who still holds priority")
@@ -280,6 +282,8 @@ def main():
         return act("end", text=a.text)
     if a.cmd == "pass":
         return act("pass", quiet=True)
+    if a.cmd == "todo":                         # one item per argument
+        print(json.dumps(req("POST", "/api/todo", {"items": [{"text": t, "for": a.for_} for t in a.text]})["added"])); return
     if a.cmd == "graveyard-out":
         return act("graveyard-out", name=a.name, to=a.to)
     if a.cmd == "phase":

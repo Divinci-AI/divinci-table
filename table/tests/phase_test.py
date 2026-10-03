@@ -221,6 +221,21 @@ try:
     check(len(names[2]) <= 80 and ann["permanents"][2].get("counters") == 2, "fields are trimmed and typed")
     check(ann["permanents"][0].get("type", "").startswith("Basic Land"), "cards are filled in from the card file")
 
+    print("at the table (to-dos for the physical cards)")
+    code, _ = call("POST", "/api/todo", {"text": "Move Hunted Horror to your graveyard", "for": "Ben"})
+    check(code == 403, "only the brain can add a to-do")
+    code, r = call("POST", "/api/todo", {"items": [{"text": "Move Hunted Horror to your graveyard", "for": "Ben"},
+                                                   {"text": "x" * 500}]}, brain=True)
+    check(code == 200 and len(r["added"]) == 2 and len(r["added"][1]["text"]) <= 240, "the brain adds them (trimmed)")
+    code, d = call("GET", "/api/todos")
+    check(raw("/api/todos", {"X-Forwarded-For": "203.0.113.9"}) == 200 and len(d["open"]) == 2, "everyone can see them")
+    tid = d["open"][0]["id"]
+    r2 = urllib.request.Request(BASE + "/api/todo/done", method="POST", data=json.dumps({"id": tid, "by": "Ben"}).encode(),
+                                headers={"Content-Type": "application/json", "X-Forwarded-For": "203.0.113.9"})
+    check(urllib.request.urlopen(r2, timeout=5).status == 200, "anyone at the table can tick one off")
+    code, d = call("GET", "/api/todos")
+    check(len(d["open"]) == 1 and d["done"][-1]["id"] == tid, "a ticked item moves to done for everybody")
+
     print("snapshot / restore")
     code, st = call("GET", "/api/brain/state?seat=Claude", brain=True)
     before = json.dumps([st["hand"], st["permanents"], st["life"]], sort_keys=True)
@@ -234,6 +249,8 @@ try:
     code, d = call("GET", "/api/board3d")
     check(any(x["name"] == "Ann" and any(p["name"] == "Centaur" for p in x["permanents"]) for x in d["seats"]),
           "a human's recorded board survives a restore")
+    code, d = call("GET", "/api/todos")
+    check(len(d["open"]) == 1, "open to-dos survive a restore")
     code, p = call("GET", "/api/phase")
     check(p["player"] == "Ben", "restore brings back whose turn it is")
 

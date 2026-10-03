@@ -233,6 +233,9 @@ HAND_N: dict[str, int] = {}                            # humans' hand sizes (pub
 # Humans' boards are physical cards: the table only knows them from photos and what people say. The
 # brain keeps them here (POST /api/public-board) so the 3D board can show everyone's battlefield.
 PUBLIC_BOARD: dict[str, dict] = {}
+# What the physical table has to do to match the game (the brain posts them: "Sam: move Hunted Horror to your
+# graveyard"); anyone can tick one off. Public, like everything on the table.
+TODOS: list[dict] = []
 
 
 def _card_view(name: str | None, **kw) -> dict:
@@ -297,7 +300,7 @@ def snapshot():
     try:
         with VP_LOCK, PHASE_LOCK:
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
-                                 "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS,
+                                 "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS,
                                  "ev_id": _ev_id[0], "saved": time.time()})
         p = research_dir() / "snapshot.pkl"
         tmp = p.with_suffix(".tmp")
@@ -314,7 +317,7 @@ def restore(path: str):
     d = pickle.loads(Path(path).read_bytes())
     VPS.clear(); VPS.update(d["VPS"]); DECK_OF.update(d["DECK_OF"])
     LIFE.update(d["LIFE"]); FAIR.update(d["FAIR"]); PHASE.update(d["PHASE"]); HAND_N.update(d.get("HAND_N", {}))
-    PUBLIC_BOARD.update(d.get("PUBLIC_BOARD", {})); WINDOWS.update(d.get("WINDOWS", {}))
+    PUBLIC_BOARD.update(d.get("PUBLIC_BOARD", {})); WINDOWS.update(d.get("WINDOWS", {})); TODOS.extend(d.get("TODOS", []))
     if not ORDER:
         ORDER.extend(d.get("ORDER", []))
     _ev_id[0] = d.get("ev_id", 0)                     # pages keep their cursors across the restart
@@ -519,7 +522,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1452,6 +1455,9 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, sorted(x.stem for x in d.glob("*.glb")) if d.exists() else [])
         if self.path == "/api/phase":
             return self._send(200, phase_public())
+        if self.path == "/api/todos":                     # "at the table, please…": open ones first, then the last done
+            return self._send(200, {"open": [t for t in TODOS if not t["done"]],
+                                    "done": [t for t in TODOS if t["done"]][-8:]})
         if self.path == "/api/board3d":                   # everyone's battlefield, public only
             return self._send(200, board3d())
         if self.path == "/api/stage":                      # seats, commanders, life, hand SIZES — never cards
@@ -1608,6 +1614,31 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/api/players":                # someone joins mid-game: {"name": "Jess", "commander": "…"}
                 b = self._json()
                 return self._send(*add_human(str(b.get("name", "")), str(b.get("commander") or "")))
+            if self.path == "/api/todo":                   # the brain asks the physical table to do something
+                if not secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN):
+                    return self._send(403, {"error": "brain token required"})
+                b = self._json()
+                items = b.get("items") or [b]
+                made = []
+                for it in items[:20]:
+                    text = " ".join(str(it.get("text", "")).split())[:240]
+                    if not text:
+                        continue
+                    t = {"id": (TODOS[-1]["id"] + 1) if TODOS else 1, "text": text, "for": str(it.get("for", ""))[:30],
+                         "ts": round(time.time(), 2), "done": False, "by": ""}
+                    TODOS.append(t); made.append(t)
+                del TODOS[:-200]
+                emit("todo", kind="added", items=made)
+                return self._send(200, {"added": made})
+            if self.path == "/api/todo/done":              # anyone at the table ticks one off: {"id": 3, "by": "Sam"}
+                b = self._json()
+                t = next((x for x in TODOS if x["id"] == b.get("id")), None)
+                if not t:
+                    return self._send(404, {"error": "no such item"})
+                t["done"] = not t["done"] if b.get("toggle") else True
+                t["by"] = str(b.get("by", ""))[:30]
+                emit("todo", kind="done" if t["done"] else "reopened", id=t["id"], by=t["by"])
+                return self._send(200, t)
             if self.path == "/api/public-board":           # the brain records a human's board (from photos/speech)
                 if not secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN):
                     return self._send(403, {"error": "brain token required"})
