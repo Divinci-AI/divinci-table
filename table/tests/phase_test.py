@@ -244,6 +244,14 @@ try:
     check(not any(e.get("type") == "attention" and e.get("kind") == "priority" for e in h["events"]), "…and leaves out the noise")
     check(raw("/api/history", {"X-Forwarded-For": "203.0.113.9"}) == 200, "anyone at the table can read it")
     check(raw("/log", {"X-Forwarded-For": "203.0.113.9"}) == 200, "…and pop it out into its own window (/log)")
+    check(all(isinstance(e.get("cards"), list) and len(e["cards"]) == int(e["text"].split()[2].rstrip(":")) for e in mills),
+          "each mill in the log lists its cards one by one (names with commas kept whole)")
+    key = f"{mills[-1]['seq']}:0"
+    code, r = call("POST", "/api/placed", {"key": key, "on": True})
+    code2, lst = call("GET", "/api/placed")
+    check(code == 200 and key in lst, "anyone can tick a milled card as moved to the graveyard, for everyone")
+    code, _ = call("POST", "/api/placed", {"key": "../x", "on": True})
+    check(code == 400, "…and only a real log position")
 
     print("snapshot / restore")
     code, st = call("GET", "/api/brain/state?seat=Claude", brain=True)

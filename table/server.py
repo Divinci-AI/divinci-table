@@ -236,6 +236,20 @@ PUBLIC_BOARD: dict[str, dict] = {}
 # What the physical table has to do to match the game (the brain posts them: "Sam: move Hunted Horror to your
 # graveyard"); anyone can tick one off. Public, like everything on the table.
 TODOS: list[dict] = []
+PLACED: set = set()             # milled cards the table has physically moved: "<log seq>:<index>", from the game log
+
+
+def split_cards(text: str) -> list[str]:
+    """'Decimate, Toski, Bearer of Secrets, Forest' → the card names, keeping names that contain a comma
+    whole (checked against the card file)."""
+    import oracle
+    parts, out, i = [p.strip() for p in text.split(", ")], [], 0
+    while i < len(parts):
+        for j in range(min(len(parts), i + 3), i, -1):     # the longest run of parts that is a real card name
+            cand = ", ".join(parts[i:j])
+            if j == i + 1 or oracle.card(cand):
+                out.append(cand); i = j; break
+    return out
 
 
 def _card_view(name: str | None, **kw) -> dict:
@@ -300,7 +314,7 @@ def snapshot():
     try:
         with VP_LOCK, PHASE_LOCK:
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
-                                 "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS,
+                                 "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
                                  "ev_id": _ev_id[0], "saved": time.time()})
         p = research_dir() / "snapshot.pkl"
         tmp = p.with_suffix(".tmp")
@@ -317,7 +331,7 @@ def restore(path: str):
     d = pickle.loads(Path(path).read_bytes())
     VPS.clear(); VPS.update(d["VPS"]); DECK_OF.update(d["DECK_OF"])
     LIFE.update(d["LIFE"]); FAIR.update(d["FAIR"]); PHASE.update(d["PHASE"]); HAND_N.update(d.get("HAND_N", {}))
-    PUBLIC_BOARD.update(d.get("PUBLIC_BOARD", {})); WINDOWS.update(d.get("WINDOWS", {})); TODOS.extend(d.get("TODOS", []))
+    PUBLIC_BOARD.update(d.get("PUBLIC_BOARD", {})); WINDOWS.update(d.get("WINDOWS", {})); TODOS.extend(d.get("TODOS", [])); PLACED.update(d.get("PLACED", []))
     if not ORDER:
         ORDER.extend(d.get("ORDER", []))
     _ev_id[0] = d.get("ev_id", 0)                     # pages keep their cursors across the restart
@@ -522,7 +536,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1457,6 +1471,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, sorted(x.stem for x in d.glob("*.glb")) if d.exists() else [])
         if self.path == "/api/phase":
             return self._send(200, phase_public())
+        if self.path == "/api/placed":                    # which milled cards are physically in the graveyard
+            return self._send(200, sorted(PLACED))
         if self.path == "/api/todos":                     # "at the table, please…": open ones first, then the last done
             return self._send(200, {"open": [t for t in TODOS if not t["done"]],
                                     "done": [t for t in TODOS if t["done"]][-8:]})
@@ -1508,6 +1524,10 @@ class H(BaseHTTPRequestHandler):
                 if e.get("type") in ("board3d", "hand", "heard") or (e.get("type") == "attention" and e.get("kind") == "priority"):
                     continue                              # noise for a reader; everything else is the game
                 e["seq"] = i
+                if e.get("type") == "say" and e.get("action") == "mill":
+                    m = re.match(r"I mill (\d+): (.*?)\.?$", e.get("text") or "")
+                    if m:
+                        e["cards"] = split_cards(m.group(2))
                 out.append(e)
             return self._send(200, {"next": min(len(lines), start + 2000), "events": out})
         if self.path.startswith("/api/events"):
@@ -1652,6 +1672,13 @@ class H(BaseHTTPRequestHandler):
                 del TODOS[:-200]
                 emit("todo", kind="added", items=made)
                 return self._send(200, {"added": made})
+            if self.path == "/api/placed":                 # {"key": "120:3", "on": true}: anyone at the table
+                b = self._json()
+                key = str(b.get("key", ""))
+                if not re.fullmatch(r"\d{1,6}:\d{1,3}", key):
+                    return self._send(400, {"error": "key is '<log seq>:<card index>'"})
+                (PLACED.add if b.get("on", True) else PLACED.discard)(key)
+                return self._send(200, {"key": key, "on": key in PLACED})
             if self.path == "/api/todo/done":              # anyone at the table ticks one off: {"id": 3, "by": "Sam"}
                 b = self._json()
                 t = next((x for x in TODOS if x["id"] == b.get("id")), None)

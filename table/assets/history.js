@@ -23,9 +23,8 @@
       if (e.action === "filler") return null;
       const kind = e.action === "mill" ? "mill" : e.action === "cast" ? "cast" : /attack|damage/.test(e.action || "") ? "combat"
         : e.action === "begin" ? "turn" : e.action === "say" ? "talk" : "play";
-      const m = kind === "mill" && /^I mill (\d+): (.*?)\.?$/.exec(e.text || "");
-      if (m) return { who: e.speaker, kind, html: `🪦 ${name(e.speaker)} milled <b>${m[1]}</b>: ` +
-        `<span style="color:#cfd6e4">${esc(m[2])}</span>` };    // every card name, as the engine announced them
+      if (kind === "mill" && e.cards && e.cards.length)        // each card a chip the table ticks once it's moved
+        return { who: e.speaker, kind, mill: { seq: e.seq, cards: e.cards }, html: "", text: `${e.speaker} milled ${e.cards.join(", ")}` };
       return { who: e.speaker, kind, html: `${name(e.speaker)}: ${esc(e.text)}` };
     }
     if (t === "life") return { who: e.player, kind: "life",
@@ -44,6 +43,16 @@
   const KINDS = { cast: "casts", mill: "mills", combat: "combat", life: "life", turn: "turns", play: "other plays",
     talk: "talk", captain: "captains", table: "table" };
   let hidden = new Set(JSON.parse(store("history.hidden") || '["talk"]'));
+  let placed = new Set(), placedSig = "";
+  function rowHtml(r) {
+    if (!r.mill) return r.html;
+    const { seq, cards } = r.mill, done = cards.filter((_, i) => placed.has(`${seq}:${i}`)).length;
+    return `🪦 ${name(r.who)} milled <b>${cards.length}</b> <span style="opacity:.6;font-size:11.5px">· ${done}/${cards.length} in the graveyard — tap a card once it's moved</span><br>` +
+      cards.map((c, i) => { const on = placed.has(`${seq}:${i}`);
+        return `<span data-placed="${seq}:${i}" title="${on ? "in the graveyard — tap to undo" : "tap once it's in the graveyard"}" style="display:inline-block;margin:3px 4px 0 0;padding:1px 8px;border-radius:999px;cursor:pointer;user-select:none;` +
+          (on ? "background:#1f4d33;color:#9be3b5;border:1px solid #2e7a4f;text-decoration:line-through" : "background:#23262e;color:#cfd6e4;border:1px solid #3a3f4a") +
+          `">${on ? "✓ " : ""}${esc(c)}</span>`; }).join("");
+  }
   function place() {                                   // compact (bottom-right), tall (full-height right), or the page
     const s = box.style;
     if (PAGE) { Object.assign(s, { top: "0", bottom: "0", right: "0", left: "0", width: "auto", borderRadius: "0", border: "0" }); return; }
@@ -77,7 +86,7 @@
       </div>
       <div style="padding:0 12px 6px"><input data-act="q" value="${esc(query)}" placeholder="search: a card, a player…" style="width:100%;box-sizing:border-box;background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:7px;padding:5px 8px;font:inherit"></div>
       <div data-list style="${PAGE || tall ? "flex:1;min-height:0" : "max-height:min(52vh,460px)"};overflow:auto;padding:0 12px 10px">
-        ${shown.length ? shown.slice().reverse().map(r => `<div style="padding:4px 0;border-top:1px solid #23262e"><span style="opacity:.45;font-size:11px">${new Date(r.ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span> ${r.html}</div>`).join("")
+        ${shown.length ? shown.slice().reverse().map(r => `<div style="padding:4px 0;border-top:1px solid #23262e"><span style="opacity:.45;font-size:11px">${new Date(r.ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span> ${rowHtml(r)}</div>`).join("")
           : `<div style="opacity:.6;padding:6px 0">Nothing matches.</div>`}
       </div>`;
     const list = box.querySelector("[data-list]"); if (list) list.scrollTop = keep;
@@ -88,6 +97,13 @@
     if (a === "open" || a === "close") { open = a === "open"; store("history.open", open ? "1" : "0"); render(); return; }
     if (a === "tall") { tall = !tall; store("history.tall", tall ? "1" : "0"); render(); return; }
     if (a === "pop") { window.open("/log", "game-log", "width=480,height=900"); open = false; store("history.open", "0"); render(); return; }
+    const pc = ev.target.closest("[data-placed]");
+    if (pc) {
+      const key = pc.dataset.placed, on = !placed.has(key);
+      on ? placed.add(key) : placed.delete(key); render();                 // instant here; shared via the server
+      fetch("/api/placed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, on }) });
+      return;
+    }
     const w = ev.target.closest("[data-who]");
     if (w) { who = w.dataset.who; store("history.who", who); render(); return; }
     const k = ev.target.closest("[data-kind]");
@@ -105,14 +121,16 @@
         const d = await (await fetch(`/api/history?from=${next}`)).json();
         for (const e of d.events) {
           const r = describe(e); if (!r) continue;
-          rows.push({ ...r, seq: e.seq, ts: e.ts, text: r.html.replace(/<[^>]+>/g, "") });
+          rows.push({ ...r, seq: e.seq, ts: e.ts, text: r.text || r.html.replace(/<[^>]+>/g, "") });
         }
         more = d.next > next && d.events.length > 0 && d.next - next >= 2000;
         if (d.next < next) { rows.length = 0; }       // a new game: the log starts over
         next = d.next;
       }
+      try { const p = await (await fetch("/api/placed")).text();
+            if (p !== placedSig) { placedSig = p; placed = new Set(JSON.parse(p)); drawn = -1; } } catch {}
       const typing = box.contains(document.activeElement) && document.activeElement.dataset.act === "q";
-      if (rows.length !== drawn && !typing) render();   // only when something new happened: no scroll jumps
+      if (rows.length !== drawn && !typing) render();   // only when something changed: no scroll jumps
     } catch {}
   }
   render(); poll(); setInterval(poll, 2500);
