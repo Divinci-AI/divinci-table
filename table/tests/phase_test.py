@@ -235,6 +235,19 @@ try:
     check(urllib.request.urlopen(r2, timeout=5).status == 200, "anyone at the table can tick one off")
     code, d = call("GET", "/api/todos")
     check(len(d["open"]) == 1 and d["done"][-1]["id"] == tid, "a ticked item moves to done for everybody")
+    code, r = call("POST", "/api/todo", {"items": [{"text": "Which card does N'ghathrod take?", "for": "Ben", "ask": "Claude",
+                                                   "options": ["Sol Ring", "none"]}]}, brain=True)
+    qid = r["added"][0]["id"]
+    check(r["added"][0]["kind"] == "question" and r["added"][0]["ask"] == "Claude", "a player can ask the table a question")
+    code, ev0 = call("GET", "/api/events?since=latest")
+    r3 = urllib.request.Request(BASE + "/api/todo/answer", method="POST", data=json.dumps({"id": qid, "text": "Sol Ring", "by": "Ben"}).encode(),
+                                headers={"Content-Type": "application/json", "X-Forwarded-For": "203.0.113.9"})
+    check(urllib.request.urlopen(r3, timeout=5).status == 200, "anyone at the table can answer it")
+    code, ev = call("GET", f"/api/events?since={ev0['last']}")
+    check(any(e.get("kind") == "answered" and e.get("answer") == "Sol Ring" for e in ev["events"]), "…and the answer reaches the players")
+    code, _ = call("POST", "/api/todo/answer", {"id": qid, "text": "done, thanks", "by": "Ben", "resolve": True})
+    code, d = call("GET", "/api/todos")
+    check(not any(x["id"] == qid for x in d["open"]), "a resolved question leaves the open list")
 
     print("game log")
     brain("mill", n=2)

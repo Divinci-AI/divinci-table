@@ -536,7 +536,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1668,6 +1668,9 @@ class H(BaseHTTPRequestHandler):
                         continue
                     t = {"id": (TODOS[-1]["id"] + 1) if TODOS else 1, "text": text, "for": str(it.get("for", ""))[:30],
                          "ts": round(time.time(), 2), "done": False, "by": ""}
+                    if it.get("ask"):                     # a question from a player (an AI seat) to the table
+                        t.update(kind="question", ask=str(it["ask"])[:30], answers=[],
+                                 options=[str(o)[:60] for o in (it.get("options") or [])][:6])
                     TODOS.append(t); made.append(t)
                 del TODOS[:-200]
                 emit("todo", kind="added", items=made)
@@ -1679,6 +1682,22 @@ class H(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "key is '<log seq>:<card index>'"})
                 (PLACED.add if b.get("on", True) else PLACED.discard)(key)
                 return self._send(200, {"key": key, "on": key in PLACED})
+            if self.path == "/api/todo/answer":            # anyone answers a player's question: {"id": 7, "text": "...", "by": "Sam"}
+                b = self._json()
+                t = next((x for x in TODOS if x["id"] == b.get("id") and x.get("kind") == "question"), None)
+                if not t:
+                    return self._send(404, {"error": "no such question"})
+                text = " ".join(str(b.get("text", "")).split())[:300]
+                if not text:
+                    return self._send(400, {"error": "an answer needs some text"})
+                a = {"text": text, "by": str(b.get("by", ""))[:30], "ts": round(time.time(), 2)}
+                t["answers"].append(a)
+                del t["answers"][:-20]
+                if b.get("resolve"):
+                    t["done"] = True
+                emit("todo", kind="answered", id=t["id"], ask=t.get("ask"), question=t["text"], answer=text, by=a["by"],
+                     resolved=t["done"])
+                return self._send(200, t)
             if self.path == "/api/todo/done":              # anyone at the table ticks one off: {"id": 3, "by": "Sam"}
                 b = self._json()
                 t = next((x for x in TODOS if x["id"] == b.get("id")), None)

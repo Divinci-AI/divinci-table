@@ -110,6 +110,9 @@ def fmt_event(e):
         return f"[{t}] #{e['id']} LIFE {e['player']} {e['delta']:+d} → {e['life']} (by {e['by']})"
     if k == "captain":
         return f"[{t}] #{e['id']} ⚓ {e.get('captain')} ({e.get('seat')}): {e.get('text')}"
+    if k == "todo" and e.get("kind") == "answered":
+        return (f"[{t}] #{e['id']} 💬 ANSWER to {e.get('ask')}'s question \"{e.get('question')}\": "
+                f"\"{e.get('answer')}\" (by {e.get('by') or '?'}){' — resolved' if e.get('resolved') else ''}")
     if k == "phase" and e.get("kind") == "windows":
         return f"[{t}] #{e['id']} STEP TIMEOUTS {'ON' if e.get('on') else 'OFF'} (by {e.get('by') or '?'})"
     if k == "phase":
@@ -208,6 +211,8 @@ def main():
     sub.add_parser("pass", help="answer a priority window: no instant this time")
     td = sub.add_parser("todo", help='ask the physical table to do something: todo "Move Hunted Horror to your graveyard" --for Sam')
     td.add_argument("text", nargs="+"); td.add_argument("--for", dest="for_", default="")
+    ak = sub.add_parser("ask", help='a question to the table, shown as coming from this seat: ask "Which card?" --option "Sol Ring"')
+    ak.add_argument("text"); ak.add_argument("--option", action="append", default=[]); ak.add_argument("--to", default="")
     go = sub.add_parser("graveyard-out", help="a card leaves your graveyard (stolen, exiled, returned)")
     go.add_argument("name"); go.add_argument("--to", default="", help='e.g. "to Sam\'s battlefield"')
     sub.add_parser("phase", help="whose turn, which step, who still holds priority")
@@ -282,6 +287,9 @@ def main():
         return act("end", text=a.text)
     if a.cmd == "pass":
         return act("pass", quiet=True)
+    if a.cmd == "ask":
+        r = req("POST", "/api/todo", {"items": [{"text": a.text, "for": a.to, "ask": a.seat or SEAT or "Claude", "options": a.option}]})
+        print(json.dumps(r["added"])); return
     if a.cmd == "todo":                         # one item per argument
         print(json.dumps(req("POST", "/api/todo", {"items": [{"text": t, "for": a.for_} for t in a.text]})["added"])); return
     if a.cmd == "graveyard-out":
