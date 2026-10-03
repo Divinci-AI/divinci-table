@@ -83,8 +83,10 @@ try:
     code, p = call("POST", "/api/phase/next", {"by": "Ann"})
     check(code == 200 and p["step"] == "draw", "a seat with nothing to cast passes by itself after the beat")
     for land in ("Swamp", "Plains", "Island"):                       # now Claude holds a castable instant
-        brain("search", name=land, to="battlefield")
-    brain("search", name="Mortify")
+        code, _ = brain("search", name=land, to="battlefield")
+        if code != 200:                                              # the deck is shuffled at random: it may be in hand
+            brain("put", name=land)
+    brain("search", name="Mortify")                                  # (or already in hand: either way it's held)
     time.sleep(BEAT)
     code, p = call("POST", "/api/phase/next", {"by": "Ann"})
     check(p["step"] == "main 1" and p["waiting"] == ["Claude"], "a seat holding an instant gets the very same window")
@@ -281,6 +283,26 @@ try:
     code, _ = call("POST", "/api/declare/attack", {"by": "Ben", "attacks": [{"attacker": "X", "target": "Ben"}]})
     check(code == 400, "no attacking yourself (or nobody)")
 
+    print("card actions from the board")
+    call("POST", "/api/public-board", {"seat": "Ann", "permanents": [{"name": "Rogue's Passage"}, {"name": "Thought Vessel"}]}, brain=True)
+    code, d = call("GET", "/api/board3d")
+    rp = next(p for x in d["seats"] if x["name"] == "Ann" for p in x["permanents"] if p["name"] == "Rogue's Passage")
+    abil = next(l for l in rp["text"].split("\n") if "{T}:" in l and "blocked" in l)
+    r6 = urllib.request.Request(BASE + "/api/card-action", method="POST", headers={"Content-Type": "application/json", "X-Forwarded-For": "203.0.113.9"},
+        data=json.dumps({"seat": "Ann", "index": 0, "name": "Rogue's Passage", "action": "activate", "ability": abil, "target": "Ben's Hunted Horror"}).encode())
+    check(urllib.request.urlopen(r6, timeout=10).status == 200, "a player activates a card's ability from any device")
+    code, d = call("GET", "/api/board3d")
+    ann = next(x for x in d["seats"] if x["name"] == "Ann")
+    check(ann["permanents"][0]["tapped"], "…a {T} cost taps the card")
+    code, r = call("POST", "/api/card-action", {"seat": "Ann", "index": 0, "name": "Rogue's Passage", "action": "activate", "ability": abil})
+    check(code == 409, "…and a tapped card can't pay {T} again")
+    code, r = call("POST", "/api/card-action", {"seat": "Ann", "index": 1, "name": "Thought Vessel", "action": "graveyard"})
+    code, d = call("GET", "/api/board3d")
+    ann = next(x for x in d["seats"] if x["name"] == "Ann")
+    check("Thought Vessel" in ann["graveyard"] and len(ann["permanents"]) == 1, "moving a card to the graveyard updates the board")
+    code, r = call("POST", "/api/card-action", {"seat": "Claude", "index": 0, "action": "tap"})
+    check(code == 400, "the AI seats' cards can't be worked from the board")
+
     print("typed table talk")
     code, ev0 = call("GET", "/api/events?since=latest")
     r5 = urllib.request.Request(BASE + "/api/chat", method="POST", data=json.dumps({"by": "Ann", "text": "I'm at 30."}).encode(),
@@ -302,8 +324,8 @@ try:
     check(json.dumps([st["hand"], st["permanents"], st["life"]], sort_keys=True) == before,
           "restore brings back the same hand, board and life")
     code, d = call("GET", "/api/board3d")
-    check(any(x["name"] == "Ann" and any(p["name"] == "Centaur" for p in x["permanents"]) for x in d["seats"]),
-          "a human's recorded board survives a restore")
+    check(any(x["name"] == "Ann" and any(p["name"] == "Rogue's Passage" and p.get("tapped") for p in x["permanents"]) for x in d["seats"]),
+          "a human's recorded board (and a card action on it) survives a restore")
     code, d = call("GET", "/api/todos")
     check(len(d["open"]) == 1, "open to-dos survive a restore")
     code, p = call("GET", "/api/phase")

@@ -297,9 +297,32 @@ def board3d() -> dict:
                           "hand": len(v.hand), "library": len(v.library), "commander_in_zone": v.cmdr_in_zone,
                           "commander_tax": 2 * v.cmdr_casts, "permanents": perms,
                           "graveyard": [c["name"] for c in v.graveyard][-100:], "graveyard_count": len(v.graveyard)})
+    for x in seats:
+        if is_out(x["name"]):                         # they've lost: every card they own has left the game
+            x.update(out=True, permanents=[], graveyard=[], graveyard_count=0, commander_in_zone=False, hand=0)
     order = turn_order()
     seats.sort(key=lambda x: order.index(x["name"]) if x["name"] in order else 99)
     return {"seats": seats, "turn": PHASE.get("player"), "step": STEPS[PHASE["step"]]}
+
+
+def is_out(name: str) -> bool:
+    """A player at 0 life or less has lost: their cards leave the game and their turns are skipped."""
+    lt = life_table()
+    return name in lt and lt[name] is not None and lt[name] <= 0
+
+
+def seat_after(name: str, step: int = 1) -> str | None:
+    """The next (or, step=-1, previous) seat in turn order that is still in the game."""
+    order = turn_order()
+    if name not in order:
+        alive = [n for n in order if not is_out(n)]
+        return alive[0] if alive else None
+    i = order.index(name)
+    for k in range(1, len(order) + 1):
+        n = order[(i + step * k) % len(order)]
+        if not is_out(n):
+            return n
+    return None
 
 
 def turn_order() -> list[str]:
@@ -363,7 +386,7 @@ def open_priority(step: str) -> list[str]:
     if step not in NO_PRIORITY:
         with VP_LOCK:
             for n, v in VPS.items():
-                if n != active:
+                if n != active and not is_out(n):
                     seats.append(n)
                     if instant_speed(v):
                         holders.append(n)
@@ -448,7 +471,7 @@ def next_step(by: str | None = None) -> tuple[int, dict]:
         PRIORITY.update(waiting=[], seats=[])
         if PHASE["step"] >= len(STEPS) - 1:
             order = turn_order()
-            nxt = order[(order.index(PHASE["player"]) + 1) % len(order)] if PHASE["player"] in order else order[0]
+            nxt = seat_after(PHASE["player"]) or order[0]   # players who are out are skipped
             emit("phase", player=PHASE["player"], step="turn over", index=len(STEPS))
             start_turn(nxt)
             return 200, phase_public()
@@ -475,7 +498,7 @@ def prev_step(by: str | None = None) -> tuple[int, dict]:
             emit("phase", player=cur, step=STEPS[PHASE["step"]], index=PHASE["step"], by=by, back=True)
             return 200, phase_public()
         order = turn_order()
-        prev = order[(order.index(cur) - 1) % len(order)] if cur in order else None
+        prev = seat_after(cur, -1) if cur in order else None
         if prev is None or prev in VPS:
             return 409, {**phase_public(), "error": f"can't go back into {prev}'s turn — it already played it"}
         PHASE.update(player=prev, step=len(STEPS) - 1, begun=False)
@@ -545,7 +568,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1700,6 +1723,48 @@ class H(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "key is '<log seq>:<card index>'"})
                 (PLACED.add if b.get("on", True) else PLACED.discard)(key)
                 return self._send(200, {"key": key, "on": key in PLACED})
+            if self.path == "/api/card-action":            # a person acts with one of their own cards on /board
+                b = self._json()                           # {"owner","index","action","ability","target"}
+                owner = str(b.get("seat", ""))
+                if owner not in [h["name"] for h in HUMANS]:
+                    return self._send(400, {"error": "card actions are for people's cards; the AI seats play their own"})
+                board = PUBLIC_BOARD.setdefault(owner, {"permanents": [], "graveyard": [], "commander_out": False})
+                perms = board.setdefault("permanents", [])
+                try:
+                    i = int(b.get("index"))
+                    p = perms[i]
+                except (TypeError, ValueError, IndexError):
+                    return self._send(404, {"error": "that card isn't on the board any more — refresh"})
+                if str(b.get("name", "")) and b.get("name") != p.get("name"):
+                    return self._send(409, {"error": "the board changed — refresh and try again"})
+                action = str(b.get("action", ""))
+                nm = "a face-down card" if p.get("face_down") else p.get("name", "a card")
+                target = " ".join(str(b.get("target", "")).split())[:80]
+                if action == "activate":
+                    ability = " ".join(str(b.get("ability", "")).split())[:240]
+                    cost = ability.split(":")[0] if ":" in ability else ""
+                    if "{T}" in cost:
+                        if p.get("tapped"):
+                            return self._send(409, {"error": f"{nm} is already tapped"})
+                        p["tapped"] = True
+                    text = f"{owner} activates {nm}: {ability}" + (f" — targeting {target}" if target else "")
+                elif action in ("tap", "untap"):
+                    p["tapped"] = action == "tap"
+                    text = f"{owner} {action}s {nm}."
+                elif action in ("counter+", "counter-"):
+                    p["counters"] = int(p.get("counters") or 0) + (1 if action == "counter+" else -1)
+                    text = f"{owner} puts a counter {'on' if action == 'counter+' else 'off'} {nm} (now {p['counters']})."
+                elif action in ("graveyard", "exile", "hand"):
+                    perms.pop(i)
+                    if action == "graveyard" and not p.get("token"):
+                        board.setdefault("graveyard", []).append(p.get("name", ""))
+                    text = f"{owner} moves {nm} to {'their graveyard' if action == 'graveyard' else action}" + (" (a token: it's gone)." if p.get("token") else ".")
+                else:
+                    return self._send(400, {"error": "unknown action"})
+                board["updated"] = round(time.time(), 2)
+                emit("chat", by=owner, text=text, card_action=action)
+                emit("board3d", owner=owner, n=len(perms))
+                return self._send(200, {"ok": True, "text": text})
             if self.path == "/api/chat":                   # typed table talk from a phone or the board: {"by": "Sam", "text": "..."}
                 b = self._json()
                 by = str(b.get("by", ""))[:30]
@@ -2056,7 +2121,7 @@ class H(BaseHTTPRequestHandler):
             order = turn_order()
             with PHASE_LOCK:
                 PHASE["step"] = len(STEPS) - 1
-                nxt = order[(order.index(VP.name) + 1) % len(order)]
+                nxt = seat_after(VP.name) or order[(order.index(VP.name) + 1) % len(order)]
             threading.Timer(0.5, lambda: (start_turn(nxt), snapshot())).start()
         if action == "begin":                         # the turn button or NEXT handed this seat its turn
             with PHASE_LOCK:

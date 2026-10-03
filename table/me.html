@@ -44,14 +44,17 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
     <button id="next" hidden onclick="nextStep()">NEXT ▸</button>
     <button id="back" hidden onclick="backStep()" style="margin-top:6px;opacity:.8">◂ BACK a step</button>
     <button id="win" onclick="toggleWin()" style="margin-top:6px;opacity:.8">⏱ step timeouts</button></div>
+  <div class="card"><div class="muted">💬 Tell the table — what you're doing, or a question</div>
+    <div style="display:flex;gap:6px;margin-top:6px"><input id="chat" autocomplete="off" placeholder="I activate Rogue's Passage on Sewer Nemesis…" style="flex:1;min-width:0">
+      <button id="sendChat">send</button></div><div id="chatMsg" class="muted"></div></div>
   <div class="card cast" id="castCard" hidden><div class="muted">Just played</div><div id="cast"></div></div>
   <div class="card"><div class="muted">At the table</div><div id="caps"><div class="muted">Nothing yet.</div></div></div>
   <div class="card"><div class="muted">Fair decks: the AI's shuffle is sealed before the first draw</div>
     <div id="fair" style="margin-top:6px"></div>
-    <div class="muted" style="margin-top:10px">Your secret word for the next shuffle (nobody sees it until the proof is published)</div>
+    <div id="wordBox"><div class="muted" style="margin-top:10px">Your secret word for the next shuffle (nobody sees it until the proof is published) — optional, only before a game starts</div>
     <input id="word" autocomplete="off" placeholder="any word">
     <div class="btns"><button class="big" id="sendWord">Seal it in</button></div>
-    <div id="wordMsg" class="muted"></div></div>
+    <div id="wordMsg" class="muted"></div></div></div>
 </div>
 <script>
 const $=id=>document.getElementById(id), esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -77,6 +80,10 @@ async function fair(){ const f=await j("/api/fair"); if(f.error){$("fair").inner
   $("fair").innerHTML=(rows.join("")||`<span class="muted">no sealed decks</span>`)
     +(f.words_in&&f.words_in.length?`<div class="muted">words in for the next shuffle: ${esc(f.words_in.join(", "))}</div>`:"")
     +(f.revealed?`<div class="ok">Proof published. <a href="/api/fair/verify" style="color:inherit">Check it</a></div>`:""); }
+async function sendChat(){ const t=$("chat").value.trim(); if(!t) return;
+  const r=await j("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({by:me,text:t})});
+  $("chatMsg").innerHTML=r.error?`<span class="warn">${esc(r.error)}</span>`:`<span class="ok">Sent — it's in the game log.</span>`; $("chat").value=""; }
+$("sendChat").onclick=sendChat; $("chat").addEventListener("keydown",e=>{ if(e.key==="Enter") sendChat(); });
 $("sendWord").onclick=async()=>{ const w=$("word").value.trim(); if(!w) return;
   const r=await j("/api/fair/word",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({player:me,word:w})});
   $("wordMsg").innerHTML=r.error?`<span class="warn">${esc(r.error)}</span>`:`<span class="ok">Sealed in. It's used at the next new game.</span>`; $("word").value=""; fair(); };
@@ -91,7 +98,8 @@ async function phase(){ const p=await j("/api/phase"); if(p.error) return;
   const nb=$("next"); nb.hidden=!(mine||!p.player); nb.disabled=!!(p.waiting&&p.waiting.length&&p.seconds_left>0);
   nb.classList.toggle("wait",nb.disabled);
   nb.textContent=!p.player?"START ▸":nb.disabled?"waiting…":(p.index>=steps.length-1?"END TURN ▸":`NEXT ▸ ${steps[p.index+1]||""}`);
-  $("back").hidden=!p.player;                       // anyone at the table can undo a NEXT pressed too soon
+  $("back").hidden=!p.player;
+  $("wordBox").hidden=!!p.player;                   // the shuffle word only matters before a game begins                       // anyone at the table can undo a NEXT pressed too soon
   winOn=p.windows!==false; $("win").textContent=winOn?`⏱ step timeouts: ${p.window_secs||""}s (tap for off)`:"⏱ step timeouts: off (tap for on)"; }
 let winOn=true;
 async function toggleWin(){ await j("/api/phase/windows",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:!winOn,by:me})}); phase(); }
@@ -102,6 +110,7 @@ async function nextStep(){ const r=await j("/api/phase/next",{method:"POST",head
 setInterval(()=>{ if(me) phase(); },1500);
 function onEvent(e){
   if(e.type==="phase"||e.type==="priority"||(e.type==="attention"&&e.kind==="priority")) phase();
+  if(e.type==="chat"){ caps.push(`<div class="cap"><b>💬 ${esc(e.by)}:</b> ${esc(e.text)}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join(""); }
   if(e.type==="captain"){ caps.push(`<div class="cap"><b>⚓ ${esc(e.captain)}:</b> ${esc(e.text)}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join(""); }
   if(e.type==="say"){ caps.push(`<div class="cap"><b>${esc(e.speaker)}:</b> ${esc(e.text)}</div>`); caps=caps.slice(-6); $("caps").innerHTML=caps.slice().reverse().join("");
     const t=e.text.match(/^(.+?), turn (\d+)\./); if(t) $("turn").innerHTML=`<b>${esc(t[1])}</b>'s turn ${esc(t[2])}`;

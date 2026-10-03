@@ -79,7 +79,8 @@ function render(d) {
   const isLand = c => !c.face_down && /Land/.test(c.type || ""), isCreature = c => c.face_down || /Creature/.test(c.type || "");
   document.getElementById("phase").innerHTML = d.turn ? `<span class="p">${esc(d.turn)}</span> · ${esc(d.step)}` : "not started";
   document.getElementById("seats").innerHTML = d.seats.map(s => {
-    const perms = (s.permanents || []).filter(c => c.attached_to == null);
+    const perms = (s.permanents || []).map((c, ix) => ({ ...c, _ix: ix, _seat: s.name, _mine: s.kind === "human" }))
+      .filter(c => c.attached_to == null);
     const lands = [], idx = new Map();
     for (const c of perms.filter(isLand)) { const k = c.name + "|" + !!c.tapped;
       if (idx.has(k)) lands[idx.get(k)].n++; else { idx.set(k, lands.length); lands.push({ ...c, n: 1 }); } }
@@ -107,7 +108,55 @@ function showTip(ev) {
   const x = ev.clientX ?? ev.touches?.[0]?.clientX ?? 20, y = ev.clientY ?? ev.touches?.[0]?.clientY ?? 20;
   tip.style.left = Math.min(x + 14, innerWidth - 336) + "px"; tip.style.top = Math.min(y + 14, innerHeight - 180) + "px"; tip.style.display = "block";
 }
-addEventListener("mousemove", showTip); addEventListener("click", showTip);
+addEventListener("mousemove", showTip);
+addEventListener("click", ev => {                       // a person's own card: the action menu; anything else: details
+  if (ev.target.closest("#menu")) return;
+  const el = ev.target.closest(".card"); if (!el) { closeMenu(); return; }
+  const c = cardsById[+el.dataset.i];
+  if (c && c._mine && c._ix != null) { tip.style.display = "none"; openMenu(c, ev); } else showTip(ev);
+});
+
+// ── card actions: abilities from the card's own text, tap/untap, counters, moving it ──────────
+const menu = document.createElement("div"); menu.id = "menu";
+menu.style.cssText = "position:fixed;z-index:20;width:min(340px,calc(100vw - 24px));background:#14161b;border:1px solid #3a3f4a;" +
+  "border-radius:12px;padding:10px 12px;box-shadow:0 10px 40px rgba(0,0,0,.55);display:none;font-size:13px";
+document.body.appendChild(menu);
+function closeMenu() { menu.style.display = "none"; }
+function abilities(c) {                               // "{4}, {T}: Target creature can't be blocked this turn."
+  return String(c.text || "").split(/\n/).map(x => x.trim()).filter(x => /^[^"]*\{[^}]+\}[^:]*:\s*\S/.test(x) && !/^\(/.test(x));
+}
+function openMenu(c, ev) {
+  const abil = abilities(c);
+  const targets = [...new Set([...(lastData?.seats || []).map(s => s.name),
+    ...(lastData?.seats || []).flatMap(s => (s.permanents || []).filter(p => !p.face_down && !/Land/.test(p.type || "")).map(p => `${s.name}'s ${p.name}`))])];
+  const btn = (act, label, extra = "") => `<button data-act="${act}" ${extra} style="border:1px solid #3a3f4a;background:#23262e;color:#eee;border-radius:7px;padding:4px 9px;cursor:pointer;font:inherit;font-size:12.5px">${label}</button>`;
+  menu.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+      <b>${esc(c.face_down ? "Face-down card" : c.name)}</b><span style="opacity:.6">${esc(c._seat)}${c.tapped ? " · tapped" : ""}</span></div>
+    ${abil.length ? `<div style="margin-top:8px;opacity:.7;font-size:11.5px">ABILITIES</div>` + abil.map((a, k) =>
+      `<div style="margin-top:5px"><button data-act="activate" data-k="${k}" style="width:100%;text-align:left;border:1px solid #2e5a3a;background:#1c3324;color:#d6f5df;border-radius:8px;padding:6px 8px;cursor:pointer;font:inherit;font-size:12.5px">▶ ${esc(a)}</button></div>`).join("") +
+      `<div style="margin-top:6px;display:flex;gap:6px;align-items:center"><span style="opacity:.7;font-size:11.5px">target</span>
+        <input list="tgts" data-target placeholder="(none, or pick / type)" style="flex:1;min-width:0;background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:6px;padding:4px 6px;font:inherit;font-size:12.5px">
+        <datalist id="tgts">${targets.map(t => `<option value="${esc(t)}">`).join("")}</datalist></div>` : ""}
+    <div style="margin-top:9px;display:flex;flex-wrap:wrap;gap:5px">
+      ${btn(c.tapped ? "untap" : "tap", c.tapped ? "Untap" : "Tap")} ${btn("counter+", "+1 counter")} ${btn("counter-", "−1 counter")}
+      ${btn("graveyard", "To graveyard")} ${btn("exile", "Exile")} ${btn("hand", "To hand")}
+    </div>
+    <div data-msg style="margin-top:6px;min-height:1em;color:#ffb3b3;font-size:12px"></div>`;
+  menu._c = c; menu._abil = abil;
+  menu.style.display = "block";
+  const x = ev.clientX ?? 20, y = ev.clientY ?? 20;
+  menu.style.left = Math.max(8, Math.min(x - 20, innerWidth - menu.offsetWidth - 8)) + "px";
+  menu.style.top = Math.max(8, Math.min(y + 12, innerHeight - menu.offsetHeight - 8)) + "px";
+}
+menu.addEventListener("click", async ev => {
+  const b = ev.target.closest("[data-act]"); if (!b) return;
+  const c = menu._c, body = { seat: c._seat, index: c._ix, name: c.name, action: b.dataset.act };
+  if (b.dataset.act === "activate") { body.ability = menu._abil[+b.dataset.k]; body.target = menu.querySelector("[data-target]")?.value || ""; }
+  const r = await fetch("/api/card-action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { menu.querySelector("[data-msg]").textContent = d.error || "couldn't do that"; return; }
+  closeMenu(); last = ""; refresh();
+});
 let last = "";
 async function refresh() {
   try {
