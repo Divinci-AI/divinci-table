@@ -91,7 +91,7 @@ async function phase(){ const p=await j("/api/phase"); if(p.error) return;
   const nb=$("next"); nb.hidden=!(mine||!p.player); nb.disabled=!!(p.waiting&&p.waiting.length&&p.seconds_left>0);
   nb.classList.toggle("wait",nb.disabled);
   nb.textContent=!p.player?"START ▸":nb.disabled?"waiting…":(p.index>=steps.length-1?"END TURN ▸":`NEXT ▸ ${steps[p.index+1]||""}`);
-  $("back").hidden=!(p.player&&(mine||p.index===0));
+  $("back").hidden=!p.player;                       // anyone at the table can undo a NEXT pressed too soon
   winOn=p.windows!==false; $("win").textContent=winOn?`⏱ step timeouts: ${p.window_secs||""}s (tap for off)`:"⏱ step timeouts: off (tap for on)"; }
 let winOn=true;
 async function toggleWin(){ await j("/api/phase/windows",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:!winOn,by:me})}); phase(); }

@@ -36,7 +36,7 @@
 <body>
 <div id="overlay">
   <div id="hint">Point at the table, then tap to place it</div>
-  <div id="bar"><span class="ph" id="ph">—</span><button id="next">NEXT ▸</button></div>
+  <div id="bar"><span class="ph" id="ph">—</span><button id="back" title="back a step" style="opacity:.75">◂</button><button id="next">NEXT ▸</button></div>
 </div>
 <div id="ios"></div>
 <div id="msg"></div>
@@ -246,9 +246,14 @@ async function phase() {
   ph.innerHTML = `<b>${escHtml(p.player || "—")}</b> · ${escHtml(p.step)}` + (waiting ? ` <span class="wait">· ${escHtml(p.waiting.join(", "))} ${Math.ceil(p.seconds_left)}s</span>` : "");
   const human = p.player && !(p.ai || []).includes(p.player);
   nb.style.display = human || !p.player ? "" : "none"; nb.disabled = !!waiting;
+  document.getElementById("back").style.display = p.player ? "" : "none";
   nb.textContent = !p.player ? "START ▸" : p.index >= p.steps.length - 1 ? "END TURN ▸" : "NEXT ▸";
   for (const a of Object.values(actors)) a.ring.visible = a.name === turn;
 }
+document.getElementById("back").addEventListener("click", async () => {
+  await fetch("/api/phase/back", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ by: turn || "xr" }) });
+  phase();
+});
 document.getElementById("next").addEventListener("click", async e => {
   e.stopPropagation();
   await fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ by: turn || "xr" }) });
