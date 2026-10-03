@@ -54,6 +54,10 @@
   // a phone link names its player: claim it (or add this device with ?key=)
   const q = new URLSearchParams(location.search), qp = q.get("player"), qk = q.get("key");
   const ready = (async () => {
+    if (mine.name && mine.key && !qk) {               // check in with my key: the server records this device,
+      const r = await post("/api/seat/claim", { name: mine.name, key: mine.key });   // so this laptop's other windows
+      if (!r.ok && r.d && /claimed on another device|only a person/.test(r.d.error || "")) { mine = {}; save(mine); chip(); }
+    }                                                 // (any address, any tab) pick up the same seat
     if (!mine.name && !qp) {
       try {
         const c = await (await fetch("/api/seat/claims")).json();
