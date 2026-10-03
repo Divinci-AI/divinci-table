@@ -53,7 +53,14 @@
   if (document.body) mount(); else addEventListener("DOMContentLoaded", mount);
   // a phone link names its player: claim it (or add this device with ?key=)
   const q = new URLSearchParams(location.search), qp = q.get("player"), qk = q.get("key");
+  let proxied = false;                                  // this page plays a seat someone lent to my player
   const ready = (async () => {
+    if (qp && mine.name && qp !== mine.name && !qk) {
+      try {
+        const c = await (await fetch("/api/seat/claims")).json();
+        if ((c.proxy || {})[qp] === mine.name) { proxied = true; chipEl.textContent = `👤 ${mine.name} as ${qp}`; return; }
+      } catch {}
+    }
     if (mine.name && mine.key && !qk) {               // check in with my key: the server records this device,
       const r = await post("/api/seat/claim", { name: mine.name, key: mine.key });   // so this laptop's other windows
       if (!r.ok && r.d && /claimed on another device|only a person/.test(r.d.error || "")) { mine = {}; save(mine); chip(); }
@@ -69,5 +76,6 @@
       if (qk && r.ok) history.replaceState(null, "", location.pathname + "?player=" + encodeURIComponent(qp));   // don't leave the key in the bar
     }
   })();
-  window.TableSeat = { name: () => mine.name || "", body: (extra = {}) => ({ by: mine.name || "", key: mine.key || "", ...extra }), pick, ready };
+  window.TableSeat = { name: () => (proxied ? qp : mine.name) || "",
+                       body: (extra = {}) => ({ by: (proxied ? qp : mine.name) || "", key: mine.key || "", ...extra }), pick, ready };
 })();

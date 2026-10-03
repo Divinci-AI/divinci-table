@@ -343,7 +343,7 @@ def snapshot():
         with VP_LOCK, PHASE_LOCK:
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
                                  "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
-                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "ev_id": _ev_id[0], "saved": time.time()})
+                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "SEAT_PROXY": SEAT_PROXY, "ev_id": _ev_id[0], "saved": time.time()})
         p = research_dir() / "snapshot.pkl"
         tmp = p.with_suffix(".tmp")
         tmp.write_bytes(blob)
@@ -364,6 +364,7 @@ def restore(path: str):
     SEAT_KEYS.update(d.get("SEAT_KEYS") or {})
     SEAT_DEVICES.update(d.get("SEAT_DEVICES") or {})
     AUTOPASS.update(d.get("AUTOPASS") or {})
+    SEAT_PROXY.update(d.get("SEAT_PROXY") or {})
     if d.get("ORDER") and (not ORDER or HIGHROLL.get("winner")):
         ORDER[:] = d["ORDER"]                         # a high roll's order beats the --order the table was started with
     _ev_id[0] = d.get("ev_id", 0)                     # pages keep their cursors across the restart
@@ -579,7 +580,12 @@ def _keyhash(key: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
+SEAT_PROXY: dict = {}   # seat → the player who plays it tonight (e.g. {"Sam": "Michael"}): their key counts for it
+
+
 def seat_key_ok(name: str, key: str) -> bool:
+    if SEAT_PROXY.get(name) and SEAT_PROXY[name] != name and seat_key_ok(SEAT_PROXY[name], key):
+        return True
     hs = SEAT_KEYS.get(name) or []
     if isinstance(hs, str):                           # an older snapshot stored one hash
         hs = SEAT_KEYS[name] = [hs]
@@ -1901,7 +1907,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, highroll_public())
         if self.path == "/api/seat/claims":
             fp = self._device()
-            return self._send(200, {"humans": {h["name"]: h["name"] in SEAT_KEYS for h in HUMANS},
+            return self._send(200, {"humans": {h["name"]: h["name"] in SEAT_KEYS or h["name"] in SEAT_PROXY for h in HUMANS},
+                                    "proxy": dict(SEAT_PROXY),
                                     "this_device": [n for n, fps in SEAT_DEVICES.items() if fp in fps]})
         if self.path == "/api/fair":                       # public: commits now, full records once revealed
             with VP_LOCK:
@@ -2283,6 +2290,26 @@ class H(BaseHTTPRequestHandler):
                 SEAT_KEYS[name].append(_keyhash(key))
                 snapshot()
                 return self._send(200, {"name": name, "key": key})
+            if self.path == "/api/seat/proxy":             # host laptop only: {"seat": "Sam", "to": "Michael", "autopass": "others"}
+                if not self._is_local():
+                    return self._send(403, {"error": "set from the host laptop"})
+                b = self._json()
+                names = {h["name"] for h in HUMANS}
+                seat_, to = str(b.get("seat", "")), str(b.get("to", ""))
+                if seat_ not in names or (to and to not in names):
+                    return self._send(400, {"error": "seat and to must be people at the table"})
+                if to:
+                    SEAT_PROXY[seat_] = to
+                else:
+                    SEAT_PROXY.pop(seat_, None)
+                if b.get("autopass") in ("off", "others", "others-no-combat"):
+                    with PHASE_LOCK:
+                        AUTOPASS[seat_] = b["autopass"]
+                        emit("autopass", by=seat_, mode=b["autopass"])
+                        autopass_round()
+                emit("seat", name=seat_, kind="proxy", to=to)
+                snapshot()
+                return self._send(200, {"proxy": dict(SEAT_PROXY), "autopass": dict(AUTOPASS)})
             if self.path == "/api/seat/release":           # host laptop only: {"name": "Sam"} (a lost phone)
                 if not self._is_local():
                     return self._send(403, {"error": "release a seat from the host laptop"})
