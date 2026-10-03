@@ -2181,6 +2181,19 @@ class H(BaseHTTPRequestHandler):
                 emit("seat", name=name, kind="claimed")
                 snapshot()
                 return self._send(200, {"name": name, "key": key})
+            if self.path == "/api/seat/link":              # host laptop only: {"name": "Michael"} → a key for one more device
+                if not self._is_local():
+                    return self._send(403, {"error": "device links are made on the host laptop"})
+                name = next((h["name"] for h in HUMANS if h["name"].lower() == str(self._json().get("name", "")).lower()), None)
+                if not name:
+                    return self._send(400, {"error": "only a person's seat"})
+                key = secrets.token_urlsafe(18)
+                SEAT_KEYS.setdefault(name, [])
+                if isinstance(SEAT_KEYS[name], str):
+                    SEAT_KEYS[name] = [SEAT_KEYS[name]]
+                SEAT_KEYS[name].append(_keyhash(key))
+                snapshot()
+                return self._send(200, {"name": name, "key": key})
             if self.path == "/api/seat/release":           # host laptop only: {"name": "Sam"} (a lost phone)
                 if not self._is_local():
                     return self._send(403, {"error": "release a seat from the host laptop"})
