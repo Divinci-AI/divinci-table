@@ -441,28 +441,52 @@ def passes_needed() -> list[str]:
     active = PHASE["player"]
     if active is None:
         return []
-    if active in VPS:                                 # an AI's turn: the people still get every step's round
-        if STEPS[PHASE["step"]] in NO_PRIORITY:
-            return []
-        order = turn_order()
-        i = order.index(active) if active in order else 0
-        humans = {h["name"] for h in HUMANS}
-        return [n for n in order[i + 1:] + order[:i] if n in humans and not is_out(n)]
-    if STEPS[PHASE["step"]] in NO_PRIORITY:
-        return [active]
     order = turn_order()
     i = order.index(active) if active in order else 0
-    humans = {h["name"] for h in HUMANS}
-    return [n for n in order[i:] + order[:i] if n in humans and not is_out(n)]
+    if active in VPS:                                 # an AI's turn: everyone else gets every step's round
+        if STEPS[PHASE["step"]] in NO_PRIORITY:
+            return []
+        return [n for n in order[i + 1:] + order[:i] if not is_out(n)]
+    if STEPS[PHASE["step"]] in NO_PRIORITY:
+        return [active]
+    return [n for n in order[i:] + order[:i] if not is_out(n)]   # people AND AI seats, in turn order
+
+
+AI_PASS_TIMEOUT = 30.0                             # an AI that never answers is passed for (logged), never a freeze
 
 
 def passes_state() -> dict:
     key = (PHASE["player"], PHASE["step"])
     if PASS["key"] != key:                        # a new step (or BACK, or a new turn): nobody has passed yet
-        PASS.update(key=key, passed=[])
+        PASS.update(key=key, passed=[], waiting_on=None, since=time.time())
     need = passes_needed()
     passed = [n for n in PASS["passed"] if n in need]
-    return {"need": need, "passed": passed, "next": next((n for n in need if n not in passed), None)}
+    nxt = next((n for n in need if n not in passed), None)
+    if nxt != PASS.get("waiting_on"):
+        PASS.update(waiting_on=nxt, since=time.time())
+    elif nxt in VPS and time.time() - PASS.get("since", time.time()) > AI_PASS_TIMEOUT:
+        PASS["passed"].append(nxt)                # an AI seat that didn't answer: pass for it, say so
+        emit("pass", by=nxt, ai=True, timeout=True, player=PHASE["player"], step=STEPS[PHASE["step"]])
+        _append("brain.jsonl", {"ts": round(time.time(), 2), "ai_pass_timeout": nxt, "step": STEPS[PHASE["step"]]})
+        return passes_state()
+    return {"need": need, "passed": passed, "next": nxt}
+
+
+def ai_passed(seat_name: str):
+    """An AI seat answered its window (passed) — or responded and the round restarted. Count its pass;
+    if that completes a person's step, the step ends just as when the last person passes."""
+    with PHASE_LOCK:
+        ps = passes_state()
+        if seat_name not in ps["need"] or seat_name in ps["passed"]:
+            return
+        PASS["passed"].append(seat_name)
+        ps = passes_state()
+        emit("pass", by=seat_name, ai=True, player=PHASE["player"], step=STEPS[PHASE["step"]],
+             left=[n for n in ps["need"] if n not in ps["passed"]])
+        autopass_round()
+        ps = passes_state()
+        if not ps["next"] and PHASE["player"] is not None and PHASE["player"] not in VPS:
+            finish_step(seat_name)
 
 
 AUTOPASS: dict = {}   # person → "off" | "others" | "others-no-combat"
@@ -492,6 +516,11 @@ def priority_reset(why: str):
         if PASS["passed"]:
             PASS["passed"] = []
             emit("pass", kind="reset", why=why[:120])
+            step, active = STEPS[PHASE["step"]], PHASE["player"]
+            for n in VPS:                             # the AIs answer the new round too
+                if n != active and not is_out(n):
+                    emit("attention", kind="priority", addressee=n,
+                         text=f"{active}: {step}. Something new happened — you may respond, or pass.", step=step, active=active)
 
 
 AI_STEP_OF = {"begin": "main 1", "attack": "declare attackers", "damage": "combat damage", "end": "end step"}
@@ -733,6 +762,18 @@ def next_step(by: str | None = None, shared: bool = False, confirm: bool = False
             left = [n for n in ps["need"] if n not in PASS["passed"]]
             if left:
                 return 200, phase_public()
+        return finish_step(by)
+
+
+def finish_step(by: str | None) -> tuple[int, dict]:
+    """Everyone has passed in a person's step: end it (unless held, a question is open, or a timed AI
+    window is still running). PHASE_LOCK is held by the caller."""
+    if True:
+        if HOLD["on"]:
+            return 409, {**phase_public(), "error": f"on hold ({HOLD['by'] or 'the table'}) — release ⏸ Hold to go on"}
+        q = next((t for t in TODOS if t.get("kind") == "question" and not t["done"]), None)
+        if q:
+            return 409, {**phase_public(), "error": f"waiting on {q.get('ask')}'s question: {q['text'][:90]}"}
         if priority_open():
             return 409, {**phase_public(), "error": "priority: waiting on " + ", ".join(PRIORITY["seats"])}
         if PRIORITY["waiting"]:                       # a holder's window ran out: it passes (said privately —
@@ -2077,6 +2118,9 @@ class H(BaseHTTPRequestHandler):
                 if not text:
                     return self._send(400, {"error": "say something"})
                 who = by if by in [h["name"] for h in HUMANS] else None
+                if b.get("talk") or text.startswith("~"):     # just talking: everyone sees it, nothing reads it as a move
+                    emit("chat", by=by or "someone", text=text.lstrip("~ ").strip() or text, talk=True)
+                    return self._send(200, {"ok": True, "talk": True})
                 emit("chat", by=by or "someone", text=text)          # everyone sees it; the AIs hear it as if said aloud
                 try:
                     out = respond_text(text, who, time.time())
@@ -2297,6 +2341,9 @@ class H(BaseHTTPRequestHandler):
                     out = self._brain(act, b)
                 if act in ("cast", "turn-up", "manifest") and PHASE["player"] != sn:
                     priority_reset(f"{sn} responded ({act})")   # an AI answered in a person's step: round again
+                    ai_passed(sn)                               # …and it has had its say in the new round
+                elif act == "pass" and PHASE["player"] != sn:
+                    ai_passed(sn)
                 return out
             if self.path == "/api/reset":                  # new game: empty hand, full library, no history
                 with T.lock:

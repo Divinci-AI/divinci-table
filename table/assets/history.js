@@ -34,7 +34,7 @@
       html: e.back ? `◂ back to ${name(e.player)} · ${esc(e.step)}` : `── ${name(e.player)}'s turn ──` };
     if (t === "declare" && e.kind === "attack") return { who: e.by, kind: "combat",
       html: `⚔ ${name(e.by)} attacks: ` + (e.attacks || []).map(a => `${esc(a.attacker)}${a.power != null ? ` (${esc(a.power)})` : ""} → ${name(a.target)}${a.trample ? " · trample" : ""}`).join(", ") };
-    if (t === "chat") return { who: e.by, kind: "chat", html: `💬 ${name(e.by)}: ${esc(e.text)}` +
+    if (t === "chat") return { who: e.by, kind: "chat", html: `${e.talk ? "🗨" : "💬"} ${name(e.by)}: ${e.talk ? "<i>" + esc(e.text) + "</i>" : esc(e.text)}` +
       (e.photo ? `<br><a href="${esc(e.photo)}" target="_blank"><img src="${esc(e.photo)}" style="max-width:100%;max-height:200px;border-radius:8px;margin-top:4px"></a>` : "") };
     if (t === "captain") return { who: e.seat, kind: "captain", html: `⚓ <i>${esc(e.captain)}</i>: ${esc(e.text)}` };
     if (t === "todo" && e.kind === "added") return { who: "", kind: "table",
@@ -108,7 +108,7 @@
       <div style="display:flex;gap:5px;padding:0 12px 8px">
         <select data-as title="who's talking" style="background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:7px;padding:3px">
           ${seatsForChat().map(n => `<option ${n === chatAs() ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
-        <input data-chat placeholder="tell the table: “I activate Rogue's Passage on Sewer Nemesis”…" style="flex:1;min-width:0;background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:7px;padding:5px 8px;font:inherit">
+        <input data-chat placeholder="tell the table a move — or start with ~ to just talk" style="flex:1;min-width:0;background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:7px;padding:5px 8px;font:inherit">
         <button data-act="say" style="border:0;background:#2d5a8a;color:#fff;border-radius:7px;padding:3px 10px;cursor:pointer;font:inherit">send</button>
         <label title="send a photo of the table" style="border:0;background:#2a2e37;color:#eee;border-radius:7px;padding:3px 9px;cursor:pointer">📷<input data-photo type="file" accept="image/*" capture="environment" hidden></label>
       </div>
