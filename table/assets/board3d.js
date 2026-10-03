@@ -34,7 +34,7 @@ function wrap(g, text, x, y, w, lh, maxLines) {
   if (line && n < maxLines) g.fillText(line, x, y + n * lh);
 }
 
-export function createBoard(THREE, { parent, y, radius, angleOf }) {
+export function createBoard(THREE, { parent, y, radius, angleOf, colorOf = () => "#e6e6e6" }) {
   const root = new THREE.Group(); root.name = "board3d"; parent.add(root);
   const texCache = new Map(), geo = new THREE.BoxGeometry(W, 0.0015, H);
   const edge = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
@@ -117,9 +117,23 @@ export function createBoard(THREE, { parent, y, radius, angleOf }) {
     });
   }
 
-  function seatGroup(s) {
+  // whose side is whose: name, life and a ◆ on the player whose turn it is, flat at the table's edge,
+  // upright on screen in the top-down view
+  function seatLabel(s, turn) {
+    const text = `${s.name} · ♥ ${s.life ?? "—"}${s.name === turn ? "  ◆" : ""}`, col = colorOf(s.name);
+    const tex = canvasTex((g, w, h) => {
+      g.clearRect(0, 0, w, h); g.fillStyle = "rgba(10,10,14,0.78)"; g.beginPath(); g.roundRect(6, 190, w - 12, 120, 56); g.fill();
+      g.strokeStyle = col; g.lineWidth = 6; g.stroke();
+      g.fillStyle = col; g.font = "bold 50px system-ui"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, w / 2, 252, w - 40);
+    }, "label|" + text + col);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.3 * 500 / 360), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.renderOrder = 2; return m;
+  }
+
+  function seatGroup(s, turn) {
     const g = new THREE.Group(), ang = angleOf(s.name);
     if (ang == null) return g;
+    const lab = seatLabel(s, turn); lab.position.set(Math.cos(ang) * radius * 0.96, 0.004, Math.sin(ang) * radius * 0.96); g.add(lab);
     const span = Math.PI / 2 * 0.86;                       // a quarter of the table each, with a margin
     const perms = s.permanents || [];
     const isLand = c => /Land/.test(c.type || "") && !c.face_down;
@@ -153,13 +167,13 @@ export function createBoard(THREE, { parent, y, radius, angleOf }) {
   return {
     group: root,
     update(data) {
-      const sig = JSON.stringify(data.seats);
+      const sig = JSON.stringify([data.seats, data.turn]);
       if (sig === lastSig) return; lastSig = sig;
       while (root.children.length) {
         const ch = root.children.pop();
         ch.traverse(o => { if (o.isMesh && o.geometry !== geo) o.geometry.dispose(); });
       }
-      for (const s of data.seats) { const g = seatGroup(s); g.position.y = y; root.add(g); }
+      for (const s of data.seats) { const g = seatGroup(s, data.turn); g.position.y = y; root.add(g); }
     },
     pick(raycaster) {
       const hit = raycaster.intersectObjects(root.children, true).find(h => h.object.userData.card);

@@ -311,7 +311,8 @@ renderer.setAnimationLoop((t, frame) => {
 });
 
 // ── every card in play, on the table in front of its owner ────────────────────────────────
-const board = createBoard(THREE, { parent: table, y: 0.752, radius: TABLE_R * 0.62, angleOf: n => actors[n]?.ang });
+const board = createBoard(THREE, { parent: table, y: 0.752, radius: TABLE_R * 0.62, angleOf: n => actors[n]?.ang,
+  colorOf: n => actors[n]?.look.accent || "#e6e6e6" });
 let boardBusy = false;
 async function boardRefresh() {
   if (boardBusy) return; boardBusy = true;
