@@ -42,8 +42,11 @@ HERE = Path(__file__).parent
 
 class Table:
     def __init__(self, base: str, seat: str, token_file: Path):
-        self.base, self.seat = base.rstrip("/"), seat
-        self.token = token_file.read_text().strip()
+        self.base, self.seat, self.token_file = base.rstrip("/"), seat, token_file
+
+    @property
+    def token(self):                                     # re-read each time: a server restart writes a new one
+        return self.token_file.read_text().strip()
 
     def _req(self, method, path, body=None, brain=True):
         headers = {"Content-Type": "application/json"}
@@ -393,6 +396,13 @@ def main():
     except Exception as ex:                                  # noqa: BLE001 — never block the seat on this
         print(f"  ! opening hand check failed: {type(ex).__name__}: {ex}", flush=True)
     held = False
+    try:                                                  # started (or restarted) mid-turn: the "your turn" signal
+        ph = t._req("GET", "/api/phase", brain=False)[1]   # went by before we were listening — play it now
+        if (ph.get("player") or "").lower() == a.seat.lower() and not a.dry:
+            print("  ↻ it's already my turn — playing it", flush=True)
+            play_turn(t, a.dry)
+    except Exception as ex:                               # noqa: BLE001
+        print(f"  ! catch-up turn failed: {type(ex).__name__}: {ex}", flush=True)
     while True:
         try:
             d = t.events(since)
