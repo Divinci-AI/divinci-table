@@ -145,35 +145,98 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const html = (body: string) => new Response(body, { headers: { "Content-Type": "text/html; charset=utf-8" } });
 
+const SIGIL = `<svg class="sigil" viewBox="0 0 100 100" aria-hidden="true"><defs>
+<radialGradient id="glow"><stop offset="0" stop-color="#7ff3ea" stop-opacity=".9"/><stop offset=".45" stop-color="#3fd0c9" stop-opacity=".35"/><stop offset="1" stop-color="#3fd0c9" stop-opacity="0"/></radialGradient>
+<linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4dc9b"/><stop offset="1" stop-color="#8a6a2e"/></linearGradient></defs>
+<circle cx="50" cy="50" r="46" fill="none" stroke="url(#gold)" stroke-width="2"/><circle cx="50" cy="50" r="38" fill="none" stroke="#3fd0c9" stroke-width="1" stroke-dasharray="2 4"/>
+<path d="M50 14l30 18v36L50 86 20 68V32z" fill="none" stroke="url(#gold)" stroke-width="2"/>
+<path d="M50 14v22M50 64v22M20 32l19 11M61 57l19 11M80 32L61 43M39 57L20 68" stroke="url(#gold)" stroke-width="1.5"/>
+<circle class="halo" cx="50" cy="50" r="22" fill="url(#glow)"/><circle class="ring" cx="50" cy="50" r="15" fill="none" stroke="#3fd0c9" stroke-width="1.5"/><circle class="core" cx="50" cy="50" r="9" fill="#7ff3ea"/></svg>`;
+
 function lobbyPage(rooms: RoomInfo[], error: string): string {
 	const list = rooms.length
-		? rooms.map((r) => `<li><a href="/r/${r.id}">${esc(r.title)}</a>
-			<span>Magic: Commander · ${esc([...r.humans, ...r.ai].join(", "))} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span></li>`).join("")
-		: "<li class=empty>No open tables yet. Start one.</li>";
+		? rooms.map((r) => `<li><a href="/r/${r.id}"><img src="/brand/game-magic.jpg" alt=""><span class="t">${esc(r.title)}</span>
+			<span class="m">Commander · ${esc([...r.humans, ...r.ai].join(", "))} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span>
+			<span class="go">Take a seat →</span></a></li>`).join("")
+		: `<li class="empty">No open tables yet. Start the first one.</li>`;
 	return `<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
-<title>Divinci Table</title><style>
-:root{--bg:#f6f5f2;--fg:#1d1c1a;--muted:#6b6862;--card:#fff;--line:#e2dfd8;--accent:#5b3fd1}
-@media (prefers-color-scheme:dark){:root{--bg:#121214;--fg:#ecebe8;--muted:#9a978f;--card:#1c1c20;--line:#2c2c32;--accent:#9d86ff}}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,sans-serif}
-main{max-width:720px;margin:0 auto;padding:32px 16px}h1{margin:0 0 4px;font-size:28px}p.lead{color:var(--muted);margin:0 0 28px}
-section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 18px 8px;margin-bottom:20px}
-h2{font-size:17px;margin:0 0 10px}ul{list-style:none;margin:0;padding:0}li{padding:10px 0;border-top:1px solid var(--line)}
-li:first-child{border-top:0}li a{font-weight:600;color:var(--accent);text-decoration:none}li span{display:block;color:var(--muted);font-size:14px}
-li.empty{color:var(--muted)}label{display:block;margin:10px 0 4px;font-weight:600;font-size:14px}
-input[type=text]{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--fg);font:inherit}
-.ai label{display:flex;gap:8px;font-weight:400;margin:6px 0}button{margin:14px 0 12px;padding:10px 18px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:600 15px system-ui;cursor:pointer}
-.err{background:#fde8e8;color:#8a1c1c;border-radius:9px;padding:8px 12px;margin-bottom:16px}small{color:var(--muted)}
+<title>Divinci Table</title><meta name=description content="Play Commander with people and AI players, each with your own physical cards on camera.">
+<link rel=preconnect href="https://fonts.googleapis.com"><link rel=preconnect href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel=stylesheet>
+<style>
+:root{--abyss:#040d12;--deep:#0b2430;--teal:#3fd0c9;--gold:#d9b46a;--gold-hi:#f4dc9b;--gold-lo:#8a6a2e;--parch:#efe3c6;--text:#e9e2cf;--muted:#a9b5b4;--ink:#2a1f12}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--text);font:20px/1.5 "Cormorant Garamond",Georgia,serif;
+  background:radial-gradient(1100px 650px at 50% -10%,#16465a 0%,transparent 60%),radial-gradient(800px 500px at 85% 45%,rgba(63,208,201,.08),transparent 60%),
+  linear-gradient(180deg,var(--deep),var(--abyss) 60%)}
+main{max-width:920px;margin:0 auto;padding:44px 16px 60px}
+h1,h2,.cz{font-family:Cinzel,Georgia,serif;letter-spacing:.04em}
+header{text-align:center;margin-bottom:34px}
+.sigil{width:84px;height:84px;filter:drop-shadow(0 0 16px rgba(63,208,201,.6))}
+.sigil .core,.sigil .ring,.sigil .halo{transform-box:fill-box;transform-origin:center}
+.sigil .core{animation:core 2.6s ease-in-out infinite;filter:drop-shadow(0 0 6px #7ff3ea)}
+.sigil .ring{animation:ring 2.6s ease-out infinite}.sigil .halo{animation:halo 2.6s ease-in-out infinite}
+@keyframes core{0%,100%{transform:scale(.88);opacity:.8}50%{transform:scale(1.12);opacity:1}}
+@keyframes ring{0%{transform:scale(.9);opacity:.9}70%,100%{transform:scale(1.45);opacity:0}}
+@keyframes halo{0%,100%{transform:scale(.8);opacity:.45}50%{transform:scale(1.25);opacity:1}}
+.kicker{font:600 13px Cinzel,serif;letter-spacing:.32em;text-transform:uppercase;color:var(--teal);margin-top:10px}
+h1{margin:6px 0 6px;font-size:clamp(42px,8vw,72px);font-weight:900;line-height:1.05;
+  background:linear-gradient(180deg,var(--gold-hi),var(--gold) 45%,var(--gold-lo));-webkit-background-clip:text;background-clip:text;color:transparent}
+header p{max-width:620px;margin:0 auto;color:var(--parch)}
+section{position:relative;margin:0 0 28px;padding:24px clamp(16px,4vw,32px);border-radius:12px;
+  background:linear-gradient(180deg,#1b3440,#0d1d25);box-shadow:inset 0 0 0 1px rgba(217,180,106,.5),inset 0 0 0 5px rgba(8,22,29,.9),inset 0 0 0 6px rgba(217,180,106,.25),0 18px 44px rgba(0,0,0,.45)}
+h2{margin:0 0 14px;font-size:22px;color:var(--gold-hi)}
+ul{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+li a{display:grid;grid-template-columns:64px 1fr auto;grid-template-rows:auto auto;column-gap:14px;align-items:center;padding:10px;border-radius:8px;text-decoration:none;
+  background:rgba(4,13,18,.55);box-shadow:inset 0 0 0 1px rgba(217,180,106,.25);transition:box-shadow .2s,transform .2s}
+li a:hover{transform:translateY(-2px);box-shadow:inset 0 0 0 1px var(--gold),0 0 18px rgba(63,208,201,.2)}
+li img{grid-row:1/3;width:64px;height:64px;border-radius:6px;object-fit:cover;box-shadow:0 0 0 1px var(--gold-lo)}
+li .t{font:700 17px Cinzel,serif;color:var(--parch)}li .m{grid-column:2;color:var(--muted);font-size:16px}
+li .go{grid-row:1/3;grid-column:3;font:600 13px Cinzel,serif;letter-spacing:.08em;color:var(--teal)}
+li.empty{color:var(--muted);padding:6px 2px}
+label{display:block;margin:14px 0 6px;font:600 13px Cinzel,serif;letter-spacing:.12em;color:var(--gold-hi);text-transform:uppercase}
+input[type=text]{width:100%;padding:12px 14px;border-radius:4px;border:1px solid rgba(217,180,106,.5);background:#071820;color:var(--parch);
+  font:500 19px "Cormorant Garamond",Georgia,serif;box-shadow:inset 0 2px 8px rgba(0,0,0,.6)}
+input[type=text]:focus{outline:2px solid var(--teal);outline-offset:2px}
+.opps{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.opp{position:relative;display:block;margin:0;padding:12px 12px 12px 40px;border-radius:6px;cursor:pointer;text-transform:none;letter-spacing:0;
+  font:400 17px "Cormorant Garamond",Georgia,serif;color:var(--parch);background:rgba(4,13,18,.6);box-shadow:inset 0 0 0 1px rgba(217,180,106,.3)}
+.opp b{display:block;font:700 15px Cinzel,serif;color:var(--gold-hi)}
+.opp input{position:absolute;left:14px;top:16px;accent-color:#3fd0c9;width:16px;height:16px}
+.opp:has(input:checked){box-shadow:inset 0 0 0 1px var(--teal),0 0 14px rgba(63,208,201,.3)}
+button{margin:20px 0 6px;padding:14px 28px;border:1px solid var(--gold);border-radius:4px;cursor:pointer;font:700 16px Cinzel,serif;letter-spacing:.08em;color:#1a1206;
+  background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 0 0 3px rgba(11,36,48,.9),0 0 0 4px var(--gold-lo),0 8px 22px rgba(0,0,0,.45)}
+button:hover{filter:brightness(1.07)}
+small{color:var(--muted);font-size:16px;display:block}
+.err{margin:0 0 20px;padding:10px 14px;border-radius:4px;background:rgba(224,136,74,.12);border:1px solid rgba(224,136,74,.6);color:#ffd9bf}
+.how{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:0 0 28px}
+.how figure{margin:0;border-radius:8px;overflow:hidden;background:#0d1d25;box-shadow:0 0 0 1px rgba(217,180,106,.35)}
+.how img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
+.how figcaption{padding:8px 12px 10px;font-size:16px;color:var(--parch)}
+.how figcaption b{display:block;font:700 13px Cinzel,serif;letter-spacing:.06em;color:var(--gold-hi)}
+footer{text-align:center;color:#7c8b8d;font-size:15px}footer a{color:var(--gold)}
+@media (max-width:700px){.how{grid-template-columns:1fr}li a{grid-template-columns:52px 1fr}li img{width:52px;height:52px}li .go{display:none}}
+@media (prefers-reduced-motion:reduce){.sigil *{animation:none!important}}
 </style></head><body><main>
-<h1>Divinci Table</h1><p class=lead>Play Commander with people and AI players, each with your own physical cards on camera.</p>
-${error ? `<div class=err>${esc(error)}</div>` : ""}
+<header>${SIGIL}<div class="kicker">A new kind of game night</div><h1>Divinci Table</h1>
+<p>Commander with people and AI players. Everyone keeps their own physical cards on camera; phones pass priority, track life and share photos.</p></header>
+${error ? `<div class="err">${esc(error)}</div>` : ""}
 <section><h2>Open tables</h2><ul>${list}</ul></section>
 <section><h2>Start a table</h2><form method=post action="/lobby/rooms">
 <label for=title>Table name</label><input type=text id=title name=title maxlength=40 placeholder="Friday Commander">
 <label for=humans>Human seats (comma-separated names)</label><input type=text id=humans name=humans required placeholder="Michael, Sam">
-<div class=ai><label style="font-weight:600">AI opponents (played by Divinci Fusion, up to two)</label>
-<label><input type=checkbox name=ai value=tuvasa> Tuvasa the Sunlit — enchantments</label>
-<label><input type=checkbox name=ai value=kaust> Kaust, Eyes of the Glade — face-down creatures</label>
-<label><input type=checkbox name=ai value=ellivere> Ellivere of the Wild Court — Roles and Auras</label></div>
-<button>Start table</button><br><small>Tables are public and listed here for six hours. Anyone with the link can claim an open seat.</small>
-</form></section></main></body></html>`;
+<label>AI opponents · played by Divinci Fusion · up to two</label>
+<div class="opps">
+<label class="opp"><input type=checkbox name=ai value=tuvasa><b>Tuvasa the Sunlit</b>Enchantments that grow</label>
+<label class="opp"><input type=checkbox name=ai value=kaust><b>Kaust, Eyes of the Glade</b>Face-down surprises</label>
+<label class="opp"><input type=checkbox name=ai value=ellivere><b>Ellivere of the Wild Court</b>Roles and Auras</label></div>
+<button>Start table</button><small>Tables are public and listed here for six hours. Anyone with the link can claim an open seat.</small>
+</form></section>
+<div class="how">
+<figure><img src="/brand/your-cards.jpg" alt="Painted cards on a candlelit table under a brass camera arm." loading=lazy><figcaption><b>Your cards, your table</b>Play your own deck; a phone over your play area shows it.</figcaption></figure>
+<figure><img src="/brand/ai-opponent.jpg" alt="A brass automaton holding a hand of cards." loading=lazy><figcaption><b>Opponents with a soul</b>AI players with personalities and voices.</figcaption></figure>
+<figure><img src="/brand/quantum-dice.jpg" alt="A crystal d20 rising from a sunken city." loading=lazy><figcaption><b>Dice from the deep</b>Shuffles and rolls anyone can verify.</figcaption></figure>
+</div>
+<footer>Part of <a href="https://divinci.ai/">Divinci</a>. Not affiliated with Wizards of the Coast.</footer>
+</main></body></html>`;
 }

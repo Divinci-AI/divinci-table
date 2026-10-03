@@ -55,9 +55,11 @@
   addEventListener("unhandledrejection", e => { const h = document.getElementById("help"); if (h) h.textContent = "⚠ " + e.reason; });
 </script>
 <script type="importmap">{ "imports": { "three": "/vendor/three.module.min.js" } }</script>
+<link rel="stylesheet" href="/assets/brand.css">
 <script src="/assets/seat.js" defer></script>
+<script src="/assets/brand.js" defer></script>
 </head>
-<body>
+<body data-brand="stage">
 <div id="bg"></div>
 <div id="who"><div class="name">—</div><div class="cmdr"></div><div class="turn">their turn</div></div>
 <div id="life"><div class="n">40</div><div class="l">life</div></div>

@@ -24,5 +24,6 @@
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["TableRoom", "Lobby"] }
   ],
+  "assets": { "directory": "./public", "binding": "ASSETS" },
   "observability": { "enabled": true }
 }

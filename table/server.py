@@ -1829,8 +1829,9 @@ class H(BaseHTTPRequestHandler):
                           ("/photos/", research_dir() / "photos")):
             if p0.startswith(pre) and not p0.endswith("/index.json"):
                 fp = (root / p0[len(pre):]).resolve()
-                if fp.is_file() and root.resolve() in fp.parents and fp.suffix in (".js", ".hdr", ".glb", ".usdz", ".png", ".mp3", ".jpg"):
+                if fp.is_file() and root.resolve() in fp.parents and fp.suffix in (".js", ".css", ".hdr", ".glb", ".usdz", ".png", ".mp3", ".jpg"):
                     return self._send(200, body=fp.read_bytes(), ctype={".js": "text/javascript; charset=utf-8",
+                                      ".css": "text/css; charset=utf-8",
                                       ".glb": "model/gltf-binary", ".usdz": "model/vnd.usdz+zip", ".png": "image/png",
                                       ".mp3": "audio/mpeg", ".jpg": "image/jpeg"}
                                       .get(fp.suffix, "application/octet-stream"))

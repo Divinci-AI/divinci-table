@@ -35,9 +35,11 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
 .pick button{display:block;width:100%;margin:8px 0;text-align:left}
 .ok{color:var(--me)} .warn{color:var(--warn)}
 </style>
+<link rel="stylesheet" href="/assets/brand.css">
 <script src="/assets/seat.js" defer></script>
+<script src="/assets/brand.js" defer></script>
 </head>
-<body>
+<body data-brand="me">
 <h1 id="title">Divinci Table</h1>
 <div id="pick" class="card pick" hidden><div class="muted">Who are you?</div><div id="names"></div></div>
 <div id="view" hidden>
