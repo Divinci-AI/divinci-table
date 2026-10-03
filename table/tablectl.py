@@ -117,6 +117,8 @@ def fmt_event(e):
     if k == "todo" and e.get("kind") == "answered":
         return (f"[{t}] #{e['id']} 💬 ANSWER to {e.get('ask')}'s question \"{e.get('question')}\": "
                 f"\"{e.get('answer')}\" (by {e.get('by') or '?'}){' — resolved' if e.get('resolved') else ''}")
+    if k == "phase" and e.get("kind") == "hold":
+        return f"[{t}] #{e['id']} ⏸ HOLD {'ON' if e.get('on') else 'OFF'} (by {e.get('by') or '?'})"
     if k == "phase" and e.get("kind") == "windows":
         return f"[{t}] #{e['id']} STEP TIMEOUTS {'ON' if e.get('on') else 'OFF'} (by {e.get('by') or '?'})"
     if k == "phase":
