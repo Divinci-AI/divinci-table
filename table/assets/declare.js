@@ -25,7 +25,8 @@
       const human = phase.player && !(phase.ai || []).includes(phase.player);
       const seatName = (window.TableSeat && window.TableSeat.name()) || "";
       const yours = seatName ? phase.player === seatName : human;  // a claimed device: only on its own turn
-      btn.style.display = human && yours ? "block" : "none";
+      const combat = ["beginning of combat", "declare attackers"].includes(phase.step);   // only when attacks happen
+      btn.style.display = human && yours && combat ? "block" : "none";
     } catch {}
   }
   function open() {
