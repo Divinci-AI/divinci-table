@@ -17,7 +17,7 @@
   document.body.appendChild(sheet);
   const post = (path, body) => fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     .then(async r => ({ ok: r.ok, d: await r.json().catch(() => ({})) }));
-  let started = false, h = { mode: null }, msg = "", closing = false;
+  let started = false, h = { mode: null }, msg = "", closing = false, busy = false;
   function rollsTable() {
     const rounds = Object.keys(h.rolls || {}).sort((a, b) => a - b);
     if (!rounds.length) return "";
@@ -30,7 +30,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:16px">🎲 Who goes first?</b>
         <button data-x style="border:0;background:#2a2e37;color:#eee;border-radius:7px;padding:3px 10px;cursor:pointer">✕</button></div>
       <div style="opacity:.7;font-size:12.5px;margin:2px 0 8px">Highest roll goes first; play continues around the table. Ties roll again.</div>
-      ${!h.mode || h.winner ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${!h.mode ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
           <button data-mode="physical" style="flex:1;padding:9px;border-radius:9px;border:0;background:#2d5a8a;color:#fff;font:600 14px system-ui;cursor:pointer">🎲 Real dice (d20)</button>
           <button data-mode="quantum" style="flex:1;padding:9px;border-radius:9px;border:0;background:#4b2d8a;color:#fff;font:600 14px system-ui;cursor:pointer">⚛️ Quantum (ANU)</button>
         </div>` : ""}
@@ -63,9 +63,11 @@
     if (ev.target === sheet || ev.target.closest("[data-x]")) { sheet.style.display = "none"; return; }
     const m = ev.target.closest("[data-mode]");
     if (m) {
+      if (busy) return; busy = true;                                   // one press: a double-tap can't roll twice
+      sheet.querySelectorAll("[data-mode]").forEach(b => b.disabled = true);
       msg = m.dataset.mode === "quantum" ? "Asking ANU for quantum randomness (can take up to a minute)…" : ""; draw();
       const r = await post("/api/highroll/start", { mode: m.dataset.mode, sides: 20, by: me() });
-      msg = r.ok ? "" : r.d.error || "couldn't start the roll"; h = { ...r.d, ai: h.ai }; return draw();
+      busy = false; msg = r.ok ? "" : r.d.error || "couldn't start the roll"; h = { ...r.d, ai: h.ai }; return draw();
     }
     const e = ev.target.closest("[data-enter]");
     if (e) {

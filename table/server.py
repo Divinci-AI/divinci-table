@@ -473,8 +473,12 @@ def highroll_start(mode: str, sides: int, by: str) -> tuple[int, dict]:
     """A high roll for who goes first. "physical": each player rolls a real die and enters it (a person
     rolls for an AI seat). "quantum": one fresh ANU quantum draw, and every roll derives from it by
     fair.die_roll — published, so anyone can recompute it. Ties re-roll among the tied players."""
+    if HIGHROLL.get("winner"):                        # one roll per game: no re-rolling until a result suits
+        return 409, {**highroll_public(), "error": f"already rolled — {HIGHROLL['winner']} goes first"}
     if PHASE["player"] is not None:
-        return 409, {"error": "the game has already started — high roll is before the first turn"}
+        return 409, {**highroll_public(), "error": "the game has already started — high roll is before the first turn"}
+    if HIGHROLL.get("mode") == "physical":
+        return 409, {**highroll_public(), "error": "a real-dice roll is under way — enter the dice"}
     if mode not in ("physical", "quantum") or not 2 <= sides <= 100:
         return 400, {"error": "mode is physical or quantum; sides 2-100"}
     names = [n for n in turn_order() if not is_out(n)]

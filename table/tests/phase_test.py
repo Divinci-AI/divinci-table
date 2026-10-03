@@ -103,6 +103,8 @@ try:
     check(h["winner"] == "Ann" and h["order"] == ["Ann", "Claude", "Ben"], "the highest roll goes first; play continues around the table")
     code, p = call("GET", "/api/phase")
     check(p["order"] == ["Ann", "Claude", "Ben"], "…and that becomes the turn order")
+    code, h = call("POST", "/api/highroll/start", {"mode": "quantum", "sides": 20, "by": "Ben"})
+    check(code == 409 and h["winner"] == "Ann", "once there's a result, nobody can roll again until they like it")
 
     print("NEXT and priority")
     check(p["player"] == "Ann" and p["step"] == "untap", "the roll starts the winner's turn at untap (no separate START)")
