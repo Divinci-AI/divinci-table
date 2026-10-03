@@ -126,6 +126,8 @@ def fmt_event(e):
         if e.get("winner"):
             return f"[{t}] #{e['id']} {how} HIGH ROLL: {rolls} → {e['winner']} goes first ({' → '.join(e.get('order') or [])})"
         return f"[{t}] #{e['id']} {how} HIGH ROLL round {e.get('round')}: {rolls or 'waiting'}" + (f" — waiting on {', '.join(e.get('waiting_on') or [])}" if e.get("waiting_on") else "")
+    if k == "autopass":
+        return f"[{t}] #{e['id']} 🤖 {e.get('by')} auto-pass: {e.get('mode')}"
     if k == "pass":
         if e.get("kind") == "reset":
             return f"[{t}] #{e['id']} ✋ PRIORITY round again — {e.get('why')}"

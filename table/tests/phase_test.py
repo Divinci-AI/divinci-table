@@ -516,6 +516,31 @@ try:
     other = "Ben" if active == "Ann" else "Ann"
     code, p = call("POST", "/api/phase/next", {"by": active, "key": KEYS[other]})
     check(code == 403, "nobody passes the active player's main phase but that player")
+
+    print("auto-pass")
+    code, p = call("POST", "/api/autopass", {"by": other, "key": KEYS[active], "mode": "others"})
+    check(code == 403, "nobody switches on auto-pass for someone else")
+    code, p = call("POST", "/api/autopass", pb(other, mode="others"))
+    check(code == 200 and p["autopass"][other] == "others", f"{other} switches on auto-pass for others' turns")
+    step0 = p["step"]
+    code, p = call("POST", "/api/phase/next", pb(active))
+    check(code == 200 and p["step"] != step0, f"in {active}'s turn, {active}'s pass ends the step — {other} is passed for automatically")
+    code, p = call("POST", "/api/autopass", pb(other, mode="others-no-combat"))
+    code, p = call("GET", "/api/phase")
+    while p["step"] != "beginning of combat":
+        code, p = call("POST", "/api/phase/next", pb(active))
+    code, p = call("POST", "/api/phase/next", pb(active))
+    check(code == 200 and p["step"] == "beginning of combat" and p["passes"]["next"] == other,
+          "…'stops for combat' still asks them to pass in combat")
+    call("POST", "/api/phase/next", pb(other))
+    while p["player"] == active:
+        code, p = call("POST", "/api/phase/next", pb(active))
+        if p.get("passes", {}).get("next") == other:
+            code, p = call("POST", "/api/phase/next", pb(other))
+    code, p = call("GET", "/api/phase")
+    if p["player"] == other:
+        check(p["passes"]["next"] == other, "and in their own turn auto-pass never passes for them")
+    call("POST", "/api/autopass", pb(other, mode="off"))
 finally:
     srv.terminate()
     import shutil

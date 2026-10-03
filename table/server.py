@@ -340,7 +340,7 @@ def snapshot():
         with VP_LOCK, PHASE_LOCK:
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
                                  "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
-                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "ev_id": _ev_id[0], "saved": time.time()})
+                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "ev_id": _ev_id[0], "saved": time.time()})
         p = research_dir() / "snapshot.pkl"
         tmp = p.with_suffix(".tmp")
         tmp.write_bytes(blob)
@@ -360,6 +360,7 @@ def restore(path: str):
     HIGHROLL.update(d.get("HIGHROLL") or {"mode": None})
     SEAT_KEYS.update(d.get("SEAT_KEYS") or {})
     SEAT_DEVICES.update(d.get("SEAT_DEVICES") or {})
+    AUTOPASS.update(d.get("AUTOPASS") or {})
     if d.get("ORDER") and (not ORDER or HIGHROLL.get("winner")):
         ORDER[:] = d["ORDER"]                         # a high roll's order beats the --order the table was started with
     _ev_id[0] = d.get("ev_id", 0)                     # pages keep their cursors across the restart
@@ -461,6 +462,27 @@ def passes_state() -> dict:
     return {"need": need, "passed": passed, "next": next((n for n in need if n not in passed), None)}
 
 
+AUTOPASS: dict = {}   # person → "off" | "others" | "others-no-combat"
+COMBAT_STEPS = ("beginning of combat", "declare attackers", "declare blockers", "combat damage")
+
+
+def autopass_round() -> list[str]:
+    """Pass for every person next in the round who switched auto-pass on — only in OTHER players'
+    turns (never their own), and with "others-no-combat" not in combat. PHASE_LOCK is held."""
+    done = []
+    ps = passes_state()
+    while ps["next"]:
+        n, mode = ps["next"], AUTOPASS.get(ps["next"], "off")
+        if mode == "off" or n == PHASE["player"] or (mode == "others-no-combat" and STEPS[PHASE["step"]] in COMBAT_STEPS):
+            break
+        PASS["passed"].append(n)
+        done.append(n)
+        ps = passes_state()
+        emit("pass", by=n, auto=True, player=PHASE["player"], step=STEPS[PHASE["step"]],
+             left=[x for x in ps["need"] if x not in ps["passed"]])
+    return done
+
+
 def priority_reset(why: str):
     """Something new happened (a spell, an ability): priority goes round again, from the active player."""
     with PHASE_LOCK:
@@ -495,6 +517,7 @@ def ai_advance(seat_name: str, action: str) -> str | None:
             if AI_OPENED["key"] != key:               # announce the round once per step
                 AI_OPENED["key"] = key
                 open_priority(step)
+            autopass_round()
             ps = passes_state()
             waiting = [n for n in ps["need"] if n not in ps["passed"]]
             if waiting or priority_open():
@@ -508,6 +531,7 @@ def ai_advance(seat_name: str, action: str) -> str | None:
             if AI_OPENED["key"] != key:
                 AI_OPENED["key"] = key
                 open_priority(STEPS[goal])
+            autopass_round()
             ps = passes_state()
             waiting = [n for n in ps["need"] if n not in ps["passed"]]
             if waiting or priority_open():
@@ -633,7 +657,7 @@ def phase_public() -> dict:
                 "seconds_left": round(max(0.0, left), 1), "ai": list(VPS),
                 "windows": WINDOWS["on"], "window_secs": args.priority_window, "hold": HOLD["on"],
                 "open_questions": sum(1 for t in TODOS if t.get("kind") == "question" and not t["done"]),
-                "passes": passes_state()}
+                "passes": passes_state(), "autopass": dict(AUTOPASS)}
 
 
 def start_turn(name: str):
@@ -683,6 +707,7 @@ def next_step(by: str | None = None, shared: bool = False, confirm: bool = False
             PASS["passed"].append(who)
             left = [n for n in ps["need"] if n not in PASS["passed"]]
             emit("pass", by=who, player=PHASE["player"], step=STEPS[PHASE["step"]], left=left)
+            autopass_round()
             return 200, phase_public()
         if HOLD["on"]:
             return 409, {**phase_public(), "error": f"on hold ({HOLD['by'] or 'the table'}) — release ⏸ Hold to go on"}
@@ -701,6 +726,8 @@ def next_step(by: str | None = None, shared: bool = False, confirm: bool = False
             PASS["passed"].append(who)
             left = [n for n in ps["need"] if n not in PASS["passed"]]
             emit("pass", by=who, player=PHASE["player"], step=STEPS[PHASE["step"]], left=left)
+            autopass_round()
+            left = [n for n in ps["need"] if n not in PASS["passed"]]
             if left:
                 return 200, phase_public()
         if priority_open():
@@ -809,7 +836,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/autopass"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -2181,6 +2208,20 @@ class H(BaseHTTPRequestHandler):
                 emit("seat", name=name, kind="claimed")
                 snapshot()
                 return self._send(200, {"name": name, "key": key})
+            if self.path == "/api/autopass":               # {"by": "Sam", "key": …, "mode": "off"|"others"|"others-no-combat"}
+                b = self._json()
+                person = next((h["name"] for h in HUMANS if h["name"].lower() == str(b.get("by", "")).lower()), None)
+                if not person or not seat_key_ok(person, str(b.get("key", ""))):
+                    return self._send(403, {"error": "claim your seat first (👤)", "need_seat": True})
+                mode = str(b.get("mode", "off"))
+                if mode not in ("off", "others", "others-no-combat"):
+                    return self._send(400, {"error": "mode: off, others, others-no-combat"})
+                with PHASE_LOCK:
+                    AUTOPASS[person] = mode
+                    emit("autopass", by=person, mode=mode)
+                    autopass_round()                  # if it's my turn to pass right now, pass
+                snapshot()
+                return self._send(200, phase_public())
             if self.path == "/api/seat/link":              # host laptop only: {"name": "Michael"} → a key for one more device
                 if not self._is_local():
                     return self._send(403, {"error": "device links are made on the host laptop"})

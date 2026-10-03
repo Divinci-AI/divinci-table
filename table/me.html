@@ -45,6 +45,7 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
     <button id="next" hidden onclick="nextStep()">NEXT ▸</button>
     <button id="back" hidden onclick="backStep()" style="margin-top:6px;opacity:.8">◂ BACK a step</button>
     <button id="win" onclick="toggleWin()" style="margin-top:6px;opacity:.8">⏱ step timeouts</button>
+    <button id="auto" onclick="cycleAuto()" style="margin-top:6px;opacity:.85" title="the table passes for you in other players' turns; never in yours">🤖 auto-pass: off</button>
     <button id="hold" onclick="toggleHold()" style="margin-top:6px;opacity:.8">⏸ Hold</button>
     <div id="blocked" class="warn" style="margin-top:6px"></div></div>
   <div class="card"><div class="muted">💬 Tell the table — what you're doing, or a question</div>
@@ -121,7 +122,14 @@ async function phase(){ const p=await j("/api/phase"); if(p.error) return;
   $("blocked").textContent=holdOn?"On hold: NEXT won't move until it's released.":p.open_questions?`NEXT is waiting on ${p.open_questions} open question(s) — tap here to answer or resolve.`:"";
   $("blocked").style.cursor=p.open_questions?"pointer":""; $("blocked").style.textDecoration=p.open_questions?"underline":"";
   $("blocked").onclick=p.open_questions?()=>window.openQuestions&&window.openQuestions():null;
-  winOn=p.windows!==false; $("win").textContent=winOn?`⏱ step timeouts: ${p.window_secs||""}s (tap for off)`:"⏱ step timeouts: off (tap for on)"; }
+  winOn=p.windows!==false; $("win").textContent=winOn?`⏱ step timeouts: ${p.window_secs||""}s (tap for off)`:"⏱ step timeouts: off (tap for on)";
+  autoMode=(p.autopass||{})[(window.TableSeat&&window.TableSeat.name())||me]||"off";
+  $("auto").textContent={off:"🤖 auto-pass: off (tap to skip others' turns)",others:"🤖 auto-pass: others' turns (tap: stop for combat)","others-no-combat":"🤖 auto-pass: others' turns, stops for combat (tap for off)"}[autoMode]; }
+let autoMode="off";
+async function cycleAuto(){ const next={off:"others",others:"others-no-combat","others-no-combat":"off"}[autoMode];
+  if(window.TableSeat) await window.TableSeat.ready;
+  const r=await j("/api/autopass",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(window.TableSeat?window.TableSeat.body({mode:next}):{by:me,mode:next})});
+  if(r.need_seat&&window.TableSeat) window.TableSeat.pick(); phase(); }
 let winOn=true, holdOn=false;
 async function toggleHold(){ await j("/api/phase/hold",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:!holdOn,by:me})}); phase(); }
 async function toggleWin(){ await j("/api/phase/windows",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:!winOn,by:me})}); phase(); }
