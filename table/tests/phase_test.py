@@ -105,8 +105,7 @@ try:
     check(p["order"] == ["Ann", "Claude", "Ben"], "…and that becomes the turn order")
 
     print("NEXT and priority")
-    code, p = nxt("Ann")
-    check(code == 200 and p["player"] == "Ann" and p["step"] == "untap", "first NEXT starts the first seat's turn at untap")
+    check(p["player"] == "Ann" and p["step"] == "untap", "the roll starts the winner's turn at untap (no separate START)")
     code, h = call("POST", "/api/highroll/start", {"mode": "physical", "sides": 20, "by": "Ben"})
     check(code == 409, "no high roll once the game has started")
     check(p["waiting"] == [], "untap gives no one priority")

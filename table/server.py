@@ -500,7 +500,7 @@ def highroll_start(mode: str, sides: int, by: str) -> tuple[int, dict]:
             r = str(HIGHROLL["round"])
             HIGHROLL["rolls"][r] = {n: fair.die_roll(src, f"highroll|{r}|{n}", sides) for n in HIGHROLL["contenders"]}
             _highroll_settle()
-    emit("highroll", **highroll_public())
+    emit("highroll", **{k: v for k, v in highroll_public().items() if k != "started_turn"})
     return 200, highroll_public()
 
 
@@ -521,6 +521,8 @@ def _highroll_settle():
     ORDER[:] = order
     HIGHROLL.update(winner=win, order=order)
     _append("fair-highroll.jsonl", {k: v for k, v in HIGHROLL.items()})
+    HIGHROLL["started_turn"] = True                   # the roll decides who's first, so start that turn now
+    start_turn(win)                                   # (as START would; an AI winner begins playing)
 
 
 def highroll_enter(name: str, value, by: str) -> tuple[int, dict]:

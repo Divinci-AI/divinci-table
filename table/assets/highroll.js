@@ -17,7 +17,7 @@
   document.body.appendChild(sheet);
   const post = (path, body) => fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     .then(async r => ({ ok: r.ok, d: await r.json().catch(() => ({})) }));
-  let started = false, h = { mode: null }, msg = "";
+  let started = false, h = { mode: null }, msg = "", closing = false;
   function rollsTable() {
     const rounds = Object.keys(h.rolls || {}).sort((a, b) => a - b);
     if (!rounds.length) return "";
@@ -41,7 +41,7 @@
           <button data-enter="${esc(n)}" style="border:0;background:#2d5a8a;color:#fff;border-radius:7px;padding:5px 10px;cursor:pointer">enter</button></div>`).join("")}` : ""}
       ${rollsTable()}
       ${h.mode === "quantum" ? `<div style="margin-top:8px;font-size:12px;opacity:.75">Source: ${esc(h.source)}<br>Entropy: <code style="word-break:break-all">${esc(h.entropy)}</code><br>Each roll = ${esc(h.formula)} — anyone can recompute it.</div>` : ""}
-      ${h.winner ? `<div style="margin-top:10px;padding:8px;border-radius:9px;background:#1f4d33;color:#c9f2d7"><b>${esc(h.winner)} goes first.</b> Turn order: ${(h.order || []).map(esc).join(" → ")}</div>` : ""}
+      ${h.winner ? `<div style="margin-top:10px;padding:8px;border-radius:9px;background:#1f4d33;color:#c9f2d7"><b>${esc(h.winner)} goes first${started ? " — their turn has started" : ""}.</b> Turn order: ${(h.order || []).map(esc).join(" → ")}</div>` : ""}
       <div style="margin-top:8px;color:#ffb3b3;min-height:1em">${esc(msg)}</div></div>`;
   }
   async function refresh() {
@@ -51,7 +51,10 @@
       h = await (await fetch("/api/highroll")).json();
       h.ai = p.ai || [];
       btn.style.display = started ? "none" : "block";
-      if (started && sheet.style.display !== "none") sheet.style.display = "none";
+      if (started && sheet.style.display === "flex" && !closing) {   // the winner's turn has begun:
+        closing = true; draw();                                         // show the result a moment, then close
+        setTimeout(() => { sheet.style.display = "none"; closing = false; }, 4000);
+      }
       if (sheet.style.display === "flex" && !sheet.contains(document.activeElement)) draw();
     } catch {}
   }
