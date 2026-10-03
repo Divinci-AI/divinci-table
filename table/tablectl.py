@@ -110,8 +110,10 @@ def fmt_event(e):
         return f"[{t}] #{e['id']} LIFE {e['player']} {e['delta']:+d} → {e['life']} (by {e['by']})"
     if k == "captain":
         return f"[{t}] #{e['id']} ⚓ {e.get('captain')} ({e.get('seat')}): {e.get('text')}"
+    if k == "phase" and e.get("kind") == "windows":
+        return f"[{t}] #{e['id']} STEP TIMEOUTS {'ON' if e.get('on') else 'OFF'} (by {e.get('by') or '?'})"
     if k == "phase":
-        return f"[{t}] #{e['id']} PHASE {e.get('player')} · {e.get('step')}"
+        return f"[{t}] #{e['id']} PHASE {e.get('player')} · {e.get('step')}" + (" (BACK)" if e.get("back") else "")
     return f"[{t}] #{e['id']} {k.upper()}"
 
 
