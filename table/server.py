@@ -228,7 +228,7 @@ HOLD = {"on": False, "by": ""}  # the table freezes NEXT while it sorts somethin
 if args.priority_window > 0:                          # fixed windows: the beat IS the window, and the deadline
     BEAT = (args.priority_window, args.priority_window)
     args.priority_secs = args.priority_window
-PHASE_LOCK = threading.RLock()
+PHASE_LOCK = VP_LOCK   # ONE lock: two took in opposite orders (phase→AI vs AI→phase) deadlocked game 3
 HAND_N: dict[str, int] = {}                            # humans' hand sizes (public), set from the stage page
 
 
@@ -2272,7 +2272,8 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/api/seat/link":              # host laptop only: {"name": "Michael"} → a key for one more device
                 if not self._is_local():
                     return self._send(403, {"error": "device links are made on the host laptop"})
-                name = next((h["name"] for h in HUMANS if h["name"].lower() == str(self._json().get("name", "")).lower()), None)
+                want = str(self._json().get("name", "")).lower()   # read the body ONCE (a second read waits forever)
+                name = next((h["name"] for h in HUMANS if h["name"].lower() == want), None)
                 if not name:
                     return self._send(400, {"error": "only a person's seat"})
                 key = secrets.token_urlsafe(18)
