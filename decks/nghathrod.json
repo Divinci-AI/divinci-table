@@ -1,0 +1,1842 @@
+{
+ "name": "Mind Flayarrrs",
+ "commander": [
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [
+    "B",
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{U}{B}",
+   "manaValue": 5.0,
+   "name": "Captain N'ghathrod",
+   "power": "3",
+   "subtypes": [
+    "Horror",
+    "Pirate"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Horrors you control have menace.\nWhenever a Horror you control deals combat damage to a player, that player mills that many cards.\nAt the beginning of your end step, choose target artifact or creature card in an opponent's graveyard that was put there from their library this turn. Put it onto the battlefield under your control.",
+   "toughness": "6",
+   "type": "Legendary Creature \u2014 Horror Pirate",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Mill"
+   ]
+  }
+ ],
+ "mainBoard": [
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "name": "Chasm Skulker",
+   "power": "1",
+   "subtypes": [
+    "Squid",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Whenever you draw a card, put a +1/+1 counter on this creature.\nWhen this creature dies, create X 1/1 blue Squid creature tokens with islandwalk, where X is the number of +1/+1 counters on this creature. (They can't be blocked as long as defending player controls an Island.)",
+   "toughness": "1",
+   "type": "Creature \u2014 Squid Horror",
+   "types": [
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{U}",
+   "manaValue": 4.0,
+   "name": "Forgotten Creation",
+   "power": "3",
+   "subtypes": [
+    "Zombie",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Skulk (This creature can't be blocked by creatures with greater power.)\nAt the beginning of your upkeep, you may discard all the cards in your hand. If you do, draw that many cards.",
+   "toughness": "3",
+   "type": "Creature \u2014 Zombie Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Skulk"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{1}{U}{U}",
+   "manaValue": 3.0,
+   "name": "Grazilaxx, Illithid Scholar",
+   "power": "3",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Whenever a creature you control becomes blocked, you may return it to its owner's hand.\nWhenever one or more creatures you control deal combat damage to a player, draw a card.",
+   "toughness": "2",
+   "type": "Legendary Creature \u2014 Horror",
+   "types": [
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{5}{U}{U}",
+   "manaValue": 7.0,
+   "name": "Hullbreaker Horror",
+   "power": "7",
+   "subtypes": [
+    "Kraken",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Flash\nThis spell can't be countered.\nWhenever you cast a spell, choose up to one \u2014\n\u2022 Return target spell you don't control to its owner's hand.\n\u2022 Return target nonland permanent to its owner's hand.",
+   "toughness": "8",
+   "type": "Creature \u2014 Kraken Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Flash"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{U}{U}",
+   "manaValue": 5.0,
+   "name": "Mind Flayer",
+   "power": "3",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Dominate Monster \u2014 When this creature enters, gain control of target creature for as long as you control this creature.",
+   "toughness": "3",
+   "type": "Creature \u2014 Horror",
+   "types": [
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}{U}",
+   "manaValue": 4.0,
+   "name": "Overcharged Amalgam",
+   "power": "3",
+   "subtypes": [
+    "Zombie",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Flash\nFlying\nExploit (When this creature enters, you may sacrifice a creature.)\nWhen this creature exploits a creature, counter target spell, activated ability, or triggered ability.",
+   "toughness": "3",
+   "type": "Creature \u2014 Zombie Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Exploit",
+    "Flash",
+    "Flying"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{U}{U}",
+   "manaValue": 5.0,
+   "name": "Sludge Monster",
+   "power": "5",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Whenever this creature enters or attacks, put a slime counter on up to one other target creature.\nNon-Horror creatures with slime counters on them lose all abilities and have base power and toughness 2/2.",
+   "toughness": "5",
+   "type": "Creature \u2014 Horror",
+   "types": [
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{1}{U}",
+   "manaValue": 2.0,
+   "name": "Wharf Infiltrator",
+   "power": "1",
+   "subtypes": [
+    "Human",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Skulk (This creature can't be blocked by creatures with greater power.)\nWhenever this creature deals combat damage to a player, you may draw a card. If you do, discard a card.\nWhenever you discard a creature card, you may pay {2}. If you do, create a 3/2 colorless Eldrazi Horror creature token.",
+   "toughness": "1",
+   "type": "Creature \u2014 Human Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Skulk"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{4}{B}{B}",
+   "manaValue": 6.0,
+   "name": "Dark Hatchling",
+   "power": "3",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Flying\nWhen this creature enters, destroy target nonblack creature. It can't be regenerated.",
+   "toughness": "3",
+   "type": "Creature \u2014 Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Flying"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{1}{B}{B}",
+   "manaValue": 3.0,
+   "name": "Dross Harvester",
+   "power": "4",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Protection from white\nAt the beginning of your end step, you lose 4 life.\nWhenever a creature dies, you gain 2 life.",
+   "toughness": "4",
+   "type": "Creature \u2014 Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Protection"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{B}{B}",
+   "manaValue": 5.0,
+   "name": "Guiltfeeder",
+   "power": "0",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Fear (This creature can't be blocked except by artifact creatures and/or black creatures.)\nWhenever this creature attacks and isn't blocked, defending player loses 1 life for each card in their graveyard.",
+   "toughness": "4",
+   "type": "Creature \u2014 Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Fear"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{B}{B}",
+   "manaValue": 2.0,
+   "name": "Hunted Horror",
+   "power": "7",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Trample\nWhen this creature enters, target opponent creates two 3/3 green Centaur creature tokens with protection from black.",
+   "toughness": "7",
+   "type": "Creature \u2014 Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Trample"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{1}{B}{B}",
+   "manaValue": 3.0,
+   "name": "Nighthowler",
+   "power": "0",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Bestow {2}{B}{B} (If you cast this card for its bestow cost, it's an Aura spell with enchant creature. It becomes a creature again if it's not attached.)\nThis creature and enchanted creature each get +X/+X, where X is the number of creature cards in all graveyards.",
+   "toughness": "0",
+   "type": "Enchantment Creature \u2014 Horror",
+   "types": [
+    "Enchantment",
+    "Creature"
+   ],
+   "keywords": [
+    "Bestow"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{4}{B}{B}",
+   "manaValue": 6.0,
+   "name": "Nihilith",
+   "power": "4",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Fear (This creature can't be blocked except by artifact creatures and/or black creatures.)\nSuspend 7\u2014{1}{B} (Rather than cast this card from your hand, you may pay {1}{B} and exile it with seven time counters on it. At the beginning of your upkeep, remove a time counter. When the last is removed, you may cast it without paying its mana cost. It has haste.)\nWhenever a card is put into an opponent's graveyard from anywhere, if this card is suspended, you may remove a time counter from this card.",
+   "toughness": "4",
+   "type": "Creature \u2014 Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Fear",
+    "Suspend"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{B}",
+   "manaValue": 4.0,
+   "name": "Sewer Nemesis",
+   "power": "*",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "As this creature enters, choose a player.\nSewer Nemesis's power and toughness are each equal to the number of cards in the chosen player's graveyard.\nWhenever the chosen player casts a spell, that player mills a card.",
+   "toughness": "*",
+   "type": "Creature \u2014 Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Mill"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{B}",
+   "manaValue": 3.0,
+   "name": "Woe Strider",
+   "power": "3",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "When this creature enters, create a 0/1 white Goat creature token.\nSacrifice another creature: Scry 1.\nEscape\u2014{3}{B}{B}, Exile four other cards from your graveyard. (You may cast this card from your graveyard for its escape cost.)\nThis creature escapes with two +1/+1 counters on it.",
+   "toughness": "2",
+   "type": "Creature \u2014 Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Escape",
+    "Scry"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [
+    "B",
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{U}{B}",
+   "manaValue": 5.0,
+   "name": "Consuming Aberration",
+   "power": "*",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Consuming Aberration's power and toughness are each equal to the number of cards in your opponents' graveyards.\nWhenever you cast a spell, each opponent reveals cards from the top of their library until they reveal a land card, then puts those cards into their graveyard.",
+   "toughness": "*",
+   "type": "Creature \u2014 Horror",
+   "types": [
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [
+    "B",
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{U}{B}",
+   "manaValue": 5.0,
+   "name": "Nemesis of Reason",
+   "power": "3",
+   "subtypes": [
+    "Leviathan",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Whenever this creature attacks, defending player mills ten cards.",
+   "toughness": "7",
+   "type": "Creature \u2014 Leviathan Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Mill"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Phyrexian Revoker",
+   "power": "2",
+   "subtypes": [
+    "Phyrexian",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "As this creature enters, choose a nonland card name.\nActivated abilities of sources with the chosen name can't be activated.",
+   "toughness": "1",
+   "type": "Artifact Creature \u2014 Phyrexian Horror",
+   "types": [
+    "Artifact",
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{5}",
+   "manaValue": 5.0,
+   "name": "Psychosis Crawler",
+   "power": "*",
+   "subtypes": [
+    "Phyrexian",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Psychosis Crawler's power and toughness are each equal to the number of cards in your hand.\nWhenever you draw a card, each opponent loses 1 life.",
+   "toughness": "*",
+   "type": "Artifact Creature \u2014 Phyrexian Horror",
+   "types": [
+    "Artifact",
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Spellskite",
+   "power": "0",
+   "subtypes": [
+    "Phyrexian",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "{U/P}: Change a target of target spell or ability to this creature. ({U/P} can be paid with either {U} or 2 life.)",
+   "toughness": "4",
+   "type": "Artifact Creature \u2014 Phyrexian Horror",
+   "types": [
+    "Artifact",
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{1}{B}",
+   "manaValue": 2.0,
+   "name": "Dauthi Horror",
+   "power": "2",
+   "subtypes": [
+    "Dauthi",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Shadow (This creature can block or be blocked by only creatures with shadow.)\nThis creature can't be blocked by white creatures.",
+   "toughness": "1",
+   "type": "Creature \u2014 Dauthi Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Shadow"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{5}{B}{B}",
+   "manaValue": 7.0,
+   "name": "Dusk Mangler",
+   "power": "5",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "As an additional cost to cast this spell, sacrifice a creature, discard a card, or pay 4 life.\nWhen this creature enters, each opponent sacrifices a creature of their choice, discards a card, and loses 4 life.",
+   "toughness": "4",
+   "type": "Creature \u2014 Horror",
+   "types": [
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{B}",
+   "manaValue": 3.0,
+   "name": "Phyrexian Rager",
+   "power": "2",
+   "subtypes": [
+    "Phyrexian",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "When this creature enters, you draw a card and you lose 1 life.",
+   "toughness": "2",
+   "type": "Creature \u2014 Phyrexian Horror",
+   "types": [
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{B}",
+   "manaValue": 3.0,
+   "name": "Plague Spitter",
+   "power": "2",
+   "subtypes": [
+    "Phyrexian",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "At the beginning of your upkeep, this creature deals 1 damage to each creature and each player.\nWhen this creature dies, it deals 1 damage to each creature and each player.",
+   "toughness": "2",
+   "type": "Creature \u2014 Phyrexian Horror",
+   "types": [
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{B}{B}",
+   "manaValue": 4.0,
+   "name": "Ravenous Chupacabra",
+   "power": "2",
+   "subtypes": [
+    "Beast",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "When this creature enters, destroy target creature an opponent controls.",
+   "toughness": "2",
+   "type": "Creature \u2014 Beast Horror",
+   "types": [
+    "Creature"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{U}{U}{U}",
+   "manaValue": 3.0,
+   "name": "Fractured Sanity",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Each opponent mills fourteen cards.\nCycling {1}{U} ({1}{U}, Discard this card: Draw a card.)\nWhen you cycle this card, each opponent mills four cards.",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "keywords": [
+    "Cycling",
+    "Mill"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{B}{B}",
+   "manaValue": 4.0,
+   "name": "Crippling Fear",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Choose a creature type. Creatures that aren't of the chosen type get -3/-3 until end of turn.",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{4}{B}{B}",
+   "manaValue": 6.0,
+   "name": "Hex",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy six target creatures.",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{7}{B}{B}",
+   "manaValue": 9.0,
+   "name": "In Garruk's Wake",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy all creatures you don't control and all planeswalkers you don't control.",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{1}{B}",
+   "manaValue": 2.0,
+   "name": "Feed the Swarm",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Destroy target creature or enchantment an opponent controls. You lose life equal to that permanent's mana value.",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{B}",
+   "manaValue": 4.0,
+   "name": "Syphon Mind",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Each other player discards a card. You draw a card for each card discarded this way.",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [
+    "B",
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{U}{B}",
+   "manaValue": 5.0,
+   "name": "Extract from Darkness",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Each player mills two cards. Then you put a creature card from a graveyard onto the battlefield under your control.",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "keywords": [
+    "Mill"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{X}{U}{U}",
+   "manaValue": 2.0,
+   "name": "Pull from Tomorrow",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Draw X cards, then discard a card.",
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{5}{B}",
+   "manaValue": 6.0,
+   "name": "Curtains' Call",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Undaunted (This spell costs {1} less to cast for each opponent.)\nDestroy two target creatures.",
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ],
+   "keywords": [
+    "Undaunted"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [
+    "B",
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{U/B}{U/B}{U/B}{U/B}",
+   "manaValue": 4.0,
+   "name": "Memory Plunder",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "You may cast target instant or sorcery card from an opponent's graveyard without paying its mana cost.",
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{U}",
+   "manaValue": 4.0,
+   "name": "Fact or Fiction",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Reveal the top five cards of your library. An opponent separates those cards into two piles. Put one pile into your hand and the other into your graveyard.",
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [
+    "B",
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{U}{B}",
+   "manaValue": 2.0,
+   "name": "Drown in the Loch",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Choose one \u2014\n\u2022 Counter target spell with mana value less than or equal to the number of cards in its controller's graveyard.\n\u2022 Destroy target creature with mana value less than or equal to the number of cards in its controller's graveyard.",
+   "type": "Instant",
+   "types": [
+    "Instant"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Arcane Signet",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color in your commander's color identity.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Mind Stone",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "name": "Dimir Keyrune",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {U} or {B}.\n{U}{B}: This artifact becomes a 2/2 blue and black Horror artifact creature until end of turn and can't be blocked this turn.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Dimir Signet",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{1}, {T}: Add {U}{B}.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{0}",
+   "manaValue": 0.0,
+   "name": "Everflowing Chalice",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Multikicker {2} (You may pay an additional {2} any number of times as you cast this spell.)\nThis artifact enters with a charge counter on it for each time it was kicked.\n{T}: Add {C} for each charge counter on this artifact.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "keywords": [
+    "Multikicker"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}",
+   "manaValue": 3.0,
+   "name": "Herald's Horn",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "As this artifact enters, choose a creature type.\nCreature spells you cast of the chosen type cost {1} less to cast.\nAt the beginning of your upkeep, look at the top card of your library. If it's a creature card of the chosen type, you may reveal it and put it into your hand.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Lightning Greaves",
+   "subtypes": [
+    "Equipment"
+   ],
+   "supertypes": [],
+   "text": "Equipped creature has haste and shroud. (It can't be the target of spells or abilities.)\nEquip {0}",
+   "type": "Artifact \u2014 Equipment",
+   "types": [
+    "Artifact"
+   ],
+   "keywords": [
+    "Equip"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Mindcrank",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever an opponent loses life, that player mills that many cards. (Damage causes loss of life.)",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ],
+   "keywords": [
+    "Mill"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{1}",
+   "manaValue": 1.0,
+   "name": "Sol Ring",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}{C}.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Talisman of Dominance",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{T}: Add {U} or {B}. This artifact deals 1 damage to you.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}",
+   "manaValue": 2.0,
+   "name": "Thought Vessel",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "You have no maximum hand size.\n{T}: Add {C}.",
+   "type": "Artifact",
+   "types": [
+    "Artifact"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}{U}",
+   "manaValue": 4.0,
+   "name": "Leyline of Anticipation",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "If this card is in your opening hand, you may begin the game with it on the battlefield.\nYou may cast spells as though they had flash.",
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{4}{U}",
+   "manaValue": 5.0,
+   "name": "Reflections of Littjara",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "As this enchantment enters, choose a creature type.\nWhenever you cast a spell of the chosen type, copy that spell. (A copy of a permanent spell becomes a token.)",
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{B}{B}",
+   "manaValue": 5.0,
+   "name": "Black Market",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Whenever a creature dies, put a charge counter on this enchantment.\nAt the beginning of your first main phase, add {B} for each charge counter on this enchantment.",
+   "type": "Enchantment",
+   "types": [
+    "Enchantment"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Choked Estuary",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "As this land enters, you may reveal an Island or Swamp card from your hand. If you don't, this land enters tapped.\n{T}: Add {U} or {B}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Creeping Tar Pit",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {U} or {B}.\n{1}{U}{B}: Until end of turn, this land becomes a 3/2 blue and black Elemental creature. It's still a land. It can't be blocked this turn.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Darkwater Catacombs",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{1}, {T}: Add {U}{B}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Drownyard Temple",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{3}: Return this card from your graveyard to the battlefield tapped.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Exotic Orchard",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color that a land an opponent controls could produce.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Nephalia Drownyard",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{1}{U}{B}, {T}: Target player mills three cards.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "keywords": [
+    "Mill"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "River of Tears",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {U}. If you played a land this turn, add {B} instead.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Sunken Hollow",
+   "subtypes": [
+    "Island",
+    "Swamp"
+   ],
+   "supertypes": [],
+   "text": "({T}: Add {U} or {B}.)\nThis land enters tapped unless you control two or more basic lands.",
+   "type": "Land \u2014 Island Swamp",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Temple of Deceit",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, scry 1. (Look at the top card of your library. You may put that card on the bottom.)\n{T}: Add {U} or {B}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Command Tower",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add one mana of any color in your commander's color identity.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Ash Barrens",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\nBasic landcycling {1} ({1}, Discard this card: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.)",
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "keywords": [
+    "Basic landcycling",
+    "Cycling",
+    "Landcycling",
+    "Typecycling"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Dimir Aqueduct",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\nWhen this land enters, return a land you control to its owner's hand.\n{T}: Add {U}{B}.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Myriad Landscape",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Search your library for up to two basic land cards that share a land type, put them onto the battlefield tapped, then shuffle.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Path of Ancestry",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add one mana of any color in your commander's color identity. When that mana is spent to cast a creature spell that shares a creature type with your commander, scry 1. (Look at the top card of your library. You may put that card on the bottom.)",
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "keywords": [
+    "Scry"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Port of Karfell",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "This land enters tapped.\n{T}: Add {U}.\n{3}{U}{B}{B}, {T}, Sacrifice this land: Mill four cards, then return a creature card from your graveyard to the battlefield tapped. (To mill a card, put the top card of your library into your graveyard.)",
+   "type": "Land",
+   "types": [
+    "Land"
+   ],
+   "keywords": [
+    "Mill"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Rogue's Passage",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{4}, {T}: Target creature can't be blocked this turn.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B",
+    "U"
+   ],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Tainted Isle",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}.\n{T}: Add {U} or {B}. Activate only if you control a Swamp.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [],
+   "colors": [],
+   "count": 1,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Temple of the False God",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "{T}: Add {C}{C}. Activate only if you control five or more lands.",
+   "type": "Land",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [],
+   "count": 9,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Island",
+   "subtypes": [
+    "Island"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {U}.)",
+   "type": "Basic Land \u2014 Island",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [],
+   "count": 11,
+   "layout": "normal",
+   "manaValue": 0.0,
+   "name": "Swamp",
+   "subtypes": [
+    "Swamp"
+   ],
+   "supertypes": [
+    "Basic"
+   ],
+   "text": "({T}: Add {B}.)",
+   "type": "Basic Land \u2014 Swamp",
+   "types": [
+    "Land"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "name": "Zellix, Sanity Flayer",
+   "power": "2",
+   "subtypes": [
+    "Horror"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Hive Mind \u2014 Whenever a player mills one or more creature cards, you create a 1/1 black Horror creature token.\n{1}, {T}: Target player mills three cards.\nChoose a Background (You can have a Background as a second commander.)",
+   "toughness": "3",
+   "type": "Legendary Creature \u2014 Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Choose a background",
+    "Hive Mind",
+    "Mill"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{B}",
+   "manaValue": 3.0,
+   "name": "Haunted One",
+   "subtypes": [
+    "Background"
+   ],
+   "supertypes": [
+    "Legendary"
+   ],
+   "text": "Commander creatures you own have \"Whenever this creature becomes tapped, it and other creatures you control that share a creature type with it each get +2/+0 and gain undying until end of turn.\" (When a creature with undying dies, if it had no +1/+1 counters on it, return it to the battlefield under its owner's control with a +1/+1 counter on it.)",
+   "type": "Legendary Enchantment \u2014 Background",
+   "types": [
+    "Enchantment"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "name": "Aboleth Spawn",
+   "power": "2",
+   "subtypes": [
+    "Fish",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Flash\nWard {2}\nProbing Telepathy \u2014 Whenever a creature entering under an opponent's control causes a triggered ability of that creature to trigger, you may copy that ability. You may choose new targets for the copy.",
+   "toughness": "3",
+   "type": "Creature \u2014 Fish Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Flash",
+    "Probing Telepathy",
+    "Ward"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "name": "Endless Evil",
+   "subtypes": [
+    "Aura"
+   ],
+   "supertypes": [],
+   "text": "Enchant creature you control\nAt the beginning of your upkeep, create a token that's a copy of enchanted creature, except the token is 1/1.\nWhen enchanted creature dies, if that creature was a Horror, return this card to its owner's hand.",
+   "type": "Enchantment \u2014 Aura",
+   "types": [
+    "Enchantment"
+   ],
+   "keywords": [
+    "Enchant"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{2}{U}",
+   "manaValue": 3.0,
+   "name": "Grell Philosopher",
+   "power": "1",
+   "subtypes": [
+    "Horror",
+    "Wizard"
+   ],
+   "supertypes": [],
+   "text": "Aberrant Tinkering \u2014 When this creature enters and at the beginning of your upkeep, each Horror you control gains all activated abilities of target artifact an opponent controls until end of turn. You may spend blue mana as though it were mana of any color to activate those abilities.",
+   "toughness": "4",
+   "type": "Creature \u2014 Horror Wizard",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Aberrant Tinkering"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "U"
+   ],
+   "colors": [
+    "U"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{4}{U}{U}",
+   "manaValue": 6.0,
+   "name": "Psionic Ritual",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Replicate\u2014Tap an untapped Horror you control. (When you cast this spell, copy it for each time you paid its replicate cost. You may choose new targets for the copies.)\nExile target instant or sorcery card from a graveyard and copy it. You may cast the copy without paying its mana cost.\nExile Psionic Ritual.",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "keywords": [
+    "Replicate"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{5}{B}{B}",
+   "manaValue": 7.0,
+   "name": "Brainstealer Dragon",
+   "power": "6",
+   "subtypes": [
+    "Dragon",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Flying\nAt the beginning of your end step, exile the top card of each opponent's library. You may play those cards for as long as they remain exiled. If you cast a spell this way, you may spend mana as though it were mana of any color to cast it.\nWhenever a nonland permanent an opponent owns enters the battlefield under your control, they lose life equal to its mana value.",
+   "toughness": "6",
+   "type": "Creature \u2014 Dragon Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Flying"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{B}{B}",
+   "manaValue": 5.0,
+   "name": "From the Catacombs",
+   "subtypes": [],
+   "supertypes": [],
+   "text": "Put target creature card from a graveyard onto the battlefield under your control with a corpse counter on it. You take the initiative. If that creature would leave the battlefield, exile it instead of putting it anywhere else.\nEscape\u2014{3}{B}{B}, Exile five other cards from your graveyard. (You may cast this card from your graveyard for its escape cost.)",
+   "type": "Sorcery",
+   "types": [
+    "Sorcery"
+   ],
+   "keywords": [
+    "Escape"
+   ]
+  },
+  {
+   "colorIdentity": [
+    "B"
+   ],
+   "colors": [
+    "B"
+   ],
+   "count": 1,
+   "layout": "normal",
+   "manaCost": "{3}{B}",
+   "manaValue": 4.0,
+   "name": "Uchuulon",
+   "power": "*",
+   "subtypes": [
+    "Crab",
+    "Ooze",
+    "Horror"
+   ],
+   "supertypes": [],
+   "text": "Uchuulon's power is equal to the number of Crabs, Oozes, and/or Horrors you control.\nHorrific Symbiosis \u2014 At the beginning of your end step, exile up to one target creature card from an opponent's graveyard. If you do, create a token that's a copy of this creature.",
+   "toughness": "4",
+   "type": "Creature \u2014 Crab Ooze Horror",
+   "types": [
+    "Creature"
+   ],
+   "keywords": [
+    "Horrific Symbiosis"
+   ]
+  }
+ ],
+ "source": "MTGJSON MindFlayarrrs_CLB (unmodified precon), led by Captain N'ghathrod",
+ "eligibleCommanders": [
+  "Captain N'ghathrod"
+ ]
+}
