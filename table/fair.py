@@ -172,3 +172,16 @@ if __name__ == "__main__":
         print(("✅ " if ok else "❌ ") + msg)
         sys.exit(0 if ok else 1)
     print(__doc__)
+
+
+def die_roll(entropy_hex: str, label: str, sides: int = 20) -> int:
+    """One fair die from public randomness, checkable by anyone:
+        for k = 0, 1, 2, …:  x = first 4 bytes of SHA-256("<entropy_hex>|<label>|<k>") as a big-endian uint32
+        the first x below the largest multiple of `sides` under 2**32 gives the roll  (x % sides) + 1
+    The rejection step keeps every face exactly equally likely. `label` is e.g. "highroll|1|Sam"."""
+    limit = (2 ** 32 // sides) * sides
+    for k in range(1000):
+        x = int.from_bytes(hashlib.sha256(f"{entropy_hex}|{label}|{k}".encode()).digest()[:4], "big")
+        if x < limit:
+            return x % sides + 1
+    raise RuntimeError("no roll after 1000 tries")   # probability ~ (sides/2**32)**1000: never

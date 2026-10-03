@@ -78,9 +78,37 @@ BEFORE = set(RESEARCH.glob("*"))              # never touch an existing game's l
 srv = start("--priority-window", "0", "--priority-secs", "30", "--priority-beat", "0.6,0.6")
 BEAT = 0.7
 try:
+    print("high roll (who goes first)")
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import fair
+    rolls = [fair.die_roll("ab" * 16, f"highroll|1|{n}") for n in ("Sam", "Ann", "Ben", "Claude", "Fusion")]
+    check(rolls == [fair.die_roll("ab" * 16, f"highroll|1|{n}") for n in ("Sam", "Ann", "Ben", "Claude", "Fusion")]
+          and len(set(rolls)) > 1, "a quantum roll is a pure function of the published entropy (anyone can recompute it)")
+    check(all(1 <= fair.die_roll(f"{i:064x}", "x", 20) <= 20 for i in range(500)), "…and always a d20 face")
+    code, h = call("POST", "/api/highroll/start", {"mode": "physical", "sides": 20, "by": "Ann"})
+    check(code == 200 and h["contenders"] == ["Ann", "Claude", "Ben"], "a real-dice high roll starts with every player")
+    code, h = call("POST", "/api/highroll/roll", {"player": "Ann", "value": 25, "by": "Ann"})
+    check(code == 400, "a d20 can't show 25")
+    call("POST", "/api/highroll/roll", {"player": "Ann", "value": 15, "by": "Ann"})
+    code, h = call("POST", "/api/highroll/roll", {"player": "Ann", "value": 12, "by": "Ann"})
+    check(code == 409, "nobody rolls twice in a round")
+    call("POST", "/api/highroll/roll", {"player": "Claude", "value": 15, "by": "Ben"})   # a person rolls for the AI
+    code, h = call("POST", "/api/highroll/roll", {"player": "Ben", "value": 3, "by": "Ben"})
+    check(h["round"] == 2 and h["contenders"] == ["Ann", "Claude"] and not h["winner"], "a tie: only the tied players roll again")
+    check(h["entered_by"]["1"]["Claude"] == "Ben", "…and the record shows who rolled for the AI seat")
+    code, h = call("POST", "/api/highroll/roll", {"player": "Ben", "value": 20, "by": "Ben"})
+    check(code == 400, "a player out of the tie-break can't roll in it")
+    call("POST", "/api/highroll/roll", {"player": "Ann", "value": 18, "by": "Ann"})
+    code, h = call("POST", "/api/highroll/roll", {"player": "Claude", "value": 4, "by": "Ben"})
+    check(h["winner"] == "Ann" and h["order"] == ["Ann", "Claude", "Ben"], "the highest roll goes first; play continues around the table")
+    code, p = call("GET", "/api/phase")
+    check(p["order"] == ["Ann", "Claude", "Ben"], "…and that becomes the turn order")
+
     print("NEXT and priority")
     code, p = nxt("Ann")
     check(code == 200 and p["player"] == "Ann" and p["step"] == "untap", "first NEXT starts the first seat's turn at untap")
+    code, h = call("POST", "/api/highroll/start", {"mode": "physical", "sides": 20, "by": "Ben"})
+    check(code == 409, "no high roll once the game has started")
     check(p["waiting"] == [], "untap gives no one priority")
     code, p = nxt("Ann")          # Claude has no lands yet: nothing castable
     check(p["step"] == "upkeep" and p["waiting"] == ["Claude"],

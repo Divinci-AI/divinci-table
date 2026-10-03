@@ -110,6 +110,14 @@ def fmt_event(e):
         return f"[{t}] #{e['id']} LIFE {e['player']} {e['delta']:+d} → {e['life']} (by {e['by']})"
     if k == "captain":
         return f"[{t}] #{e['id']} ⚓ {e.get('captain')} ({e.get('seat')}): {e.get('text')}"
+    if k == "highroll":
+        rr = e.get("rolls") or {}
+        last = rr.get(str(max(map(int, rr))) if rr else "1", {})
+        rolls = ", ".join(f"{n} {v}" for n, v in last.items())
+        how = "⚛️ quantum" if e.get("mode") == "quantum" else "🎲 real dice"
+        if e.get("winner"):
+            return f"[{t}] #{e['id']} {how} HIGH ROLL: {rolls} → {e['winner']} goes first ({' → '.join(e.get('order') or [])})"
+        return f"[{t}] #{e['id']} {how} HIGH ROLL round {e.get('round')}: {rolls or 'waiting'}" + (f" — waiting on {', '.join(e.get('waiting_on') or [])}" if e.get("waiting_on") else "")
     if k == "pass":
         if e.get("kind") == "reset":
             return f"[{t}] #{e['id']} ✋ PRIORITY round again — {e.get('why')}"
@@ -241,6 +249,8 @@ def main():
     bt = sub.add_parser("bottom", help="a card to the bottom (from hand, or --from-top)"); bt.add_argument("name")
     bt.add_argument("--from-top", action="store_true")
     sub.add_parser("shuffle")
+    hr = sub.add_parser("highroll", help="who goes first: highroll quantum | highroll physical | highroll roll NAME VALUE")
+    hr.add_argument("what", choices=["quantum", "physical", "roll", "show"]); hr.add_argument("name", nargs="?"); hr.add_argument("value", nargs="?")
     sub.add_parser("mulligan", help="before the game: hand back, shuffle, draw seven (first one free; then 'bottom' one card per extra)")
     pu = sub.add_parser("put", help="hand → battlefield without paying (ninjutsu)"); pu.add_argument("name")
     pu.add_argument("--tapped", action="store_true")
@@ -342,6 +352,12 @@ def main():
         return act("bottom", name=a.name, from_top=a.from_top)
     if a.cmd == "shuffle":
         return act("shuffle")
+    if a.cmd == "highroll":
+        if a.what == "show":
+            return print(json.dumps(req("GET", "/api/highroll"), indent=1))
+        if a.what == "roll":
+            return print(json.dumps(req("POST", "/api/highroll/roll", {"player": a.name, "value": a.value, "by": a.seat}), indent=1))
+        return print(json.dumps(req("POST", "/api/highroll/start", {"mode": a.what, "sides": 20, "by": a.seat}), indent=1))
     if a.cmd == "mulligan":
         return act("mulligan")
     if a.cmd == "put":

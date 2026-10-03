@@ -339,7 +339,7 @@ def snapshot():
         with VP_LOCK, PHASE_LOCK:
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
                                  "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
-                                 "ev_id": _ev_id[0], "saved": time.time()})
+                                 "HIGHROLL": HIGHROLL, "ev_id": _ev_id[0], "saved": time.time()})
         p = research_dir() / "snapshot.pkl"
         tmp = p.with_suffix(".tmp")
         tmp.write_bytes(blob)
@@ -356,8 +356,9 @@ def restore(path: str):
     VPS.clear(); VPS.update(d["VPS"]); DECK_OF.update(d["DECK_OF"])
     LIFE.update(d["LIFE"]); FAIR.update(d["FAIR"]); PHASE.update(d["PHASE"]); HAND_N.update(d.get("HAND_N", {}))
     PUBLIC_BOARD.update(d.get("PUBLIC_BOARD", {})); WINDOWS.update(d.get("WINDOWS", {})); TODOS.extend(d.get("TODOS", [])); PLACED.update(d.get("PLACED", []))
-    if not ORDER:
-        ORDER.extend(d.get("ORDER", []))
+    HIGHROLL.update(d.get("HIGHROLL") or {"mode": None})
+    if d.get("ORDER") and (not ORDER or HIGHROLL.get("winner")):
+        ORDER[:] = d["ORDER"]                         # a high roll's order beats the --order the table was started with
     _ev_id[0] = d.get("ev_id", 0)                     # pages keep their cursors across the restart
     top = max([p.id for v in VPS.values() for p in v.battlefield] + [0])
     import itertools
@@ -456,6 +457,87 @@ def priority_reset(why: str):
         if PASS["passed"]:
             PASS["passed"] = []
             emit("pass", kind="reset", why=why[:120])
+
+
+HIGHROLL: dict = {"mode": None}   # who goes first: {"mode", "sides", "round", "contenders", "rolls", "winner", ...}
+
+
+def highroll_public() -> dict:
+    h = dict(HIGHROLL)
+    if h.get("mode") == "physical" and not h.get("winner"):     # a die not yet rolled shows as waiting
+        h["waiting_on"] = [n for n in h.get("contenders", []) if n not in h["rolls"].get(str(h["round"]), {})]
+    return h
+
+
+def highroll_start(mode: str, sides: int, by: str) -> tuple[int, dict]:
+    """A high roll for who goes first. "physical": each player rolls a real die and enters it (a person
+    rolls for an AI seat). "quantum": one fresh ANU quantum draw, and every roll derives from it by
+    fair.die_roll — published, so anyone can recompute it. Ties re-roll among the tied players."""
+    if PHASE["player"] is not None:
+        return 409, {"error": "the game has already started — high roll is before the first turn"}
+    if mode not in ("physical", "quantum") or not 2 <= sides <= 100:
+        return 400, {"error": "mode is physical or quantum; sides 2-100"}
+    names = [n for n in turn_order() if not is_out(n)]
+    HIGHROLL.clear()
+    HIGHROLL.update(mode=mode, sides=sides, round=1, contenders=names, rolls={}, winner=None, by=by[:30],
+                    seating=names, started=round(time.time(), 2))
+    if mode == "quantum":
+        import fair
+        parts = fair.online_parts()                  # ANU (rate-limited: may wait up to a minute) + drand
+        src = parts.get("anu_qrng") or parts.get("drand_randomness")
+        if not src:
+            HIGHROLL.clear(); HIGHROLL["mode"] = None
+            return 503, {"error": "no quantum (ANU) or drand randomness reachable — use a physical roll"}
+        HIGHROLL.update(entropy=src, source="ANU quantum (qrng.anu.edu.au)" if parts.get("anu_qrng")
+                        else f"drand round {parts.get('drand_round')} (ANU unreachable)",
+                        formula="fair.die_roll(entropy, 'highroll|<round>|<name>', sides)")
+        while not HIGHROLL["winner"]:
+            r = str(HIGHROLL["round"])
+            HIGHROLL["rolls"][r] = {n: fair.die_roll(src, f"highroll|{r}|{n}", sides) for n in HIGHROLL["contenders"]}
+            _highroll_settle()
+    emit("highroll", **highroll_public())
+    return 200, highroll_public()
+
+
+def _highroll_settle():
+    r = str(HIGHROLL["round"])
+    got = HIGHROLL["rolls"].get(r, {})
+    if any(n not in got for n in HIGHROLL["contenders"]):
+        return
+    top = max(got.values())
+    best = [n for n in HIGHROLL["contenders"] if got[n] == top]
+    if len(best) > 1:                                 # a tie: only the tied players roll again
+        HIGHROLL.update(round=HIGHROLL["round"] + 1, contenders=best)
+        return
+    win = best[0]
+    seats = HIGHROLL["seating"]
+    i = seats.index(win)
+    order = seats[i:] + seats[:i]                     # the winner goes first; play continues around the table
+    ORDER[:] = order
+    HIGHROLL.update(winner=win, order=order)
+    _append("fair-highroll.jsonl", {k: v for k, v in HIGHROLL.items()})
+
+
+def highroll_enter(name: str, value, by: str) -> tuple[int, dict]:
+    if HIGHROLL.get("mode") != "physical" or HIGHROLL.get("winner"):
+        return 409, {"error": "no physical high roll waiting for dice"}
+    who = next((n for n in HIGHROLL["contenders"] if n.lower() == name.lower()), None)
+    if not who:
+        return 400, {"error": f"{name} isn't rolling this round (rolling: {', '.join(HIGHROLL['contenders'])})"}
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return 400, {"error": "the roll is a number"}
+    if not 1 <= v <= HIGHROLL["sides"]:
+        return 400, {"error": f"a d{HIGHROLL['sides']} shows 1-{HIGHROLL['sides']}"}
+    r = str(HIGHROLL["round"])
+    if who in HIGHROLL["rolls"].get(r, {}):
+        return 409, {"error": f"{who} already rolled this round"}
+    HIGHROLL["rolls"].setdefault(r, {})[who] = v
+    HIGHROLL.setdefault("entered_by", {}).setdefault(r, {})[who] = by[:30] or who
+    _highroll_settle()
+    emit("highroll", **highroll_public())
+    return 200, highroll_public()
 
 
 def phase_public() -> dict:
@@ -627,7 +709,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1644,6 +1726,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"last": last, "events": out, "restarted": restarted})
         if self.path == "/api/life":
             return self._send(200, self._life_table())
+        if self.path == "/api/highroll":
+            return self._send(200, highroll_public())
         if self.path == "/api/fair":                       # public: commits now, full records once revealed
             with VP_LOCK:
                 return self._send(200, fair_public())
@@ -1969,6 +2053,18 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, phase_public())
             if self.path == "/api/phase/back":             # BACK: a NEXT pressed too soon
                 code, out = prev_step(str(self._json().get("by", ""))[:30] if self.headers.get("Content-Length") else None)
+                snapshot()
+                return self._send(code, out)
+            if self.path == "/api/highroll/start":         # {"mode": "physical"|"quantum", "sides": 20, "by": "Sam"}
+                b = self._json()
+                with PHASE_LOCK:
+                    code, out = highroll_start(str(b.get("mode", "")), int(b.get("sides") or 20), str(b.get("by", "")))
+                snapshot()
+                return self._send(code, out)
+            if self.path == "/api/highroll/roll":          # a real die: {"player": "Fusion", "value": 17, "by": "Sam"}
+                b = self._json()
+                with PHASE_LOCK:
+                    code, out = highroll_enter(str(b.get("player", "")), b.get("value"), str(b.get("by", "")))
                 snapshot()
                 return self._send(code, out)
             if self.path == "/api/phase/next":             # the NEXT button: {"by": "Michael"} (optional)
