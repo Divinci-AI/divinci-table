@@ -135,5 +135,29 @@
       if (rows.length !== drawn && !typing) render();   // only when something changed: no scroll jumps
     } catch {}
   }
+  // ⚡ a spell cast in someone else's turn (an instant, a response) is easy to miss: a banner on every screen
+  const toast = document.createElement("div");
+  toast.style.cssText = "position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:80;max-width:min(560px,calc(100vw - 24px));" +
+    "padding:12px 18px;border-radius:12px;background:#4a2d0c;border:2px solid #f0a868;color:#fff;font:600 15px/1.35 system-ui,-apple-system,sans-serif;" +
+    "box-shadow:0 8px 30px rgba(0,0,0,.5);display:none;cursor:pointer;text-align:center";
+  toast.title = "tap to dismiss"; toast.onclick = () => (toast.style.display = "none");
+  document.body.appendChild(toast);
+  let turnOf = null, alertFrom = null, tt = 0;
+  async function watchCasts() {
+    try {
+      const r = await (await fetch(`/api/events?since=${alertFrom ?? "latest"}`)).json();
+      if (alertFrom === null || r.restarted) { alertFrom = r.last; return; }
+      for (const e of r.events) {
+        if (e.type === "phase" && e.player) turnOf = e.player;
+        if (e.type === "say" && e.action === "cast" && turnOf && e.speaker !== turnOf) {
+          toast.innerHTML = `⚡ ${esc(e.speaker)} responds in ${esc(turnOf)}'s turn<br><span style="font-weight:400">${esc(e.text)}</span>`;
+          toast.style.display = "block"; clearTimeout(tt); tt = setTimeout(() => (toast.style.display = "none"), 15000);
+        }
+      }
+      alertFrom = r.last;
+    } catch {}
+  }
+  fetch("/api/phase").then(r => r.json()).then(p => { turnOf = p.player; }).catch(() => {});
+  setInterval(watchCasts, 1500);
   render(); poll(); setInterval(poll, 2500);
 })();
