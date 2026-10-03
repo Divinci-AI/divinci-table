@@ -17,6 +17,7 @@ import argparse
 import re
 import hashlib
 import json
+import urllib.parse
 import os
 import secrets
 import sys
@@ -343,7 +344,7 @@ def snapshot():
         with VP_LOCK, PHASE_LOCK:
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
                                  "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
-                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "SEAT_PROXY": SEAT_PROXY, "ev_id": _ev_id[0], "saved": time.time()})
+                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "SEAT_PROXY": SEAT_PROXY, "SEAT_INVITES": SEAT_INVITES, "ev_id": _ev_id[0], "saved": time.time()})
         p = research_dir() / "snapshot.pkl"
         tmp = p.with_suffix(".tmp")
         tmp.write_bytes(blob)
@@ -365,6 +366,7 @@ def restore(path: str):
     SEAT_DEVICES.update(d.get("SEAT_DEVICES") or {})
     AUTOPASS.update(d.get("AUTOPASS") or {})
     SEAT_PROXY.update(d.get("SEAT_PROXY") or {})
+    SEAT_INVITES.update(d.get("SEAT_INVITES") or {})
     if d.get("ORDER") and (not ORDER or HIGHROLL.get("winner")):
         ORDER[:] = d["ORDER"]                         # a high roll's order beats the --order the table was started with
     _ev_id[0] = d.get("ev_id", 0)                     # pages keep their cursors across the restart
@@ -580,6 +582,7 @@ def _keyhash(key: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
+SEAT_INVITES: dict = {}   # sha256(invite) → seat: an open-market link; the first device to open it takes the seat
 SEAT_PROXY: dict = {}   # seat → the player who plays it tonight (e.g. {"Sam": "Michael"}): their key counts for it
 
 
@@ -886,7 +889,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/autopass"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -2247,6 +2250,17 @@ class H(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "only a person's seat can be claimed"})
                 key = str(b.get("key") or "")
                 fp = self._device()
+                inv = str(b.get("invite") or "")
+                if inv and SEAT_INVITES.get(_keyhash(inv)) == name:   # an open-market invite: the seat changes hands
+                    SEAT_INVITES.pop(_keyhash(inv))
+                    SEAT_KEYS[name], SEAT_DEVICES[name] = [], []
+                    SEAT_PROXY.pop(name, None)
+                    key = secrets.token_urlsafe(18)
+                    SEAT_KEYS[name].append(_keyhash(key))
+                    SEAT_DEVICES[name].append(fp)
+                    emit("seat", name=name, kind="claimed", via="invite")
+                    snapshot()
+                    return self._send(200, {"name": name, "key": key})
                 if key and seat_key_ok(name, key):
                     SEAT_DEVICES.setdefault(name, []).append(fp) if fp not in SEAT_DEVICES.get(name, []) else None
                     return self._send(200, {"name": name, "key": key})          # another device of the same player
@@ -2290,6 +2304,33 @@ class H(BaseHTTPRequestHandler):
                 SEAT_KEYS[name].append(_keyhash(key))
                 snapshot()
                 return self._send(200, {"name": name, "key": key})
+            if self.path == "/api/seat/handoff":           # the seat's own player: {"by","key","to": "<player>"|"open"|"back"}
+                b = self._json()
+                seat_ = next((h["name"] for h in HUMANS if h["name"].lower() == str(b.get("by", "")).lower()), None)
+                if not seat_ or not seat_key_ok(seat_, str(b.get("key", ""))):
+                    return self._send(403, {"error": "claim your seat first (👤)", "need_seat": True})
+                to = str(b.get("to", ""))
+                names = {h["name"] for h in HUMANS}
+                if to == "back":                              # take it back: no proxy, no open invites
+                    SEAT_PROXY.pop(seat_, None)
+                    for k in [k for k, v in SEAT_INVITES.items() if v == seat_]:
+                        SEAT_INVITES.pop(k)
+                    emit("seat", name=seat_, kind="handoff", to="")
+                    snapshot()
+                    return self._send(200, {"seat": seat_, "to": ""})
+                if to == "open":                              # the open market: a one-use invite link
+                    inv = secrets.token_urlsafe(12)
+                    SEAT_INVITES[_keyhash(inv)] = seat_
+                    emit("seat", name=seat_, kind="handoff", to="an open invite")
+                    snapshot()
+                    return self._send(200, {"seat": seat_, "invite": inv,
+                                            "path": f"/me?player={urllib.parse.quote(seat_)}&invite={inv}"})
+                if to not in names or to == seat_:
+                    return self._send(400, {"error": "hand off to another person at the table, 'open', or 'back'"})
+                SEAT_PROXY[seat_] = to
+                emit("seat", name=seat_, kind="handoff", to=to)
+                snapshot()
+                return self._send(200, {"seat": seat_, "to": to})
             if self.path == "/api/seat/proxy":             # host laptop only: {"seat": "Sam", "to": "Michael", "autopass": "others"}
                 if not self._is_local():
                     return self._send(403, {"error": "set from the host laptop"})

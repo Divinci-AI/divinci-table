@@ -13,8 +13,8 @@
   let mine = load();
   const post = (p, b) => fetch(p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) })
     .then(async r => ({ ok: r.ok, d: await r.json().catch(() => ({})) }));
-  async function claim(name, key) {
-    const r = await post("/api/seat/claim", { name, key });
+  async function claim(name, key, invite) {
+    const r = await post("/api/seat/claim", { name, key, invite });
     if (r.ok) { mine = { name: r.d.name, key: r.d.key }; save(mine); chip(); }
     return r;
   }
@@ -37,24 +37,47 @@
           ${esc(n)}${n === mine.name ? " — this window ✓" : here ? " — yours on this device (tap to use here)" : taken ? " — claimed on another device" : ""}</button>`; }).join("")}
       ${link ? `<div style="margin-top:10px;font-size:12.5px;opacity:.85">Use ${esc(mine.name)} on another device too: open this link there (keep it private).<br>
           <input readonly value="${esc(link)}" style="width:100%;margin-top:4px;background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:6px;padding:4px 6px;font:12px ui-monospace,monospace"></div>` : ""}
+      ${mine.name && !proxied ? `<div style="margin-top:12px;border-top:1px solid #2a2e37;padding-top:10px"><b>🤝 Hand off ${esc(mine.name)}'s seat</b>
+          <div style="opacity:.7;font-size:12.5px;margin:2px 0 6px">Someone else plays it from their own device; you can take it back.</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${Object.keys(c.humans || {}).filter(n => n !== mine.name).map(n => `<button data-handoff="${esc(n)}" style="padding:7px 10px;border-radius:8px;border:1px solid #3a3f4a;background:#23262e;color:#eee;cursor:pointer">to ${esc(n)}</button>`).join("")}
+          <button data-handoff="open" style="padding:7px 10px;border-radius:8px;border:1px solid #3a3f4a;background:#23262e;color:#eee;cursor:pointer">🌐 open invite link</button>
+          <button data-handoff="back" style="padding:7px 10px;border-radius:8px;border:1px solid #3a3f4a;background:#1f4d33;color:#c9f2d7;cursor:pointer">take it back</button></div>
+          <div data-handout style="margin-top:6px;font-size:12.5px"></div></div>` : ""}
       <div data-msg style="margin-top:8px;color:#ffb3b3;min-height:1em"></div></div>`;
     sheet.style.display = "flex";
   }
   sheet.addEventListener("click", async ev => {
     if (ev.target === sheet || ev.target.closest("[data-x]")) { sheet.style.display = "none"; return; }
+    const h = ev.target.closest("[data-handoff]");
+    if (h) {
+      const r = await post("/api/seat/handoff", { by: mine.name, key: mine.key, to: h.dataset.handoff });
+      const out = sheet.querySelector("[data-handout]");
+      if (!r.ok) { out.textContent = r.d.error || "couldn't hand off"; return; }
+      out.innerHTML = r.d.invite ? `One-use link — whoever opens it first takes the seat:<br><input readonly value="${esc(location.origin + r.d.path)}" style="width:100%;margin-top:4px;background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:6px;padding:4px 6px;font:12px ui-monospace,monospace">`
+        : r.d.to ? `Handed to ${esc(r.d.to)} — their device can now play ${esc(r.d.seat)} (open /me?player=${esc(r.d.seat)}).` : "Taken back: only your devices play this seat.";
+      return;
+    }
     const b = ev.target.closest("[data-claim]");
     if (b) {
       const r = await claim(b.dataset.claim);
       if (r.ok) { sheet.style.display = "none"; location.reload(); } else sheet.querySelector("[data-msg]").textContent = r.d.error || "couldn't claim that seat";
     }
   });
+  const alert0 = m => { chipEl.textContent = "👤 " + m; };
   chipEl.onclick = pick;
   function mount() { document.body.appendChild(chipEl); document.body.appendChild(sheet); chip(); }
   if (document.body) mount(); else addEventListener("DOMContentLoaded", mount);
   // a phone link names its player: claim it (or add this device with ?key=)
-  const q = new URLSearchParams(location.search), qp = q.get("player"), qk = q.get("key");
+  const q = new URLSearchParams(location.search), qp = q.get("player"), qk = q.get("key"), qi = q.get("invite");
   let proxied = false;                                  // this page plays a seat someone lent to my player
   const ready = (async () => {
+    if (qp && qi) {                                   // an open-market invite: take the seat, hide the token
+      const r = await claim(qp, undefined, qi);
+      history.replaceState(null, "", location.pathname + "?player=" + encodeURIComponent(qp));
+      if (!r.ok) alert0(r.d.error || "that invite was already used");
+      return;
+    }
     if (qp && mine.name && qp !== mine.name && !qk) {
       try {
         const c = await (await fetch("/api/seat/claims")).json();
