@@ -32,4 +32,3 @@ body[data-brand="me"] #next.wait{background:#2b3d44;border-color:#3e5961;color:#
 .dt-mark .core{transform-box:fill-box;transform-origin:center;animation:dt-mark-pulse 2.6s ease-in-out infinite}
 @keyframes dt-mark-pulse{0%,100%{transform:scale(.85);opacity:.8}50%{transform:scale(1.15);opacity:1}}
 @media (prefers-reduced-motion:reduce){.dt-mark .core{animation:none}}
-body[data-brand="stage"] .dt-mark{bottom:auto;top:auto;left:auto;right:16px;bottom:12px}

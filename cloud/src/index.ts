@@ -17,6 +17,7 @@ interface Env {
 	ROOM: DurableObjectNamespace<TableRoom>;
 	LOBBY: DurableObjectNamespace<Lobby>;
 	DIVINCI_FUSION_API_KEY?: string;
+	ADMIN_TOKEN?: string;
 	FUSION_CONFIG?: string;
 }
 
@@ -69,6 +70,14 @@ export class Lobby extends DurableObject<Env> {
 		return live;
 	}
 
+	/** Take a room off the public list (admin). */
+	async remove(id: string): Promise<boolean> {
+		const rooms = await this.list();
+		const left = rooms.filter((r) => r.id !== id);
+		await this.ctx.storage.put("rooms", left);
+		return left.length !== rooms.length;
+	}
+
 	/** Register a room, or say why not. */
 	async add(room: RoomInfo, addr: string): Promise<string | null> {
 		const now = Date.now();
@@ -91,6 +100,12 @@ export default {
 
 		if (url.pathname === "/" && request.method === "GET") {
 			return html(lobbyPage(await lobby.list(), url.searchParams.get("error") ?? ""));
+		}
+		if (url.pathname === "/lobby/admin/remove" && request.method === "POST") {
+			const auth = request.headers.get("Authorization") ?? "";
+			if (!env.ADMIN_TOKEN || auth !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("Forbidden", { status: 403 });
+			const id = url.searchParams.get("id") ?? "";
+			return Response.json({ removed: await lobby.remove(id) });
 		}
 		if (url.pathname === "/lobby/rooms" && request.method === "POST") {
 			return createRoom(request, env, lobby);
