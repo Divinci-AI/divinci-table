@@ -224,7 +224,7 @@ def main():
     sub.add_parser("phase", help="whose turn, which step, who still holds priority")
     pb = sub.add_parser("public-board", help="record a HUMAN's board for the 3D view (from photos / what they said)")
     pb.add_argument("seat"); pb.add_argument("cards", nargs="*", help='"Swamp" "Mountain:tapped" "Centaur:token:3/3" "Nihilith:suspended:5"')
-    pb.add_argument("--graveyard", default="", help="comma-separated, oldest first"); pb.add_argument("--commander-out", action="store_true")
+    pb.add_argument("--graveyard", default="", help="oldest first; comma-separated, or semicolon-separated when a name has a comma"); pb.add_argument("--commander-out", action="store_true")
     nx = sub.add_parser("next", help="press NEXT for the active human (testing / remote play)"); nx.add_argument("--by")
     for verb in ("destroy", "exile", "bounce", "tap", "untap"):
         v = sub.add_parser(verb); v.add_argument("ref"); v.add_argument("--quiet", action="store_true")
@@ -313,7 +313,7 @@ def main():
                 elif re.fullmatch(r"[+-]?\d+", fl): p["counters"] = int(fl)
                 elif fl: p["zone" if fl in ("suspended", "exiled", "foretold") else "note"] = fl
             perms.append(p)
-        gy = [x.strip() for x in a.graveyard.split(",") if x.strip()]
+        gy = [x.strip() for x in a.graveyard.split(";" if ";" in a.graveyard else ",") if x.strip()]   # ";" keeps "Zellix, Sanity Flayer" whole
         print(json.dumps(req("POST", "/api/public-board", {"seat": a.seat, "permanents": perms, "graveyard": gy,
                                                             "commander_out": a.commander_out}))); return
     if a.cmd == "next":
