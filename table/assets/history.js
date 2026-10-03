@@ -108,16 +108,23 @@
         <input data-chat placeholder="tell the table: “I activate Rogue's Passage on Sewer Nemesis”…" style="flex:1;min-width:0;background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:7px;padding:5px 8px;font:inherit">
         <button data-act="say" style="border:0;background:#2d5a8a;color:#fff;border-radius:7px;padding:3px 10px;cursor:pointer;font:inherit">send</button>
       </div>
+      <div data-openq style="display:none;margin:0 12px 8px;padding:7px 10px;border-radius:9px;background:#3b2a0c;border:1px solid #f0a868;cursor:pointer;font-weight:600"></div>
       <div data-list style="${PAGE || tall ? "flex:1;min-height:0" : "max-height:min(52vh,460px)"};overflow:auto;padding:0 12px 10px">
         ${shown.length ? shown.slice().reverse().map(r => `<div style="padding:4px 0;border-top:1px solid #23262e"><span style="opacity:.45;font-size:11px">${new Date(r.ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span> ${rowHtml(r)}</div>`).join("")
           : `<div style="opacity:.6;padding:6px 0">Nothing matches.</div>`}
       </div>`;
     const list = box.querySelector("[data-list]"); if (list) list.scrollTop = keep;
+    const oq = box.querySelector("[data-openq]");
+    if (oq) fetch("/api/phase").then(r => r.json()).then(p => {
+      if (p.open_questions) { oq.style.display = "block"; oq.textContent = `❓ ${p.open_questions} open question${p.open_questions > 1 ? "s" : ""} — NEXT is waiting. Tap to answer or resolve.`; }
+      else oq.style.display = "none";
+    }).catch(() => {});
     drawn = rows.length;
   }
   box.addEventListener("click", ev => {
     const a = ev.target.closest("[data-act]")?.dataset.act;
     if (a === "open" || a === "close") { open = a === "open"; store("history.open", open ? "1" : "0"); render(); return; }
+    if (ev.target.closest("[data-openq]")) { window.openQuestions?.(); return; }
     if (a === "say") { sayIt(); return; }
     if (a === "tall") { tall = !tall; store("history.tall", tall ? "1" : "0"); render(); return; }
     if (a === "pop") { window.open("/log", "game-log", "width=480,height=900"); open = false; store("history.open", "0"); render(); return; }

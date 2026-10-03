@@ -592,7 +592,8 @@ async function phaseRefresh() {
   const label = !p.player ? "START" : p.index >= p.steps.length - 1 ? "END TURN" : "NEXT";
   el.innerHTML = `<span><b>${escHtml(p.player || "—")}</b> · ${escHtml(p.step || "")}</span><span class="steps">${dots}</span>` +
     (waiting ? `<span class="wait">${escHtml(p.waiting.join(", "))} may respond… ${Math.ceil(p.seconds_left)}s</span>` : "") +
-    (p.hold || p.open_questions ? `<span class="wait">${p.hold ? "⏸ on hold" : "❓ " + p.open_questions + " open question" + (p.open_questions > 1 ? "s" : "")}</span>` : "") +
+    (p.hold ? `<span class="wait">⏸ on hold</span>` : "") +
+    (p.open_questions ? `<span class="wait" id="openQ" title="open the question(s) to answer or resolve" style="cursor:pointer;text-decoration:underline">❓ ${p.open_questions} open question${p.open_questions > 1 ? "s" : ""}</span>` : "") +
     `<button id="holdBtn" title="H: freeze NEXT while the table sorts something out" style="opacity:.75">${p.hold ? "▶ release" : "⏸"}</button>` +
     `<button id="winBtn" title="W: step timeouts on/off — off, NEXT never waits (the AIs still hear every window)" style="opacity:.75">⏱ ${p.windows === false ? "off" : (p.window_secs || "") + "s"}</button>` +
     (p.player ? `<button id="backBtn" title="B: back a step (a NEXT pressed too soon)" style="opacity:.75">◂</button>` : "") +
@@ -601,6 +602,7 @@ async function phaseRefresh() {
   document.getElementById("backBtn")?.addEventListener("click", pressBack);
   document.getElementById("winBtn")?.addEventListener("click", toggleWindows);
   document.getElementById("holdBtn")?.addEventListener("click", toggleHold);
+  document.getElementById("openQ")?.addEventListener("click", () => window.openQuestions?.());
 }
 async function toggleHold() {
   await fetch("/api/phase/hold", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -735,5 +737,6 @@ refresh().then(poll);
 </script>
 <script src="/assets/todos.js" defer></script>
 <script src="/assets/history.js" defer></script>
+<script src="/assets/questions.js" defer></script>
 </body>
 </html>
