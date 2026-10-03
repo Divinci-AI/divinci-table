@@ -981,6 +981,24 @@ def _manual(cls):
         self.library.insert(0, c)
         return ["I put a card on the bottom of my library."]
 
+    def mulligan(self) -> list[str]:
+        """London mulligan, Commander style: the hand goes back, the library is shuffled (from the sealed
+        seed, so it stays verifiable), seven are drawn. The first mulligan is free; after that the brain
+        puts one card per extra mulligan on the bottom (the "bottom" action)."""
+        if self.turn or self.land_played or self.battlefield:
+            raise ValueError("mulligans are only before the game starts")
+        self.mulligans = getattr(self, "mulligans", 0) + 1
+        self.library.extend(self.hand)
+        self.hand.clear()
+        self.rng.shuffle(self.library)
+        self.draw(7)
+        owe = self.mulligans - 1
+        if self.fair is not None:
+            self.fair.setdefault("mulligans", self.mulligans)
+            self.fair["mulligans"] = self.mulligans
+        return [f"I mulligan{' (my free one)' if owe == 0 else ''} and draw a new seven."
+                + (f" I'll put {owe} on the bottom." if owe else "")]
+
     def shuffle_library(self):
         self.rng.shuffle(self.library)
         return ["I shuffle my library."]
@@ -1114,7 +1132,7 @@ def _manual(cls):
 
     for f in (hand_card, perm, begin_turn, upkeep, manual_land, manual_cast, manual_attack, attack_triggers,
               combat_damage, move, search_library, make_token, make_tokens, discard, mill, peek, topdeck, bottom,
-              shuffle_library, put, blink, cast_face_down, manifest, turn_up):
+              shuffle_library, mulligan, put, blink, cast_face_down, manifest, turn_up):
         setattr(cls, f.__name__, f)
     return cls
 

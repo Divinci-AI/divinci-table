@@ -2163,6 +2163,11 @@ class H(BaseHTTPRequestHandler):
                     said = VP.bottom(b["name"], from_top=bool(b.get("from_top")))
                 elif action == "shuffle":
                     said = VP.shuffle_library()
+                elif action == "mulligan":                 # before the game: hand back, shuffle, seven new
+                    try:
+                        said = VP.mulligan()
+                    except ValueError as e:
+                        return self._send(409, {"error": str(e)})
                 elif action == "graveyard-out":            # a card leaves my graveyard (stolen, exiled, returned)
                     name = str(b.get("name", "")).strip().lower()
                     hit = next((c for c in reversed(VP.graveyard) if c["name"].lower() == name), None)

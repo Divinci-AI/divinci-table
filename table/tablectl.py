@@ -241,6 +241,7 @@ def main():
     bt = sub.add_parser("bottom", help="a card to the bottom (from hand, or --from-top)"); bt.add_argument("name")
     bt.add_argument("--from-top", action="store_true")
     sub.add_parser("shuffle")
+    sub.add_parser("mulligan", help="before the game: hand back, shuffle, draw seven (first one free; then 'bottom' one card per extra)")
     pu = sub.add_parser("put", help="hand → battlefield without paying (ninjutsu)"); pu.add_argument("name")
     pu.add_argument("--tapped", action="store_true")
     bl = sub.add_parser("blink", help="exile a permanent and return it (ETBs trigger again)"); bl.add_argument("ref")
@@ -341,6 +342,8 @@ def main():
         return act("bottom", name=a.name, from_top=a.from_top)
     if a.cmd == "shuffle":
         return act("shuffle")
+    if a.cmd == "mulligan":
+        return act("mulligan")
     if a.cmd == "put":
         return act("put", name=a.name, tapped=a.tapped)
     if a.cmd == "blink":
