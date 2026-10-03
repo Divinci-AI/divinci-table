@@ -457,6 +457,14 @@ try:
     check(p["passes"]["need"] == ["Ben"], "untap and cleanup give no one priority: only the active player moves them on")
     code, p = call("POST", "/api/phase/next", {})
     check(code == 200 and p["player"] != "Ben", "a shared screen (no name) passes for whoever is next")
+    code, p = call("GET", "/api/phase")
+    while not (p["player"] in ("Ann", "Ben") and p["step"] == "main 1"):
+        code, p = nxt(p["player"] if p["player"] in ("Ann", "Ben") else "Ben")
+    active = p["player"]
+    code, p = call("POST", "/api/phase/next", {"by": active, "shared": True})
+    check(code == 409 and p.get("confirm"), "a shared screen can't pass for the active player's main phase without confirming")
+    code, p = call("POST", "/api/phase/next", {"by": active, "shared": True, "confirm": True})
+    check(code == 200 and active in p["passes"]["passed"], "…and with the confirmation it can")
 finally:
     srv.terminate()
     import shutil

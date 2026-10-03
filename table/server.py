@@ -585,7 +585,7 @@ def start_turn(name: str):
             hold_the_floor(ev["id"], name)
 
 
-def next_step(by: str | None = None) -> tuple[int, dict]:
+def next_step(by: str | None = None, shared: bool = False, confirm: bool = False) -> tuple[int, dict]:
     """NEXT: move the active human's turn on one step. Refused while an AI still holds priority
     (until its window times out); the last step passes the turn to the next seat in order."""
     with PHASE_LOCK:
@@ -605,6 +605,9 @@ def next_step(by: str | None = None) -> tuple[int, dict]:
             if who is None and by and any(h["name"].lower() == by.lower() for h in HUMANS):
                 return 409, {**phase_public(), "error": f"{by} isn't in this step's priority round"}
             who = who or ps["next"]                   # a shared screen (stage, XR) passes for whoever is next
+            if (shared and who == PHASE["player"] and STEPS[PHASE["step"]] in ("main 1", "main 2") and not confirm):
+                return 409, {**phase_public(), "confirm": f"{who}: done with your {STEPS[PHASE['step']]}?",
+                             "error": f"{who}'s main phase: {who} confirms passing it (their phone, or confirm here)"}
             if who in ps["passed"]:
                 return 409, {**phase_public(), "error": f"{who} already passed — waiting on {ps['next']}"}
             if who != ps["next"]:
@@ -2079,7 +2082,8 @@ class H(BaseHTTPRequestHandler):
                 snapshot()
                 return self._send(code, out)
             if self.path == "/api/phase/next":             # the NEXT button: {"by": "Michael"} (optional)
-                code, out = next_step(str(self._json().get("by", ""))[:30] if self.headers.get("Content-Length") else None)
+                b = self._json() if self.headers.get("Content-Length") else {}
+                code, out = next_step(str(b.get("by", ""))[:30] or None, bool(b.get("shared")), bool(b.get("confirm")))
                 snapshot()
                 return self._send(code, out)
             if self.path == "/api/stage/hand":             # {"player": "Sam", "n": 6} or {"player": "Sam", "delta": -1}

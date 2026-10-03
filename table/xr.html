@@ -258,7 +258,9 @@ document.getElementById("back").addEventListener("click", async () => {
 });
 document.getElementById("next").addEventListener("click", async e => {
   e.stopPropagation();
-  await fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ by: passNext || turn || "xr" }) });
+  const go = confirm => fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ by: passNext || turn || "xr", shared: true, confirm }) });
+  const r = await go(false);
+  if (r.status === 409) { const d = await r.json().catch(() => ({})); if (d.confirm && window.confirm(d.confirm)) await go(true); }
   phase();
 });
 async function poll() {

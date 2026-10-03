@@ -82,7 +82,9 @@
     place();
     if (!open) {
       box.style.borderRadius = "999px"; box.style.width = "auto";
-      box.innerHTML = `<div data-act="open" style="padding:7px 12px;cursor:pointer;font-weight:700" title="the game log">📜 ${rows.length}</div>`;
+      box.innerHTML = `<div style="display:flex;align-items:center">
+        <div data-act="chat" style="padding:7px 12px;cursor:pointer;font-weight:700;border-right:1px solid #3a3f4a" title="tell the table what you're doing (or ask)">💬 Chat</div>
+        <div data-act="open" style="padding:7px 12px;cursor:pointer;font-weight:700" title="the game log">📜 ${rows.length}</div></div>`;
       return;
     }
     if (!PAGE) { box.style.borderRadius = "12px"; if (!tall) box.style.width = "min(420px,calc(100vw - 24px))"; }
@@ -126,6 +128,7 @@
   box.addEventListener("click", ev => {
     const a = ev.target.closest("[data-act]")?.dataset.act;
     if (a === "open" || a === "close") { open = a === "open"; store("history.open", open ? "1" : "0"); render(); return; }
+    if (a === "chat") { open = true; store("history.open", "1"); render(); box.querySelector("[data-chat]")?.focus(); return; }
     if (ev.target.closest("[data-openq]")) { window.openQuestions?.(); return; }
     if (a === "say") { sayIt(); return; }
     if (a === "tall") { tall = !tall; store("history.tall", tall ? "1" : "0"); render(); return; }

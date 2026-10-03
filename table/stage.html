@@ -625,8 +625,10 @@ async function pressBack() {
 }
 async function pressNext() {
   const p = phaseInfo; if (!p) return;
-  await fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ by: p.passes?.next || p.player || "stage" }) });   // passes for whoever is next
+  const go = confirm => fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ by: p.passes?.next || p.player || "stage", shared: true, confirm }) });   // passes for whoever is next
+  const r = await go(false);
+  if (r.status === 409) { const d = await r.json().catch(() => ({})); if (d.confirm && window.confirm(d.confirm)) await go(true); }
   phaseRefresh();
 }
 setInterval(phaseRefresh, 1200); phaseRefresh();
