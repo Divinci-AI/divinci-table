@@ -542,7 +542,8 @@ def emit(event_type: str, **fields) -> dict:
     # (not "kind": heard/attention events carry their own "kind" field)
     with EV_LOCK:
         _ev_id[0] += 1
-        e = {"id": _ev_id[0], "ts": round(time.time(), 2), "type": event_type, **fields}
+        e = {**fields, "id": _ev_id[0], "ts": round(time.time(), 2), "type": event_type}   # a field can never
+        # overwrite the event's own id/ts/type (a todo's "id" once did: every page's cursor jumped back)
         EVENTS.append(e)
         del EVENTS[:-3000]
         _append("events.jsonl", e)                    # the public stream, persisted
@@ -1824,7 +1825,7 @@ class H(BaseHTTPRequestHandler):
                 del t["answers"][:-20]
                 if b.get("resolve"):
                     t["done"] = True
-                emit("todo", kind="answered", id=t["id"], ask=t.get("ask"), question=t["text"], answer=text, by=a["by"],
+                emit("todo", kind="answered", todo_id=t["id"], ask=t.get("ask"), question=t["text"], answer=text, by=a["by"],
                      resolved=t["done"])
                 return self._send(200, t)
             if self.path == "/api/todo/done":              # anyone at the table ticks one off: {"id": 3, "by": "Sam"}
@@ -1834,7 +1835,7 @@ class H(BaseHTTPRequestHandler):
                     return self._send(404, {"error": "no such item"})
                 t["done"] = not t["done"] if b.get("toggle") else True
                 t["by"] = str(b.get("by", ""))[:30]
-                emit("todo", kind="done" if t["done"] else "reopened", id=t["id"], by=t["by"])
+                emit("todo", kind="done" if t["done"] else "reopened", todo_id=t["id"], by=t["by"])
                 return self._send(200, t)
             if self.path == "/api/public-board":           # the brain records a human's board (from photos/speech)
                 if not secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN):
