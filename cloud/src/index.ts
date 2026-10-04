@@ -92,14 +92,14 @@ export class TableRoom extends Container<Env> {
 		this.lastSave = Date.now();
 	}
 
-	/** At most one save every ~20 s while people play. A change that lands while a save is running marks
+	/** At most one save every ~5 s while people play (R2 writes are cheap; a rollout can replace the container any time). A change that lands while a save is running marks
 	 *  the room dirty, and another save follows, so the last change is never left only in the container
 	 *  (a rollout or crash replaces it without the pre-sleep save). */
 	private dirty = false;
 	private saveSoon(): void {
 		if (this.saving) { this.dirty = true; return; }
 		this.dirty = false;
-		const wait = Math.max(0, 20_000 - (Date.now() - this.lastSave));
+		const wait = Math.max(0, 5_000 - (Date.now() - this.lastSave));
 		this.saving = new Promise<void>((done) => setTimeout(done, wait))
 			.then(() => this.save("play"))
 			.catch((e) => console.error("room save failed", e))
