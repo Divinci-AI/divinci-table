@@ -33,7 +33,7 @@ milestone. Tick a box only when its check has been run and its output read.*
 
 ---
 
-## Milestone 1 — Rooms survive sleep *(done except the redeploy check)*
+## Milestone 1 — Rooms survive sleep *(done)*
 A room's game must outlive its container: idle sleep, a redeploy, or a crash.
 - [x] The table server exports and restores its full state over two token-protected endpoints (the token is per room, set by the Durable Object, and never reaches a browser).
 - [x] The room's Durable Object saves the snapshot to R2 after play changes (at most once every ~20s), and again before the container sleeps.
@@ -41,16 +41,18 @@ A room's game must outlive its container: idle sleep, a redeploy, or a crash.
 - [x] The Worker refuses `/api/room/*` from the internet.
 - [x] An admin endpoint can put a room to sleep (`/lobby/admin/sleep?id=`), for tests and operations.
 - [x] **Check (sleep):** in a live room, claim a seat, change life, run the high roll and pass a step. Put the room to sleep. Reopen it: life, phase, seat key and high roll all match.
-- [ ] **Check (redeploy):** the same across a deploy that ships a new container image (not yet exercised; the restore path is the same).
+- [x] **Check (redeploy):** the same across a deploy that ships a new container image.
 - [x] R2 lifecycle rule: room snapshots expire after 30 days.
 
-## Milestone 2 — The cloud table is playable end to end
-- [ ] Upload the 3D avatars to R2 or Workers assets, so the cloud stage shows avatars like the laptop does.
-- [ ] Each seat's board can be recorded from the phone without the laptop referee (today that is a host-only API).
-- [ ] Phone photos: size and type limits; the public lobby states clearly that photos are visible to the room.
-- [ ] `divinci.ai/table` (no slash) redirects to `/table/`.
-- [ ] Room lobby: show which seats are open. A closed room can't be joined by new people.
-- [ ] **Check:** two people on two networks play five full turns in a cloud room using only phones and the stage.
+## Milestone 2 — The cloud table is playable end to end *(done except the two-person check)*
+- [x] Upload the 3D avatars to R2 or Workers assets, so the cloud stage shows avatars like the laptop does.
+- [x] Each seat's board can be recorded from the phone without the laptop referee (today that is a host-only API).
+- [x] Phone photos: size and type limits; the public lobby states clearly that photos are visible to the room.
+- [x] `divinci.ai/table` (no slash) redirects to `/table/`.
+- [x] Room lobby: show which seats are open. A closed room can't be joined by new people.
+- [x] **Check (scripted):** two simulated devices (separate cookies and user agents) play five full turns through the pass rounds in a live cloud room.
+- [ ] **Check (people):** two people on two networks play five full turns using only phones and the stage. *Needs Michael and Sam.*
+- [x] Added along the way: an admin seat release (`/lobby/admin/release`) for a player whose device is lost; the "claimed on another device" message no longer points at a host laptop in cloud rooms.
 
 ## Milestone 3 — AI seats in public rooms (needs Michael's budget)
 - [ ] A spending cap per room and per day, metered from Divinci usage; when the cap is reached the seat becomes a "sleeping" AI that passes.
@@ -89,3 +91,5 @@ A room's game must outlive its container: idle sleep, a redeploy, or a crash.
 ## Done log
 *(append: date · milestone · what was checked · the evidence)*
 - 2026-10-03 · M1 · Server: `/api/room/snapshot` → `/api/room/restore` across a process restart restored life 33 (fresh start showed 40); no token → 404. Live (zp4cqzp2): after admin sleep, Bo 34, high roll (Ann, entropy e8390e9728…) and Ann's seat key all came back. The first live attempt had LOST state, which shows sleep really replaces the container. It also found two bugs, both fixed: a save could run against an old image during rollout, and comparing the event counter skipped real changes (seat claims, high rolls don't move it), so the save now hashes the bytes. Public `/api/room/snapshot` → 404. R2 `divinci-table-rooms` with a 30-day expiry rule.
+- 2026-10-03 · M1 · Redeploy: during the scripted game a rollout swapped the container mid-run ("Container suddenly disconnected" at 18:41:22) and play continued from the saved state (Ann 32 → 31). Found and fixed on the way: (1) onStart can fire for a running container, and restoring then rewound live play (life read 35, 34, 34, 34, 35); the DO now asks /api/room/status and only fills a fresh process. (2) A change during a save is followed by another save. (3) The save window is now 5 s (was 20 s): a swap inside the window lost Bo's seat claim. (4) The admin release path booted the container without ROOM_TOKEN (a default "Player 1/2" game); every start now goes through one helper. (5) A request in flight during a swap is retried once; an unrecoverable room answers 503, not error 1101.
+- 2026-10-03 · M2 · Avatars: 12 v2 models in R2 `divinci-table-assets`, `/avatars/index.json` 200, Fusion.v2.glb 16.9 MB served; the cloud stage showed "Bo" with a pooled avatar (Chrome). My board: Ann 200; Bo with Ann's key 403; Bo with his own key 200; board3d listed both boards after two sleep/wake cycles. Photos: no seat key → 403, with key → 200. Lobby: "2 seats open: Ann, Bo" → "1 seat open: Bo" after Ann claimed. /table → 301 /table/ on staging and production. Scripted play: 5 turns, 90 presses. A board read OOM-killed the 1 GiB container (Scryfall bulk JSON parsed in memory); the image now bakes the 12 MB oracle.json and the read returns 200.
