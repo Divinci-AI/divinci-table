@@ -16,6 +16,8 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import keepalive  # noqa: E402  (one connection per server: polling must not use up local ports)
+keepalive.install()
 
 HERE = Path(__file__).resolve().parent.parent
 ROOT = HERE.parent

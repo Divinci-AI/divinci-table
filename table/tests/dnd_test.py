@@ -13,6 +13,8 @@ import urllib.error
 import urllib.request
 from collections import Counter
 from pathlib import Path
+import keepalive  # noqa: E402  (one connection per server: polling must not use up local ports)
+keepalive.install()
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))

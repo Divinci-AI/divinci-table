@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import re
 import hashlib
+import io
 import json
 import urllib.parse
 import os
@@ -1877,6 +1878,23 @@ class BadRequest(Exception):
 
 
 class H(BaseHTTPRequestHandler):
+    # Keep-alive: phones, the headset and the tests poll /api/events and /api/phase all game. Under HTTP/1.0 every
+    # poll was a new connection the server then closed, and each closed one holds a port in TIME_WAIT (the phase
+    # suite filled all 16k of them). Every response sends Content-Length (_send, the snapshot) and every POST body is
+    # read in full before its handler runs (do_POST), so the connection is always at the next request.
+    protocol_version = "HTTP/1.1"
+    timeout = 75                                         # an idle kept-alive connection is closed after this
+
+    def send_response(self, *a, **k):
+        self._answered = True
+        super().send_response(*a, **k)
+
+    def handle_one_request(self):
+        self._answered = False
+        super().handle_one_request()
+        if self.command and not self._answered:          # a path that returned without answering: under HTTP/1.0
+            self.close_connection = True                 # the close told the client; under keep-alive it would wait
+
     def _send(self, code, obj=None, body=None, ctype="application/json"):
         data = body if body is not None else json.dumps(obj).encode()
         self.send_response(code)
@@ -1983,6 +2001,8 @@ class H(BaseHTTPRequestHandler):
         return True
 
     def do_GET(self):
+        if self.headers.get("Content-Length", "0") not in ("", "0") or self.headers.get("Transfer-Encoding"):
+            self.close_connection = True                   # a GET with a body: we never read it, so don't reuse
         if self._room_api("GET"):
             return
         if self._lan_blocked("GET"):
@@ -2155,8 +2175,27 @@ class H(BaseHTTPRequestHandler):
                                         "library": dict(+T.library)})
         self._send(404, {"error": "not found"})
 
+    BODY_MAX = 32_000_000                                # as _drain: bigger than this, the connection is closed
+
     def do_POST(self):
         self._jcache = None                                # keep-alive: one handler object serves many requests
+        sock = self.rfile
+        try:
+            n = int(self.headers.get("Content-Length", 0) or 0)
+        except ValueError:
+            n = -1
+        if self.headers.get("Transfer-Encoding") or not 0 <= n <= self.BODY_MAX:
+            self.close_connection = True                   # can't tell where this body ends: never reuse
+        else:
+            # Read the whole body now, so whatever a handler reads (or leaves unread when it refuses), the socket
+            # is at the start of the next request.
+            self.rfile = io.BytesIO(sock.read(n) if n else b"")
+        try:
+            return self._post()
+        finally:
+            self.rfile = sock
+
+    def _post(self):
         if self._room_api("POST"):
             return
         try:

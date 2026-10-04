@@ -14,6 +14,8 @@ import time
 import urllib.error
 import urllib.request, urllib.parse, urllib.error
 from pathlib import Path
+import keepalive  # noqa: E402  (one connection per server: polling must not use up local ports)
+keepalive.install()
 
 HERE = Path(__file__).resolve().parent.parent
 PORT = 8815
@@ -44,6 +46,19 @@ def call(method, path, body=None, brain=False):
         return e.code, json.loads(e.read() or b"{}")
 
 
+def guard(what, n=150):
+    """A loop that waits for the table to reach a state ends after n steps, as a failed check, never a hang."""
+    left = [n]
+
+    def more():
+        left[0] -= 1
+        if left[0] < 0:
+            check(False, f"stuck: {what} (after {n} steps)")
+            return False
+        return True
+    return more
+
+
 KEYS = {}
 
 
@@ -58,8 +73,16 @@ def pb(by, **extra):
 def nxt(by):
     """NEXT as a whole table would press it: the active player passes, then everyone else in turn order."""
     code, p = call("POST", "/api/phase/next", pb(by))
-    while code == 200 and (p.get("passes") or {}).get("next") and p["passes"]["passed"]:   # a round under way
-        code, p = call("POST", "/api/phase/next", pb(p["passes"]["next"]))
+    _more = guard("code == 200 and (p.get('passes') or {}).get('next') and p['passes']['p")
+    while (code == 200 and (p.get("passes") or {}).get("next") and p["passes"]["passed"]) and _more():   # a round under way
+        nx = p["passes"]["next"]
+        if nx == "Claude":                            # the AI seat passes its window, as Fusion/Claude do
+            brain("pass", quiet=True)
+            code, p = call("GET", "/api/phase")
+            if not p["passes"]["passed"]:             # its pass ended the step
+                break
+            continue
+        code, p = call("POST", "/api/phase/next", pb(nx))
     return code, p
 
 
@@ -464,7 +487,8 @@ try:
     print("everyone passes priority, in turn order")
     call("POST", "/api/phase/windows", {"on": False})       # no AI waits: this is about the people
     code, p = call("GET", "/api/phase")
-    while p["player"] != "Ben" or p["step"] in ("untap", "cleanup"):
+    _more = guard("p['player'] != 'Ben' or p['step'] in ('untap', 'cleanup')")
+    while (p["player"] != "Ben" or p["step"] in ("untap", "cleanup")) and _more():
         code, p = nxt(p["player"] if p["player"] in ("Ann", "Ben") else "Ben")
     step = p["step"]
     check(p["passes"]["need"] == ["Ben", "Ann"] and p["passes"]["next"] == "Ben",
@@ -486,7 +510,8 @@ try:
     code, p = call("POST", "/api/phase/next", pb("Ann"))
     check(code == 200 and p["step"] != step, "when everyone has passed in a row, the step ends")
     code, p = call("GET", "/api/phase")
-    while p["step"] != "cleanup":
+    _more = guard("p['step'] != 'cleanup'")
+    while (p["step"] != "cleanup") and _more():
         code, p = nxt("Ben")
     check(p["passes"]["need"] == ["Ben"], "untap and cleanup give no one priority: only the active player moves them on")
     code, p = call("POST", "/api/phase/next", {})
@@ -510,7 +535,8 @@ try:
     code, p = call("POST", "/api/phase/next", pb("Ben"))
     check(code == 200 and p["player"] != "Ben", "the active player passes cleanup from their own device")
     code, p = call("GET", "/api/phase")
-    while not (p["player"] in ("Ann", "Ben") and p["step"] == "main 1"):
+    _more = guard("not (p['player'] in ('Ann', 'Ben') and p['step'] == 'main 1')")
+    while (not (p["player"] in ("Ann", "Ben") and p["step"] == "main 1")) and _more():
         code, p = nxt(p["player"] if p["player"] in ("Ann", "Ben") else "Ben")
     active = p["player"]
     other = "Ben" if active == "Ann" else "Ann"
@@ -527,13 +553,15 @@ try:
     check(code == 200 and p["step"] != step0, f"in {active}'s turn, {active}'s pass ends the step — {other} is passed for automatically")
     code, p = call("POST", "/api/autopass", pb(other, mode="others-no-combat"))
     code, p = call("GET", "/api/phase")
-    while p["step"] != "beginning of combat":
+    _more = guard("p['step'] != 'beginning of combat'")
+    while (p["step"] != "beginning of combat") and _more():
         code, p = call("POST", "/api/phase/next", pb(active))
     code, p = call("POST", "/api/phase/next", pb(active))
     check(code == 200 and p["step"] == "beginning of combat" and p["passes"]["next"] == other,
           "…'stops for combat' still asks them to pass in combat")
     call("POST", "/api/phase/next", pb(other))
-    while p["player"] == active:
+    _more = guard("p['player'] == active")
+    while (p["player"] == active) and _more():
         code, p = call("POST", "/api/phase/next", pb(active))
         if p.get("passes", {}).get("next") == other:
             code, p = call("POST", "/api/phase/next", pb(other))
