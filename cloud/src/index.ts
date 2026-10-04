@@ -107,6 +107,19 @@ export class TableRoom extends Container<Env> {
 		this.ctx.waitUntil(this.saving);
 	}
 
+	/** Start (or reuse) the room's container with its environment, and fill it from R2 if it is fresh.
+	 *  Every path that talks to the container goes through here, so none can boot it without ROOM_TOKEN. */
+	private async ensureRunning(r: { id: string; token: string; config: RoomConfig }): Promise<void> {
+		this.envVars = {
+			ROOM_CONFIG: JSON.stringify(r.config),
+			ROOM_TOKEN: r.token,
+			...(this.env.DIVINCI_FUSION_API_KEY ? { DIVINCI_FUSION_API_KEY: this.env.DIVINCI_FUSION_API_KEY } : {}),
+			...(this.env.FUSION_CONFIG ? { FUSION_CONFIG: this.env.FUSION_CONFIG } : {}),
+		};
+		await this.startAndWaitForPorts(this.defaultPort);
+		if (this.needsRestore) await this.restoreIfFresh(r);
+	}
+
 	/** Fill a freshly started container from R2 (or adopt it when nothing is saved yet). */
 	private async restoreIfFresh(r: { id: string; token: string }): Promise<void> {
 		this.needsRestore = false;
@@ -139,8 +152,7 @@ export class TableRoom extends Container<Env> {
 		const r = await this.room();
 		if (!r) return new Response("This room doesn't exist (or has expired).", { status: 404 });
 		if (url.pathname === "/__room/release") {                  // admin: free a seat whose device is lost
-			await this.startAndWaitForPorts(this.defaultPort);
-			if (this.needsRestore) await this.restoreIfFresh(r);
+			await this.ensureRunning(r);
 			const res = await this.containerFetch(new Request("http://room/api/room/release", {
 				method: "POST", headers: { "X-Room-Token": r.token, "Content-Type": "application/json" },
 				body: JSON.stringify({ seat: url.searchParams.get("seat") ?? "" }) }), this.defaultPort);
@@ -153,14 +165,7 @@ export class TableRoom extends Container<Env> {
 			if (this.ctx.container?.running) await this.stop();
 			return Response.json({ slept: true, rev: this.savedRev });
 		}
-		this.envVars = {
-			ROOM_CONFIG: JSON.stringify(r.config),
-			ROOM_TOKEN: r.token,
-			...(this.env.DIVINCI_FUSION_API_KEY ? { DIVINCI_FUSION_API_KEY: this.env.DIVINCI_FUSION_API_KEY } : {}),
-			...(this.env.FUSION_CONFIG ? { FUSION_CONFIG: this.env.FUSION_CONFIG } : {}),
-		};
-		await this.startAndWaitForPorts(this.defaultPort);
-		if (this.needsRestore) await this.restoreIfFresh(r);
+		await this.ensureRunning(r);
 		// A rollout or crash can drop the container mid-request ("Container suddenly disconnected"). Start a
 		// fresh one (which restores the saved game) and retry once, so the player never sees the swap.
 		const body = request.method === "GET" || request.method === "HEAD" ? null : await request.arrayBuffer();
@@ -168,8 +173,7 @@ export class TableRoom extends Container<Env> {
 		let res = await send().catch((e) => e as Error);
 		if (res instanceof Error || res.status === 500 && (await res.clone().text()).includes("disconnected")) {
 			console.error("container dropped mid-request; retrying once", res instanceof Error ? res.message : res.status);
-			await this.startAndWaitForPorts(this.defaultPort);
-			if (this.needsRestore) await this.restoreIfFresh(r);
+			await this.ensureRunning(r);
 			res = await send();
 		}
 		if (request.method !== "GET" && request.method !== "HEAD") this.saveSoon();
