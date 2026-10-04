@@ -155,3 +155,20 @@ Open https://table.divinci.ai/xr-probe in the Quest browser, press **Run**, then
 2. **The real table:** shape and size (it fixes the seat ring), and which chair is the host's.
 3. **Quest avatars:** remeshing with Meshy costs credits (about 5 per avatar for 12 avatars, or a local
    decimate-and-compress pass for free). Recommend trying the local pass first.
+
+## Built so far (2026-10-04)
+
+- **In the headset:** a floating panel (turn and step, BACK, NEXT held ½ s, your own life ±, movement, the
+  text of the card you point at); Touch controllers: **A** NEXT and **B** BACK (held), **X** hold to talk, **Y** snap
+  your board, stick clicks for the panel. VR: walk, snap-turn, grab the world, "Go to my seat". AR: drag, turn,
+  raise the table; Re-place; Mini / Life-size. The turn/move math is tested against three.js (`tests/xr_math_test.mjs`).
+- **Voice:** push-to-talk → Workers AI Whisper with the seat's deck names as a vocabulary hint → the words are
+  said at the table as your line. Measured: "I cast Pentad Prism, then Chrome Host Seedshark, and I tap Moxite
+  Refinery" came back word-perfect with the hint; without it, "Seed Shark".
+- **Board photos:** one frame from the headset cameras → Llama 4 Scout picks names from your deck list → you
+  confirm → it ADDS to your recorded board. On a real game-3 photo it found 6 of 9 cards with none wrong, and
+  missed every sideways (tapped) card, in every variant tried — so a photo never removes a card. Record the
+  tapped ones by voice or on /me until a better reader exists.
+- **Not yet:** the laptop table (`TLS=1 /xr`) has no Worker, so voice and photos work in cloud rooms only;
+  shared anchors and remote players' head/hand presence (P2–P3).
+

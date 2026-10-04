@@ -37,7 +37,13 @@ what, and which test holds each rule.*
    players' words reach it as data, and it can set only monsters and the scene. *`table/tests/dnd_test.py`.*
 6. **Pages escape what they show.** Card text, names, chat, DM narration and survey answers are escaped before
    they reach the page; nothing from a player is rendered as HTML.
-7. **Surveys and photos.** Seat-gated, size- and count-capped, stored in the room's research folder (0600); the
+7. **Voice and board photos from the headset** (`/api/xr/stt`, `/api/xr/vision`, run by the room's Worker with Workers
+   AI): seated players only (the Worker asks the room's server, `/api/seat/check`), off with the AI kill switch,
+   40 transcriptions per 10 minutes and 20 photos per hour per room, size-capped. The audio and photo are never
+   stored; the words become the player's own chat line, and a photo's card list is only a proposal until the
+   player adds it — and it can only ADD to their own board. Model output is cleaned (`parseBoardReply`) before
+   anyone sees it. *`cloud/test/policy.test.ts`, remote_guard_test.*
+8. **Surveys and photos.** Seat-gated, size- and count-capped, stored in the room's research folder (0600); the
    public log says who answered a survey, never what.
 
 ## Known limits (accepted for now)
