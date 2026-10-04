@@ -52,6 +52,7 @@ import { GLTFLoader } from "/vendor/jsm/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "/vendor/jsm/utils/SkeletonUtils.js";
 import { RoomEnvironment } from "/vendor/jsm/environments/RoomEnvironment.js";
 import { createBoard } from "/assets/board3d.js";
+import { installXRControls } from "/assets/xr-controls.js";
 const escHtml = t => String(t).replace(/[<>&"']/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[ch]));
 
 // ── the same decks → models → colours as the stage ─────────────────────────────────────────
@@ -154,7 +155,9 @@ renderer.xr.addEventListener("sessionstart", async () => {
 });
 renderer.xr.addEventListener("sessionend", () => { hitSource = null; table.visible = true; top.visible = true; table.scale.setScalar(1); table.position.set(0, 0, 0); });
 const controller = renderer.xr.getController(0); scene.add(controller);
+let consumed = false;                                       // a pinch the in-headset panel used isn't a placement
 controller.addEventListener("select", () => {
+  if (consumed) { consumed = false; return; }
   if (!reticle.visible) return;
   table.position.setFromMatrixPosition(reticle.matrix); table.visible = true; placed = true;
   document.getElementById("hint").textContent = "Tap again to move the table";
@@ -320,9 +323,10 @@ async function poll() {
 }
 
 // ── frame ────────────────────────────────────────────────────────────────────────────────
-let last = performance.now();
+let last = performance.now(), controls = null;   // controls: set once the panel is installed (below)
 renderer.setAnimationLoop((t, frame) => {
   const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+  controls?.update(frame);
   if (frame && hitSource && !placed) {                       // AR: find the real table under the reticle
     const hits = frame.getHitTestResults(hitSource);
     reticle.visible = hits.length > 0;
@@ -417,6 +421,19 @@ addEventListener("keydown", ev => {
   if (ev.key === "a" || ev.key === "A") { showAvatars = !showAvatars; sync(); }
 });
 
+// in-headset controls (assets/xr-controls.js): the panel, pointing at cards, moving in VR, the table in AR
+controls = installXRControls({ THREE, renderer, scene, camera, table, board,
+  phase: () => phaseInfo, nextLabel: () => document.getElementById("next").textContent,
+  next: () => document.getElementById("next").click(), back: () => document.getElementById("back").click(),
+  mySeat: () => window.TableSeat?.name() || "", lifeOf: n => actors[n]?.life ?? null,
+  life: async d => { const me = window.TableSeat?.name(); if (!me) return;          // your own life only
+    await fetch("/api/life", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ player: me, delta: d, by: me }) });
+    refresh(); },
+  seatHolder: n => actors[n]?.holder || null, firstSeat: () => order.find(n => !(phaseInfo?.ai || []).includes(n)) || order[0],
+  placed: () => placed, consume: () => { consumed = true; setTimeout(() => (consumed = false), 3000); },
+  replace: () => { placed = false; document.getElementById("hint").textContent = "Point at the table, then pinch to place it"; },
+  setLifeSize: life => { table.position.y += life ? -0.72 : 0.72; },              // life-size stands on the floor, mini on the tabletop
+});
 await build(); phase(); poll(); boardRefresh();
 setInterval(phase, 1500); setInterval(boardRefresh, 2500);
 </script>
