@@ -948,7 +948,7 @@ STRICT_SEATS = CLOUD or os.environ.get("STRICT_SEATS") == "1"
 # reveals or changes the AI's cards, resets the game, or feeds the mic/camera.
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
-          ("POST", "/api/fair/word"), ("POST", "/api/life"),
+          ("POST", "/api/fair/word"), ("POST", "/api/life"), ("POST", "/api/seat/check"),
           ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/openmic/rate"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
@@ -2378,6 +2378,10 @@ class H(BaseHTTPRequestHandler):
                 import openmic
                 out = openmic.rate(str(research_dir() / "openmic"), int(b.get("event", 0)), str(b.get("rating", "")), who)
                 return self._send(400 if "error" in out else 200, out)
+            if self.path == "/api/seat/check":             # the room's Worker asks before it transcribes or reads a photo
+                key = str(self.headers.get("X-Seat-Key", ""))[:200]
+                who = next((n for n in [h["name"] for h in HUMANS] + sorted(PILOTS) if key and seat_key_ok(n, key)), None)
+                return self._send(200 if who else 403, {"seat": who} if who else {"error": "not a seated player"})
             if self.path == "/api/my-board":               # a person records their OWN board from their phone
                 b = self._json()
                 who = str(b.get("by", ""))
@@ -2385,6 +2389,8 @@ class H(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "claim your seat first (👤): only you can record your board"})
                 perms, grave = board_from_body(b)
                 prev = PUBLIC_BOARD.get(who) or {}
+                if "graveyard" not in b:                   # a photo of the battlefield doesn't empty the graveyard
+                    grave = list(prev.get("graveyard", []))
                 PUBLIC_BOARD[who] = {"permanents": perms, "graveyard": grave,
                                      "commander_out": bool(b.get("commander_out", prev.get("commander_out"))),
                                      "updated": round(time.time(), 2)}

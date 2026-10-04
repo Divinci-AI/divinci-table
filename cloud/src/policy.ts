@@ -46,3 +46,41 @@ export function aiRoomRefusal(a: AiRoomAsk): string | null {
 export function aiKeyAllowed(hasAiSeats: boolean, off: boolean): boolean {
 	return hasAiSeats && !off;
 }
+
+// ── voice and photos from the headset (the room's Worker runs Workers AI for them) ───────────────────────
+export const STT_PER_10_MIN = 40;          // per room
+export const VISION_PER_HOUR = 20;         // per room
+export const STT_MAX_BYTES = 3_000_000;    // ~1 min of opus/webm
+export const VISION_MAX_BYTES = 5_000_000;
+
+/** Times inside the window, and whether one more is allowed. */
+export function withinRate(times: number[], now: number, windowMs: number, max: number): { kept: number[]; ok: boolean } {
+	const kept = times.filter((t) => now - t < windowMs);
+	return { kept, ok: kept.length < max };
+}
+
+export interface SeenCard { name: string; tapped: boolean; count: number }
+
+/** The vision model's answer → a clean card list: JSON anywhere in the reply, names trimmed to plain text,
+ *  counts 1–20, at most 60 entries. Anything else is dropped, never passed on. */
+export function parseBoardReply(text: string): SeenCard[] {
+	const m = String(text ?? "").match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+	if (!m) return [];
+	let raw: unknown;
+	try { raw = JSON.parse(m[0]); } catch { return []; }
+	const list = Array.isArray(raw) ? raw : Array.isArray((raw as { cards?: unknown }).cards) ? (raw as { cards: unknown[] }).cards : [];
+	const out: SeenCard[] = [];
+	for (const c of list.slice(0, 60)) {
+		if (!c || typeof c !== "object") continue;
+		const name = String((c as { name?: unknown }).name ?? "").replace(/[^\p{L}\p{N} ,'’\-:/!?.]/gu, "").replace(/\s+/g, " ").trim().slice(0, 80);
+		if (!name) continue;
+		const n = Math.round(Number((c as { count?: unknown }).count ?? 1));
+		out.push({ name, tapped: (c as { tapped?: unknown }).tapped === true, count: Number.isFinite(n) ? Math.min(20, Math.max(1, n)) : 1 });
+	}
+	return out;
+}
+
+export const BOARD_PROMPT = "You see a photo of one player's side of a Magic: The Gathering table. List the cards that are " +
+	"face up ON THE TABLE in front of this player (their battlefield). Ignore cards held in hands, card backs, sleeves, " +
+	"dice and anything you cannot read. A card turned sideways is tapped. Group identical cards. Reply with JSON only: " +
+	'[{"name": "<exact English card name>", "tapped": false, "count": 1}]. If unsure of a name, leave that card out.';

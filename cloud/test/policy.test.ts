@@ -49,3 +49,32 @@ test("brute force is impractical: a 5-word code from 64 words at 8 guesses an ho
 	const space = 64 ** 5, perYear = CODE_FAILS_PER_HOUR * 24 * 365;
 	assert.ok(space / perYear > 10_000, `${space / perYear} years`);
 });
+
+import { parseBoardReply, withinRate } from "../src/policy.ts";
+
+test("withinRate: keeps only the window, and stops at the limit", () => {
+	const now = 1_000_000;
+	assert.deepEqual(withinRate([now - 70_000, now - 10_000], now, 60_000, 2), { kept: [now - 10_000], ok: true });
+	assert.equal(withinRate([now - 1, now - 2], now, 60_000, 2).ok, false);
+});
+
+test("parseBoardReply: JSON inside prose, tapped, counts", () => {
+	const cards = parseBoardReply('Sure! [{"name":"Forest","tapped":true,"count":3},{"name":"Llanowar Elves"}] Hope that helps.');
+	assert.deepEqual(cards, [{ name: "Forest", tapped: true, count: 3 }, { name: "Llanowar Elves", tapped: false, count: 1 }]);
+});
+
+test("parseBoardReply: {cards: [...]} works too; junk is dropped, never passed on", () => {
+	assert.deepEqual(parseBoardReply('{"cards":[{"name":"Island"}]}'), [{ name: "Island", tapped: false, count: 1 }]);
+	assert.deepEqual(parseBoardReply("I can't see any cards."), []);
+	assert.deepEqual(parseBoardReply("[not json"), []);
+	const evil = parseBoardReply('[{"name":"<img src=x onerror=alert(1)>Forest","count":999},{"name":""},7,null]');
+	assert.equal(evil.length, 1);
+	assert.ok(!/[<>=]/.test(evil[0].name), evil[0].name);
+	assert.equal(evil[0].count, 20);
+});
+
+test("parseBoardReply: at most 60 entries, names at most 80 characters", () => {
+	const many = parseBoardReply(JSON.stringify(Array.from({ length: 100 }, (_, i) => ({ name: "Card " + i + "x".repeat(100) }))));
+	assert.equal(many.length, 60);
+	assert.ok(many.every((c) => c.name.length <= 80));
+});

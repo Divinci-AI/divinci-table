@@ -107,6 +107,17 @@ try:
     check("anonymous high roll refused", call("POST", "/api/highroll/start", {"mode": "quantum", "sides": 20})[0] == 403)
     check("the laptop itself is never asked", call("POST", "/api/phase/hold", {"on": False, "by": "host"}, remote=False)[0] == 200)
 
+    c, d = call("POST", "/api/seat/check", {}, key=sk)
+    check("seat check names the key's seat", c == 200 and d.get("seat") == "Sam", (c, d))
+    check("seat check refuses no key / a made-up key", call("POST", "/api/seat/check", {})[0] == 403
+          and call("POST", "/api/seat/check", {}, key="made-up")[0] == 403)
+    c, _ = call("POST", "/api/my-board", {"by": "Sam", "key": sk, "permanents": [{"name": "Forest"}], "graveyard": ["Shock"]})
+    c2, _ = call("POST", "/api/my-board", {"by": "Sam", "key": sk, "permanents": [{"name": "Forest"}, {"name": "Llanowar Elves", "tapped": True}]})
+    _, b3 = call("GET", "/api/board3d")
+    sam = next((x for x in b3.get("seats", []) if x.get("name") == "Sam"), {})
+    check("a board photo (no graveyard sent) keeps the graveyard", c == 200 and c2 == 200 and sam.get("graveyard") == ["Shock"]
+          and len(sam.get("permanents", [])) >= 2, (c, c2, sam.get("graveyard"), len(sam.get("permanents", []))))
+    check("Sam can't record Michael's board", call("POST", "/api/my-board", {"by": "Michael", "key": sk, "permanents": []})[0] == 403)
     print("pilot seat (a person's virtual deck)")
     c, st = call("GET", "/api/brain/state?seat=Michael", key=mk)
     check("Michael sees his own hand", c == 200 and isinstance(st.get("hand"), list) and len(st["hand"]) >= 7, (c, str(st)[:160]))

@@ -12,7 +12,8 @@
  */
 import { Container } from "@cloudflare/containers";
 import { DurableObject } from "cloudflare:workers";
-import { aiKeyAllowed, aiRoomRefusal, CODE_FAILS_GLOBAL_PER_HOUR, CODE_FAILS_PER_HOUR, isAdmin, sameText } from "./policy";
+import { aiKeyAllowed, aiRoomRefusal, BOARD_PROMPT, CODE_FAILS_GLOBAL_PER_HOUR, CODE_FAILS_PER_HOUR, isAdmin, parseBoardReply, sameText,
+	STT_MAX_BYTES, STT_PER_10_MIN, VISION_MAX_BYTES, VISION_PER_HOUR, withinRate } from "./policy";
 
 interface Env {
 	ROOM: DurableObjectNamespace<TableRoom>;
@@ -22,6 +23,7 @@ interface Env {
 	ROOM_SNAPSHOTS: R2Bucket;
 	ASSETS_BUCKET: R2Bucket;
 	FUSION_CONFIG?: string;
+	AI: { run(model: string, input: unknown): Promise<unknown> };   // Workers AI: speech-to-text and photo reading for /xr
 	AI_INVITE_CODE?: string;        // AI seats in public rooms need this code (unset = no AI seats at all)
 	FUSION_MAX_CALLS?: string;      // per-room cap on an AI seat's release requests (default 300)
 	AI_ROOMS_PER_DAY?: string;      // new AI rooms per UTC day across the whole lobby (default 4)
@@ -121,6 +123,47 @@ export class TableRoom extends Container<Env> {
 		this.ctx.waitUntil(this.saving);
 	}
 
+	/** The headset's voice (hold X) and board photos (Y), run here with Workers AI, for seated players only: the room's
+	 *  server confirms the seat key first. Rate-limited per room, size-capped, off with the AI kill switch. The audio and
+	 *  the photo are never stored; only the words (as the player's own chat line) and a card list come back. */
+	private async xrAi(request: Request, kind: "stt" | "vision"): Promise<Response> {
+		if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+		const check = await this.containerFetch(new Request("http://room/api/seat/check", { method: "POST",
+			headers: { "X-Seat-Key": request.headers.get("X-Seat-Key") ?? "", "X-Forwarded-For": request.headers.get("X-Forwarded-For") ?? "unknown" } }),
+			this.defaultPort).catch(() => null);
+		if (!check?.ok) return Response.json({ error: "claim your seat first (👤)", need_seat: true }, { status: 403 });
+		const { seat } = await check.json<{ seat: string }>();
+		if ((await this.env.LOBBY.get(this.env.LOBBY.idFromName("lobby")).aiState()).off) {
+			return Response.json({ error: "voice and photo reading are paused right now" }, { status: 503 });
+		}
+		const body = await request.arrayBuffer();
+		if (!body.byteLength || body.byteLength > (kind === "stt" ? STT_MAX_BYTES : VISION_MAX_BYTES)) {
+			return Response.json({ error: kind === "stt" ? "keep it under a minute" : "that photo is too large" }, { status: 413 });
+		}
+		const rk = "xr:" + kind, now = Date.now();
+		const { kept, ok } = withinRate((await this.ctx.storage.get<number[]>(rk)) ?? [], now,
+			kind === "stt" ? 600_000 : 3_600_000, kind === "stt" ? STT_PER_10_MIN : VISION_PER_HOUR);
+		if (!ok) return Response.json({ error: kind === "stt" ? "too much talking for a moment — try again shortly" : "too many photos this hour" }, { status: 429 });
+		await this.ctx.storage.put(rk, [...kept, now]);
+		const b64 = toBase64(body);
+		try {
+			if (kind === "stt") {
+				const out = await this.env.AI.run("@cf/openai/whisper-large-v3-turbo", { audio: b64 }) as { text?: string };
+				return Response.json({ seat, text: String(out?.text ?? "").replace(/\s+/g, " ").trim().slice(0, 400) });
+			}
+			const out = await this.env.AI.run("@cf/meta/llama-4-scout-17b-16e-instruct", { max_tokens: 900, messages: [
+				{ role: "system", content: BOARD_PROMPT },
+				{ role: "user", content: [{ type: "text", text: "List the cards on this player's side of the table." },
+					{ type: "image_url", image_url: { url: "data:" + (request.headers.get("Content-Type") || "image/jpeg") + ";base64," + b64 } }] },
+			] }) as { response?: unknown };
+			const text = typeof out?.response === "string" ? out.response : JSON.stringify(out?.response ?? "");
+			return Response.json({ seat, cards: parseBoardReply(text) });
+		} catch (e) {
+			console.error("xr ai failed", kind, (e as Error).message);
+			return Response.json({ error: kind === "stt" ? "couldn't hear that — try again" : "couldn't read that photo — try again" }, { status: 502 });
+		}
+	}
+
 	/** Start (or reuse) the room's container with its environment, and fill it from R2 if it is fresh.
 	 *  Every path that talks to the container goes through here, so none can boot it without ROOM_TOKEN. */
 	private async ensureRunning(r: { id: string; token: string; config: RoomConfig }): Promise<void> {
@@ -185,6 +228,9 @@ export class TableRoom extends Container<Env> {
 			return Response.json({ slept: true, rev: this.savedRev });
 		}
 		await this.ensureRunning(r);
+		if (url.pathname === "/api/xr/stt" || url.pathname === "/api/xr/vision") {
+			return this.xrAi(request, url.pathname.endsWith("stt") ? "stt" : "vision");
+		}
 		// A rollout or crash can drop the container mid-request ("Container suddenly disconnected"). Start a
 		// fresh one (which restores the saved game) and retry once, so the player never sees the swap.
 		const body = request.method === "GET" || request.method === "HEAD" ? null : await request.arrayBuffer();
@@ -442,6 +488,13 @@ async function createChess(request: Request, env: Env, lobby: DurableObjectStub<
 		method: "POST", body: JSON.stringify({ game: "chess", humans, ai: [], white, black, minutes, increment: minutes >= 15 ? 10 : 5 } satisfies RoomConfig),
 	}));
 	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
+}
+
+function toBase64(buf: ArrayBuffer): string {
+	const bytes = new Uint8Array(buf);
+	let s = "";
+	for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+	return btoa(s);
 }
 
 const aiDm = (env: Env) => env.DND_CLOUD_AI === "1" && !!env.DND_DM_RELEASE_ID && !!env.DIVINCI_FUSION_API_KEY;

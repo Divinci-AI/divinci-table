@@ -101,7 +101,7 @@ shadowCatcher.rotation.x = -Math.PI / 2; shadowCatcher.receiveShadow = true; tab
 // Quest (it supports AR and VR), stacked on each other and under the NEXT bar. Shown whenever the browser has an
 // XR device, hidden only inside a session, re-checked when a headset connects (devicechange).
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-let ar = false, vr = false;
+let ar = false, vr = false, xrExtra = null;                // xrExtra: the "Allow mic & cameras" button, added below
 const xrBar = document.createElement("div");
 xrBar.id = "xrstart";
 xrBar.style.cssText = "position:fixed;top:max(56px,calc(env(safe-area-inset-top) + 48px));left:50%;transform:translateX(-50%);" +
@@ -128,6 +128,7 @@ async function checkXR() {
   ar = !!navigator.xr && await navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
   vr = !!navigator.xr && await navigator.xr.isSessionSupported("immersive-vr").catch(() => false);
   xrBar.innerHTML = (ar ? xrBtn("Start AR", "immersive-ar") : "") + (vr ? xrBtn("Enter VR", "immersive-vr") : "");
+  if (xrExtra) xrBar.appendChild(xrExtra);
   if (!renderer.xr.isPresenting) xrBar.style.display = ar || vr ? "flex" : "none";
   document.getElementById("hint").textContent = ar ? "Tap ‘Start AR’, point at the table, then tap to place it"
     : vr ? "Tap ‘Enter VR’" : isIOS ? "Tap an avatar to see it in your room" : !isSecureContext
@@ -421,6 +422,84 @@ addEventListener("keydown", ev => {
   if (ev.key === "a" || ev.key === "A") { showAvatars = !showAvatars; sync(); }
 });
 
+// ── voice (hold X / 🎤) and a photo of my board (Y / 📷) ──────────────────────────────────────────
+// Speech goes to the room (/api/xr/stt, Workers AI Whisper) and comes back as words, which are said at the table
+// as MY line (/api/chat: the AIs hear it, the referee reads moves from it). A photo goes to /api/xr/vision, which
+// lists the cards it can see; nothing is recorded until I press Record, and the photo itself is never shared.
+const media = { talking: false, busy: false, status: "", proposal: null, rec: null, chunks: [], t0: 0 };
+const say2 = t => { media.status = t; };
+async function talk(down) {
+  if (!window.TableSeat?.name()) { say2("👤 claim your seat first (before entering), so the table knows who's talking"); return; }
+  if (down) {
+    if (media.rec) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      const type = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find(t => window.MediaRecorder?.isTypeSupported?.(t)) || "";
+      const rec = new MediaRecorder(stream, type ? { mimeType: type } : {});
+      media.chunks = []; rec.ondataavailable = e => e.data.size && media.chunks.push(e.data);
+      rec.onstop = () => { stream.getTracks().forEach(t => t.stop()); sendSpeech(new Blob(media.chunks, { type: rec.mimeType || "audio/webm" }), performance.now() - media.t0); };
+      rec.start(); media.rec = rec; media.t0 = performance.now(); media.talking = true; say2("🎤 listening… let go to send");
+    } catch (e) { say2("⚠ microphone: " + (e.message || e) + " — press ‘Allow mic & cameras’ before entering"); }
+  } else if (media.rec) { media.talking = false; const r = media.rec; media.rec = null; if (r.state !== "inactive") r.stop(); }
+}
+async function sendSpeech(blob, ms) {
+  if (ms < 400 || blob.size < 1500) { say2("hold X (or 🎤) while you speak"); return; }
+  say2("🗣 …");
+  try {
+    const r = await fetch("/api/xr/stt", { method: "POST", headers: { "Content-Type": blob.type || "audio/webm" }, body: blob });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { say2("⚠ " + (d.error || "couldn't hear that")); return; }
+    if (!d.text) { say2("didn't catch that — try again"); return; }
+    say2(`🗣 “${d.text}”`);
+    const c = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(window.TableSeat.body({ text: d.text })) });
+    const out = await c.json().catch(() => ({}));
+    if (!c.ok) say2("⚠ " + (out.error || "the table didn't take that"));
+    else if (out.reply) say2(`🗣 “${d.text}” — ${out.reply}`);
+  } catch (e) { say2("⚠ " + (e.message || e)); }
+}
+async function snap() {
+  if (!window.TableSeat?.name()) { say2("👤 claim your seat first (before entering)"); return; }
+  if (media.busy) return;
+  media.busy = true; media.proposal = null; say2("📷 hold still — looking at your side of the table…");
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } } });
+    const v = document.createElement("video"); v.muted = true; v.playsInline = true; v.srcObject = stream; await v.play();
+    await new Promise(r => setTimeout(r, 700));                          // let exposure settle
+    const c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext("2d").drawImage(v, 0, 0);
+    const jpg = await new Promise(r => c.toBlob(r, "image/jpeg", 0.85));
+    stream.getTracks().forEach(t => t.stop()); stream = null;
+    say2("📷 reading your cards…");
+    const r = await fetch("/api/xr/vision", { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: jpg });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) say2("⚠ " + (d.error || "couldn't read that photo"));
+    else { media.proposal = d.cards || []; say2(d.cards?.length ? "Is this your board? Record it, or Discard and snap again." : "I couldn't make out any cards — try closer, with more light."); }
+  } catch (e) { say2("⚠ camera: " + (e.message || e) + " — press ‘Allow mic & cameras’ before entering"); }
+  finally { stream?.getTracks().forEach(t => t.stop()); media.busy = false; }
+}
+async function recordBoard() {
+  const me = window.TableSeat?.name(); if (!me || !media.proposal) return;
+  const permanents = media.proposal.flatMap(c => Array.from({ length: c.count }, () => ({ name: c.name, tapped: c.tapped })));
+  const r = await fetch("/api/my-board", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(window.TableSeat.body({ permanents })) });   // no graveyard: the server keeps it
+  const d = await r.json().catch(() => ({}));
+  say2(r.ok ? `✓ your board is recorded (${d.permanents} cards) — everyone sees it now` : "⚠ " + (d.error || "couldn't record it"));
+  if (r.ok) { media.proposal = null; boardRefresh(); }
+}
+// Ask for the microphone and the headset cameras on the 2D page, so no permission prompt interrupts the session.
+const allow = document.createElement("button");
+allow.textContent = "Allow mic & cameras";
+allow.style.cssText = "all:unset;cursor:pointer;padding:16px 22px;border-radius:999px;font:700 17px system-ui,sans-serif;background:#000c;color:#f4efe6;box-shadow:inset 0 0 0 2px #3fd0c9";
+allow.onclick = async () => {
+  for (const c of [{ audio: true }, { video: true }]) {
+    try { const st = await navigator.mediaDevices.getUserMedia(c); st.getTracks().forEach(t => t.stop()); } catch (e) { document.getElementById("msg").textContent = "⚠ " + (e.message || e); }
+  }
+  allow.textContent = "✓ mic & cameras allowed";
+};
+document.getElementById("xrstart").appendChild(allow);
+xrExtra = allow;                                           // checkXR re-adds it whenever it redraws the AR/VR buttons
+
 // in-headset controls (assets/xr-controls.js): the panel, pointing at cards, moving in VR, the table in AR
 controls = installXRControls({ THREE, renderer, scene, camera, table, board,
   phase: () => phaseInfo, nextLabel: () => document.getElementById("next").textContent,
@@ -433,6 +512,7 @@ controls = installXRControls({ THREE, renderer, scene, camera, table, board,
   placed: () => placed, consume: () => { consumed = true; setTimeout(() => (consumed = false), 3000); },
   replace: () => { placed = false; document.getElementById("hint").textContent = "Point at the table, then pinch to place it"; },
   setLifeSize: life => { table.position.y += life ? -0.72 : 0.72; },              // life-size stands on the floor, mini on the tabletop
+  media: () => media, talk, snap, record: recordBoard, discard: () => { media.proposal = null; say2("discarded — snap again with Y"); },
 });
 await build(); phase(); poll(); boardRefresh();
 setInterval(phase, 1500); setInterval(boardRefresh, 2500);

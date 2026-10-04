@@ -37,10 +37,10 @@ export function installXRControls(o) {
   let mode = null;                                   // "ar" | "vr" while presenting
   let visible = true, inspect = null, flash = null, lastDraw = "";
 
-  // ── the panel: a canvas texture on a plane, 48 × 30 cm ─────────────────────────────────────────
-  const W = 1024, H = 640, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  // ── the panel: a canvas texture on a plane, 48 × 38 cm ─────────────────────────────────────────
+  const W = 1024, H = 820, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
   const g = cv.getContext("2d"), tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-  const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 0.30),
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 0.48 * H / W),
     new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false }));
   panel.renderOrder = 20; panel.visible = false; scene.add(panel);
   let buttons = [], hovered = null, pressed = null;
@@ -61,6 +61,13 @@ export function installXRControls(o) {
       add("replace", "Re-place", 24, 320, 230, 84); add("size", table.scale.x > 0.5 ? "Mini table" : "Life-size", 270, 320, 300, 84);
       add("rotL", "⟲", 586, 320, 200, 84); add("rotR", "⟳", 800, 320, 200, 84);
     }
+    const m = o.media();                                  // voice and board photos
+    add("talk", m.talking ? "🎤 listening… let go to send" : "🎤 Hold to talk (X)", 24, 418, 600, 84, { off: !me });
+    add("snap", m.busy ? "📷 reading…" : "📷 Snap my board (Y)", 640, 418, 360, 84, { off: !me || m.busy });
+    if (m.proposal) {
+      add("record", `✓ Record ${m.proposal.reduce((n, c) => n + c.count, 0)} cards (replaces your board)`, 24, 700, 700, 84);
+      add("discard", "Discard", 740, 700, 260, 84);
+    }
     return b;
   }
 
@@ -79,7 +86,9 @@ export function installXRControls(o) {
     buttons = layout();
     const ph = o.phase() || {}, waiting = (ph.waiting || []).length && ph.seconds_left > 0;
     const prog = pressed?.btn.hold ? Math.min(1, (now - pressed.t0) / HOLD_MS) : 0;
-    const key = JSON.stringify([buttons.map(b => b.label + b.off), hovered?.id, prog.toFixed(1), ph.player, ph.step, waiting, inspect?.name, flash]);
+    const m = o.media();
+    const key = JSON.stringify([buttons.map(b => b.label + b.off), hovered?.id, prog.toFixed(1), ph.player, ph.step, waiting, inspect?.name, flash,
+      m.status, m.proposal?.length]);
     if (key === lastDraw) return; lastDraw = key;
     g.clearRect(0, 0, W, H);
     roundRect(4, 4, W - 8, H - 8, 36); g.fillStyle = "rgba(6,12,16,.92)"; g.fill();
@@ -97,18 +106,25 @@ export function installXRControls(o) {
       g.fillStyle = b.main ? "#140d06" : "#f4efe6"; g.font = `bold ${b.main ? 46 : b.kind === "label" ? 30 : 38}px system-ui`;
       g.textAlign = "center"; g.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 2); g.textAlign = "left";
     }
-    if (inspect) {
-      g.fillStyle = "#f4dc9b"; g.font = "bold 36px system-ui";
-      g.fillText(inspect.face_down ? `A face-down ${inspect.pt || "2/2"}` : `${inspect.name}  ${inspect.cost || ""}`, 32, 446);
-      g.fillStyle = "#cfe3e3"; g.font = "30px system-ui";
+    if (m.status) { g.fillStyle = "#f4dc9b"; g.font = "30px system-ui"; wrap(m.status, 32, 538, W - 64, 36, 2); }
+    if (m.proposal) {                                     // what the photo shows, before anything is recorded
+      g.fillStyle = "#cfe3e3"; g.font = "28px system-ui";
+      wrap(m.proposal.map(c => `${c.count > 1 ? c.count + "× " : ""}${c.name}${c.tapped ? " (tapped)" : ""}`).join(", ") || "No cards found.",
+        32, 614, W - 64, 34, 2);
+    } else if (inspect) {
+      g.fillStyle = "#f4dc9b"; g.font = "bold 34px system-ui";
+      g.fillText(inspect.face_down ? `A face-down ${inspect.pt || "2/2"}` : `${inspect.name}  ${inspect.cost || ""}`, 32, 618);
+      g.fillStyle = "#cfe3e3"; g.font = "28px system-ui";
       const body = inspect.face_down ? (inspect.how || "") : [inspect.type, inspect.pt, inspect.tapped ? "tapped" : "",
         inspect.counters ? `${inspect.counters} counter(s)` : ""].filter(Boolean).join(" · ") + "  " + (inspect.text || "");
-      wrap(body, 32, 492, W - 64, 38, 4);
-    } else {
+      wrap(body, 32, 660, W - 64, 34, 3);
+    } else if (!m.status) {
       g.fillStyle = "#8fa3a3"; g.font = "28px system-ui";
       g.fillText(mode === "vr" ? "Point at a card to read it · grip or pinch empty space to move · sticks walk and turn"
-        : "Point at a card to read it · grip or pinch empty space to drag the table", 32, 470);
+        : "Point at a card to read it · grip or pinch empty space to drag the table", 32, 560);
     }
+    g.fillStyle = "#8fa3a3"; g.font = "26px system-ui";
+    g.fillText("A: NEXT (hold) · B: BACK (hold) · X: talk (hold) · Y: snap · stick click: panel", 32, H - 30);
     tex.needsUpdate = true;
   }
 
@@ -139,14 +155,22 @@ export function installXRControls(o) {
   }
   function start(h) {
     const p = panelHit(h);
-    if (p) { o.consume(); if (p.btn && p.btn.kind !== "label" && !p.btn.off) pressed = { btn: p.btn, t0: performance.now(), h, fired: false }; return; }
+    if (p) {
+      o.consume();
+      if (p.btn && p.btn.kind !== "label" && !p.btn.off) {
+        pressed = { btn: p.btn, t0: performance.now(), h, fired: false };
+        if (p.btn.id === "talk") o.talk(true);           // talking lasts as long as the pinch/trigger is held
+      }
+      return;
+    }
     if (board.pick(aim(h))) { o.consume(); return; }            // pointing at a card: the panel shows it
     if (o.placed() || mode === "vr") { o.consume(); grabStart(h); }
   }
   function end(h) {
     if (pressed?.h === h) {
       const held = performance.now() - pressed.t0;
-      if (!pressed.btn.hold) fire(pressed.btn.id);
+      if (pressed.btn.id === "talk") o.talk(false);
+      else if (!pressed.btn.hold) fire(pressed.btn.id);
       else if (!pressed.fired && held < HOLD_MS) say("hold NEXT to pass");
       pressed = null;
     }
@@ -168,6 +192,9 @@ export function installXRControls(o) {
     if (id === "size") { const life = table.scale.x < 0.5; table.scale.setScalar(life ? 1 : 0.14); o.setLifeSize?.(life); return; }
     if (id === "rotL") return table.rotateY(Math.PI / 12);
     if (id === "rotR") return table.rotateY(-Math.PI / 12);
+    if (id === "snap") return o.snap();
+    if (id === "record") return o.record();
+    if (id === "discard") return o.discard();
   }
 
   // ── moving yourself (VR): offsets of the reference space ───────────────────────────────────────
@@ -195,7 +222,7 @@ export function installXRControls(o) {
     const h = head(), yaw = headYaw();
     const fwd = V().set(-Math.sin(yaw), 0, -Math.cos(yaw)), left = V().set(-Math.cos(yaw), 0, Math.sin(yaw));
     panel.position.copy(h).addScaledVector(fwd, 0.55).addScaledVector(left, 0.22); panel.position.y -= 0.32;
-    panel.lookAt(h); offView = 0;
+    panel.lookAt(h); offView = 0; visible = true;
   }
   function update(frame) {
     if (!renderer.xr.isPresenting) return;
@@ -220,8 +247,25 @@ export function installXRControls(o) {
     for (const h of hands) {
       const gp = h.src?.gamepad; if (!gp) continue;
       const x = gp.axes[2] || 0, y = gp.axes[3] || 0, left = h.src.handedness === "left";
-      if (gp.buttons[4]?.pressed && !h.btns[4]) placePanel();
-      if (gp.buttons[5]?.pressed && !h.btns[5]) visible = !visible;
+      // Touch controllers: A = NEXT and B = BACK (both held ½ s, so a bump never passes), X = hold to talk,
+      // Y = a photo of my board, left stick click = show/hide the panel, right stick click = bring it here.
+      const down = i => !!gp.buttons[i]?.pressed, was = i => !!h.btns[i];
+      h.held = h.held || {};
+      const hold = (i, fn, name) => {
+        if (down(i) && !was(i)) h.held[i] = { t0: now, fired: false };
+        else if (down(i) && h.held[i] && !h.held[i].fired && now - h.held[i].t0 >= HOLD_MS) { h.held[i].fired = true; fn(); say(`${name} ✓`); }
+        else if (!down(i) && was(i) && h.held[i] && !h.held[i].fired) say(`hold to ${name}`);
+      };
+      if (left) {
+        if (down(4) && !was(4)) o.talk(true);
+        if (!down(4) && was(4)) o.talk(false);
+        if (down(5) && !was(5)) o.snap();
+        if (down(3) && !was(3)) visible = !visible;
+      } else {
+        hold(4, () => fire("next"), "NEXT");
+        hold(5, () => fire("back"), "BACK");
+        if (down(3) && !was(3)) placePanel();
+      }
       h.btns = gp.buttons.map(b => b.pressed);
       if (mode === "vr") {
         if (left && Math.hypot(x, y) > DEAD) {

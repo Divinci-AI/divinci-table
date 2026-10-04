@@ -27,6 +27,8 @@
   // table.divinci.ai: the public address (a Workers Custom Domain; Cloudflare makes the DNS record and certificate)
   "routes": [{ "pattern": "table.divinci.ai", "custom_domain": true }],
   "workers_dev": true,
+  // Workers AI: the headset's push-to-talk (Whisper) and board photos (a vision model), see TableRoom.xrAi
+  "ai": { "binding": "AI" },
   "assets": { "directory": "./public", "binding": "ASSETS" },
   // Room snapshots (one object per room, rooms/<id>/snapshot.pkl): the game survives container sleep.
   "r2_buckets": [{ "binding": "ROOM_SNAPSHOTS", "bucket_name": "divinci-table-rooms" },
