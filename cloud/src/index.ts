@@ -29,7 +29,7 @@ interface Env {
 }
 
 interface AiSeat { name: string; commander: string; deck: string }
-interface RoomConfig { humans: string[]; ai: AiSeat[]; game: "magic" | "chess" | "dnd"; white?: string; black?: string; minutes?: number; increment?: number; dm?: string }
+interface RoomConfig { humans: string[]; ai: AiSeat[]; pilots?: AiSeat[]; game: "magic" | "chess" | "dnd"; white?: string; black?: string; minutes?: number; increment?: number; dm?: string }
 interface RoomInfo { id: string; title: string; game: string; humans: string[]; ai: string[]; created: number; claimed?: string[] }
 
 // AI opponents a public room may seat. Each is played by a Divinci release (one per deck).
@@ -37,6 +37,14 @@ const AI_DECKS: Record<string, { commander: string; deck: string }> = {
 	tuvasa: { commander: "Tuvasa the Sunlit", deck: "decks/tuvasa.json" },
 	kaust: { commander: "Kaust, Eyes of the Glade", deck: "decks/kaust.json" },
 	ellivere: { commander: "Ellivere of the Wild Court", deck: "decks/ellivere.json" },
+};
+// Virtual decks a PERSON can play (testing without cards): the seat becomes a pilot seat driven from /hand.
+const PILOT_DECKS: Record<string, { commander: string; deck: string }> = {
+	inspirit: { commander: "Inspirit, Flagship Vessel", deck: "decks/inspirit.json" },
+	aminatou: { commander: "Aminatou, the Fateshifter", deck: "decks/aminatou.json" },
+	nghathrod: { commander: "Captain N'ghathrod", deck: "decks/nghathrod.json" },
+	elsha: { commander: "Elsha of the Infinite", deck: "decks/elsha.json" },
+	...AI_DECKS,
 };
 const ROOM_TTL_MS = 6 * 3600_000;      // a room is listed for six hours
 const MAX_LIVE_ROOMS = 8;              // matches containers.max_instances
@@ -377,12 +385,14 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 		if (why) return back(why);
 	}
 	const title = String(form.get("title") ?? "").trim().slice(0, 40) || `${humans[0]}'s table`;
+	const mine = PILOT_DECKS[String(form.get("mydeck") ?? "")];                 // the first person plays a virtual deck
+	const pilots: AiSeat[] = mine ? [{ name: humans[0], ...mine }] : [];
 	const id = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
 	const why = await lobby.add({ id, title, game: "magic", humans, ai: ai.map((a) => `${a.name} (${a.commander})`), created: Date.now() },
 		request.headers.get("CF-Connecting-IP") ?? "unknown");
 	if (why) return back(why);
 	await env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/setup?id=" + id, {
-		method: "POST", body: JSON.stringify({ humans, ai, game: "magic" } satisfies RoomConfig),
+		method: "POST", body: JSON.stringify({ humans: humans.filter((h) => !pilots.some((p) => p.name === h)), ai, pilots, game: "magic" } satisfies RoomConfig),
 	}));
 	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
 }
@@ -533,6 +543,11 @@ ${error ? `<div class="err">${esc(error)}</div>` : ""}
 <label class="opp"><input type=checkbox name=ai value=tuvasa><b>Tuvasa the Sunlit</b>Enchantments that grow</label>
 <label class="opp"><input type=checkbox name=ai value=kaust><b>Kaust, Eyes of the Glade</b>Face-down surprises</label>
 <label class="opp"><input type=checkbox name=ai value=ellivere><b>Ellivere of the Wild Court</b>Roles and Auras</label></div>
+<label for=mydeck>Your deck (the first name above) · for testing</label><select id=mydeck name=mydeck style="padding:8px;border-radius:4px;background:#071820;color:var(--parch);border:1px solid rgba(217,180,106,.5)">
+<option value="">My own physical cards</option><option value=inspirit>Virtual: Inspirit, Flagship Vessel</option><option value=aminatou>Virtual: Aminatou, the Fateshifter</option>
+<option value=nghathrod>Virtual: Captain N'ghathrod</option><option value=elsha>Virtual: Elsha of the Infinite</option><option value=tuvasa>Virtual: Tuvasa the Sunlit</option>
+<option value=kaust>Virtual: Kaust, Eyes of the Glade</option><option value=ellivere>Virtual: Ellivere of the Wild Court</option></select>
+<small style="display:block;margin-top:4px">With a virtual deck you play from your phone at <b>/hand</b>: your cards, shuffled fairly, only on your device.</small>
 <label for=aicode>Invitation code for AI players</label><input type=text id=aicode name=aicode maxlength=60 autocomplete=off placeholder="Only needed with an AI seat">
 <details class="chessopts"><summary style="cursor:pointer;color:var(--gold-hi);margin-top:12px">Chess options</summary>
 <label for=minutes>Time per player</label><select id=minutes name=minutes style="padding:8px;border-radius:4px;background:#071820;color:var(--parch);border:1px solid rgba(217,180,106,.5)">

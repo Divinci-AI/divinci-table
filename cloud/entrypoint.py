@@ -42,6 +42,8 @@ args = [sys.executable, "-u", "table/server.py", "--any-card", "--brain", "exter
         "--priority-window", "3"]
 for a in cfg.get("ai", []):
     args += ["--ai", f"{a['name']}|{a['commander']}|", "--ai-deck", a["deck"]]
+for p in cfg.get("pilots", []):                     # a person playing a virtual deck from /hand (no brain process)
+    args += ["--ai", f"{p['name']}|{p['commander']}|", "--ai-deck", p["deck"], "--pilot", p["name"]]
 for h in cfg.get("humans", []):
     args += ["--human", h if "|" in h else f"{h}|"]
 if cfg.get("order"):

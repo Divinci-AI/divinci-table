@@ -49,6 +49,9 @@ ap.add_argument("--ai-deck", action="append", default=[],
 ap.add_argument("--brain", choices=["gemma", "external"], default="gemma",
                 help="who decides for the virtual AI player: the local Gemma, or an EXTERNAL brain driving it "
                      "through /api/brain (tablectl) — then the server never answers or plays for it")
+ap.add_argument("--pilot", action="append", default=[],
+                help="an --ai seat with an --ai-deck that a PERSON plays (repeatable): its virtual deck is driven "
+                     "from /hand with that person's seat key instead of by a brain. For testing without cards.")
 ap.add_argument("--human", action="append", default=[],
                 help='a human player, "Name|Commander card name" (repeatable); their names go into the speech hint')
 ap.add_argument("--order", default="",
@@ -131,6 +134,13 @@ if args.ai_deck:
         DECK_OF[_n] = _deck
         AI_PLAYERS[_i]["has_deck"] = True
         AI_PLAYERS[_i]["deck"] = VPS[_n].deck_name
+# Pilot seats: virtual decks played by a person (from /hand, with their seat key), not by an AI brain
+PILOTS: set = set()
+for _p in args.pilot:
+    _n = next((n for n in VPS if n.lower() == _p.strip().lower()), None)
+    if not _n:
+        sys.exit(f"--pilot {_p!r}: not an --ai seat with an --ai-deck (seats with decks: {list(VPS)})")
+    PILOTS.add(_n)
 _SEAT = threading.local()
 
 
@@ -924,7 +934,7 @@ LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", 
           ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/openmic/rate"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
-          ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
+          ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"), ("GET", "/hand"),
           ("GET", "/vendor/three.module.min.js"), ("GET", "/vendor/three.core.min.js"),
           ("GET", "/avatars/index.json")}
 LAN_PREFIXES = ("/vendor/", "/assets/", "/avatars/", "/captains/", "/photos/")   # static, public: stage code, light probe, models, captain lines
@@ -1945,6 +1955,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / "log.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/board":            # the whole board in plain HTML: any device, no 3D
             return self._send(200, body=(HERE / "board.html").read_bytes(), ctype="text/html; charset=utf-8")
+        if self.path.split("?")[0] == "/hand":             # a pilot seat's hand and buttons (its data needs the seat key)
+            return self._send(200, body=(HERE / "hand.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/stage":            # the 3D avatar stage: public info only
             return self._send(200, body=(HERE / "stage.html").read_bytes(), ctype="text/html; charset=utf-8")
         p0 = self.path.split("?")[0]
@@ -2049,7 +2061,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"player": who, "active": active, "step": step, "items": its})
         if self.path == "/api/seat/claims":
             fp = self._device()
-            return self._send(200, {"humans": {h["name"]: h["name"] in SEAT_KEYS or h["name"] in SEAT_PROXY for h in HUMANS},
+            return self._send(200, {"humans": {n: n in SEAT_KEYS or n in SEAT_PROXY for n in [h["name"] for h in HUMANS] + sorted(PILOTS)},
                                     "proxy": dict(SEAT_PROXY),
                                     "this_device": [n for n, fps in SEAT_DEVICES.items() if fp in fps]})
         if self.path == "/api/fair":                       # public: commits now, full records once revealed
@@ -2063,10 +2075,10 @@ class H(BaseHTTPRequestHandler):
                 res = {n: dict(zip(("ok", "message"), fair.verify(v.fair))) for n, v in VPS.items() if v.fair}
             return self._send(200, {"game": FAIR["game"], "results": res})
         if self.path.split("?")[0] == "/api/brain/state":
-            if not self._brain_ok():
+            sn = self._seat_q()
+            if not (self._brain_ok() or self._pilot_ok(sn)):
                 return self._send(403, {"error": "brain token required"})
             from player import brain_view
-            sn = self._seat_q()
             if sn is None:
                 return self._send(404, {"error": f"no AI seat by that name (seats: {list(VPS)})"})
             with VP_LOCK:
@@ -2401,7 +2413,8 @@ class H(BaseHTTPRequestHandler):
                 return self._send(code, out)
             if self.path == "/api/seat/claim":             # {"name": "Sam"} or {"name": "Sam", "key": "<from Sam's other device>"}
                 b = self._json()
-                name = next((h["name"] for h in HUMANS if h["name"].lower() == str(b.get("name", "")).lower()), None)
+                name = next((n for n in [h["name"] for h in HUMANS] + sorted(PILOTS)
+                             if n.lower() == str(b.get("name", "")).lower()), None)
                 if not name:
                     return self._send(400, {"error": "only a person's seat can be claimed"})
                 key = str(b.get("key") or "")
@@ -2551,13 +2564,16 @@ class H(BaseHTTPRequestHandler):
                 b = self._json()
                 return self._send(200, self._change_life(str(b.get("player", "")), b.get("delta"), b.get("by", "table")))
             if self.path.startswith("/api/brain/"):
-                if not self._brain_ok():
-                    return self._send(403, {"error": "brain token required"})
                 b = self._json()
                 sn = seat(b.get("seat"))
+                pilot = not self._brain_ok()
+                if pilot and not self._pilot_ok(sn):
+                    return self._send(403, {"error": "brain token required"})
                 if sn is None:
                     return self._send(404, {"error": f"no AI seat '{b.get('seat')}' (seats: {list(VPS)})"})
                 act = self.path.rsplit("/", 1)[-1]
+                if pilot and act in ("new-game",):          # a person plays their seat; they don't reset the table
+                    return self._send(403, {"error": "only the table's host can start a new game"})
                 with PHASE_LOCK:
                     blocked = ai_advance(sn, act)
                 if blocked:
@@ -2647,6 +2663,8 @@ class H(BaseHTTPRequestHandler):
             return False
         if method == "GET" and self.path.split("?")[0].startswith(LAN_PREFIXES):
             return False
+        if PILOTS and self.path.startswith("/api/brain/") and self.headers.get("X-Seat-Key"):
+            return False                                  # a pilot's own seat: _pilot_ok checks the key next
         if method == "POST":
             self._drain(int(self.headers.get("Content-Length", 0) or 0))
         self._send(403, {"error": "this page is only available on the table's laptop"})
@@ -2654,6 +2672,10 @@ class H(BaseHTTPRequestHandler):
 
     def _brain_ok(self):
         return bool(VPS) and secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN)
+
+    def _pilot_ok(self, sn) -> bool:
+        """A person driving THEIR pilot seat: the seat key in X-Seat-Key, for exactly that seat."""
+        return bool(sn) and sn in PILOTS and seat_key_ok(sn, self.headers.get("X-Seat-Key", ""))
 
     def _seat_q(self):
         from urllib.parse import parse_qs, urlparse

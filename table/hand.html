@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Divinci Table — your hand</title>
+<link rel="stylesheet" href="/assets/brand.css">
+<style>
+:root{--bg:#040d12;--panel:#0d1d25;--line:#d9b46a33;--ink:#ece4cf;--dim:#9fb0b0;--gold:#d9b46a;--gold-hi:#f4dc9b;--gold-lo:#8a6a2e;--teal:#3fd0c9;--warn:#ffb38f}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--ink);font:16px/1.4 system-ui,-apple-system,sans-serif;
+  background:radial-gradient(800px 500px at 50% -80px,#16465a 0%,transparent 70%),var(--bg)}
+main{max-width:760px;margin:0 auto;padding:14px 16px 80px}
+h1{font:900 21px Cinzel,Georgia,serif;letter-spacing:.06em;margin:4px 0 2px;color:var(--gold-hi)}
+.sub{color:var(--dim);font-size:14px}
+.panel{background:var(--panel);border-radius:12px;padding:12px 14px;box-shadow:inset 0 0 0 1px var(--line);margin:12px 0}
+.panel h2{font:700 13px Cinzel,Georgia,serif;letter-spacing:.12em;color:var(--gold);margin:0 0 8px;text-transform:uppercase}
+.alert{background:#3a2a10;box-shadow:inset 0 0 0 2px var(--gold);border-radius:12px;padding:12px 14px;margin:12px 0;font-weight:600}
+button{font:600 15px system-ui;border-radius:8px;border:1px solid #d9b46a55;background:#10242d;color:var(--ink);padding:8px 12px;cursor:pointer;margin:3px 4px 3px 0}
+button.gold{background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));color:#1a1206;border-color:var(--gold-lo)}
+button:disabled{opacity:.4;cursor:default}
+select{padding:7px;border-radius:8px;background:#071820;color:var(--ink);border:1px solid #d9b46a55;font:15px system-ui}
+.card{padding:9px 0;border-bottom:1px solid #ffffff10}.card:last-child{border:0}
+.card b{color:var(--gold-hi)}.card .t{color:var(--dim);font-size:13.5px}.card .x{font-size:13.5px;color:#cfdcdc;margin:3px 0}
+.tag{display:inline-block;font-size:12px;padding:1px 7px;border-radius:999px;background:#ffffff14;margin-left:4px}
+.life{font:800 28px ui-monospace,Menlo,monospace}
+#err{color:var(--warn);min-height:1.2em}
+#log{max-height:180px;overflow:auto;font-size:14px;color:#cfdcdc}
+</style>
+<script src="/assets/seat.js" defer></script>
+<script src="/assets/brand.js" defer></script>
+</head>
+<body data-brand="me">
+<main>
+  <h1>Your hand</h1>
+  <div class="sub" id="who">Claim your seat (👤, top right) to see your cards. Only your device sees them.</div>
+  <div id="alert"></div>
+  <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center">
+    <div><span class="life" id="life">—</span> <span class="sub">life</span></div>
+    <div class="sub" id="phase">—</div></div>
+    <div style="margin-top:8px"><button class="gold" id="begin">Begin my turn (untap, draw)</button><button id="pass">Pass</button>
+      <button id="end">End my turn</button></div>
+    <div class="sub" id="mana" style="margin-top:6px"></div>
+    <div id="err" role="alert"></div></div>
+  <div class="panel"><h2>Hand</h2><div id="hand"></div></div>
+  <div class="panel"><h2>Battlefield</h2><div id="field"></div>
+    <div id="atk" style="margin-top:8px"></div></div>
+  <div class="panel"><h2>What happened</h2><div id="log"></div></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+let S = null, since = "latest", attackers = new Set(), lastAttack = [], alert = null;
+const me = () => (window.TableSeat && TableSeat.name()) || "";
+const key = () => (window.TableSeat && TableSeat.body().key) || "";
+async function call(method, path, body) {
+  const r = await fetch(path, { method, headers: { "Content-Type": "application/json", "X-Seat-Key": key() },
+    body: body ? JSON.stringify(body) : undefined });
+  const t = await r.text(); let d = {}; try { d = JSON.parse(t); } catch { d = { error: t.slice(0, 160) }; }
+  return { ok: r.ok, code: r.status, d };
+}
+async function act(action, body = {}) {
+  $("err").textContent = "";
+  for (let i = 0; i < 20; i++) {                        // my turn walks its steps: wait while the others pass
+    const { ok, code, d } = await call("POST", "/api/brain/" + action, { seat: me(), ...body });
+    if (code === 409 && d.waiting) { $("err").textContent = `waiting on ${d.waiting.join(", ")}…`; await new Promise(r => setTimeout(r, 2000)); continue; }
+    if (!ok) { $("err").textContent = d.error || "refused"; return null; }
+    (d.said || []).forEach(x => logLine(x)); $("err").textContent = "";
+    await load(); return d;
+  }
+}
+function logLine(t) { $("log").insertAdjacentHTML("afterbegin", `<div>${esc(t)}</div>`); }
+async function load() {
+  if (!me()) return;
+  const { ok, code, d } = await call("GET", "/api/brain/state?seat=" + encodeURIComponent(me()));
+  if (!ok) { $("who").textContent = code === 403 ? `${me()} isn't a virtual-deck seat at this table (or this device's key is old: claim again).` : d.error; S = null; draw(); return; }
+  S = d; draw();
+}
+function draw() {
+  if (!S) { $("hand").innerHTML = ""; $("field").innerHTML = ""; return; }
+  $("who").textContent = `${S.seat} · ${S.commander || ""} · ${S.library ?? "?"} cards in library`;
+  $("life").textContent = S.life ?? (S.life_table || {})[S.seat] ?? "—";
+  $("mana").textContent = S.mana_sources?.length ? "Mana: " + S.mana_sources.join(", ") : "";
+  $("alert").innerHTML = alert ? `<div class="alert">${alert.html}</div>` : "";
+  const hand = S.hand || [];
+  $("hand").innerHTML = (hand.length ? hand.map((c, i) => `<div class="card"><b>${esc(c.name)}</b> <span class="t">${esc(c.cost)} · ${esc(c.type)}${c.pt ? " · " + esc(c.pt) : ""}</span>
+      <div class="x">${esc(c.text || "")}</div>
+      ${c.land ? `<button data-land="${i}" ${S.land_played ? "disabled" : ""}>Play land</button>` : ""}
+      ${!c.land && !c.aura_targets ? `<button data-cast="${i}" ${c.castable_now ? "" : "disabled"}>Cast</button>` : ""}
+      ${c.aura_targets ? `<select data-on="${i}">${c.aura_targets.map(t => `<option>${esc(t)}</option>`).join("")}</select><button data-auracast="${i}" ${c.castable_now ? "" : "disabled"}>Cast on it</button>` : ""}
+      ${c.face_down_castable ? `<button data-fd="${i}">Cast face down {3}</button>` : ""}</div>`).join("") : `<div class="sub">No cards in hand.</div>`) +
+    (S.commander_card && S.commander_in_zone !== false ? `<div class="card"><b>${esc(S.commander_card.name)}</b> <span class="tag">commander</span>
+      <span class="t">${esc(S.commander_card.cost)}</span><div class="x">${esc(S.commander_card.text || "")}</div>
+      <button data-cmd ${S.commander_card.castable_now ? "" : "disabled"}>Cast commander</button></div>` : "");
+  const perms = S.permanents || [];
+  $("field").innerHTML = perms.length ? perms.map(p => {
+    const ready = p.pt && !p.tapped && !p.sick;
+    return `<div class="card"><b>#${p.id} ${esc(p.face_down ? "Face-down" : p.name)}</b> <span class="t">${esc(p.type || "")}${p.pt ? " · " + esc(p.pt) : ""}</span>
+      ${p.tapped ? '<span class="tag">tapped</span>' : ""}${p.sick ? '<span class="tag">summoning sick</span>' : ""}${p.token ? '<span class="tag">token</span>' : ""}
+      ${p.face_down ? `<span class="tag">really ${esc(p.name)}</span>` : ""}<div>
+      ${ready ? `<label><input type=checkbox data-atk="${p.id}" ${attackers.has(p.id) ? "checked" : ""}> attack</label>` : ""}
+      ${p.face_down && p.turn_up_cost ? `<button data-up="${p.id}">Turn face up (${esc(p.turn_up_cost)})</button>` : ""}
+      <button data-tap="${p.id}">${p.tapped ? "Untap" : "Tap"}</button></div></div>`; }).join("") : `<div class="sub">Nothing on the battlefield yet.</div>`;
+  const opps = Object.entries(S.life_table || {}).filter(([n, l]) => n !== S.seat && l > 0).map(([n]) => n);
+  $("atk").innerHTML = (attackers.size ? `<select id="target">${opps.map(o => `<option>${esc(o)}</option>`).join("")}</select>
+      <button class="gold" id="attack">Attack with ${attackers.size}</button>` : "") +
+    (lastAttack.length ? `<button id="dmg">They didn't block: deal the damage</button>` : "");
+}
+document.body.addEventListener("click", async e => {
+  const t = e.target, d = t.dataset || {}, h = S?.hand || [];
+  if (d.land !== undefined) return act("land", { name: h[+d.land].name });
+  if (d.cast !== undefined) return act("cast", { name: h[+d.cast].name });
+  if (d.auracast !== undefined) { const on = document.querySelector(`[data-on="${d.auracast}"]`).value.split(" ")[0]; return act("cast", { name: h[+d.auracast].name, on }); }
+  if (d.fd !== undefined) return act("cast", { name: h[+d.fd].name, face_down: true });
+  if (d.cmd !== undefined) return act("cast", { name: "commander", commander: true });
+  if (d.up !== undefined) return act("turn-up", { ref: "#" + d.up });
+  if (d.tap !== undefined) { const p = S.permanents.find(x => x.id == d.tap); return act(p.tapped ? "untap" : "tap", { ref: "#" + d.tap, announce: true }); }
+  if (d.atk !== undefined) { t.checked ? attackers.add(+d.atk) : attackers.delete(+d.atk); return draw(); }
+  if (t.id === "attack") { const who = $("target").value, ids = [...attackers];
+    const r = await act("attack", { assign: Object.fromEntries(ids.map(i => ["#" + i, who])) });
+    if (r) { lastAttack = ids.map(i => ["#" + i, who]); attackers.clear(); draw(); } return; }
+  if (t.id === "dmg") { await act("damage", { hits: Object.fromEntries(lastAttack.map(([r, w]) => [r, [w, null]])), no_life: true }); lastAttack = []; return draw(); }
+  if (d.take !== undefined) { await act("block", { amount: alert.amount, attacker: alert.attacker, trample: alert.trample }); alert = null; return draw(); }
+  if (d.blk !== undefined) { await act("block", { blocker: "#" + d.blk, amount: alert.amount, attacker: alert.attacker, trample: alert.trample }); alert = null; return draw(); }
+  if (d.dismiss !== undefined) { alert = null; return draw(); }
+});
+$("begin").onclick = () => { alert = null; act("begin"); };
+$("pass").onclick = () => { alert = null; act("pass"); };
+$("end").onclick = () => { lastAttack = []; act("end", { text: "That's my turn." }); };
+async function poll() {
+  try {
+    const r = await (await fetch("/api/events?since=" + since)).json();
+    if (since !== "latest" && !r.restarted) for (const e of r.events) {
+      if (e.type === "say" && e.speaker === me()) continue;
+      if (e.type === "attention" && (e.addressee || "").toLowerCase() === me().toLowerCase()) {
+        if (e.kind === "turn") alert = { html: "It's your turn. <button class='gold' data-dismiss>OK</button> Press <b>Begin my turn</b>." };
+        else if (e.kind === "priority") alert = { html: `${esc(e.text || "Priority")}: cast an instant, or <button data-dismiss>Pass</button>` };
+        else if (e.kind === "attacked") {
+          const blockers = (S?.permanents || []).filter(p => p.pt && !p.tapped);
+          alert = { amount: e.amount || 0, attacker: e.attacker, trample: !!e.trample,
+            html: `${esc(e.attacker || "A creature")} attacks you for ${e.amount || 0}${e.trample ? " (trample)" : ""}.<br>
+              <button class="gold" data-take>Take it</button>${blockers.map(p => `<button data-blk="${p.id}">Block with ${esc(p.name)} ${esc(p.pt)}</button>`).join("")}` };
+        } else alert = { html: `${esc(e.text || e.kind)} <button data-dismiss>OK</button>` };
+        draw();
+      }
+      if (e.type === "say" && e.text) logLine(`${e.speaker || ""}: ${e.text}`);
+      if (["say", "life", "hand", "board3d"].includes(e.type)) load();
+    }
+    since = r.last;
+  } catch {}
+  setTimeout(poll, 1200);
+}
+async function phase() {
+  try { const p = await (await fetch("/api/phase")).json(); $("phase").textContent = p.player ? `${p.player} · ${p.step}` : "game not started"; } catch {}
+  if (!S && me()) load();                                // a seat just claimed (seat.js has no event for it)
+  setTimeout(phase, 2000);
+}
+addEventListener("load", () => { setTimeout(() => { load(); poll(); phase(); }, 300); });
+</script>
+</body>
+</html>
