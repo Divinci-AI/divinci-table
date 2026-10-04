@@ -109,6 +109,10 @@ try:
 
     c, d = call("POST", "/api/seat/check", {}, key=sk)
     check("seat check names the key's seat", c == 200 and d.get("seat") == "Sam", (c, d))
+    _, dm = call("POST", "/api/seat/check", {}, key=mk)
+    check("seat check gives a virtual deck's card names (for reading photos)", "Inspirit, Flagship Vessel" in (dm.get("deck") or [])
+          and len(dm["deck"]) > 50, (dm.get("seat"), len(dm.get("deck") or [])))
+    check("…and none for a seat whose deck is unknown", d.get("deck") == [], d.get("deck"))
     check("seat check refuses no key / a made-up key", call("POST", "/api/seat/check", {})[0] == 403
           and call("POST", "/api/seat/check", {}, key="made-up")[0] == 403)
     c, _ = call("POST", "/api/my-board", {"by": "Sam", "key": sk, "permanents": [{"name": "Forest"}], "graveyard": ["Shock"]})
@@ -117,6 +121,17 @@ try:
     sam = next((x for x in b3.get("seats", []) if x.get("name") == "Sam"), {})
     check("a board photo (no graveyard sent) keeps the graveyard", c == 200 and c2 == 200 and sam.get("graveyard") == ["Shock"]
           and len(sam.get("permanents", [])) >= 2, (c, c2, sam.get("graveyard"), len(sam.get("permanents", []))))
+    call("POST", "/api/my-board", {"by": "Sam", "key": sk, "permanents": [{"name": "Forest", "tapped": True}, {"name": "Island"},
+                                                                         {"name": "Morph", "face_down": True}], "graveyard": ["Shock"]})
+    c, md = call("POST", "/api/my-board", {"by": "Sam", "key": sk, "merge": True, "seen": [
+        {"name": "Forest", "tapped": False, "count": 1}, {"name": "Llanowar Elves", "tapped": False, "count": 2}, {"name": ""}, "junk"]})
+    _, b3 = call("GET", "/api/board3d")
+    perms = next((x for x in b3.get("seats", []) if x.get("name") == "Sam"), {}).get("permanents", [])
+    names = sorted(p.get("name") or "(face-down)" for p in perms)
+    check("a photo's reading ADDS (2 Elves) and updates (Forest seen upright), removes nothing",
+          c == 200 and md.get("added") == 2 and md.get("updated") == 1 and len(perms) == 5, (c, md, names))
+    check("…keeping the face-down card and the graveyard", any(p.get("face_down") or not p.get("name") for p in perms)
+          and next((x for x in b3.get("seats", []) if x.get("name") == "Sam"), {}).get("graveyard") == ["Shock"], names)
     check("Sam can't record Michael's board", call("POST", "/api/my-board", {"by": "Michael", "key": sk, "permanents": []})[0] == 403)
     print("pilot seat (a person's virtual deck)")
     c, st = call("GET", "/api/brain/state?seat=Michael", key=mk)

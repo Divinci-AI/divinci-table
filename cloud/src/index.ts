@@ -12,7 +12,7 @@
  */
 import { Container } from "@cloudflare/containers";
 import { DurableObject } from "cloudflare:workers";
-import { aiKeyAllowed, aiRoomRefusal, BOARD_PROMPT, CODE_FAILS_GLOBAL_PER_HOUR, CODE_FAILS_PER_HOUR, isAdmin, parseBoardReply, sameText,
+import { aiKeyAllowed, aiRoomRefusal, boardPrompt, speechHint, CODE_FAILS_GLOBAL_PER_HOUR, CODE_FAILS_PER_HOUR, isAdmin, parseBoardReply, sameText,
 	STT_MAX_BYTES, STT_PER_10_MIN, VISION_MAX_BYTES, VISION_PER_HOUR, withinRate } from "./policy";
 
 interface Env {
@@ -132,7 +132,7 @@ export class TableRoom extends Container<Env> {
 			headers: { "X-Seat-Key": request.headers.get("X-Seat-Key") ?? "", "X-Forwarded-For": request.headers.get("X-Forwarded-For") ?? "unknown" } }),
 			this.defaultPort).catch(() => null);
 		if (!check?.ok) return Response.json({ error: "claim your seat first (👤)", need_seat: true }, { status: 403 });
-		const { seat } = await check.json<{ seat: string }>();
+		const { seat, deck } = await check.json<{ seat: string; deck?: string[] }>();
 		if ((await this.env.LOBBY.get(this.env.LOBBY.idFromName("lobby")).aiState()).off) {
 			return Response.json({ error: "voice and photo reading are paused right now" }, { status: 503 });
 		}
@@ -148,11 +148,11 @@ export class TableRoom extends Container<Env> {
 		const b64 = toBase64(body);
 		try {
 			if (kind === "stt") {
-				const out = await this.env.AI.run("@cf/openai/whisper-large-v3-turbo", { audio: b64 }) as { text?: string };
+				const out = await this.env.AI.run("@cf/openai/whisper-large-v3-turbo", { audio: b64, initial_prompt: speechHint(deck) }) as { text?: string };
 				return Response.json({ seat, text: String(out?.text ?? "").replace(/\s+/g, " ").trim().slice(0, 400) });
 			}
 			const out = await this.env.AI.run("@cf/meta/llama-4-scout-17b-16e-instruct", { max_tokens: 900, messages: [
-				{ role: "system", content: BOARD_PROMPT },
+				{ role: "system", content: boardPrompt(deck) },
 				{ role: "user", content: [{ type: "text", text: "List the cards on this player's side of the table." },
 					{ type: "image_url", image_url: { url: "data:" + (request.headers.get("Content-Type") || "image/jpeg") + ";base64," + b64 } }] },
 			] }) as { response?: unknown };
@@ -459,6 +459,8 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 	const title = String(form.get("title") ?? "").trim().slice(0, 40) || `${humans[0]}'s table`;
 	const mine = PILOT_DECKS[String(form.get("mydeck") ?? "")];                 // the first person plays a virtual deck
 	const pilots: AiSeat[] = mine ? [{ name: humans[0], ...mine }] : [];
+	const phys = mine ? undefined : PILOT_DECKS[String(form.get("physdeck") ?? "")];   // …or names their physical deck
+	const seatSpec = (h: string) => (phys && h === humans[0] ? `${h}|${phys.commander}` : h);    // "Name|Commander" for the server
 	const id = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
 	const why = await lobby.add({ id, title, game: "magic", humans, ai: ai.map((a) => `${a.name} (${a.commander})`), created: Date.now() }, addr);
 	if (why) {
@@ -466,7 +468,7 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 		return back(why);
 	}
 	await env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/setup?id=" + id, {
-		method: "POST", body: JSON.stringify({ humans: humans.filter((h) => !pilots.some((p) => p.name === h)), ai, pilots, game: "magic" } satisfies RoomConfig),
+		method: "POST", body: JSON.stringify({ humans: humans.filter((h) => !pilots.some((p) => p.name === h)).map(seatSpec), ai, pilots, game: "magic" } satisfies RoomConfig),
 	}));
 	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
 }
@@ -622,6 +624,10 @@ ${error ? `<div class="err">${esc(error)}</div>` : ""}
 <option value=nghathrod>Virtual: Captain N'ghathrod</option><option value=elsha>Virtual: Elsha of the Infinite</option><option value=tuvasa>Virtual: Tuvasa the Sunlit</option>
 <option value=kaust>Virtual: Kaust, Eyes of the Glade</option><option value=ellivere>Virtual: Ellivere of the Wild Court</option></select>
 <small style="display:block;margin-top:4px">With a virtual deck you play from your phone at <b>/hand</b>: your cards, shuffled fairly, only on your device.</small>
+<label for=physdeck>Or: which physical deck you're playing (optional — helps the headset read your cards from a photo)</label><select id=physdeck name=physdeck style="padding:8px;border-radius:4px;background:#071820;color:var(--parch);border:1px solid rgba(217,180,106,.5)">
+<option value="">Not listed / don't say</option><option value=inspirit>Inspirit, Flagship Vessel</option><option value=aminatou>Aminatou, the Fateshifter</option>
+<option value=nghathrod>Captain N'ghathrod</option><option value=elsha>Elsha of the Infinite</option><option value=tuvasa>Tuvasa the Sunlit</option>
+<option value=kaust>Kaust, Eyes of the Glade</option><option value=ellivere>Ellivere of the Wild Court</option></select>
 <label for=aicode>Invitation code for AI players</label><input type=text id=aicode name=aicode maxlength=60 autocomplete=off placeholder="Only needed with an AI seat">
 <details class="chessopts"><summary style="cursor:pointer;color:var(--gold-hi);margin-top:12px">Chess options</summary>
 <label for=minutes>Time per player</label><select id=minutes name=minutes style="padding:8px;border-radius:4px;background:#071820;color:var(--parch);border:1px solid rgba(217,180,106,.5)">

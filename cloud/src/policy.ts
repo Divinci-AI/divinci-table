@@ -80,6 +80,25 @@ export function parseBoardReply(text: string): SeenCard[] {
 	return out;
 }
 
+/** The photo prompt; with the seat's deck list the model reads names against real candidates (measured on a game-3
+ *  photo: 6/9 cards found and 0 wrong with the list, 5/9 and 0 wrong without; sideways (tapped) cards were missed
+ *  either way, so a reading only ever ADDS to a board). Names are sanitised and capped before they reach the prompt. */
+export function boardPrompt(deck: unknown): string {
+	const names = (Array.isArray(deck) ? deck : []).map((n) => String(n).replace(/[^\p{L}\p{N} ,'’\-:/!?.]/gu, "").trim().slice(0, 80))
+		.filter(Boolean).slice(0, 200);
+	return names.length ? BOARD_PROMPT + " The cards on this table all come from this player's deck; each name you give MUST be one of " +
+		"these exactly: " + names.join("; ") + "." : BOARD_PROMPT;
+}
+
+/** Whisper's vocabulary hint: the game's words and (when known) the seat's own card names, so "Llanowar" isn't heard
+ *  as "lanour". Cleaned and capped (Whisper reads only a few hundred tokens of it). */
+export function speechHint(deck: unknown): string {
+	const names = (Array.isArray(deck) ? deck : []).map((n) => String(n).replace(/[^\p{L}\p{N} ,'’\-]/gu, "").trim()).filter(Boolean);
+	let s = "A game of Magic: The Gathering, Commander. I cast, I attack, tap, untap, mana, graveyard, exile, my turn, pass, NEXT.";
+	for (const n of names) { if ((s + " " + n + ",").length > 800) break; s += " " + n + ","; }
+	return s;
+}
+
 export const BOARD_PROMPT = "You see a photo of one player's side of a Magic: The Gathering table. List the cards that are " +
 	"face up ON THE TABLE in front of this player (their battlefield). Ignore cards held in hands, card backs, sleeves, " +
 	"dice and anything you cannot read. A card turned sideways is tapped. Group identical cards. Reply with JSON only: " +

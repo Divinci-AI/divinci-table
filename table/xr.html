@@ -480,11 +480,12 @@ async function snap() {
 }
 async function recordBoard() {
   const me = window.TableSeat?.name(); if (!me || !media.proposal) return;
-  const permanents = media.proposal.flatMap(c => Array.from({ length: c.count }, () => ({ name: c.name, tapped: c.tapped })));
+  // MERGE: a photo misses cards (sideways ones above all), so it only ever adds what it saw and updates what it saw
+  // upright; cards already on my board stay. The server does it, with the full record (face-down cards included).
   const r = await fetch("/api/my-board", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(window.TableSeat.body({ permanents })) });   // no graveyard: the server keeps it
+    body: JSON.stringify(window.TableSeat.body({ merge: true, seen: media.proposal })) });
   const d = await r.json().catch(() => ({}));
-  say2(r.ok ? `✓ your board is recorded (${d.permanents} cards) — everyone sees it now` : "⚠ " + (d.error || "couldn't record it"));
+  say2(r.ok ? `✓ added ${d.added}, updated ${d.updated} — your board now has ${d.permanents} cards` : "⚠ " + (d.error || "couldn't record it"));
   if (r.ok) { media.proposal = null; boardRefresh(); }
 }
 // Ask for the microphone and the headset cameras on the 2D page, so no permission prompt interrupts the session.

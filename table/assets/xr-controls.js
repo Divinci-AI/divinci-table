@@ -65,7 +65,7 @@ export function installXRControls(o) {
     add("talk", m.talking ? "🎤 listening… let go to send" : "🎤 Hold to talk (X)", 24, 418, 600, 84, { off: !me });
     add("snap", m.busy ? "📷 reading…" : "📷 Snap my board (Y)", 640, 418, 360, 84, { off: !me || m.busy });
     if (m.proposal) {
-      add("record", `✓ Record ${m.proposal.reduce((n, c) => n + c.count, 0)} cards (replaces your board)`, 24, 700, 700, 84);
+      add("record", `✓ Add to my board (${m.proposal.reduce((n, c) => n + c.count, 0)} seen)`, 24, 700, 700, 84);
       add("discard", "Discard", 740, 700, 260, 84);
     }
     return b;

@@ -628,6 +628,29 @@ def board_from_body(b: dict) -> tuple[list, list]:
     return perms, grave
 
 
+def seat_deck_names(name: str) -> list[str]:
+    """The card names a seat's deck can show on the table — a pilot's virtual deck, or the deck file whose commander is
+    the person's commander — so a board photo is read against real candidates. Empty when unknown."""
+    path = DECK_OF.get(name)
+    commander = next((h["commander"] for h in HUMANS if h["name"] == name), None)
+    if not path and commander:
+        for f in sorted((HERE.parent / "decks").glob("*.json")):
+            try:
+                d = json.loads(f.read_text())
+            except (OSError, ValueError):
+                continue
+            if commander in ({c.get("name") for c in d.get("commander") or []} | set(d.get("eligibleCommanders") or [])):
+                path = str(f)
+                break
+    if not path:
+        return []
+    try:
+        d = json.loads(Path(path if Path(path).is_absolute() else HERE.parent / path).read_text())
+        return sorted({c["name"] for c in (d.get("mainBoard") or []) + (d.get("commander") or []) if c.get("name")})[:200]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+
+
 def seat_key_ok(name: str, key: str) -> bool:
     if SEAT_PROXY.get(name) and SEAT_PROXY[name] != name and seat_key_ok(SEAT_PROXY[name], key):
         return True
@@ -2381,14 +2404,39 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/api/seat/check":             # the room's Worker asks before it transcribes or reads a photo
                 key = str(self.headers.get("X-Seat-Key", ""))[:200]
                 who = next((n for n in [h["name"] for h in HUMANS] + sorted(PILOTS) if key and seat_key_ok(n, key)), None)
-                return self._send(200 if who else 403, {"seat": who} if who else {"error": "not a seated player"})
+                if not who:
+                    return self._send(403, {"error": "not a seated player"})
+                return self._send(200, {"seat": who, "deck": seat_deck_names(who)})   # card names help a photo read
             if self.path == "/api/my-board":               # a person records their OWN board from their phone
                 b = self._json()
                 who = str(b.get("by", ""))
                 if who not in [h["name"] for h in HUMANS] or not seat_key_ok(who, str(b.get("key", ""))):
                     return self._send(403, {"error": "claim your seat first (👤): only you can record your board"})
-                perms, grave = board_from_body(b)
                 prev = PUBLIC_BOARD.get(who) or {}
+                if b.get("merge"):                         # a photo's reading ADDS to my board; it never removes a card
+                    perms = [dict(p) for p in prev.get("permanents", [])]
+                    added = updated = 0
+                    for c in (b.get("seen") or [])[:60]:
+                        if not isinstance(c, dict):
+                            continue
+                        name = " ".join(str(c.get("name", "")).split())[:80]
+                        if not name:
+                            continue
+                        try:
+                            n = max(1, min(20, int(c.get("count") or 1)))
+                        except (TypeError, ValueError):
+                            n = 1
+                        same = [p for p in perms if p.get("name") == name and not p.get("face_down")]
+                        for p in same[:n]:                 # seen: its tapped state is what the photo shows
+                            if bool(p.get("tapped")) != bool(c.get("tapped")):
+                                p["tapped"] = bool(c.get("tapped")); updated += 1
+                        for _ in range(n - len(same)):
+                            perms.append({"name": name, "tapped": bool(c.get("tapped"))}); added += 1
+                    PUBLIC_BOARD[who] = {**prev, "permanents": perms[:120], "graveyard": list(prev.get("graveyard", [])),
+                                         "updated": round(time.time(), 2)}
+                    emit("board3d", seat=who, n=len(perms))
+                    return self._send(200, {"ok": True, "seat": who, "added": added, "updated": updated, "permanents": len(perms)})
+                perms, grave = board_from_body(b)
                 if "graveyard" not in b:                   # a photo of the battlefield doesn't empty the graveyard
                     grave = list(prev.get("graveyard", []))
                 PUBLIC_BOARD[who] = {"permanents": perms, "graveyard": grave,
