@@ -353,10 +353,16 @@ let models = new Set();
 const gltfCache = {};
 const loader = new GLTFLoader();
 const WANT = params.get("avatars") || "v2";             // ?avatars=v1 shows the first, text-to-3D generation
-const modelBase = name => {                                // the seat's own model, else its commander's
+const modelBase = name => {                                // the seat's own model, else its commander's, else one from the pool
   if (models.has(name) || models.has(name + ".v2")) return name;
   const m = lookFor(seatOf(name)).model;
-  return m && (models.has(m) || models.has(m + ".v2")) ? m : name;
+  if (m && (models.has(m) || models.has(m + ".v2"))) return m;
+  // A seat with no model of its own (a public room: "Ann", "Bo") borrows one of the available avatars,
+  // the same one every time for the same name.
+  const pool = [...models].filter(x => x.endsWith(".v2") && !x.includes(".more")).map(x => x.slice(0, -3)).sort();
+  if (!pool.length) return name;
+  let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return pool[h % pool.length];
 };
 const modelFile = name => { const b = modelBase(name); return WANT !== "v1" && models.has(b + ".v2") ? b + ".v2" : b; };
 const hasModel = name => { const b = modelBase(name); return models.has(b) || models.has(b + ".v2"); };

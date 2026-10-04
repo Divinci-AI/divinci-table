@@ -12,7 +12,8 @@
       blob = await new Promise(ok => c.toBlob(ok, "image/jpeg", 0.85));
     }
     const r = await fetch("/api/chat/photo", { method: "POST", body: blob,
-      headers: { "Content-Type": "image/jpeg", "X-By": encodeURIComponent(by || ""), "X-Caption": encodeURIComponent(caption || "") } });
+      headers: { "Content-Type": "image/jpeg", "X-By": encodeURIComponent(by || ""), "X-Caption": encodeURIComponent(caption || ""),
+               "X-Seat-Key": encodeURIComponent((window.TableSeat && TableSeat.name() === by && TableSeat.body().key) || "") } });
     return r.json().catch(() => ({ error: "upload failed" }));
   };
 })();

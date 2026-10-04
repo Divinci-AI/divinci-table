@@ -38,6 +38,7 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
 <link rel="stylesheet" href="/assets/brand.css">
 <script src="/assets/seat.js" defer></script>
 <script src="/assets/brand.js" defer></script>
+<script src="/assets/myboard.js" defer></script>
 </head>
 <body data-brand="me">
 <h1 id="title">Divinci Table</h1>
@@ -60,6 +61,7 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
     <label style="display:inline-block;margin-top:6px"><input id="photo" type="file" accept="image/*" capture="environment" hidden>
       <span class="big" style="display:inline-block;padding:8px 12px;border-radius:8px;background:#2a2e37;cursor:pointer">📷 Photo of the table</span></label>
     <div id="chatMsg" class="muted"></div></div>
+  <div class="card"><div class="muted">🗂 My board — what you have on the battlefield (everyone sees it)</div><div id="myBoard" style="margin-top:6px"></div></div>
   <div class="card cast" id="castCard" hidden><div class="muted">Just played</div><div id="cast"></div></div>
   <div class="card"><div class="muted">At the table</div><div id="caps"><div class="muted">Nothing yet.</div></div></div>
   <div class="card"><div class="muted">Fair decks: the AI's shuffle is sealed before the first draw</div>

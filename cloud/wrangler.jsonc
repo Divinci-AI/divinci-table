@@ -26,6 +26,8 @@
   ],
   "assets": { "directory": "./public", "binding": "ASSETS" },
   // Room snapshots (one object per room, rooms/<id>/snapshot.pkl): the game survives container sleep.
-  "r2_buckets": [{ "binding": "ROOM_SNAPSHOTS", "bucket_name": "divinci-table-rooms" }],
+  "r2_buckets": [{ "binding": "ROOM_SNAPSHOTS", "bucket_name": "divinci-table-rooms" },
+                 // 3D avatars for the stage (avatars/<name>.v2.glb …), uploaded from table/.cache/avatars
+                 { "binding": "ASSETS_BUCKET", "bucket_name": "divinci-table-assets" }],
   "observability": { "enabled": true }
 }

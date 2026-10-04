@@ -591,6 +591,30 @@ SEAT_INVITES: dict = {}   # sha256(invite) → seat: an open-market link; the fi
 SEAT_PROXY: dict = {}   # seat → the player who plays it tonight (e.g. {"Sam": "Michael"}): their key counts for it
 
 
+def board_from_body(b: dict) -> tuple[list, list]:
+    """A human seat's public board from a request: permanents (name, tapped, token, face_down, counters,
+    note, pt, zone) and graveyard, trimmed to safe sizes. Shared by the referee's /api/public-board and a
+    player's own /api/my-board."""
+    def clean(p):
+        p = p if isinstance(p, dict) else {"name": str(p)}
+        out = {"name": " ".join(str(p.get("name", "")).split())[:80]}
+        for k, t in (("tapped", bool), ("token", bool), ("face_down", bool)):
+            if k in p:
+                out[k] = t(p[k])
+        if "counters" in p:
+            try:
+                out["counters"] = max(-99, min(999, int(p["counters"])))
+            except (TypeError, ValueError):
+                pass
+        for k in ("note", "pt", "zone"):
+            if p.get(k):
+                out[k] = " ".join(str(p[k]).split())[:60]
+        return out
+    perms = [c for c in (clean(p) for p in (b.get("permanents") or [])[:120]) if c["name"]]
+    grave = [" ".join(str(x).split())[:80] for x in (b.get("graveyard") or [])][:200]
+    return perms, grave
+
+
 def seat_key_ok(name: str, key: str) -> bool:
     if SEAT_PROXY.get(name) and SEAT_PROXY[name] != name and seat_key_ok(SEAT_PROXY[name], key):
         return True
@@ -894,7 +918,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -2170,6 +2194,11 @@ class H(BaseHTTPRequestHandler):
                 by = unquote(self.headers.get("X-By", ""))[:30] or "someone"
                 caption = " ".join(unquote(self.headers.get("X-Caption", "")).split())[:300]
                 d = research_dir() / "photos"
+                if CLOUD:                                  # a public room: only seated players upload, and not forever
+                    if not seat_key_ok(by, unquote(self.headers.get("X-Seat-Key", ""))):
+                        return self._send(403, {"error": "claim your seat first (👤) to share photos"})
+                    if d.exists() and sum(1 for _ in d.iterdir()) >= 300:
+                        return self._send(429, {"error": "this table has reached its photo limit (300)"})
                 d.mkdir(exist_ok=True)
                 os.chmod(d, 0o700)
                 ext = ".jpg" if data[:3] == b"\xff\xd8\xff" else ".png"
@@ -2250,6 +2279,18 @@ class H(BaseHTTPRequestHandler):
                 t["by"] = str(b.get("by", ""))[:30]
                 emit("todo", kind="done" if t["done"] else "reopened", todo_id=t["id"], by=t["by"])
                 return self._send(200, t)
+            if self.path == "/api/my-board":               # a person records their OWN board from their phone
+                b = self._json()
+                who = str(b.get("by", ""))
+                if who not in [h["name"] for h in HUMANS] or not seat_key_ok(who, str(b.get("key", ""))):
+                    return self._send(403, {"error": "claim your seat first (👤): only you can record your board"})
+                perms, grave = board_from_body(b)
+                prev = PUBLIC_BOARD.get(who) or {}
+                PUBLIC_BOARD[who] = {"permanents": perms, "graveyard": grave,
+                                     "commander_out": bool(b.get("commander_out", prev.get("commander_out"))),
+                                     "updated": round(time.time(), 2)}
+                emit("board3d", seat=who, n=len(perms))
+                return self._send(200, {"ok": True, "seat": who, "permanents": len(perms)})
             if self.path == "/api/public-board":           # the brain records a human's board (from photos/speech)
                 if not secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN):
                     return self._send(403, {"error": "brain token required"})
@@ -2257,18 +2298,8 @@ class H(BaseHTTPRequestHandler):
                 who = str(b.get("seat", ""))
                 if who not in [h["name"] for h in HUMANS]:
                     return self._send(400, {"error": "public-board is for human seats; AI boards come from the engine"})
-                def clean(p):
-                    p = p if isinstance(p, dict) else {"name": str(p)}
-                    out = {"name": str(p.get("name", ""))[:80]}
-                    for k, t in (("tapped", bool), ("token", bool), ("face_down", bool), ("counters", int)):
-                        if k in p:
-                            out[k] = t(p[k])
-                    for k in ("note", "pt", "zone"):
-                        if p.get(k):
-                            out[k] = str(p[k])[:60]
-                    return out
-                perms = [clean(p) for p in (b.get("permanents") or [])][:120]
-                PUBLIC_BOARD[who] = {"permanents": perms, "graveyard": [str(x)[:80] for x in (b.get("graveyard") or [])][:200],
+                perms, grave = board_from_body(b)
+                PUBLIC_BOARD[who] = {"permanents": perms, "graveyard": grave,
                                      "commander_out": bool(b.get("commander_out")), "updated": round(time.time(), 2)}
                 emit("board3d", seat=who, n=len(perms))
                 return self._send(200, {"ok": True, "seat": who, "permanents": len(perms)})

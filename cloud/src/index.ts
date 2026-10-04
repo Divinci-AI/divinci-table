@@ -19,12 +19,13 @@ interface Env {
 	DIVINCI_FUSION_API_KEY?: string;
 	ADMIN_TOKEN?: string;
 	ROOM_SNAPSHOTS: R2Bucket;
+	ASSETS_BUCKET: R2Bucket;
 	FUSION_CONFIG?: string;
 }
 
 interface AiSeat { name: string; commander: string; deck: string }
 interface RoomConfig { humans: string[]; ai: AiSeat[]; game: "magic" }
-interface RoomInfo { id: string; title: string; game: string; humans: string[]; ai: string[]; created: number }
+interface RoomInfo { id: string; title: string; game: string; humans: string[]; ai: string[]; created: number; claimed?: string[] }
 
 // AI opponents a public room may seat. Each is played by a Divinci release (one per deck).
 const AI_DECKS: Record<string, { commander: string; deck: string }> = {
@@ -137,6 +138,13 @@ export class TableRoom extends Container<Env> {
 		}
 		const res = await this.containerFetch(request, this.defaultPort);
 		if (request.method !== "GET" && request.method !== "HEAD") this.saveSoon();
+		if (url.pathname === "/api/seat/claim" && res.ok) {               // keep the lobby's open-seat count current
+			const name = await res.clone().json<{ name?: string }>().then((d) => d.name ?? "").catch(() => "");
+			if (name && r.id !== "unknown") {
+				const lobby = this.env.LOBBY.get(this.env.LOBBY.idFromName("lobby"));
+				this.ctx.waitUntil(lobby.markClaimed(r.id, name).catch(() => undefined));
+			}
+		}
 		return res;
 	}
 }
@@ -149,6 +157,15 @@ export class Lobby extends DurableObject<Env> {
 		const live = rooms.filter((r) => now - r.created < ROOM_TTL_MS);
 		if (live.length !== rooms.length) await this.ctx.storage.put("rooms", live);
 		return live;
+	}
+
+	/** A person claimed a human seat (seen by the room as the claim passes through). */
+	async markClaimed(id: string, name: string): Promise<void> {
+		const rooms = await this.list();
+		const r = rooms.find((x) => x.id === id);
+		if (!r || !r.humans.includes(name) || (r.claimed ?? []).includes(name)) return;
+		r.claimed = [...(r.claimed ?? []), name];
+		await this.ctx.storage.put("rooms", rooms);
 	}
 
 	/** Take a room off the public list (admin). */
@@ -208,6 +225,7 @@ export default {
 			});
 		}
 		if (url.pathname.startsWith("/__room") || url.pathname.startsWith("/api/room/")) return new Response("Not found", { status: 404 });
+		if (url.pathname.startsWith("/avatars/") && request.method === "GET") return avatar(url.pathname, env);
 
 		const room = (request.headers.get("Cookie") ?? "").match(/(?:^|;\s*)room=([a-z0-9]{8})/)?.[1];
 		if (!room) return Response.redirect(url.origin + "/", 302);
@@ -217,6 +235,22 @@ export default {
 		return env.ROOM.get(env.ROOM.idFromName(room)).fetch(new Request(request, { headers }));
 	},
 } satisfies ExportedHandler<Env>;
+
+/** The stage's 3D avatars, shared by every room: R2 avatars/<name>.glb|.png, plus an index of model names. */
+async function avatar(path: string, env: Env): Promise<Response> {
+	if (path === "/avatars/index.json") {
+		const listed = await env.ASSETS_BUCKET.list({ prefix: "avatars/" });
+		const names = listed.objects.map((o) => o.key.slice(8)).filter((k) => k.endsWith(".glb")).map((k) => k.slice(0, -4));
+		return Response.json(names.sort(), { headers: { "Cache-Control": "public, max-age=300" } });
+	}
+	const name = decodeURIComponent(path.slice(9));
+	if (!/^[A-Za-z0-9 ._-]{1,80}\.(glb|png)$/.test(name)) return new Response("Not found", { status: 404 });
+	const obj = await env.ASSETS_BUCKET.get("avatars/" + name);
+	if (!obj) return new Response("Not found", { status: 404 });
+	return new Response(obj.body, { headers: {
+		"Content-Type": obj.httpMetadata?.contentType ?? (name.endsWith(".png") ? "image/png" : "model/gltf-binary"),
+		"Cache-Control": "public, max-age=86400", "ETag": obj.httpEtag } });
+}
 
 async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<Lobby>): Promise<Response> {
 	const form = await request.formData();
@@ -257,9 +291,12 @@ const SIGIL = `<svg class="sigil" viewBox="0 0 100 100" aria-hidden="true"><defs
 
 function lobbyPage(rooms: RoomInfo[], error: string): string {
 	const list = rooms.length
-		? rooms.map((r) => `<li><a href="/r/${r.id}"><img src="/brand/game-magic.jpg" alt=""><span class="t">${esc(r.title)}</span>
-			<span class="m">Commander · ${esc([...r.humans, ...r.ai].join(", "))} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span>
-			<span class="go">Take a seat →</span></a></li>`).join("")
+		? rooms.map((r) => {
+			const open = r.humans.filter((h) => !(r.claimed ?? []).includes(h));
+			const seats = open.length ? `${open.length} seat${open.length > 1 ? "s" : ""} open: ${esc(open.join(", "))}` : "Full";
+			return `<li><a href="/r/${r.id}"><img src="/brand/game-magic.jpg" alt=""><span class="t">${esc(r.title)}</span>
+			<span class="m">Commander · ${seats}${r.ai.length ? " · AI: " + esc(r.ai.join(", ")) : ""} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span>
+			<span class="go">${open.length ? "Take a seat →" : "Watch →"}</span></a></li>`; }).join("")
 		: `<li class="empty">No open tables yet. Start the first one.</li>`;
 	return `<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
 <title>Divinci Table</title><meta name=description content="Play Commander with people and AI players, each with your own physical cards on camera.">
@@ -332,7 +369,7 @@ ${error ? `<div class="err">${esc(error)}</div>` : ""}
 <label class="opp"><input type=checkbox name=ai value=tuvasa><b>Tuvasa the Sunlit</b>Enchantments that grow</label>
 <label class="opp"><input type=checkbox name=ai value=kaust><b>Kaust, Eyes of the Glade</b>Face-down surprises</label>
 <label class="opp"><input type=checkbox name=ai value=ellivere><b>Ellivere of the Wild Court</b>Roles and Auras</label></div>
-<button>Start table</button><small>Tables are public and listed here for six hours. Anyone with the link can claim an open seat.</small>
+<button>Start table</button><small>Tables are public and listed here for six hours. Anyone with the link can claim an open seat and watch the game. Photos you share are visible to everyone in the room.</small>
 </form></section>
 <div class="how">
 <figure><img src="/brand/your-cards.jpg" alt="Painted cards on a candlelit table under a brass camera arm." loading=lazy><figcaption><b>Your cards, your table</b>Play your own deck; a phone over your play area shows it.</figcaption></figure>
