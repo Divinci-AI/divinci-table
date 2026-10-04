@@ -9,7 +9,7 @@ milestone. Tick a box only when its check has been run and its output read.*
 
 - **Laptop table** (`table/server.py`): three games of Commander with people and AIs; seat claiming,
   ordered passing, sidekick checklist, fair randomness, research logs and surveys.
-- **Cloud** (`cloud/`): public lobby at https://divinci-table.divinci-ai.workers.dev, one Cloudflare
+- **Cloud** (`cloud/`): public lobby at https://table.divinci.ai, one Cloudflare
   Container per room, branded. People-only tables (AI seats wait for a budget).
 - **Marketing**: https://divinci.ai/table/ (3D on desktops, 2D on phones) with a waitlist in KV; Buffer
   drafts for LinkedIn and X waiting for approval.
@@ -86,7 +86,7 @@ A room's game must outlive its container: idle sleep, a redeploy, or a crash.
 
 ## Milestone 7 — Arena and research *(done; the Magic table gets the people's survey with the M4 core port)*
 - [x] Results ledger per game: seats, models and personalities, decks or roles, finishing order, integrity flags (`docs/results/ledger.json`, `table/ledger.py check`).
-- [x] Public leaderboard page (named models), with the confounds stated: https://divinci-table.divinci-ai.workers.dev/leaderboard
+- [x] Public leaderboard page (named models), with the confounds stated: https://table.divinci.ai/leaderboard
 - [x] Post-game surveys run when a result is recorded (`ledger.py finish`), plus an optional form for people (`/survey` on chess and D&D tables; Magic after the core port).
 - [x] Waitlist: `scripts/export-waitlist.py` → CSV for Attio import. Invitations go out in batches, sent by a person. *0 sign-ups so far, so nothing to import yet.*
 

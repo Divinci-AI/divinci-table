@@ -135,7 +135,7 @@ beside `core.py`'s contract. A game module only supplies **what lies on the tabl
 
 ## P0: what the probe checks on the 3S
 
-Open https://divinci-table.divinci-ai.workers.dev/xr-probe in the Quest browser, press **Run**, then
+Open https://table.divinci.ai/xr-probe in the Quest browser, press **Run**, then
 **Start AR** (it reports in the headset and shows a JSON summary to copy or screenshot).
 
 1. `immersive-ar` / `immersive-vr` supported, and the frame rates offered.

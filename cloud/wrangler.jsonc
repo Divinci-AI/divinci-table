@@ -24,6 +24,9 @@
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["TableRoom", "Lobby"] }
   ],
+  // table.divinci.ai: the public address (a Workers Custom Domain; Cloudflare makes the DNS record and certificate)
+  "routes": [{ "pattern": "table.divinci.ai", "custom_domain": true }],
+  "workers_dev": true,
   "assets": { "directory": "./public", "binding": "ASSETS" },
   // Room snapshots (one object per room, rooms/<id>/snapshot.pkl): the game survives container sleep.
   "r2_buckets": [{ "binding": "ROOM_SNAPSHOTS", "bucket_name": "divinci-table-rooms" },
