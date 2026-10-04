@@ -43,7 +43,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from core import Events, Room, Seats, clean_text, device_of, jdump, save_photo  # noqa: E402
+from core import Events, Room, Seats, clean_text, device_of, jdump, save_photo, save_survey  # noqa: E402
 from openmic import PRESETS, wake_word  # noqa: E402
 
 ap = argparse.ArgumentParser()
@@ -435,7 +435,7 @@ ROOM = Room(dump, load)
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────────────────────────────
-STATIC = {"/": "dnd.html", "/stage": "dnd.html", "/me": "dnd.html", "/dnd": "dnd.html"}
+STATIC = {"/survey": "survey.html", "/": "dnd.html", "/stage": "dnd.html", "/me": "dnd.html", "/dnd": "dnd.html"}
 ASSET_TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".png": "image/png", ".jpg": "image/jpeg"}
 
 
@@ -560,6 +560,11 @@ class H(BaseHTTPRequestHandler):
     def _act(self, p: str, b: dict, by: str, is_dm: bool):
         """Returns (status, body, follow-up to run after the lock is released)."""
         now = time.time()
+        if p == "/api/survey":
+            code, out = save_survey(RESEARCH / G["game_id"], by, b)
+            if code == 200:
+                EVENTS.emit("survey", by=by)
+            return code, out, None
         if p == "/api/chat":                                  # out of character: the DM is not called
             text = clean_text(b.get("text"), 400)
             if not text:

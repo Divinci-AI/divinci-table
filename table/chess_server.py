@@ -30,7 +30,7 @@ import chess.pgn
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from core import Events, Room, Seats, clean_text, device_of, jdump, save_photo  # noqa: E402
+from core import Events, Room, Seats, clean_text, device_of, jdump, save_photo, save_survey  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--white", default="White")
@@ -284,7 +284,7 @@ ROOM = Room(dump, load)
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────────────────────────────
-STATIC = {"/": "chess.html", "/stage": "chess.html", "/me": "chess.html", "/chess": "chess.html"}
+STATIC = {"/survey": "survey.html", "/": "chess.html", "/stage": "chess.html", "/me": "chess.html", "/chess": "chess.html"}
 ASSET_TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".png": "image/png", ".jpg": "image/jpeg"}
 
 
@@ -396,6 +396,13 @@ class H(BaseHTTPRequestHandler):
             return self._send(code, out)
         b = self._json()
         by = str(b.get("by", ""))
+        if p == "/api/survey":
+            if not SEATS.ok(by, str(b.get("key", ""))):
+                return self._send(403, {"error": "claim your seat first (👤)"})
+            code, out = save_survey(RESEARCH / G["game_id"], SEATS.canonical(by), b)
+            if code == 200:
+                EVENTS.emit("survey", by=SEATS.canonical(by))
+            return self._send(code, out)
         if p == "/api/chat":
             text = clean_text(b.get("text"), 400)
             if not text:

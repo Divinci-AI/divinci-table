@@ -158,6 +158,22 @@ call("/api/dnd/continue", {"by": "Sam", "key": sk})
 time.sleep(0.2)
 check("per-room DM cap holds", len(calls) == 1 and any("limit" in (e.get("text") or "") for e in D.EVENTS.items[-3:]))
 
+print("people's survey")
+code, _ = call("/api/survey", {"by": "Sam", "scale": {"I felt content": 3}})
+check("survey needs a seat key", code == 403)
+code, _ = call("/api/survey", {"by": "Sam", "key": sk, "scale": {"I felt content": 9}})
+check("ratings stay 0-4", code == 400)
+code, _ = call("/api/survey", {"by": "Sam", "key": sk})
+check("an empty survey is refused", code == 400)
+code, _ = call("/api/survey", {"by": "Sam", "key": sk, "scale": {"I felt content": 3, "made up": 4}, "best": "the bridge fight", "evil": "x"})
+files = list((D.RESEARCH / D.G["game_id"]).glob("survey-human-*.json"))
+saved = json.loads(files[0].read_text()) if files else {}
+check("saved with only the fixed questions", code == 200 and saved.get("scale") == {"I felt content": 3}
+      and saved.get("text") == {"best": "the bridge fight"}, str(saved))
+ev = [e for e in D.EVENTS.items if e["type"] == "survey"]
+check("the public log says who answered, never what", ev and set(ev[-1]) <= {"id", "type", "ts", "by"}, str(ev[-1:]))
+check("survey page serves", "How was the game?" in urllib.request.urlopen(BASE + "/survey").read().decode())
+
 print("persistence")
 blob = D.ROOM.snapshot()
 hp, scene, nev = D.G["sheets"]["Michael"]["hp"], D.G["scene"], D.EVENTS.next_id

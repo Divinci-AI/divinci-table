@@ -159,6 +159,35 @@ def save_photo(data: bytes, folder: Path, cap: int = 300) -> tuple[int, dict]:
     return 200, {"ok": True, "photo": "/photos/" + name}
 
 
+SURVEY_SCALE = ["I felt content", "I felt skilful", "I felt bad", "I found it tiresome", "I felt satisfied",
+                "I felt regret", "I felt energised", "I felt proud"]          # GEQ post-game subset, 0 not at all … 4 extremely
+SURVEY_TEXT = ["best", "worst", "ai", "again"]                              # free text, short
+
+
+def save_survey(folder: Path, by: str, body: dict) -> tuple[int, dict]:
+    """A person's optional post-game survey: the fixed questions only, kept in the room's research folder
+    (never in the public log). One file per person; answering again replaces it."""
+    scale = body.get("scale") or {}
+    out = {"version": "0.1", "by": by, "ts": round(time.time(), 2), "scale": {}, "text": {}}
+    for q in SURVEY_SCALE:
+        v = scale.get(q)
+        if v is not None:
+            if not isinstance(v, int) or not 0 <= v <= 4:
+                return 400, {"error": "ratings are whole numbers from 0 to 4"}
+            out["scale"][q] = v
+    for k in SURVEY_TEXT:
+        if body.get(k):
+            out["text"][k] = clean_text(body[k], 600)
+    if not out["scale"] and not out["text"]:
+        return 400, {"error": "answer at least one question"}
+    folder.mkdir(parents=True, exist_ok=True)
+    os.chmod(folder, 0o700)
+    f = folder / f"survey-human-{hashlib.sha256(by.encode()).hexdigest()[:10]}.json"
+    f.write_text(json.dumps(out, ensure_ascii=False, indent=1))
+    os.chmod(f, 0o600)
+    return 200, {"ok": True}
+
+
 def clean_text(s, n: int) -> str:
     return " ".join(str(s or "").split())[:n]
 

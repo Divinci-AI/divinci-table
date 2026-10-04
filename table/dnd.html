@@ -83,7 +83,7 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 30px;font-size:12.5px;color
     <div class="panel"><h2>The party</h2><div id="party"></div><h2 style="margin-top:12px">Foes</h2><div id="mons" class="small">None in sight.</div></div>
   </aside>
 </main>
-<footer id="credit"></footer>
+<footer><a href="/survey" style="color:var(--teal)">How was the game? (optional survey)</a><div id="credit" style="margin-top:6px"></div></footer>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

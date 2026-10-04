@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Divinci Table — How was the game?</title>
+<link rel="stylesheet" href="/assets/brand.css">
+<style>
+:root{--bg:#040d12;--panel:#0d1d25;--line:#d9b46a33;--ink:#ece4cf;--dim:#9fb0b0;--gold:#d9b46a;--gold-hi:#f4dc9b;--gold-lo:#8a6a2e;--teal:#3fd0c9}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--ink);font:17px/1.45 system-ui,-apple-system,sans-serif;background:radial-gradient(800px 500px at 50% -80px,#16465a 0%,transparent 70%),var(--bg)}
+main{max-width:620px;margin:0 auto;padding:24px 16px 60px}
+h1{font:900 24px Cinzel,Georgia,serif;letter-spacing:.06em;margin:4px 0 6px;background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));-webkit-background-clip:text;background-clip:text;color:transparent}
+.q{background:var(--panel);border-radius:10px;padding:12px 14px;margin:10px 0;box-shadow:inset 0 0 0 1px var(--line)}
+.scale{display:flex;gap:6px;margin-top:8px}.scale button{flex:1;padding:9px 0;border-radius:8px;border:1px solid #d9b46a55;background:#10242d;color:var(--ink);font:600 15px system-ui;cursor:pointer}
+.scale button.on{background:var(--teal);color:#03181a}
+textarea{width:100%;min-height:64px;margin-top:6px;padding:9px;border-radius:8px;border:1px solid #d9b46a55;background:#071820;color:var(--ink);font:16px system-ui}
+.ends{display:flex;justify-content:space-between;font-size:12.5px;color:var(--dim);margin-top:4px}
+button.gold{margin-top:14px;width:100%;padding:12px;border-radius:9px;border:1px solid var(--gold-lo);background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));color:#1a1206;font:700 16px Cinzel,Georgia,serif;letter-spacing:.06em;cursor:pointer}
+#msg{min-height:1.4em;margin-top:10px;color:var(--gold-hi)}.small{font-size:14px;color:var(--dim)}
+</style>
+<script src="/assets/seat.js" defer></script>
+<script src="/assets/brand.js" defer></script>
+</head>
+<body data-brand="me">
+<main>
+  <h1>How was the game?</h1>
+  <p class="small">Optional, and every question can be skipped. Your answers go to the research notes for this table only, never to the table's public log. Rate each from 0 (not at all) to 4 (extremely).</p>
+  <div id="scale"></div>
+  <div class="q">The best moment of the game<textarea id="best" maxlength="600"></textarea></div>
+  <div class="q">The worst moment, or what felt off<textarea id="worst" maxlength="600"></textarea></div>
+  <div class="q">Playing with (or against) the AI: what worked, what didn't<textarea id="ai" maxlength="600"></textarea></div>
+  <div class="q">Would you play at this table again? Why?<textarea id="again" maxlength="600"></textarea></div>
+  <button class="gold" id="send">Send</button>
+  <div id="msg" role="status"></div>
+  <p class="small"><a href="/me" style="color:var(--teal)">← Back to the table</a></p>
+</main>
+<script>
+const SCALE = ["I felt content", "I felt skilful", "I felt bad", "I found it tiresome", "I felt satisfied", "I felt regret", "I felt energised", "I felt proud"];
+const picked = {};
+document.getElementById("scale").innerHTML = SCALE.map((q, i) => `<div class="q">${q}<div class="scale" data-i="${i}">${[0, 1, 2, 3, 4].map(v => `<button data-v="${v}">${v}</button>`).join("")}</div>
+  <div class="ends"><span>not at all</span><span>extremely</span></div></div>`).join("");
+document.getElementById("scale").onclick = e => {
+  const v = e.target.dataset.v, row = e.target.parentElement; if (v === undefined) return;
+  const q = SCALE[+row.dataset.i];
+  if (picked[q] === +v) { delete picked[q]; } else { picked[q] = +v; }
+  [...row.children].forEach(b => b.classList.toggle("on", picked[q] === +b.dataset.v));
+};
+document.getElementById("send").onclick = async () => {
+  if (!window.TableSeat || !TableSeat.name()) { document.getElementById("msg").textContent = "Claim your seat first (👤, top right)."; TableSeat && TableSeat.pick(); return; }
+  const body = TableSeat.body({ scale: picked, best: best.value, worst: worst.value, ai: ai.value, again: again.value });
+  const r = await fetch("/api/survey", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  document.getElementById("msg").textContent = r.ok ? "Thank you — saved. You can change your answers and send again." : (d.error || "That didn't save.");
+};
+</script>
+</body>
+</html>

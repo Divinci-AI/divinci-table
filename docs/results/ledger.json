@@ -1,0 +1,53 @@
+{
+ "version": 1,
+ "note": "Commander games at the Divinci Table. Claude = Claude Code driving a seat through the table's API. Fusion = a Divinci release (RAG over the Magic rules plus its deck; model chain gemini-3-5-flash, falling back to Gemma 4 26B and Kimi K2.6). Only FINISHED games count toward placements; a seat a person or another AI piloted is 'assisted' and left out. Three games is an anecdote, not a ranking.",
+ "games": [
+  {
+   "id": "g1", "date": "2026-09-30", "game": "magic-commander", "research": "2026-09-30-game1",
+   "seats": [
+    {"seat": "Claude", "commander": "Ellivere of the Wild Court", "deck": "Virtue and Valor", "controller": {"kind": "ai", "system": "Claude", "model": "claude-opus-5-5"}},
+    {"seat": "Michael", "commander": "Kilo, Apogee Mind", "deck": "own physical deck", "controller": {"kind": "human", "name": "Michael"}},
+    {"seat": "Sam", "commander": "Captain N'ghathrod", "deck": "own physical deck", "controller": {"kind": "human", "name": "Sam"}}
+   ],
+   "result": {"status": "finished", "order": ["Claude", "Michael", "Sam"], "winner": "Claude", "how": "Claude's 27-damage flying attack took Sam out, then a 62-damage attack ended Michael (\"GG, Claude.\")."},
+   "integrity": {"flags": 0, "notes": "No integrity log yet (the protocol came later)."},
+   "confounds": ["Three players, not four.", "People relayed the table to Claude by typing and photos.", "Take-backs by both people.", "Some triggers and mana resolved by hand (engine gaps)."]
+  },
+  {
+   "id": "g2", "date": "2026-10-01", "game": "magic-commander", "research": "20261001-225214",
+   "seats": [
+    {"seat": "Fusion", "commander": "Kaust, Eyes of the Glade", "deck": "Deadly Disguise", "controller": {"kind": "ai", "system": "Fusion", "model": "gemini-3-5-flash"}},
+    {"seat": "Sam", "commander": "Captain N'ghathrod", "deck": "own physical deck", "controller": {"kind": "human", "name": "Sam"}},
+    {"seat": "Claude", "commander": "Aminatou, the Fateshifter", "deck": "Subjective Reality", "controller": {"kind": "ai", "system": "Claude", "model": "claude-opus-5-5"}},
+    {"seat": "Michael", "commander": "Kilo, Apogee Mind", "deck": "own physical deck", "controller": {"kind": "human", "name": "Michael"}}
+   ],
+   "result": {"status": "finished", "order": ["Sam", "Fusion", "Michael", "Claude"], "winner": "Sam", "how": "Claude fell first, then Michael to Sewer Nemesis; a 48-power unblockable Sewer Nemesis finished Fusion."},
+   "integrity": {"flags": 5, "notes": "Three hidden-information slips (all Claude's, all disclosed, none used), one rollback of a duplicate Fusion turn, one mid-game server move."},
+   "confounds": ["Played over two sessions from a snapshot.", "Michael played part of Sam's turn while Sam slept.", "The engine never resolved AI-vs-AI combat; some mills applied by hand.", "Claude was also the table's referee and toolmaker."]
+  },
+  {
+   "id": "g3", "date": "2026-10-02", "game": "magic-commander", "research": "20261002-220213",
+   "seats": [
+    {"seat": "Michael", "commander": "Inspirit, Flagship Vessel", "deck": "Counter Intelligence", "controller": {"kind": "human", "name": "Michael"}},
+    {"seat": "Fusion", "commander": "Tuvasa the Sunlit", "deck": "Adaptive Enchantment (commander swapped)", "controller": {"kind": "ai", "system": "Fusion", "model": "gemini-3-5-flash"}},
+    {"seat": "Sam", "commander": "Aminatou, the Fateshifter", "deck": "Subjective Reality", "controller": {"kind": "human", "name": "Sam"}},
+    {"seat": "Claude", "commander": "Elsha of the Infinite", "deck": "Mystic Intellect (commander swapped)", "controller": {"kind": "ai", "system": "Claude", "model": "claude-opus-5-5"}}
+   ],
+   "result": {"status": "unfinished", "order": [], "how": "Paused at 3 a.m. on Michael's turn 8: Sam 41, Claude 40, Michael 36, Fusion 27."},
+   "integrity": {"flags": 15, "notes": "Hidden-information events (a photo of Sam's hand; Claude reading Fusion's hand while piloting Sam), seat handoffs, a rollback, engine gaps, a silently replaced high roll. Shared with g3-fork."},
+   "confounds": ["Claude piloted Sam's seat from Sam's turn 7, and Michael's from about 03:00.", "Commanders swapped into precons for Claude and Fusion."]
+  },
+  {
+   "id": "g3-fork", "date": "2026-10-03", "game": "magic-commander", "research": "20261002-220213",
+   "seats": [
+    {"seat": "Michael", "commander": "Inspirit, Flagship Vessel", "deck": "Counter Intelligence", "controller": {"kind": "ai", "system": "Claude", "model": "claude-opus-5-5"}, "assisted": true},
+    {"seat": "Fusion", "commander": "Tuvasa the Sunlit", "deck": "Adaptive Enchantment (commander swapped)", "controller": {"kind": "ai", "system": "Fusion", "model": "gemini-3-5-flash"}},
+    {"seat": "Sam", "commander": "Aminatou, the Fateshifter", "deck": "Subjective Reality", "controller": {"kind": "ai", "system": "Claude", "model": "claude-opus-5-5"}, "assisted": true},
+    {"seat": "Claude", "commander": "Elsha of the Infinite", "deck": "Mystic Intellect (commander swapped)", "controller": {"kind": "ai", "system": "Claude", "model": "claude-opus-5-5"}}
+   ],
+   "result": {"status": "forked", "order": ["Sam", "Michael", "Claude", "Fusion"], "winner": "Sam", "how": "Digital branch from the paused game with rebuilt hands and libraries. Depthshaker Titan (51 trample) knocked out Fusion and Claude in one combat (a tie for last), then Sam's seat finished Michael. Final life: Sam 18."},
+   "integrity": {"flags": 15, "notes": "Shared with g3."},
+   "confounds": ["Not a continuation of the human game: hands and libraries were rebuilt from deck files.", "One mind (Claude) played three of four seats and knew Sam's hand.", "Claude chose the attack that knocked out its own seat."]
+  }
+ ]
+}

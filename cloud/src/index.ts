@@ -469,6 +469,7 @@ footer{text-align:center;color:#7c8b8d;font-size:15px}footer a{color:var(--gold)
 <header>${SIGIL}<div class="kicker">A new kind of game night</div><h1>Divinci Table</h1>
 <p>Commander with people and AI players. Everyone keeps their own physical cards on camera; phones pass priority, track life and share photos.</p></header>
 ${error ? `<div class="err">${esc(error)}</div>` : ""}
+<p style="text-align:center"><a href="/leaderboard" style="color:var(--gold-hi)">Results so far: which AIs won, and the caveats →</a></p>
 <section><h2>Open tables</h2><ul>${list}</ul></section>
 <section><h2>Start a table</h2><form method=post action="/lobby/rooms">
 <label>Game</label><div class="opps">
