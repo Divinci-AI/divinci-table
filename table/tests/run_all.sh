@@ -46,6 +46,7 @@ run dnd           /usr/bin/python3 table/tests/dnd_test.py
 run ledger        /usr/bin/python3 table/tests/ledger_test.py
 run fusion-cap    /usr/bin/python3 table/tests/fusion_cap_test.py
 run remote-guard  $PY table/tests/remote_guard_test.py
+run openmic-room  $PY table/tests/openmic_room_test.py
 run xr-math       node table/tests/xr_math_test.mjs
 run cloud-policy  node --experimental-strip-types --test cloud/test/policy.test.ts
 if [ "${1:-}" = quick ]; then

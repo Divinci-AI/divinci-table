@@ -315,6 +315,8 @@ async function poll() {
         if (e.action === "begin") act(a, "think"); else if (e.action === "cast") act(a, "cast");
         else if (e.action === "attack" || e.action === "damage") act(a, "win"); else if (e.action === "end") act(a, "done"); }
       if (e.type === "life" && a && e.delta) act(a, e.delta < 0 ? "hurt" : "react");
+      if (e.type === "openmic" && e.kind === "maybe_move" && e.by && e.by === window.TableSeat?.name())
+        say2("📝 That sounded like a move I couldn't read — say it again with the card's name, or record it on /me.");
       if (e.type === "captain") { const c = actors[e.seat]; if (c) { c.talkUntil = performance.now() + 4000; act(c, "react"); }
         if (e.audio) new Audio(e.audio).play().catch(() => {}); }
       if (e.type === "life" || e.type === "hand" || (e.type === "say" && /draw|cast|land/.test(e.action || ""))) refresh();
@@ -430,7 +432,7 @@ addEventListener("keydown", ev => {
 // Speech goes to the room (/api/xr/stt, Workers AI Whisper) and comes back as words, which are said at the table
 // as MY line (/api/chat: the AIs hear it, the referee reads moves from it). A photo goes to /api/xr/vision, which
 // lists the cards it can see; nothing is recorded until I press Record, and the photo itself is never shared.
-const media = { talking: false, busy: false, status: "", proposal: null, rec: null, chunks: [], t0: 0 };
+const media = { talking: false, busy: false, status: "", proposal: null, rec: null, chunks: [], t0: 0, added: new Map() };
 const say2 = t => { media.status = t; };
 async function talk(down) {
   if (!window.TableSeat?.name()) { say2("👤 claim your seat first (before entering), so the table knows who's talking"); return; }
@@ -490,8 +492,133 @@ async function recordBoard() {
     body: JSON.stringify(window.TableSeat.body({ merge: true, seen: media.proposal })) });
   const d = await r.json().catch(() => ({}));
   say2(r.ok ? `✓ added ${d.added}, updated ${d.updated} — your board now has ${d.permanents} cards` : "⚠ " + (d.error || "couldn't record it"));
-  if (r.ok) { media.proposal = null; boardRefresh(); }
+  if (r.ok) {                                              // remember what's on my board, so watching suggests only what's new
+    for (const c of media.proposal) media.added.set(c.name, Math.max(c.count, media.added.get(c.name) || 0));
+    media.proposal = null; boardRefresh();
+  }
 }
+// ── the open mic: always listening while on, voice-activated, judged at the table by Clef ────────────────
+// Raw audio (not MediaRecorder) so a 0.5 s pre-roll keeps the first word; a segment ends after 0.7 s of quiet or at
+// 12 s, goes to Whisper as 16 kHz WAV, and reaches the table marked `spoken` — so side conversation never lands in
+// the public log (the table shows "(side conversation)"). Push-to-talk (X) pauses it while held.
+const mic = { on: false, stream: null, ctx: null, node: null, pre: [], seg: null, quiet: 0, voiced: 0, floor: 0.004 };
+const HALLUCINATED = /^(thank you\.?|thanks for watching!?|you|bye\.?|\.+|okay\.?)$/i;   // Whisper's words for silence
+function wav16k(chunks, rate) {
+  const n = chunks.reduce((a, c) => a + c.length, 0), all = new Float32Array(n); let o = 0;
+  for (const c of chunks) { all.set(c, o); o += c.length; }
+  const step = rate / 16000, len = Math.floor(n / step), pcm = new Int16Array(len);
+  for (let i = 0; i < len; i++) pcm[i] = Math.max(-1, Math.min(1, all[Math.floor(i * step)])) * 0x7fff;
+  const b = new DataView(new ArrayBuffer(44 + pcm.length * 2)), w = (p, t) => [...t].forEach((ch, i) => b.setUint8(p + i, ch.charCodeAt(0)));
+  w(0, "RIFF"); b.setUint32(4, 36 + pcm.length * 2, true); w(8, "WAVEfmt "); b.setUint32(16, 16, true); b.setUint16(20, 1, true);
+  b.setUint16(22, 1, true); b.setUint32(24, 16000, true); b.setUint32(28, 32000, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true);
+  w(36, "data"); b.setUint32(40, pcm.length * 2, true); new Int16Array(b.buffer, 44).set(pcm);
+  return new Blob([b.buffer], { type: "audio/wav" });
+}
+async function heardSegment(blob) {
+  try {
+    const r = await fetch("/api/xr/stt", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: blob });
+    const d = await r.json().catch(() => ({}));
+    const text = (d.text || "").trim();
+    if (!r.ok) { if (r.status === 429 || r.status === 503) say2("🎙 " + (d.error || "paused")); return; }
+    if (!text || HALLUCINATED.test(text) || text.split(/\s+/).length < 2) return;
+    const c = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(window.TableSeat.body({ text, spoken: true })) });
+    const out = await c.json().catch(() => ({}));
+    say2(out.reply ? `🎙 “${text}” — ${out.reply}` : `🎙 “${text}”`);
+  } catch {}
+}
+async function setOpenMic(on) {
+  if (on === mic.on) return;
+  if (!on) {
+    mic.on = false; mic.node?.disconnect(); mic.stream?.getTracks().forEach(t => t.stop()); mic.ctx?.close().catch(() => {});
+    Object.assign(mic, { stream: null, ctx: null, node: null, pre: [], seg: null }); say2("🎙 open mic off"); return;
+  }
+  if (!window.TableSeat?.name()) { say2("👤 claim your seat first (before entering)"); return; }
+  try {
+    mic.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    mic.ctx = new AudioContext(); await mic.ctx.resume();
+    const src = mic.ctx.createMediaStreamSource(mic.stream), node = mic.ctx.createScriptProcessor(4096, 1, 1);
+    const blockMs = 4096 / mic.ctx.sampleRate * 1000, preBlocks = Math.ceil(500 / blockMs);
+    node.onaudioprocess = e => {
+      const x = new Float32Array(e.inputBuffer.getChannelData(0));
+      if (media.talking) { mic.seg = null; mic.pre = []; return; }       // push-to-talk has the floor
+      let sum = 0; for (const v of x) sum += v * v; const rms = Math.sqrt(sum / x.length);
+      if (!mic.seg) mic.floor = mic.floor * 0.98 + Math.min(rms, 0.05) * 0.02;
+      const loud = rms > Math.max(0.012, mic.floor * 3);
+      if (!mic.seg) {
+        mic.pre.push(x); if (mic.pre.length > preBlocks) mic.pre.shift();
+        mic.voiced = loud ? mic.voiced + blockMs : 0;
+        if (mic.voiced >= 150) { mic.seg = [...mic.pre]; mic.quiet = 0; mic.t0 = performance.now(); }
+        return;
+      }
+      mic.seg.push(x); mic.quiet = loud ? 0 : mic.quiet + blockMs;
+      if (mic.quiet >= 700 || performance.now() - mic.t0 > 12000) {
+        const blob = wav16k(mic.seg, mic.ctx.sampleRate); mic.seg = null; mic.pre = []; mic.voiced = 0;
+        heardSegment(blob);
+      }
+    };
+    src.connect(node); node.connect(mic.ctx.destination);                 // (the node outputs silence)
+    mic.node = node; mic.on = true; say2("🎙 open mic ON — the table hears you; AIs speak when it fits");
+  } catch (e) { say2("⚠ microphone: " + (e.message || e)); }
+}
+
+// ── watching my board: passive reading from the headset cameras, as suggestions ──────────────────────────
+// Only while I look DOWN at the table (that keeps faces and raised hands out of most frames), only after the view
+// changed and then held still, at most one reading every 30 s, and only with my deck known (names come from it).
+// What it sees is merged into the suggestions on the panel; one press adds them — it never removes a card.
+const watch = { on: false, stream: null, video: null, last: null, changed: false, still: 0, lastSent: 0, timer: null };
+const small = document.createElement("canvas"); small.width = 48; small.height = 27;
+function frameDiff() {
+  const g = small.getContext("2d", { willReadFrequently: true }); g.drawImage(watch.video, 0, 0, 48, 27);
+  const px = g.getImageData(0, 0, 48, 27).data, cur = new Uint8Array(48 * 27);
+  for (let i = 0; i < cur.length; i++) cur[i] = (px[i * 4] + px[i * 4 + 1] + px[i * 4 + 2]) / 3;
+  let d = 255; if (watch.last) { d = 0; for (let i = 0; i < cur.length; i++) d += Math.abs(cur[i] - watch.last[i]); d /= cur.length; }
+  watch.last = cur; return d;
+}
+async function watchTick() {
+  if (!watch.on || media.busy || !renderer.xr.isPresenting || !watch.video?.videoWidth) return;
+  const look = new THREE.Vector3(); renderer.xr.getCamera().getWorldDirection(look);
+  if (look.y > -0.42) { watch.last = null; return; }              // not looking down at the table (≈25°)
+  const d = frameDiff();
+  if (d > 10) { watch.changed = true; watch.still = 0; return; }   // moving, or the board changed: wait for it to settle
+  if (!watch.changed || d > 4 || ++watch.still < 2 || performance.now() - watch.lastSent < 30000) return;
+  watch.changed = false; watch.lastSent = performance.now();
+  const c = document.createElement("canvas"); c.width = watch.video.videoWidth; c.height = watch.video.videoHeight;
+  c.getContext("2d").drawImage(watch.video, 0, 0);
+  const jpg = await new Promise(r => c.toBlob(r, "image/jpeg", 0.82));
+  try {
+    const r = await fetch("/api/xr/vision?passive=1", { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: jpg });
+    const res = await r.json().catch(() => ({}));
+    if (r.status === 412) { setWatch(false); say2("👁 " + res.error); return; }
+    if (!r.ok) return;
+    const before = new Map((media.proposal || []).map(c => [c.name, c]));
+    for (const c of res.cards || []) {
+      if (c.count <= (media.added.get(c.name) || 0)) continue;     // already added
+      const b = before.get(c.name); if (!b || c.count > b.count) before.set(c.name, c);
+    }
+    const next = [...before.values()];
+    if (next.length !== (media.proposal || []).length || next.some((c, i) => c !== (media.proposal || [])[i])) {
+      media.proposal = next; say2(`👁 seen on your board: ${next.length} card name${next.length === 1 ? "" : "s"} — Add them when they look right`);
+    }
+  } catch {}
+}
+async function setWatch(on) {
+  if (on === watch.on) return;
+  if (!on) {
+    clearInterval(watch.timer); watch.stream?.getTracks().forEach(t => t.stop());
+    Object.assign(watch, { on: false, stream: null, video: null, last: null, timer: null }); say2("👁 watching off"); return;
+  }
+  if (!window.TableSeat?.name()) { say2("👤 claim your seat first (before entering)"); return; }
+  try {
+    watch.stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } } });
+    watch.video = document.createElement("video"); watch.video.muted = true; watch.video.playsInline = true;
+    watch.video.srcObject = watch.stream; await watch.video.play();
+    watch.on = true; watch.timer = setInterval(watchTick, 1500);
+    say2("👁 watching your board — look down at your cards; suggestions appear here");
+  } catch (e) { say2("⚠ camera: " + (e.message || e)); }
+}
+renderer.xr.addEventListener("sessionend", () => { setWatch(false); setOpenMic(false); });   // nothing listens or looks outside a session
+
 // Ask for the microphone and the headset cameras on the 2D page, so no permission prompt interrupts the session.
 const allow = document.createElement("button");
 allow.textContent = "Allow mic & cameras";
@@ -517,7 +644,8 @@ controls = installXRControls({ THREE, renderer, scene, camera, table, board,
   placed: () => placed, consume: () => { consumed = true; setTimeout(() => (consumed = false), 3000); },
   replace: () => { placed = false; document.getElementById("hint").textContent = "Point at the table, then pinch to place it"; },
   setLifeSize: life => { table.position.y += life ? -0.72 : 0.72; },              // life-size stands on the floor, mini on the tabletop
-  media: () => media, talk, snap, record: recordBoard, discard: () => { media.proposal = null; say2("discarded — snap again with Y"); },
+  media: () => ({ ...media, openMic: mic.on, watching: watch.on }), talk, snap, record: recordBoard,
+  openMic: () => setOpenMic(!mic.on), watch: () => setWatch(!watch.on), discard: () => { media.proposal = null; say2("discarded — snap again with Y"); },
 });
 // remote players' heads and hands (assets/xr-presence.js; cloud rooms: the presence WebSocket)
 if (CLOUD_ROOM) presence = installPresence({ THREE, renderer, scene, table, mySeat: () => window.TableSeat?.name() || "",

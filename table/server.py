@@ -1187,6 +1187,15 @@ def respond_text(text: str, who: str | None, t0: float, t_stt: int = 0):
         from match import recognise_spoken
         if recognise_spoken(expand_nicknames(text), CATALOG)[0]:
             r = {**r, "kind": "play", "addressee": "nobody in particular", "overridden": "action+card"}
+    mic_d = None
+    if open_mic():                                     # one judge request per line: who should speak, and is it a move
+        import openmic
+        mic_d = MIC.heard(text, who, recent, may_speak=r["kind"] != "play")
+        gate = openmic.move_gate(r["kind"], mic_d.scores)
+        if gate == "chatter":                          # "I cast a glance at the menu": the router saw a play; it isn't one
+            r = {**r, "kind": "chatter", "vetoed": "open mic: not a move"}
+        elif gate == "maybe_move" and who:             # sure it changed the game, but no move was read: ask the speaker
+            emit("openmic", kind="maybe_move", by=who, text=text[:200])
     if r["kind"] == "play":
         expanded = expand_nicknames(text)
         import tablefacts
@@ -1200,9 +1209,8 @@ def respond_text(text: str, who: str | None, t0: float, t_stt: int = 0):
         if cards:
             LAST_PLAY.update(cards=list(cards), at=time.time())
     speaker, reply = voice.decide_reply(r, [p["name"] for p in AI_PLAYERS])
-    mic_d, side_talk = None, False
-    if open_mic() and r["kind"] != "play":
-        mic_d = MIC.heard(text, who, recent)
+    side_talk = False
+    if mic_d is not None and r["kind"] != "play":
         side_talk = mic_d.about_game < 0.5 and mic_d.reason == "none"
         if mic_d.seat and not reply:
             speaker = mic_d.seat
@@ -2336,7 +2344,9 @@ class H(BaseHTTPRequestHandler):
                 if b.get("talk") or text.startswith("~"):     # just talking: everyone sees it, nothing reads it as a move
                     emit("chat", by=by or "someone", text=text.lstrip("~ ").strip() or text, talk=True)
                     return self._send(200, {"ok": True, "talk": True})
-                emit("chat", by=by or "someone", text=text)          # everyone sees it; the AIs hear it as if said aloud
+                if not b.get("spoken"):                   # typed (or pushed-to-talk): everyone sees it as said
+                    emit("chat", by=by or "someone", text=text)      # the AIs hear it as if said aloud
+                # spoken on an open mic: only "heard" (below) shows it, and side conversation shows as a placeholder
                 try:
                     out = respond_text(text, who, time.time())
                 except Exception as e:                    # the line is in the log either way

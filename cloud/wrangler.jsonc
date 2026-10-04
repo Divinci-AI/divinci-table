@@ -29,6 +29,7 @@
   "workers_dev": true,
   // Workers AI: the headset's push-to-talk (Whisper) and board photos (a vision model), see TableRoom.xrAi
   "ai": { "binding": "AI" },
+  "vars": { "PUBLIC_ORIGIN": "https://table.divinci.ai" },
   "assets": { "directory": "./public", "binding": "ASSETS" },
   // Room snapshots (one object per room, rooms/<id>/snapshot.pkl): the game survives container sleep.
   "r2_buckets": [{ "binding": "ROOM_SNAPSHOTS", "bucket_name": "divinci-table-rooms" },

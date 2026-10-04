@@ -169,6 +169,14 @@ Open https://table.divinci.ai/xr-probe in the Quest browser, press **Run**, then
   confirm → it ADDS to your recorded board. On a real game-3 photo it found 6 of 9 cards with none wrong, and
   missed every sideways (tapped) card, in every variant tried — so a photo never removes a card. Record the
   tapped ones by voice or on /me until a better reader exists.
-- **Not yet:** the laptop table (`TLS=1 /xr`) has no Worker, so voice and photos work in cloud rooms only;
-  shared anchors and remote players' head/hand presence (P2–P3).
+- **Presence (P2, built):** headsets send head + controllers in table coordinates over the room's WebSocket; others
+  see a visor, two hands and a name at their real place around the table (live-tested: two seats, a 999 m pose
+  dropped, unauthenticated and made-up keys closed, leave announced).
+- **Open mic (built):** 🎙 on the panel; voice-activated segments → Whisper → the table, judged by Cloudflare's
+  Clef-Flash (0.2–0.5 s): it decides when an AI speaks (personality thresholds, cooldowns, budgets) and whether a
+  line alters the game — a router "move" it's sure isn't one is dropped, and a move it's sure the router missed
+  nudges the speaker. Measured on Clef-Flash: casts/attacks ~0.96 "changes the game", banter ~0.03.
+- **Watching my board (built):** 👁 on the panel; passive readings while you look down, merged into suggestions.
+- **Not yet:** the laptop table (`TLS=1 /xr`) has no Worker, so voice, photos, presence and the Clef open mic work in
+  cloud rooms only; shared anchors (P3); lighter Quest avatars.
 

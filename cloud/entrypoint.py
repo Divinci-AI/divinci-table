@@ -49,6 +49,8 @@ for h in cfg.get("humans", []):
 if cfg.get("order"):
     args += ["--order", cfg["order"]]
 env = dict(os.environ, TABLE_CLOUD="1", NO_GEMMA="1", ROUTER="code", REPLIES="code")
+if os.environ.get("OPENMIC_ROOM") == "1":            # the Worker turned on the Clef-judged open mic for this room
+    env.update(OPENMIC_V2="1", OPENMIC_BACKEND="room")
 procs = [subprocess.Popen(args, cwd=ROOT, env=env)]
 time.sleep(4)                                       # the server writes the brain token on start
 key = os.environ.get("DIVINCI_FUSION_API_KEY")

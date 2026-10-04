@@ -23,7 +23,8 @@ interface Env {
 	ROOM_SNAPSHOTS: R2Bucket;
 	ASSETS_BUCKET: R2Bucket;
 	FUSION_CONFIG?: string;
-	AI: { run(model: string, input: unknown): Promise<unknown> };   // Workers AI: speech-to-text and photo reading for /xr
+	AI: { run(model: string, input: unknown): Promise<unknown> };
+	PUBLIC_ORIGIN?: string;          // this Worker's public address, for the room container's callbacks (the Clef judge)   // Workers AI: speech-to-text and photo reading for /xr
 	AI_INVITE_CODE?: string;        // AI seats in public rooms need this code (unset = no AI seats at all)
 	FUSION_MAX_CALLS?: string;      // per-room cap on an AI seat's release requests (default 300)
 	AI_ROOMS_PER_DAY?: string;      // new AI rooms per UTC day across the whole lobby (default 4)
@@ -170,6 +171,30 @@ export class TableRoom extends Container<Env> {
 		}
 	}
 
+	/** The open mic's judge for this room: Cloudflare's Clef-Flash (System One: {state, questions} → {answers}). Only the
+	 *  room's own container may ask (it alone holds ROOM_TOKEN), within the kill switch and 200 lines / 10 min. */
+	private async judge(request: Request, r: { token: string }): Promise<Response> {
+		if (request.method !== "POST" || !(await sameText(request.headers.get("X-Room-Token") ?? "", r.token))) {
+			return new Response("Not found", { status: 404 });
+		}
+		if ((await this.env.LOBBY.get(this.env.LOBBY.idFromName("lobby")).aiState()).off) return Response.json({ error: "paused" }, { status: 503 });
+		const raw = await request.text();
+		if (raw.length > 20_000) return Response.json({ error: "too large" }, { status: 413 });
+		const now = Date.now();
+		const { kept, ok } = withinRate((await this.ctx.storage.get<number[]>("xr:judge")) ?? [], now, 600_000, 200);
+		if (!ok) return Response.json({ error: "too many lines" }, { status: 429 });
+		await this.ctx.storage.put("xr:judge", [...kept, now]);
+		let body: { state?: unknown; questions?: unknown };
+		try { body = JSON.parse(raw); } catch { return Response.json({ error: "not JSON" }, { status: 400 }); }
+		try {
+			const out = await this.env.AI.run("@cf/cloudflare/clef-flash", { state: body.state, questions: body.questions }) as { answers?: unknown };
+			return out?.answers ? Response.json({ answers: out.answers }) : Response.json({ error: "no answers" }, { status: 502 });
+		} catch (e) {
+			console.error("clef judge failed", (e as Error).message);
+			return Response.json({ error: "judge unavailable" }, { status: 502 });
+		}
+	}
+
 	/** The headset's voice (hold X) and board photos (Y), run here with Workers AI, for seated players only: the room's
 	 *  server confirms the seat key first. Rate-limited per room, size-capped, off with the AI kill switch. The audio and
 	 *  the photo are never stored; only the words (as the player's own chat line) and a card list come back. */
@@ -180,6 +205,10 @@ export class TableRoom extends Container<Env> {
 			this.defaultPort).catch(() => null);
 		if (!check?.ok) return Response.json({ error: "claim your seat first (👤)", need_seat: true }, { status: 403 });
 		const { seat, deck } = await check.json<{ seat: string; deck?: string[] }>();
+		const passive = new URL(request.url).searchParams.get("passive") === "1";
+		if (kind === "vision" && passive && !deck?.length) {      // passive reading names only cards from YOUR deck
+			return Response.json({ error: "watching your board needs your deck — pick it in the lobby (Your deck / physical deck)" }, { status: 412 });
+		}
 		if ((await this.env.LOBBY.get(this.env.LOBBY.idFromName("lobby")).aiState()).off) {
 			return Response.json({ error: "voice and photo reading are paused right now" }, { status: 503 });
 		}
@@ -204,7 +233,7 @@ export class TableRoom extends Container<Env> {
 					{ type: "image_url", image_url: { url: "data:" + (request.headers.get("Content-Type") || "image/jpeg") + ";base64," + b64 } }] },
 			] }) as { response?: unknown };
 			const text = typeof out?.response === "string" ? out.response : JSON.stringify(out?.response ?? "");
-			return Response.json({ seat, cards: parseBoardReply(text) });
+			return Response.json({ seat, cards: parseBoardReply(text), deck_known: !!deck?.length });
 		} catch (e) {
 			console.error("xr ai failed", kind, (e as Error).message);
 			return Response.json({ error: kind === "stt" ? "couldn't hear that — try again" : "couldn't read that photo — try again" }, { status: 502 });
@@ -223,6 +252,10 @@ export class TableRoom extends Container<Env> {
 			...(aiOk && this.env.DIVINCI_FUSION_API_KEY ? { DIVINCI_FUSION_API_KEY: this.env.DIVINCI_FUSION_API_KEY } : {}),
 			...(this.env.FUSION_CONFIG ? { FUSION_CONFIG: this.env.FUSION_CONFIG } : {}),
 			FUSION_MAX_CALLS: this.env.FUSION_MAX_CALLS || "300",
+			ROOM_ID: r.id,
+			// the open mic judged by Clef through this Worker, for every Magic room while AI is on: with AI seats it decides
+			// when they speak; at any table it vetoes "moves" that aren't, and keeps spoken side talk out of the log
+			...(!off && (r.config.game ?? "magic") === "magic" ? { OPENMIC_ROOM: "1", ROOM_ORIGIN: this.env.PUBLIC_ORIGIN || "https://table.divinci.ai" } : {}),
 			...(aiOk && r.config.game === "dnd" && aiDm(this.env) ? { DND_CLOUD_AI: "1", DND_DM_RELEASE_ID: this.env.DND_DM_RELEASE_ID! } : {}),
 		};
 		await this.startAndWaitForPorts(this.defaultPort);
@@ -260,6 +293,7 @@ export class TableRoom extends Container<Env> {
 		}
 		const r = await this.room();
 		if (!r) return new Response("This room doesn't exist (or has expired).", { status: 404 });
+		if (url.pathname === "/api/xr/judge") return this.judge(request, r);   // the room's own open mic asks Clef
 		if (url.pathname === "/api/xr/presence") {                // headsets' heads and hands, relayed between seated players
 			if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("WebSocket only", { status: 426 });
 			const [client, server] = Object.values(new WebSocketPair());

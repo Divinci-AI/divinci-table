@@ -43,7 +43,17 @@ what, and which test holds each rule.*
    stored; the words become the player's own chat line, and a photo's card list is only a proposal until the
    player adds it — and it can only ADD to their own board. Model output is cleaned (`parseBoardReply`) before
    anyone sees it. *`cloud/test/policy.test.ts`, remote_guard_test.*
-8. **Surveys and photos.** Seat-gated, size- and count-capped, stored in the room's research folder (0600); the
+8. **Presence** (`/api/xr/presence`, a WebSocket on the room): the first message must carry a seat key, checked by
+   the room's server (never in the URL); poses are validated (`parsePose`: 7 finite numbers, within 20 m) before
+   they are relayed, 600-byte messages, 30 per second; only seated sockets send or receive.
+9. **The open mic's judge** (`/api/xr/judge`): only the room's own container may call it (its private room token,
+   constant-time compared; anyone else gets 404); Clef-Flash on Workers AI, 200 lines per 10 minutes, off with the
+   kill switch. Lines from an open mic are marked `spoken` and reach the public log only as the table heard them,
+   with side conversation replaced by "(side conversation)". *`table/tests/openmic_room_test.py` (mutation-checked).*
+10. **Watching my board** (passive vision): only while the player looks down at the table, only after the view changed
+   and settled, at most once per 30 s, and only with the seat's deck known (it names only cards from that deck);
+   results are suggestions until the player adds them, and adding never removes a card.
+11. **Surveys and photos.** Seat-gated, size- and count-capped, stored in the room's research folder (0600); the
    public log says who answered a survey, never what.
 
 ## Known limits (accepted for now)

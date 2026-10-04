@@ -3,7 +3,7 @@
 """
 import json, os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from openmic import OpenMic, Seat, wake_word, calibrate, rate  # noqa: E402
+from openmic import OpenMic, Seat, wake_word, calibrate, rate, move_gate  # noqa: E402
 
 fails = 0
 def check(name, ok):
@@ -65,6 +65,26 @@ with tempfile.TemporaryDirectory() as tmp:
     rate(tmp, 41, "up", "Ann")
     check("calibrate matches a 👍 to the score that produced the line", calibrate(log, os.path.join(tmp, "ratings.jsonl")) == {"2.0": {"up": 1, "roll": 0}})
     check("rating must be up or roll", "error" in rate(tmp, 1, "meh", "Ann"))
+
+# ── Clef-compatible keys, and whether a line alters the game ──────────────────────────────────────────────
+import re
+m2 = OpenMic([Seat("Fusion 2"), Seat("Claude")], "Magic")
+qs, back = m2.questions()
+check("every question and choice key fits Clef's pattern (no spaces or colons)",
+      all(re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", k) for k in list(qs) + list(qs["addressee"]["criteria"])))
+ans = {"about_game": {"noul": 0.95}, "changes_game": {"noul": 0.2}, "expects_answer": {"noul": 0.8},
+       "addressee": {"choice": "seat_0", "probabilities": {"seat_0": 0.9}}, "speak_0": {"score": 2.1}, "speak_1": {"score": 0.4}}
+sc = m2.answers_to_scores(ans, back)
+check("answers map back to seat names (\"Fusion 2\" survives the key mapping)",
+      sc["addressee"] == "Fusion 2" and sc["addressee_p"] == 0.9 and sc["speak:Fusion 2"] == 2.1 and sc["speak:Claude"] == 0.4)
+check("'table' maps back to 'the whole table'", m2.answers_to_scores({**ans, "addressee": {"choice": "table", "probabilities": {}}}, back)["addressee"] == "the whole table")
+check("move gate: a router play the judge is sure is NOT a move → chatter",
+      move_gate("play", {"changes_game": 0.05, "about_game": 0.1}) == "chatter")
+check("move gate: a real cast stays a play", move_gate("play", {"changes_game": 0.97, "about_game": 0.95}) == "keep")
+check("move gate: a move the router missed → maybe_move", move_gate("chatter", {"changes_game": 0.9, "about_game": 0.9}) == "maybe_move")
+check("move gate: no judge answer (outage, wake word) → the router's call stands",
+      move_gate("play", {"error": "x"}) == "keep" and move_gate("play", {"wake": "Fusion"}) == "keep")
+check("move gate: a game remark that changes nothing stays as it was", move_gate("chatter", {"changes_game": 0.3, "about_game": 0.9}) == "keep")
 
 print(f"\n{'all passed' if not fails else str(fails) + ' failed'}")
 sys.exit(1 if fails else 0)

@@ -48,8 +48,8 @@ export function aiKeyAllowed(hasAiSeats: boolean, off: boolean): boolean {
 }
 
 // ── voice and photos from the headset (the room's Worker runs Workers AI for them) ───────────────────────
-export const STT_PER_10_MIN = 40;          // per room
-export const VISION_PER_HOUR = 20;         // per room
+export const STT_PER_10_MIN = 120;         // per room (an open mic sends a segment per spoken line)
+export const VISION_PER_HOUR = 90;         // per room (passive watching sends at most one every 30 s per player)
 export const STT_MAX_BYTES = 3_000_000;    // ~1 min of opus/webm
 export const VISION_MAX_BYTES = 5_000_000;
 
