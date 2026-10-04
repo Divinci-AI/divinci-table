@@ -1,0 +1,39 @@
+{
+  "_credit": "Classes, features, spells and equipment from the System Reference Document 5.1 by Wizards of the Coast LLC, CC-BY-4.0. Characters built with the standard array.",
+  "fighter": {
+    "class": "fighter", "race": "human", "level": 3, "ac": 18, "max_hp": 28, "speed": 30, "proficiency": 2,
+    "abilities": {"str": 16, "dex": 13, "con": 15, "int": 9, "wis": 12, "cha": 11},
+    "skills": ["athletics", "intimidation", "perception"],
+    "attacks": [{"name": "Longsword", "to_hit": 5, "damage": "1d8+3 slashing (1d10+3 two-handed)"},
+                {"name": "Heavy crossbow", "to_hit": 3, "damage": "1d10+1 piercing, range 100/400"}],
+    "spells": [],
+    "notes": "Chain mail and shield. Fighting Style: Defense. Second Wind (bonus action, 1d10+3 HP, once per short rest). Action Surge (one extra action, once per short rest). Champion: critical hit on 19-20."
+  },
+  "rogue": {
+    "class": "rogue", "race": "halfling", "level": 3, "ac": 15, "max_hp": 24, "speed": 25, "proficiency": 2,
+    "abilities": {"str": 8, "dex": 17, "con": 14, "int": 13, "wis": 12, "cha": 11},
+    "skills": ["acrobatics", "deception", "investigation", "perception", "sleight of hand", "stealth"],
+    "attacks": [{"name": "Shortsword", "to_hit": 5, "damage": "1d6+3 piercing"},
+                {"name": "Shortbow", "to_hit": 5, "damage": "1d6+3 piercing, range 80/320"}],
+    "spells": [],
+    "notes": "Studded leather. Sneak Attack +2d6 once per turn with advantage or an ally next to the target. Cunning Action: Dash, Disengage or Hide as a bonus action. Expertise: Stealth, Perception. Lucky: reroll a natural 1. Thief: Fast Hands, Second-Story Work. Thieves' tools."
+  },
+  "cleric": {
+    "class": "cleric", "race": "dwarf", "level": 3, "ac": 18, "max_hp": 27, "speed": 25, "proficiency": 2,
+    "abilities": {"str": 14, "dex": 10, "con": 15, "int": 8, "wis": 16, "cha": 12},
+    "skills": ["insight", "medicine", "religion"],
+    "attacks": [{"name": "Mace", "to_hit": 4, "damage": "1d6+2 bludgeoning"},
+                {"name": "Sacred flame (cantrip)", "to_hit": null, "damage": "Dex save DC 13 or 1d8 radiant, range 60"}],
+    "spells": ["Cantrips: sacred flame, spare the dying, guidance", "1st (4 slots): bless*, cure wounds*, healing word, shield of faith, guiding bolt", "2nd (2 slots): lesser restoration*, spiritual weapon*, hold person"],
+    "notes": "Chain mail and shield. Spell save DC 13, spell attack +5. Life Domain: healing spells restore 2 + spell level extra HP. Channel Divinity (once per short rest): Turn Undead or Preserve Life (15 HP split among creatures within 30 ft). Darkvision 60 ft; dwarven resilience. * = domain spell, always prepared."
+  },
+  "wizard": {
+    "class": "wizard", "race": "high elf", "level": 3, "ac": 12, "max_hp": 17, "speed": 30, "proficiency": 2,
+    "abilities": {"str": 8, "dex": 14, "con": 13, "int": 16, "wis": 12, "cha": 10},
+    "skills": ["arcana", "history", "investigation", "perception"],
+    "attacks": [{"name": "Fire bolt (cantrip)", "to_hit": 5, "damage": "1d10 fire, range 120"},
+                {"name": "Dagger", "to_hit": 4, "damage": "1d4+2 piercing"}],
+    "spells": ["Cantrips: fire bolt, light, mage hand, prestidigitation", "1st (4 slots): magic missile, shield, sleep, detect magic, mage armor, burning hands", "2nd (2 slots): misty step, scorching ray, hold person"],
+    "notes": "Spell save DC 13, spell attack +5. Arcane Recovery (once per day after a short rest: regain 2 levels of slots). Evocation: Sculpt Spells. Mage armor makes AC 15. Darkvision 60 ft; Fey Ancestry; trance."
+  }
+}

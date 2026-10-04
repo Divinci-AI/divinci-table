@@ -29,6 +29,14 @@ if cfg.get("game") == "chess":                      # chess: one process, AI sea
     env = dict(os.environ, TABLE_CLOUD="1")
     sys.exit(subprocess.call(chess_args, cwd=ROOT, env=env))
 
+if cfg.get("game") == "dnd":                        # D&D: one process; the AI DM only when the Worker switched it on
+    dnd_args = [sys.executable, "-u", "table/dnd_server.py", "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8800"),
+                "--players", ",".join(cfg.get("humans") or ["Player 1"])]
+    if cfg.get("dm"):
+        dnd_args += ["--dm", cfg["dm"]]
+    env = dict(os.environ, TABLE_CLOUD="1")
+    sys.exit(subprocess.call(dnd_args, cwd=ROOT, env=env))
+
 args = [sys.executable, "-u", "table/server.py", "--any-card", "--brain", "external",
         "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8800"), "--fair-seed", "online",
         "--priority-window", "3"]

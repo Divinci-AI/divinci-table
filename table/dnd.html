@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Divinci Table — D&amp;D</title>
+<link rel="stylesheet" href="/assets/brand.css">
+<style>
+:root{--bg:#040d12;--panel:#0d1d25;--line:#d9b46a33;--ink:#ece4cf;--dim:#9fb0b0;--gold:#d9b46a;--gold-hi:#f4dc9b;--gold-lo:#8a6a2e;--teal:#3fd0c9;--red:#ff9b6a}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--ink);font:17px/1.45 system-ui,-apple-system,sans-serif;
+  background:radial-gradient(800px 500px at 50% -80px,#16465a 0%,transparent 70%),var(--bg)}
+main{max-width:1180px;margin:0 auto;padding:14px 16px 60px;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,380px);gap:20px;align-items:start}
+@media (max-width:860px){main{grid-template-columns:1fr}}
+h1{font:900 22px Cinzel,Georgia,serif;letter-spacing:.06em;margin:4px 0 2px;
+  background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));-webkit-background-clip:text;background-clip:text;color:transparent}
+#scene{color:var(--teal);font:italic 16px Georgia,serif;min-height:1.3em;margin-bottom:8px}
+.panel{background:var(--panel);border-radius:12px;padding:14px;box-shadow:inset 0 0 0 1px var(--line);margin-bottom:14px}
+.panel h2{font:700 14px Cinzel,Georgia,serif;letter-spacing:.12em;color:var(--gold);margin:0 0 8px;text-transform:uppercase}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button{font:600 15px system-ui;border-radius:8px;border:1px solid #d9b46a55;background:#10242d;color:var(--ink);padding:8px 12px;cursor:pointer}
+button.gold{background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));color:#1a1206;border-color:var(--gold-lo);font-family:Cinzel,Georgia,serif;letter-spacing:.06em}
+button.on{box-shadow:inset 0 0 0 2px var(--teal)}
+button:disabled{opacity:.45;cursor:default}
+input[type=text],input[type=number],textarea,select{width:100%;padding:9px;border-radius:8px;border:1px solid #d9b46a55;background:#071820;color:var(--ink);font:16px system-ui}
+textarea{min-height:70px;resize:vertical}
+#log{height:min(62vh,640px);overflow:auto;padding-right:4px}
+#log .e{padding:6px 0;border-bottom:1px solid #ffffff0d;font-size:16px}
+#log .dm{font:18px/1.55 Georgia,serif;color:#f1e7cd;padding:10px 12px;margin:8px 0;border-left:3px solid var(--gold);background:#0b1a21;border-radius:0 8px 8px 0;white-space:pre-wrap}
+#log .roll{font:15px ui-monospace,Menlo,monospace;color:var(--teal)}
+#log .roll.crit{color:var(--gold-hi);font-weight:700}#log .roll.fumble{color:var(--red)}
+#log .ooc{color:var(--dim);font-size:15px}#log .note{color:var(--dim);font-style:italic;font-size:14px}
+#log b{color:var(--gold-hi)}#log img{max-width:100%;border-radius:6px;margin-top:4px}
+#think{color:var(--teal);min-height:1.3em;font-size:14px}
+#err{color:#ffb38f;min-height:1.2em}
+.dice button{min-width:52px;font:700 15px ui-monospace,Menlo,monospace}
+.row{display:flex;gap:6px;align-items:center;margin-top:8px}
+.hp{font:700 30px ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}.hp.low{color:var(--red)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.chips button{font-size:12.5px;padding:3px 8px;border-radius:999px}
+.who{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #ffffff0d;font-size:15px}
+.who.now{color:var(--gold-hi);font-weight:700}
+.att{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:14.5px;padding:4px 0}
+.small{font-size:13.5px;color:var(--dim)}
+footer{max-width:1180px;margin:0 auto;padding:0 16px 30px;font-size:12.5px;color:var(--dim)}
+</style>
+<script src="/assets/seat.js" defer></script>
+<script src="/assets/photo.js" defer></script>
+<script src="/assets/brand.js" defer></script>
+</head>
+<body data-brand="me">
+<main>
+  <section>
+    <h1>Divinci Table · Dungeons &amp; Dragons</h1>
+    <div id="scene"></div>
+    <div class="panel">
+      <div id="log" aria-live="polite"></div>
+      <div id="think"></div>
+      <div id="begin" style="display:none;margin-top:10px">
+        <input type="text" id="premise" placeholder="Premise (optional): a missing caravan, a haunted lighthouse…" autocomplete="off">
+        <div class="btns" style="margin-top:8px"><button class="gold" id="go">Begin the adventure</button></div>
+      </div>
+      <div class="row"><input type="text" id="act" placeholder="What do you say or do?" autocomplete="off"><button class="gold" id="send">Act</button></div>
+      <div class="row small"><label><input type="checkbox" id="ooc"> out of character (the DM won't answer)</label>
+        <span style="flex:1"></span><button id="cont" title="Ask the DM to go on">Continue ▸</button>
+        <label style="cursor:pointer"><input id="photo" type="file" accept="image/*" capture="environment" hidden>📷</label></div>
+      <div id="err" role="alert"></div>
+      <div id="dmbox" style="display:none;margin-top:10px"><h2 style="font:700 14px Cinzel,Georgia,serif;color:var(--gold)">Narrate (DM)</h2>
+        <textarea id="narr" placeholder='Narration. Optional last line: TABLE: {"monsters":[{"name":"Goblin","ac":15,"hp":7,"max_hp":7}],"scene":"The bridge"}'></textarea>
+        <div class="btns" style="margin-top:6px"><button class="gold" id="narrate">Narrate</button></div></div>
+    </div>
+  </section>
+  <aside>
+    <div class="panel"><h2>Dice</h2>
+      <div class="btns dice" id="dice"></div>
+      <div class="row"><input type="number" id="mod" value="0" style="width:80px" aria-label="modifier"><input type="text" id="why" placeholder="for… (Stealth, attack, initiative)" autocomplete="off"></div>
+      <div class="row btns" id="modes"><button data-m="">normal</button><button data-m="adv">advantage</button><button data-m="dis">disadvantage</button></div>
+      <div class="row"><input type="text" id="phys" placeholder="Rolled a real die? enter it (e.g. 14 or 14,7)" autocomplete="off"></div>
+      <div class="small" style="margin-top:6px">Dice here are fair (cryptographic) and everyone sees every roll. The DM never rolls for you.</div>
+    </div>
+    <div class="panel" id="mine"><h2>Your character</h2><div id="sheet" class="small">Claim your seat (👤, top right) to see your character.</div></div>
+    <div class="panel"><h2>Initiative</h2><div id="ini" class="small">Not in combat.</div>
+      <div class="btns" style="margin-top:8px"><button id="iniStart">Roll initiative</button><button id="iniNext">Next turn</button><button id="iniEnd">End combat</button></div></div>
+    <div class="panel"><h2>The party</h2><div id="party"></div><h2 style="margin-top:12px">Foes</h2><div id="mons" class="small">None in sight.</div></div>
+  </aside>
+</main>
+<footer id="credit"></footer>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const CONDS = ["prone", "poisoned", "frightened", "grappled", "restrained", "stunned", "blinded", "charmed", "invisible", "unconscious"];
+let S = null, since = 0, mode = "";
+const me = () => (window.TableSeat && TableSeat.name()) || new URLSearchParams(location.search).get("player") || "";
+const body = extra => Object.assign(window.TableSeat ? TableSeat.body() : { by: me() }, extra || {});
+async function post(path, extra) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body(extra)) });
+  const t = await r.text(); let d = {}; try { d = JSON.parse(t); } catch { d = { error: t.slice(0, 120) }; }
+  $("err").textContent = d.error || ""; if (d.need_seat && window.TableSeat) TableSeat.pick();
+  if (d.sheets) { S = d; draw(); } return d;
+}
+const mod = n => { const m = Math.floor((n - 10) / 2); return (m >= 0 ? "+" : "") + m; };
+function roll(dice, why) {
+  const phys = $("phys").value.trim();
+  const m = +$("mod").value || 0, expr = /[+-]\d/.test(dice) ? dice : dice + (m ? (m > 0 ? "+" : "") + m : "");
+  post("/api/dnd/roll", { dice: expr, mode, why: why ?? $("why").value, physical: phys ? phys.split(/[\s,]+/).map(Number) : null })
+    .then(d => { if (!d.error) { $("phys").value = ""; } });
+}
+$("dice").innerHTML = ["d4", "d6", "d8", "d10", "d12", "d20", "d100"].map(d => `<button data-d="${d}">${d}</button>`).join("");
+$("dice").onclick = e => { const d = e.target.dataset.d; if (d) roll(d); };
+$("modes").onclick = e => { if (e.target.dataset.m === undefined) return; mode = e.target.dataset.m;
+  [...$("modes").children].forEach(b => b.classList.toggle("on", b.dataset.m === mode)); };
+$("modes").children[0].classList.add("on");
+function act() { const t = $("act").value.trim(); if (!t) return;
+  post($("ooc").checked ? "/api/chat" : "/api/dnd/act", { text: t }).then(d => { if (!d.error) $("act").value = ""; }); }
+$("send").onclick = act; $("act").onkeydown = e => { if (e.key === "Enter") act(); };
+$("cont").onclick = () => post("/api/dnd/continue");
+$("go").onclick = () => post("/api/dnd/begin", { premise: $("premise").value });
+$("narrate").onclick = () => post("/api/dnd/narrate", { text: $("narr").value }).then(d => { if (!d.error) $("narr").value = ""; });
+$("iniStart").onclick = () => post("/api/dnd/initiative", { action: "start" });
+$("iniNext").onclick = () => post("/api/dnd/initiative", { action: "next" });
+$("iniEnd").onclick = () => post("/api/dnd/initiative", { action: "end" });
+function sheetHTML(s) {
+  const a = s.abilities || {}, low = s.hp <= s.max_hp / 4;
+  return `<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font:700 18px Cinzel,Georgia,serif">${esc(s.name)}</b>
+    <span class="small">${esc(s.race)} ${esc(s.class)} ${s.level} · AC ${s.ac} · ${s.speed} ft</span></div>
+    <div class="row"><span class="hp ${low ? "low" : ""}">${s.hp}/${s.max_hp}</span>${s.temp_hp ? `<span class="small">+${s.temp_hp} temp</span>` : ""}<span style="flex:1"></span>
+      <input type="number" id="hpN" value="1" min="1" style="width:64px" aria-label="amount"><button data-hp="-1">− damage</button><button data-hp="1">+ heal</button></div>
+    <div class="row small" style="flex-wrap:wrap;gap:10px">${Object.entries(a).map(([k, v]) => `<button data-check="${k}" title="${k} check">${k.toUpperCase()} ${v} (${mod(v)})</button>`).join("")}</div>
+    <div style="margin-top:8px">${(s.attacks || []).map((x, i) => `<div class="att"><span>${esc(x.name)} <span class="small">${esc(x.damage)}</span></span>
+      ${x.to_hit != null ? `<button data-atk="${i}">+${x.to_hit}</button>` : ""}</div>`).join("")}</div>
+    ${(s.spells || []).length ? `<div class="small" style="margin-top:6px">${s.spells.map(esc).join("<br>")}</div>` : ""}
+    <div class="small" style="margin-top:6px">${esc(s.notes)}</div>
+    <div class="chips">${CONDS.map(c => `<button data-cond="${c}" class="${(s.conditions || []).includes(c) ? "on" : ""}">${c}</button>`).join("")}</div>
+    <div class="row"><select id="pg">${S.pregens.map(p => `<option ${p === s.class ? "selected" : ""}>${p}</option>`).join("")}</select><button id="pgGo">Swap character</button></div>
+    <div class="small">Your numbers are yours: only you change your hit points and conditions.</div>`;
+}
+$("sheet").onclick = e => {
+  const t = e.target, s = S && S.sheets[me()]; if (!s) return;
+  if (t.dataset.hp) post("/api/dnd/hp", { delta: +t.dataset.hp * Math.max(1, +$("hpN").value || 1) });
+  if (t.dataset.cond) post("/api/dnd/condition", { condition: t.dataset.cond });
+  if (t.dataset.check) { const v = s.abilities[t.dataset.check]; $("mod").value = Math.floor((v - 10) / 2); roll("d20", t.dataset.check.toUpperCase() + " check"); }
+  if (t.dataset.atk) { const x = s.attacks[+t.dataset.atk]; roll("d20" + (x.to_hit >= 0 ? "+" : "") + x.to_hit, x.name + " attack"); }
+  if (t.id === "pgGo" && confirmSwap()) post("/api/dnd/sheet", { pregen: $("pg").value });
+};
+function confirmSwap() { return $("pg").value !== S.sheets[me()].class; }
+function draw() {
+  if (!S) return;
+  $("scene").textContent = S.scene || "";
+  $("begin").style.display = S.begun ? "none" : "";
+  $("dmbox").style.display = S.dm_human && me() === S.dm_human ? "" : "none";
+  $("think").textContent = S.dm_busy ? "The DM is thinking…" : (!S.ai_dm && !S.dm_human ? "No DM at this table yet (the AI DM is off here)." : "");
+  const s = S.sheets[me()];
+  if (s) $("sheet").innerHTML = sheetHTML(s);
+  const ini = S.initiative, now = ini.active && ini.order.length ? ini.order[ini.turn].name : null;
+  $("ini").innerHTML = ini.active ? `<div class="small">Round ${ini.round}${ini.pending.length ? " · waiting for: " + ini.pending.map(esc).join(", ") : ""}</div>` +
+    ini.order.map(o => `<div class="who ${o.name === now ? "now" : ""}"><span>${o.name === now ? "▸ " : ""}${esc(o.name)}</span><span>${o.total}</span></div>`).join("") : "Not in combat.";
+  $("party").innerHTML = Object.values(S.sheets).map(p => `<div class="who"><span>${esc(p.name)} <span class="small">${esc(p.class)}${S.companions.some(c => c.name === p.name) ? " · AI" : ""}</span>
+    ${(p.conditions || []).length ? `<span class="small"> (${p.conditions.map(esc).join(", ")})</span>` : ""}</span><span>${p.hp}/${p.max_hp} · AC ${p.ac}</span></div>`).join("");
+  $("mons").innerHTML = S.monsters.length ? S.monsters.map(m => `<div class="who"><span>${esc(m.name)}</span><span>${m.hp > 0 ? (m.hp <= m.max_hp / 2 ? "bloodied" : "unhurt") : "down"} · AC ${m.ac}</span></div>`).join("") : "None in sight.";
+  $("credit").textContent = S.credit;
+}
+function line(e) {
+  if (e.type === "dm") return `<div class="dm">${esc(e.text)}</div>`;
+  if (e.type === "roll") return `<div class="e roll ${e.roll && e.roll.crit ? "crit" : ""} ${e.roll && e.roll.fumble ? "fumble" : ""}">🎲 ${esc(e.text)}</div>`;
+  if (e.type === "say") return `<div class="e ${e.ic ? "" : "ooc"}"><b>${esc(e.by)}</b>${e.ic ? "" : " (table talk)"}: ${esc(e.text)}${e.photo ? `<br><img src="${esc(e.photo)}" alt="photo">` : ""}</div>`;
+  if (e.type === "dnd" && e.kind !== "thinking") return `<div class="e note">${esc(e.text)}</div>`;
+  if (e.type === "seat") return `<div class="e note">${esc(e.name)} ${e.kind === "claimed" ? "sat down" : "left the table"}</div>`;
+  return "";
+}
+async function tick() {
+  try {
+    S = await (await fetch("/api/dnd")).json();
+    const e = await (await fetch("/api/events?since=" + since)).json();
+    if (e.restarted) { since = 0; $("log").innerHTML = ""; }
+    else if (e.events.length) {
+      const atEnd = $("log").scrollTop + $("log").clientHeight >= $("log").scrollHeight - 30;
+      $("log").insertAdjacentHTML("beforeend", e.events.map(line).join(""));
+      since = e.last; if (atEnd) $("log").scrollTop = $("log").scrollHeight;
+    }
+    draw();
+  } catch {}
+}
+tick(); setInterval(tick, 1500);
+</script>
+</body>
+</html>

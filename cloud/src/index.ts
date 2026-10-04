@@ -21,10 +21,12 @@ interface Env {
 	ROOM_SNAPSHOTS: R2Bucket;
 	ASSETS_BUCKET: R2Bucket;
 	FUSION_CONFIG?: string;
+	DND_CLOUD_AI?: string;          // "1" = AI Dungeon Master in public rooms (a budget decision; unset = a person DMs)
+	DND_DM_RELEASE_ID?: string;
 }
 
 interface AiSeat { name: string; commander: string; deck: string }
-interface RoomConfig { humans: string[]; ai: AiSeat[]; game: "magic" | "chess"; white?: string; black?: string; minutes?: number; increment?: number }
+interface RoomConfig { humans: string[]; ai: AiSeat[]; game: "magic" | "chess" | "dnd"; white?: string; black?: string; minutes?: number; increment?: number; dm?: string }
 interface RoomInfo { id: string; title: string; game: string; humans: string[]; ai: string[]; created: number; claimed?: string[] }
 
 // AI opponents a public room may seat. Each is played by a Divinci release (one per deck).
@@ -115,6 +117,7 @@ export class TableRoom extends Container<Env> {
 			ROOM_TOKEN: r.token,
 			...(this.env.DIVINCI_FUSION_API_KEY ? { DIVINCI_FUSION_API_KEY: this.env.DIVINCI_FUSION_API_KEY } : {}),
 			...(this.env.FUSION_CONFIG ? { FUSION_CONFIG: this.env.FUSION_CONFIG } : {}),
+			...(r.config.game === "dnd" && aiDm(this.env) ? { DND_CLOUD_AI: "1", DND_DM_RELEASE_ID: this.env.DND_DM_RELEASE_ID! } : {}),
 		};
 		await this.startAndWaitForPorts(this.defaultPort);
 		if (this.needsRestore) await this.restoreIfFresh(r);
@@ -314,9 +317,11 @@ async function avatar(path: string, env: Env): Promise<Response> {
 async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<Lobby>): Promise<Response> {
 	const form = await request.formData();
 	const back = (msg: string) => Response.redirect(new URL("/?error=" + encodeURIComponent(msg), request.url).toString(), 303);
-	const game = form.get("game") === "chess" ? "chess" : "magic";
+	const g = String(form.get("game") ?? "");
+	const game = g === "chess" || g === "dnd" ? g : "magic";
 	const humans = String(form.get("humans") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 	if (game === "chess") return createChess(request, env, lobby, form, humans, back);
+	if (game === "dnd") return createDnd(request, env, lobby, form, humans, back);
 	if (humans.length < 1 || humans.length > 4) return back("Name between one and four human seats.");
 	if (!humans.every((h) => NAME_RE.test(h))) return back("Seat names: letters, numbers and spaces, up to 24 characters.");
 	const ai: AiSeat[] = [];
@@ -358,6 +363,30 @@ async function createChess(request: Request, env: Env, lobby: DurableObjectStub<
 	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
 }
 
+const aiDm = (env: Env) => env.DND_CLOUD_AI === "1" && !!env.DND_DM_RELEASE_ID && !!env.DIVINCI_FUSION_API_KEY;
+
+/** A D&D one-shot: up to six players. Unless the AI Dungeon Master is switched on for public rooms
+ *  (a budget decision), the FIRST name runs the game from behind the screen. */
+async function createDnd(request: Request, env: Env, lobby: DurableObjectStub<Lobby>, form: FormData, humans: string[],
+	back: (msg: string) => Response): Promise<Response> {
+	const ai = aiDm(env);
+	if (humans.length < (ai ? 1 : 2) || humans.length > 6) {
+		return back(ai ? "D&D seats one to six players." : "D&D seats two to seven people: the first name is the Dungeon Master.");
+	}
+	if (!humans.every((h) => NAME_RE.test(h) && !h.includes(":") && !h.includes(","))) return back("Seat names: letters, numbers and spaces, up to 24 characters.");
+	const dm = ai ? undefined : humans[0];
+	const players = ai ? humans : humans.slice(1);
+	const title = String(form.get("title") ?? "").trim().slice(0, 40) || `${humans[0]}'s adventure`;
+	const id = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
+	const why = await lobby.add({ id, title, game: "dnd", humans, ai: ai ? ["AI Dungeon Master"] : [], created: Date.now() },
+		request.headers.get("CF-Connecting-IP") ?? "unknown");
+	if (why) return back(why);
+	await env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/setup?id=" + id, {
+		method: "POST", body: JSON.stringify({ game: "dnd", humans: players, ai: [], dm } satisfies RoomConfig),
+	}));
+	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
+}
+
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const html = (body: string) => new Response(body, { headers: { "Content-Type": "text/html; charset=utf-8" } });
 
@@ -374,8 +403,8 @@ function lobbyPage(rooms: RoomInfo[], error: string): string {
 		? rooms.map((r) => {
 			const open = r.humans.filter((h) => !(r.claimed ?? []).includes(h));
 			const seats = open.length ? `${open.length} seat${open.length > 1 ? "s" : ""} open: ${esc(open.join(", "))}` : "Full";
-			return `<li><a href="/r/${r.id}"><img src="/brand/${r.game === "chess" ? "game-chess" : "game-magic"}.jpg" alt=""><span class="t">${esc(r.title)}</span>
-			<span class="m">${r.game === "chess" ? "Chess" : "Commander"} · ${seats}${r.ai.length ? " · AI: " + esc(r.ai.join(", ")) : ""} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span>
+			return `<li><a href="/r/${r.id}"><img src="/brand/${r.game === "chess" ? "game-chess" : r.game === "dnd" ? "quantum-dice" : "game-magic"}.jpg" alt=""><span class="t">${esc(r.title)}</span>
+			<span class="m">${r.game === "chess" ? "Chess" : r.game === "dnd" ? "D&amp;D one-shot" : "Commander"} · ${seats}${r.ai.length ? " · AI: " + esc(r.ai.join(", ")) : ""} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span>
 			<span class="go">${open.length ? "Take a seat →" : "Watch →"}</span></a></li>`; }).join("")
 		: `<li class="empty">No open tables yet. Start the first one.</li>`;
 	return `<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
@@ -444,7 +473,8 @@ ${error ? `<div class="err">${esc(error)}</div>` : ""}
 <section><h2>Start a table</h2><form method=post action="/lobby/rooms">
 <label>Game</label><div class="opps">
 <label class="opp"><input type=radio name=game value=magic checked><b>Magic: Commander</b>Two to four seats, people and AI</label>
-<label class="opp"><input type=radio name=game value=chess><b>Chess</b>One or two people; alone, you face Leonardo</label></div>
+<label class="opp"><input type=radio name=game value=chess><b>Chess</b>One or two people; alone, you face Leonardo</label>
+<label class="opp"><input type=radio name=game value=dnd><b>D&amp;D one-shot</b>Real dice or fair ones; the first name is the Dungeon Master</label></div>
 <label for=title>Table name</label><input type=text id=title name=title maxlength=40 placeholder="Friday Commander">
 <label for=humans>Human seats (comma-separated names; chess: White first)</label><input type=text id=humans name=humans required placeholder="Michael, Sam">
 <label>AI opponents · played by Divinci Fusion · up to two</label>
