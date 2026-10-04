@@ -11,3 +11,4 @@ __pycache__/
 
 cloud/node_modules
 cloud/.wrangler
+cloud/.dev.vars

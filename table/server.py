@@ -1798,7 +1798,52 @@ class H(BaseHTTPRequestHandler):
             raise BadRequest("body must be a JSON object")
         return b
 
+    def _room_token_ok(self) -> bool:
+        """Cloud rooms only: the room's Durable Object holds ROOM_TOKEN (set at container start) and is the only
+        caller of /api/room/*. Without the env var these endpoints don't exist (laptop tables)."""
+        want = os.environ.get("ROOM_TOKEN", "")
+        got = self.headers.get("X-Room-Token", "")
+        return bool(want) and secrets.compare_digest(want, got)
+
+    def _room_api(self, method: str) -> bool:
+        """GET /api/room/snapshot → the latest pickled game; POST /api/room/restore ← one, replacing the game.
+        Returns True when it answered."""
+        p0 = self.path.split("?")[0]
+        if not p0.startswith("/api/room/"):
+            return False
+        if not self._room_token_ok():
+            if method == "POST":
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            self._send(404, {"error": "not found"})
+            return True
+        if method == "GET" and p0 == "/api/room/snapshot":
+            snapshot()
+            p = research_dir() / "snapshot.pkl"
+            body = p.read_bytes() if p.exists() else b""
+            self.send_response(200 if body else 204)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("X-Snapshot-Rev", str(_ev_id[0]))
+            self.end_headers()
+            self.wfile.write(body)
+            return True
+        if method == "POST" and p0 == "/api/room/restore":
+            blob = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            tmp = HERE / ".cache" / "room-restore.pkl"
+            tmp.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_bytes(blob)
+            os.chmod(tmp, 0o600)
+            restore(str(tmp))
+            tmp.unlink(missing_ok=True)
+            snapshot()                                     # re-save under the restored game's research folder
+            self._send(200, {"ok": True, "rev": _ev_id[0], "phase": PHASE})
+            return True
+        self._send(404, {"error": "not found"})
+        return True
+
     def do_GET(self):
+        if self._room_api("GET"):
+            return
         if self._lan_blocked("GET"):
             return
         if self.path.split("?")[0] == "/me":               # a player's phone / glasses view (public info only)
@@ -1968,6 +2013,8 @@ class H(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
+        if self._room_api("POST"):
+            return
         try:
             return self._do_post()
         finally:

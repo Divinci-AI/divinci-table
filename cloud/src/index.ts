@@ -18,6 +18,7 @@ interface Env {
 	LOBBY: DurableObjectNamespace<Lobby>;
 	DIVINCI_FUSION_API_KEY?: string;
 	ADMIN_TOKEN?: string;
+	ROOM_SNAPSHOTS: R2Bucket;
 	FUSION_CONFIG?: string;
 }
 
@@ -42,21 +43,101 @@ export class TableRoom extends Container<Env> {
 	sleepAfter = "3h";
 	enableInternet = true;             // Scryfall card names, ANU/drand randomness, the Divinci API
 
+	// Persistence: the container's disk dies with it, so the game lives in R2 between wakes. The table
+	// server exports/imports its state on /api/room/* with a per-room token only this object knows.
+	private needsRestore = false;      // set when a fresh container starts; cleared once the snapshot is back in
+	private savedRev = "";             // the event id of the last snapshot written to R2 (for the record)
+	private savedDigest = "";          // sha256 of the last snapshot written, so an unchanged game isn't rewritten
+	private saving: Promise<void> | null = null;
+	private lastSave = 0;
+
+	override onStart(): void {
+		this.needsRestore = true;
+	}
+
+	/** Save the game before the container goes to sleep, then let it sleep. */
+	override async onActivityExpired(): Promise<void> {
+		await this.save("sleep").catch((e) => console.error("save before sleep failed", e));
+		await this.stop();
+	}
+
+	private async room(): Promise<{ id: string; token: string; config: RoomConfig } | null> {
+		const config = await this.ctx.storage.get<RoomConfig>("config");
+		if (!config) return null;
+		let token = await this.ctx.storage.get<string>("token");
+		if (!token) {
+			token = [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, "0")).join("");
+			await this.ctx.storage.put("token", token);
+		}
+		return { id: (await this.ctx.storage.get<string>("id")) ?? "unknown", token, config };
+	}
+
+	private key(id: string) { return `rooms/${id}/snapshot.pkl`; }
+
+	/** Pull the game out of the container and keep it in R2 (skipped when nothing changed). */
+	private async save(why: string): Promise<void> {
+		const r = await this.room();
+		if (!r || !this.ctx.container?.running) return;
+		const res = await this.containerFetch(new Request("http://room/api/room/snapshot", { headers: { "X-Room-Token": r.token } }), this.defaultPort);
+		const rev = res.headers.get("X-Snapshot-Rev") ?? "";
+		if (res.status !== 200) { console.error("room snapshot", res.status); await res.body?.cancel(); return; }
+		const blob = await res.arrayBuffer();
+		// The event counter doesn't move for every change (seat claims, high rolls), so compare the bytes.
+		const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", blob))].map((b) => b.toString(16).padStart(2, "0")).join("");
+		if (digest === this.savedDigest) return;
+		await this.env.ROOM_SNAPSHOTS.put(this.key(r.id), blob, { customMetadata: { rev, why, saved: new Date().toISOString() } });
+		this.savedRev = rev;
+		this.savedDigest = digest;
+		this.lastSave = Date.now();
+	}
+
+	/** At most one save every ~20 s while people play; the trailing change is never lost. */
+	private saveSoon(): void {
+		if (this.saving) return;
+		const wait = Math.max(0, 20_000 - (Date.now() - this.lastSave));
+		this.saving = new Promise<void>((done) => setTimeout(done, wait))
+			.then(() => this.save("play"))
+			.catch((e) => console.error("room save failed", e))
+			.finally(() => { this.saving = null; });
+		this.ctx.waitUntil(this.saving);
+	}
+
 	async fetch(request: Request): Promise<Response> {
 		const url = new URL(request.url);
 		if (url.pathname === "/__room/setup" && request.method === "POST") {
 			await this.ctx.storage.put("config", await request.json());
+			await this.ctx.storage.put("id", url.searchParams.get("id") ?? "unknown");
 			return new Response("ok");
 		}
-		const config = await this.ctx.storage.get<RoomConfig>("config");
-		if (!config) return new Response("This room doesn't exist (or has expired).", { status: 404 });
+		const r = await this.room();
+		if (!r) return new Response("This room doesn't exist (or has expired).", { status: 404 });
+		if (url.pathname === "/__room/sleep") {                    // admin: save now, then stop the container
+			await this.save("admin-sleep");
+			if (this.ctx.container?.running) await this.stop();
+			return Response.json({ slept: true, rev: this.savedRev });
+		}
 		this.envVars = {
-			ROOM_CONFIG: JSON.stringify(config),
+			ROOM_CONFIG: JSON.stringify(r.config),
+			ROOM_TOKEN: r.token,
 			...(this.env.DIVINCI_FUSION_API_KEY ? { DIVINCI_FUSION_API_KEY: this.env.DIVINCI_FUSION_API_KEY } : {}),
 			...(this.env.FUSION_CONFIG ? { FUSION_CONFIG: this.env.FUSION_CONFIG } : {}),
 		};
 		await this.startAndWaitForPorts(this.defaultPort);
-		return this.containerFetch(request, this.defaultPort);
+		if (this.needsRestore) {
+			this.needsRestore = false;
+			const saved = await this.env.ROOM_SNAPSHOTS.get(this.key(r.id));
+			if (saved) {
+				const res = await this.containerFetch(new Request("http://room/api/room/restore", {
+					method: "POST", headers: { "X-Room-Token": r.token, "Content-Type": "application/octet-stream" },
+					body: await saved.arrayBuffer(),
+				}), this.defaultPort);
+				if (!res.ok) console.error("restore failed", res.status, (await res.text()).slice(0, 200));
+				else { await res.body?.cancel(); this.savedRev = saved.customMetadata?.rev ?? ""; this.lastSave = Date.now(); }
+			}
+		}
+		const res = await this.containerFetch(request, this.defaultPort);
+		if (request.method !== "GET" && request.method !== "HEAD") this.saveSoon();
+		return res;
 	}
 }
 
@@ -101,6 +182,12 @@ export default {
 		if (url.pathname === "/" && request.method === "GET") {
 			return html(lobbyPage(await lobby.list(), url.searchParams.get("error") ?? ""));
 		}
+		if (url.pathname === "/lobby/admin/sleep" && request.method === "POST") {
+			if (!env.ADMIN_TOKEN || request.headers.get("Authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("Forbidden", { status: 403 });
+			const id = url.searchParams.get("id") ?? "";
+			if (!/^[a-z0-9]{8}$/.test(id)) return new Response("bad id", { status: 400 });
+			return env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/sleep"));
+		}
 		if (url.pathname === "/lobby/admin/remove" && request.method === "POST") {
 			const auth = request.headers.get("Authorization") ?? "";
 			if (!env.ADMIN_TOKEN || auth !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("Forbidden", { status: 403 });
@@ -120,7 +207,7 @@ export default {
 				},
 			});
 		}
-		if (url.pathname.startsWith("/__room")) return new Response("Not found", { status: 404 });
+		if (url.pathname.startsWith("/__room") || url.pathname.startsWith("/api/room/")) return new Response("Not found", { status: 404 });
 
 		const room = (request.headers.get("Cookie") ?? "").match(/(?:^|;\s*)room=([a-z0-9]{8})/)?.[1];
 		if (!room) return Response.redirect(url.origin + "/", 302);
@@ -151,7 +238,7 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 	const why = await lobby.add({ id, title, game: "magic", humans, ai: ai.map((a) => `${a.name} (${a.commander})`), created: Date.now() },
 		request.headers.get("CF-Connecting-IP") ?? "unknown");
 	if (why) return back(why);
-	await env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/setup", {
+	await env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/setup?id=" + id, {
 		method: "POST", body: JSON.stringify({ humans, ai, game: "magic" } satisfies RoomConfig),
 	}));
 	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);

@@ -25,5 +25,7 @@
     { "tag": "v1", "new_sqlite_classes": ["TableRoom", "Lobby"] }
   ],
   "assets": { "directory": "./public", "binding": "ASSETS" },
+  // Room snapshots (one object per room, rooms/<id>/snapshot.pkl): the game survives container sleep.
+  "r2_buckets": [{ "binding": "ROOM_SNAPSHOTS", "bucket_name": "divinci-table-rooms" }],
   "observability": { "enabled": true }
 }
