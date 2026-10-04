@@ -51,8 +51,6 @@ import * as THREE from "three";
 import { GLTFLoader } from "/vendor/jsm/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "/vendor/jsm/utils/SkeletonUtils.js";
 import { RoomEnvironment } from "/vendor/jsm/environments/RoomEnvironment.js";
-import { ARButton } from "/vendor/jsm/webxr/ARButton.js";
-import { VRButton } from "/vendor/jsm/webxr/VRButton.js";
 import { createBoard } from "/assets/board3d.js";
 const escHtml = t => String(t).replace(/[<>&"']/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[ch]));
 
@@ -98,15 +96,46 @@ top.position.y = 0.72; top.receiveShadow = true; top.castShadow = true; table.ad
 const shadowCatcher = new THREE.Mesh(new THREE.CircleGeometry(TABLE_R * 1.6, 48), new THREE.ShadowMaterial({ opacity: 0.3 }));
 shadowCatcher.rotation.x = -Math.PI / 2; shadowCatcher.receiveShadow = true; table.add(shadowCatcher);
 
-const ar = navigator.xr && await navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
-const vr = navigator.xr && await navigator.xr.isSessionSupported("immersive-vr").catch(() => false);
-if (ar) document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ["hit-test"],
-  optionalFeatures: ["dom-overlay"], domOverlay: { root: document.getElementById("overlay") } }));
-if (vr) document.body.appendChild(VRButton.createButton(renderer));
+// Our own Start AR / Enter VR buttons, top centre and large: the stock three.js ones both sit bottom-centre on a
+// Quest (it supports AR and VR), stacked on each other and under the NEXT bar. Shown whenever the browser has an
+// XR device, hidden only inside a session, re-checked when a headset connects (devicechange).
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-document.getElementById("hint").textContent = ar ? "Tap ‘Start AR’, point at the table, then tap to place it"
-  : vr ? "Tap ‘Enter VR’" : isIOS ? "Tap an avatar to see it in your room" : !isSecureContext
-  ? "AR/VR needs HTTPS: open this page on the table's https:// address" : "No AR/VR on this device — this is the preview";
+let ar = false, vr = false;
+const xrBar = document.createElement("div");
+xrBar.id = "xrstart";
+xrBar.style.cssText = "position:fixed;top:max(56px,calc(env(safe-area-inset-top) + 48px));left:50%;transform:translateX(-50%);" +
+  "z-index:70;display:none;gap:12px;pointer-events:auto";
+document.body.appendChild(xrBar);
+const xrBtn = (label, mode) => `<button data-mode="${mode}" style="all:unset;cursor:pointer;padding:16px 28px;border-radius:999px;` +
+  `font:800 20px system-ui,sans-serif;letter-spacing:.02em;${mode === "immersive-ar" ? "background:#f0a868;color:#140d06" : "background:#000c;color:#f4efe6;box-shadow:inset 0 0 0 2px #f0a868"}">${label}</button>`;
+async function enterXR(mode) {
+  try {
+    const init = mode === "immersive-ar"
+      ? { optionalFeatures: ["hit-test", "local-floor", "dom-overlay", "hand-tracking"], domOverlay: { root: document.getElementById("overlay") } }
+      : { optionalFeatures: ["local-floor", "hand-tracking"] };
+    const session = await navigator.xr.requestSession(mode, init);
+    const feats = session.enabledFeatures ? [...session.enabledFeatures] : null;
+    renderer.xr.setReferenceSpaceType(feats && !feats.includes("local-floor") ? "local" : "local-floor");   // no boundary → no floor
+    await renderer.xr.setSession(session);
+  } catch (e) {
+    document.getElementById("msg").textContent = `⚠ couldn't start ${mode === "immersive-ar" ? "AR" : "VR"}: ${e.message || e}` +
+      (/boundary|floor/i.test(String(e.message)) ? " — set a Stationary boundary (Settings → Boundary) and try again" : "");
+  }
+}
+xrBar.addEventListener("click", e => { const m = e.target.closest("button")?.dataset.mode; if (m) enterXR(m); });
+async function checkXR() {
+  ar = !!navigator.xr && await navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
+  vr = !!navigator.xr && await navigator.xr.isSessionSupported("immersive-vr").catch(() => false);
+  xrBar.innerHTML = (ar ? xrBtn("Start AR", "immersive-ar") : "") + (vr ? xrBtn("Enter VR", "immersive-vr") : "");
+  if (!renderer.xr.isPresenting) xrBar.style.display = ar || vr ? "flex" : "none";
+  document.getElementById("hint").textContent = ar ? "Tap ‘Start AR’, point at the table, then tap to place it"
+    : vr ? "Tap ‘Enter VR’" : isIOS ? "Tap an avatar to see it in your room" : !isSecureContext
+    ? "AR/VR needs HTTPS: open this page on the table's https:// address" : "No AR/VR on this device — this is the preview";
+}
+await checkXR();
+navigator.xr?.addEventListener("devicechange", checkXR);
+renderer.xr.addEventListener("sessionstart", () => (xrBar.style.display = "none"));
+renderer.xr.addEventListener("sessionend", () => (xrBar.style.display = ar || vr ? "flex" : "none"));
 if (!ar && !vr) setTimeout(() => { document.getElementById("hint").style.display = "none"; }, 5000);   // a note, not a fixture
 
 // AR: a reticle on real surfaces; a tap places (or moves) the table, a mini table ~25 cm across
