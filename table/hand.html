@@ -38,6 +38,8 @@ select{padding:7px;border-radius:8px;background:#071820;color:var(--ink);border:
   <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center">
     <div><span class="life" id="life">—</span> <span class="sub">life</span></div>
     <div class="sub" id="phase">—</div></div>
+    <div id="startrow" style="display:none;margin-top:8px"><button class="gold" id="start">Start the game</button>
+      <span class="sub">or roll for who goes first on the stage</span></div>
     <div style="margin-top:8px"><button class="gold" id="begin">Begin my turn (untap, draw)</button><button id="pass">Pass</button>
       <button id="end">End my turn</button></div>
     <div class="sub" id="mana" style="margin-top:6px"></div>
@@ -125,6 +127,11 @@ document.body.addEventListener("click", async e => {
   if (d.dismiss !== undefined) { alert = null; return draw(); }
 });
 $("begin").onclick = () => { alert = null; act("begin"); };
+$("start").onclick = async () => {
+  const r = await fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(TableSeat.body()) });
+  const d = await r.json().catch(() => ({})); $("err").textContent = r.ok ? "" : (d.error || "couldn't start");
+  if (r.ok) logLine(`The game starts: ${d.player} goes first.`);
+};
 $("pass").onclick = () => { alert = null; act("pass"); };
 $("end").onclick = () => { lastAttack = []; act("end", { text: "That's my turn." }); };
 async function poll() {
@@ -151,7 +158,8 @@ async function poll() {
   setTimeout(poll, 1200);
 }
 async function phase() {
-  try { const p = await (await fetch("/api/phase")).json(); $("phase").textContent = p.player ? `${p.player} · ${p.step}` : "game not started"; } catch {}
+  try { const p = await (await fetch("/api/phase")).json(); $("phase").textContent = p.player ? `${p.player} · ${p.step}` : "game not started";
+    $("startrow").style.display = p.player || !me() ? "none" : ""; } catch {}
   if (!S && me()) load();                                // a seat just claimed (seat.js has no event for it)
   setTimeout(phase, 2000);
 }

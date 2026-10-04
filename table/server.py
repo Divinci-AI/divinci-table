@@ -767,6 +767,12 @@ def next_step(by: str | None = None, shared: bool = False, confirm: bool = False
     """NEXT: move the active human's turn on one step. Refused while an AI still holds priority
     (until its window times out); the last step passes the turn to the next seat in order."""
     person = next((h["name"] for h in HUMANS if by and h["name"].lower() == by.lower()), None)
+    pilot = next((n for n in PILOTS if by and n.lower() == by.lower()), None)
+    if not person and pilot and seat_key_ok(pilot, key) and PHASE["player"] is None:
+        with PHASE_LOCK:                              # a virtual-deck seat may START the game (its turns run from /hand)
+            if PHASE["player"] is None:
+                start_turn(turn_order()[0])
+            return 200, phase_public()
     if not person or not seat_key_ok(person, key):    # only a device that claimed this seat passes for it
         return 403, {**phase_public(), "error": ("claim your seat first (👤 at the top)" if not person or person not in SEAT_KEYS
                                                  else f"this device isn't {person}'s — claim your own seat (👤)"),
