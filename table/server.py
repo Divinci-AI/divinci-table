@@ -921,7 +921,7 @@ os.chmod(tok_path, 0o600)
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"),
-          ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/openmic/rate"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"),
@@ -1080,6 +1080,22 @@ def handle_utterance(wav: bytes):
     return respond_text(text, who, t0, t_stt)
 
 
+MIC = None                                            # open mic v2 (table/openmic.py), when OPENMIC_V2=1
+
+
+def open_mic():
+    """OPENMIC_V2=1 turns on the tev1-judged open mic. OPENMIC_CHATTY="Fusion=chatty,Claude=quiet" sets each
+    AI seat's appetite (default normal)."""
+    global MIC
+    if MIC is None and os.environ.get("OPENMIC_V2") == "1" and AI_PLAYERS:
+        import openmic
+        chatty = dict(x.split("=", 1) for x in os.environ.get("OPENMIC_CHATTY", "").split(",") if "=" in x)
+        MIC = openmic.OpenMic([openmic.Seat(p["name"], p.get("commander", ""), chatty.get(p["name"], "normal")) for p in AI_PLAYERS],
+                              "A Magic: The Gathering Commander game with people and AI players at one table.",
+                              log_path=str(research_dir() / "openmic" / "decisions.jsonl"))
+    return MIC
+
+
 def respond_text(text: str, who: str | None, t0: float, t_stt: int = 0):
     """Everything after hearing a line: holds, corrections, routing, table rules, AI replies. Spoken lines
     (handle_utterance) and typed ones (the chat box, /api/chat) both come through here."""
@@ -1133,8 +1149,19 @@ def respond_text(text: str, who: str | None, t0: float, t_stt: int = 0):
         if cards:
             LAST_PLAY.update(cards=list(cards), at=time.time())
     speaker, reply = voice.decide_reply(r, [p["name"] for p in AI_PLAYERS])
-    emit("heard", text=text, kind=r["kind"], addressee=r["addressee"], cards=cards,
-         for_ai=bool(reply) and speaker is not None, by=who)
+    mic_d, side_talk = None, False
+    if open_mic() and r["kind"] != "play":
+        mic_d = MIC.heard(text, who, recent)
+        side_talk = mic_d.about_game < 0.5 and mic_d.reason == "none"
+        if mic_d.seat and not reply:
+            speaker = mic_d.seat
+            reply = "Let me think about that." if mic_d.reason in ("wake", "addressed") else "\x00interject"
+            if mic_d.reason == "unprompted":
+                ev = emit("openmic", kind="interject", seat=mic_d.seat, level=round(mic_d.scores.get(f"speak:{mic_d.seat}", 0), 2))
+                MIC.link(ev["id"], mic_d)
+                r = {**r, "kind": "interject"}
+    emit("heard", text="(side conversation)" if side_talk else text, kind=r["kind"], addressee=r["addressee"],
+         cards=cards, for_ai=bool(reply) and speaker is not None, by=who)
     rules = table_rules(text, r, cards, who)
     if rules is not None:
         rseat = rules.get("seat") or (VP.name if VP else speaker)
@@ -1154,6 +1181,8 @@ def respond_text(text: str, who: str | None, t0: float, t_stt: int = 0):
         return {"heard": text, "route": r, "cards": cards, "speaker": speaker, "reply": None,
                 "awaiting": "brain", "blocked": False, "stt_ms": t_stt,
                 "total_ms": round((time.time() - t0) * 1000), "announced": CONVO["announced"][-10:]}
+    if reply == "\x00interject":                   # unprompted and no external brain to word it: stay quiet
+        reply = None
     reply_source, reply_ms = "template", 0
     turn = None
     if reply == voice.TURN:
@@ -2305,6 +2334,14 @@ class H(BaseHTTPRequestHandler):
                 t["by"] = str(b.get("by", ""))[:30]
                 emit("todo", kind="done" if t["done"] else "reopened", todo_id=t["id"], by=t["by"])
                 return self._send(200, t)
+            if self.path == "/api/openmic/rate":           # 👍/🙄 on an AI's unprompted line: {event, rating, by, key}
+                b = self._json()
+                who = str(b.get("by", ""))
+                if who not in [h["name"] for h in HUMANS] or not seat_key_ok(who, str(b.get("key", ""))):
+                    return self._send(403, {"error": "claim your seat first (👤) to rate"})
+                import openmic
+                out = openmic.rate(str(research_dir() / "openmic"), int(b.get("event", 0)), str(b.get("rating", "")), who)
+                return self._send(400 if "error" in out else 200, out)
             if self.path == "/api/my-board":               # a person records their OWN board from their phone
                 b = self._json()
                 who = str(b.get("by", ""))
