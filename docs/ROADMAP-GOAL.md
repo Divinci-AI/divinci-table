@@ -69,13 +69,13 @@ A room's game must outlive its container: idle sleep, a redeploy, or a crash.
 - [x] **Check:** no Magic regressions (quick suite at HEAD vs a pre-today baseline: same failures, none new), and a full chess game plays to checkmate in a cloud room.
 - [ ] Follow-up: update the older `phases` and sensory tests for game 3's ordered passing (they fail the same way at the baseline).
 
-## Milestone 5 — Open mic v2 (tev1 as the judge)
-- [ ] Wake word (a seat's name or "Hey Divinci") always gets a reply.
-- [ ] Per utterance, tev1 judges: is it about the game; is it addressed to an AI seat; should an AI speak unprompted (four levels).
-- [ ] Code holds the policy: a threshold, cooldown and budget per personality, no talking over people, never twice in a row. Conservative by default.
-- [ ] 👍/🙄 rating on every unprompted line, logged with its scores (never audio).
-- [ ] Privacy: a mic-on indicator, mute per device, non-game talk is never stored.
-- [ ] **Check:** a 30-minute session with ratings; thresholds are set from those ratings.
+## Milestone 5 — Open mic v2 (tev1 as the judge) *(built; the 30-minute rated session needs people)*
+- [x] Wake word (a seat's name or "Hey Divinci") always gets a reply.
+- [x] Per utterance, tev1 judges: is it about the game; is it addressed to an AI seat; should an AI speak unprompted (four levels).
+- [x] Code holds the policy: a threshold, cooldown and budget per personality, no talking over people, never twice in a row. Conservative by default.
+- [x] 👍/🙄 rating on every unprompted line, logged with its scores (never audio).
+- [x] Privacy: a mic-on indicator, mute per device, non-game talk is never stored.
+- [ ] **Check:** a 30-minute session with ratings; thresholds are set from those ratings (`openmic.calibrate()` is ready). *Needs a game night with `OPENMIC_V2=1`.*
 
 ## Milestone 6 — D&D with an AI Dungeon Master
 - [ ] The DM is a Divinci release whose knowledge base holds SRD 5.1 (CC-BY 4.0) and the campaign notes.
@@ -97,3 +97,4 @@ A room's game must outlive its container: idle sleep, a redeploy, or a crash.
 - 2026-10-03 · M1 · Redeploy: during the scripted game a rollout swapped the container mid-run ("Container suddenly disconnected" at 18:41:22) and play continued from the saved state (Ann 32 → 31). Found and fixed on the way: (1) onStart can fire for a running container, and restoring then rewound live play (life read 35, 34, 34, 34, 35); the DO now asks /api/room/status and only fills a fresh process. (2) A change during a save is followed by another save. (3) The save window is now 5 s (was 20 s): a swap inside the window lost Bo's seat claim. (4) The admin release path booted the container without ROOM_TOKEN (a default "Player 1/2" game); every start now goes through one helper. (5) A request in flight during a swap is retried once; an unrecoverable room answers 503, not error 1101.
 - 2026-10-03 · M2 · Avatars: 12 v2 models in R2 `divinci-table-assets`, `/avatars/index.json` 200, Fusion.v2.glb 16.9 MB served; the cloud stage showed "Bo" with a pooled avatar (Chrome). My board: Ann 200; Bo with Ann's key 403; Bo with his own key 200; board3d listed both boards after two sleep/wake cycles. Photos: no seat key → 403, with key → 200. Lobby: "2 seats open: Ann, Bo" → "1 seat open: Bo" after Ann claimed. /table → 301 /table/ on staging and production. Scripted play: 5 turns, 90 presses. A board read OOM-killed the 1 GiB container (Scryfall bulk JSON parsed in memory); the image now bakes the 12 MB oracle.json and the read returns 200.
 - 2026-10-03 · M4 · Local: Scholar's Mate to checkmate (1-0) with PGN saved; refused: move before Start, out of turn, with another seat's key (403), illegal "e5". AI (built-in engine) answered e4 e6 Nf3 Qf6 Bc4 Bc5; save/restore kept moves, clocks and Ann's key, and a second restore was refused (409). Docker: Stockfish at /usr/games/stockfish answered d4 with e6 (no fallback). Cloud room rh6gij3y created from the lobby with game=chess: e4 e5 Bc4 Nc6 Qh5 Nf6 Qxf7# → "1-0 checkmate", PGN `1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7# 1-0`; the board page rendered the mate (Chrome). Magic quick suite: engine 61/61, game-sim 0 problems; phases ❌ and sensory 116/118 — the pre-today baseline (2ee2c0b) fails phases with more failures and sensory 115/118, so nothing new.
+- 2026-10-03 · M5 · `table/tests/openmic_test.py` 19/19 (wake words, addressed vs not, quiet/normal/chatty thresholds, cooldown, a 6-line budget, never twice in a row, judge outage → silence, side talk logged without words, calibrate matches a 👍 to its score). tev1 on 12 labelled lines (`openmic_tev1_eval.py`): about-game 10/12, addressee 8/12 (misses are "whole table" vs "nobody", which decide the same), expects-answer 9/12, 1.8 s/line; unprompted scores stayed ≤2.2 on these lines, so a normal seat would not have interrupted. Live server with OPENMIC_V2=1: "Talrand, are you going to attack me?" → wake reply; a wedding remark → "(side conversation)" in the public log and no words in decisions.jsonl; a rules question → no interruption. The mic page already had a listening indicator and Mute.
