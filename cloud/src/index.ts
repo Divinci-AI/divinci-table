@@ -107,6 +107,28 @@ export class TableRoom extends Container<Env> {
 		this.ctx.waitUntil(this.saving);
 	}
 
+	/** Fill a freshly started container from R2 (or adopt it when nothing is saved yet). */
+	private async restoreIfFresh(r: { id: string; token: string }): Promise<void> {
+		this.needsRestore = false;
+		// onStart can fire for a container that is already running the game, so ask the process first:
+		// only a fresh one (adopted=false) is filled from R2. Anything else would rewind live play.
+		const st = await this.containerFetch(new Request("http://room/api/room/status", { headers: { "X-Room-Token": r.token } }), this.defaultPort)
+			.then((x) => (x.ok ? x.json<{ adopted?: boolean }>() : { adopted: true })).catch(() => ({ adopted: true }));
+		const saved = st.adopted ? null : await this.env.ROOM_SNAPSHOTS.get(this.key(r.id));
+		if (!st.adopted && !saved) {
+			await this.containerFetch(new Request("http://room/api/room/adopt", { method: "POST", headers: { "X-Room-Token": r.token } }), this.defaultPort)
+				.then((x) => x.body?.cancel()).catch(() => undefined);
+		}
+		if (saved) {
+			const res = await this.containerFetch(new Request("http://room/api/room/restore", {
+				method: "POST", headers: { "X-Room-Token": r.token, "Content-Type": "application/octet-stream" },
+				body: await saved.arrayBuffer(),
+			}), this.defaultPort);
+			if (!res.ok) console.error("restore failed", res.status, (await res.text()).slice(0, 200));
+			else { await res.body?.cancel(); this.savedRev = saved.customMetadata?.rev ?? ""; this.lastSave = Date.now(); }
+		}
+	}
+
 	async fetch(request: Request): Promise<Response> {
 		const url = new URL(request.url);
 		if (url.pathname === "/__room/setup" && request.method === "POST") {
@@ -128,27 +150,18 @@ export class TableRoom extends Container<Env> {
 			...(this.env.FUSION_CONFIG ? { FUSION_CONFIG: this.env.FUSION_CONFIG } : {}),
 		};
 		await this.startAndWaitForPorts(this.defaultPort);
-		if (this.needsRestore) {
-			this.needsRestore = false;
-			// onStart can fire for a container that is already running the game, so ask the process first:
-			// only a fresh one (adopted=false) is filled from R2. Anything else would rewind live play.
-			const st = await this.containerFetch(new Request("http://room/api/room/status", { headers: { "X-Room-Token": r.token } }), this.defaultPort)
-				.then((x) => (x.ok ? x.json<{ adopted?: boolean }>() : { adopted: true })).catch(() => ({ adopted: true }));
-			const saved = st.adopted ? null : await this.env.ROOM_SNAPSHOTS.get(this.key(r.id));
-			if (!st.adopted && !saved) {
-				await this.containerFetch(new Request("http://room/api/room/adopt", { method: "POST", headers: { "X-Room-Token": r.token } }), this.defaultPort)
-					.then((x) => x.body?.cancel()).catch(() => undefined);
-			}
-			if (saved) {
-				const res = await this.containerFetch(new Request("http://room/api/room/restore", {
-					method: "POST", headers: { "X-Room-Token": r.token, "Content-Type": "application/octet-stream" },
-					body: await saved.arrayBuffer(),
-				}), this.defaultPort);
-				if (!res.ok) console.error("restore failed", res.status, (await res.text()).slice(0, 200));
-				else { await res.body?.cancel(); this.savedRev = saved.customMetadata?.rev ?? ""; this.lastSave = Date.now(); }
-			}
+		if (this.needsRestore) await this.restoreIfFresh(r);
+		// A rollout or crash can drop the container mid-request ("Container suddenly disconnected"). Start a
+		// fresh one (which restores the saved game) and retry once, so the player never sees the swap.
+		const body = request.method === "GET" || request.method === "HEAD" ? null : await request.arrayBuffer();
+		const send = () => this.containerFetch(new Request(request.url, { method: request.method, headers: request.headers, body }), this.defaultPort);
+		let res = await send().catch((e) => e as Error);
+		if (res instanceof Error || res.status === 500 && (await res.clone().text()).includes("disconnected")) {
+			console.error("container dropped mid-request; retrying once", res instanceof Error ? res.message : res.status);
+			await this.startAndWaitForPorts(this.defaultPort);
+			if (this.needsRestore) await this.restoreIfFresh(r);
+			res = await send();
 		}
-		const res = await this.containerFetch(request, this.defaultPort);
 		if (request.method !== "GET" && request.method !== "HEAD") this.saveSoon();
 		if (url.pathname === "/api/seat/claim" && res.ok) {               // keep the lobby's open-seat count current
 			const name = await res.clone().json<{ name?: string }>().then((d) => d.name ?? "").catch(() => "");
