@@ -22,6 +22,13 @@ cache.mkdir(parents=True, exist_ok=True)
 if os.environ.get("FUSION_CONFIG"):
     (cache / "fusion.json").write_text(os.environ["FUSION_CONFIG"])
 
+if cfg.get("game") == "chess":                      # chess: one process, AI seats play through Stockfish (no model spend)
+    chess_args = [sys.executable, "-u", "table/chess_server.py", "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8800"),
+                  "--white", cfg["white"], "--black", cfg["black"],
+                  "--minutes", str(cfg.get("minutes", 15)), "--increment", str(cfg.get("increment", 10))]
+    env = dict(os.environ, TABLE_CLOUD="1")
+    sys.exit(subprocess.call(chess_args, cwd=ROOT, env=env))
+
 args = [sys.executable, "-u", "table/server.py", "--any-card", "--brain", "external",
         "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8800"), "--fair-seed", "online",
         "--priority-window", "3"]

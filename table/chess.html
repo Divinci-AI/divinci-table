@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Divinci Table — Chess</title>
+<link rel="stylesheet" href="/assets/brand.css">
+<style>
+:root{--bg:#040d12;--panel:#0d1d25;--line:#d9b46a33;--ink:#ece4cf;--dim:#9fb0b0;--gold:#d9b46a;--gold-hi:#f4dc9b;--gold-lo:#8a6a2e;--teal:#3fd0c9;
+  --light:#e8d9b5;--dark:#9b7b4f;--hl:#3fd0c966;--last:#f4dc9b88}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--ink);font:17px/1.4 system-ui,-apple-system,sans-serif;
+  background:radial-gradient(800px 500px at 50% -80px,#16465a 0%,transparent 70%),var(--bg)}
+main{max-width:1100px;margin:0 auto;padding:14px 16px 60px;display:grid;grid-template-columns:minmax(0,640px) minmax(260px,1fr);gap:20px;align-items:start}
+@media (max-width:860px){main{grid-template-columns:1fr}}
+h1{font:900 22px Cinzel,Georgia,serif;letter-spacing:.06em;margin:4px 0 10px;
+  background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));-webkit-background-clip:text;background-clip:text;color:transparent}
+.player{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-radius:10px;background:var(--panel);
+  box-shadow:inset 0 0 0 1px var(--line);margin:8px 0}
+.player.on{box-shadow:inset 0 0 0 2px var(--gold),0 0 18px #3fd0c933}
+.player .n{font:700 17px Cinzel,Georgia,serif}.player .clock{font:700 26px ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.player .clock.low{color:#ff9b6a}
+#board{width:100%;aspect-ratio:1;display:grid;grid-template-columns:repeat(8,1fr);border-radius:6px;overflow:hidden;
+  box-shadow:0 0 0 3px var(--gold-lo),0 0 0 6px #0b2430,0 0 0 7px var(--gold-lo),0 20px 50px #000a;user-select:none;touch-action:manipulation}
+.sq{position:relative;display:grid;place-items:center;font-size:min(9vw,62px);line-height:1;cursor:pointer}
+.sq.l{background:var(--light)}.sq.d{background:var(--dark)}
+.sq.last:after{content:"";position:absolute;inset:0;background:var(--last);mix-blend-mode:multiply}
+.sq.sel{box-shadow:inset 0 0 0 4px var(--teal)}
+.sq.tgt:before{content:"";position:absolute;width:26%;height:26%;border-radius:50%;background:var(--hl)}
+.sq.chk{background:radial-gradient(circle,#ff6a4a 0%,#c23b20 60%,transparent 75%)}
+.pc{position:relative;z-index:1}.pc.w{color:#fffaf0;text-shadow:0 0 2px #000,0 2px 3px #0008}.pc.b{color:#1b1209;text-shadow:0 0 1px #fff6}
+.coord{position:absolute;left:3px;bottom:1px;font:600 11px system-ui;opacity:.55;color:#2a1f12}
+.panel{background:var(--panel);border-radius:12px;padding:14px;box-shadow:inset 0 0 0 1px var(--line);margin-bottom:14px}
+.panel h2{font:700 14px Cinzel,Georgia,serif;letter-spacing:.12em;color:var(--gold);margin:0 0 8px;text-transform:uppercase}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button{font:600 15px system-ui;border-radius:8px;border:1px solid #d9b46a55;background:#10242d;color:var(--ink);padding:9px 14px;cursor:pointer}
+button.gold{background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));color:#1a1206;border-color:var(--gold-lo);font-family:Cinzel,Georgia,serif;letter-spacing:.06em}
+button:disabled{opacity:.45;cursor:default}
+#moves{font:15px ui-monospace,Menlo,monospace;max-height:220px;overflow:auto;line-height:1.7}
+#moves span{display:inline-block;min-width:3.6em}
+#status{min-height:1.4em;margin:6px 0;color:var(--gold-hi)}#err{color:#ffb38f;min-height:1.2em}
+#log{max-height:220px;overflow:auto;font-size:15px}#log div{padding:3px 0;border-bottom:1px solid #ffffff0d}#log b{color:var(--gold-hi)}
+#log img{max-width:100%;border-radius:6px;margin-top:4px}
+input[type=text]{width:100%;padding:9px;border-radius:8px;border:1px solid #d9b46a55;background:#071820;color:var(--ink);font:16px system-ui}
+#promo{display:none;gap:6px;margin-top:8px}#promo button{font-size:28px;padding:4px 12px}
+</style>
+<script src="/assets/seat.js" defer></script>
+<script src="/assets/photo.js" defer></script>
+<script src="/assets/brand.js" defer></script>
+</head>
+<body data-brand="me">
+<main>
+  <section>
+    <h1>Divinci Table · Chess</h1>
+    <div class="player" id="pTop"><span class="n"></span><span class="clock"></span></div>
+    <div id="board" aria-label="chess board"></div>
+    <div class="player" id="pBottom"><span class="n"></span><span class="clock"></span></div>
+    <div id="status" role="status" aria-live="polite"></div>
+    <div id="promo" aria-label="promote to"></div>
+    <div id="err" role="alert"></div>
+  </section>
+  <aside>
+    <div class="panel"><h2>Your move</h2>
+      <p style="margin:0 0 10px;color:var(--dim);font-size:15px">Playing on a real board? Make the move there, then tap it here (from square, then to square). Everyone's screens follow.</p>
+      <div class="btns"><button class="gold" id="start">Start the clocks</button><button id="draw">Offer a draw</button><button id="resign">Resign</button></div></div>
+    <div class="panel"><h2>Moves</h2><div id="moves"></div></div>
+    <div class="panel"><h2>Table talk</h2><div id="log"></div>
+      <div style="display:flex;gap:6px;margin-top:8px"><input type="text" id="say" placeholder="Say something to the table" autocomplete="off"><button id="send">Send</button></div>
+      <label style="display:inline-block;margin-top:8px"><input id="photo" type="file" accept="image/*" capture="environment" hidden>
+        <span style="display:inline-block;padding:8px 12px;border-radius:8px;background:#10242d;border:1px solid #d9b46a55;cursor:pointer">📷 Photo of the board</span></label></div>
+  </aside>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const GLYPH = { K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘", P: "♙", k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟" };
+let S = null, sel = null, since = 0, pendingPromo = null, fetchedAt = 0;
+const me = () => (window.TableSeat && TableSeat.name()) || new URLSearchParams(location.search).get("player") || "";
+const myColor = () => S && ["white", "black"].find(c => S.players[c].name.toLowerCase() === me().toLowerCase());
+const body = extra => Object.assign(window.TableSeat ? TableSeat.body() : { by: me() }, extra || {});
+async function post(path, extra) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body(extra)) });
+  const t = await r.text(); let d = {}; try { d = JSON.parse(t); } catch { d = { error: t.slice(0, 120) }; }
+  $("err").textContent = d.error || ""; if (d.fen) { S = d; fetchedAt = Date.now(); draw(); } return d;
+}
+function squares() {                                   // [{name:"e4", piece:"P"|null}] from the FEN, a8 first
+  const rows = S.fen.split(" ")[0].split("/"), out = [];
+  rows.forEach((row, r) => { let f = 0; for (const ch of row) { if (/\d/.test(ch)) { for (let i = 0; i < +ch; i++) out.push({ name: "abcdefgh"[f++] + (8 - r), piece: null }); }
+    else out.push({ name: "abcdefgh"[f++] + (8 - r), piece: ch }); } });
+  return out;
+}
+function draw() {
+  if (!S) return;
+  const flip = myColor() === "black", sqs = squares(), order = flip ? [...sqs].reverse() : sqs;
+  const last = S.lastmove ? [S.lastmove.slice(0, 2), S.lastmove.slice(2, 4)] : [];
+  const targets = sel ? S.legal.filter(m => m.startsWith(sel)).map(m => m.slice(2, 4)) : [];
+  const kingSq = S.check ? sqs.find(q => q.piece === (S.turn === "white" ? "K" : "k"))?.name : null;
+  $("board").innerHTML = order.map((q, i) => {
+    const f = "abcdefgh".indexOf(q.name[0]), r = +q.name[1], dark = (f + r) % 2 === 0;
+    const cls = ["sq", dark ? "d" : "l", last.includes(q.name) ? "last" : "", sel === q.name ? "sel" : "", targets.includes(q.name) ? "tgt" : "", kingSq === q.name ? "chk" : ""].join(" ");
+    const piece = q.piece ? `<span class="pc ${q.piece === q.piece.toUpperCase() ? "w" : "b"}">${GLYPH[q.piece]}</span>` : "";
+    const coord = (flip ? i % 8 === 7 : i % 8 === 0) ? `<span class="coord">${q.name[1]}</span>` : "";
+    return `<div class="${cls}" data-sq="${q.name}" role="button" aria-label="${q.name}${q.piece ? " " + q.piece : ""}">${piece}${coord}</div>`;
+  }).join("");
+  const top = flip ? "white" : "black", bot = flip ? "black" : "white";
+  for (const [el, c] of [["pTop", top], ["pBottom", bot]]) {
+    const p = S.players[c];
+    $(el).querySelector(".n").textContent = `${c === "white" ? "♔" : "♚"} ${p.name}${p.ai ? " · AI" : ""}${c === myColor() ? " (you)" : ""}`;
+    $(el).classList.toggle("on", S.started && !S.result && S.turn === c);
+  }
+  tick();
+  $("moves").innerHTML = S.san.reduce((h, m, i) => h + (i % 2 === 0 ? `<span>${i / 2 + 1}.</span>` : "") + `<span>${esc(m)}</span>` + (i % 2 ? "<br>" : ""), "") || '<span style="color:var(--dim)">No moves yet.</span>';
+  $("moves").scrollTop = 1e9;
+  const mine = myColor();
+  $("status").textContent = S.result ? `Game over: ${S.result} — ${S.reason}.` : !S.started ? (mine ? "Press Start when both of you are ready. White's clock starts." : "Waiting for the players to start.")
+    : `${S.players[S.turn].name} to move${S.check ? " — check!" : ""}.` + (S.draw_offer && S.draw_offer !== mine && mine ? " A draw is offered." : "");
+  $("start").hidden = S.started || !mine; $("resign").disabled = !mine || !S.started || !!S.result; $("draw").disabled = !mine || !S.started || !!S.result;
+  $("draw").textContent = S.draw_offer && S.draw_offer !== mine && mine ? "Accept the draw" : "Offer a draw";
+}
+function fmt(s) { s = Math.max(0, s); const m = Math.floor(s / 60), x = Math.floor(s % 60); return `${m}:${String(x).padStart(2, "0")}`; }
+function tick() {
+  if (!S) return;
+  const el = (Date.now() - fetchedAt) / 1000, flip = myColor() === "black";
+  for (const [id, c] of [["pTop", flip ? "white" : "black"], ["pBottom", flip ? "black" : "white"]]) {
+    const v = S.clock[c] - (S.started && !S.result && S.turn === c ? el : 0);
+    const n = $(id).querySelector(".clock"); n.textContent = fmt(v); n.classList.toggle("low", v < 30);
+  }
+}
+$("board").addEventListener("click", ev => {
+  const q = ev.target.closest(".sq"); if (!q || !S || S.result) return;
+  const name = q.dataset.sq;
+  if (sel && S.legal.some(m => m.startsWith(sel + name))) {
+    const opts = S.legal.filter(m => m.startsWith(sel + name));
+    if (opts.length > 1) {                              // a pawn reaching the last rank: choose the piece
+      pendingPromo = sel + name; const w = myColor() === "white";
+      $("promo").style.display = "flex";
+      $("promo").innerHTML = ["q", "r", "b", "n"].map(p => `<button data-p="${p}">${GLYPH[w ? p.toUpperCase() : p]}</button>`).join("");
+    } else post("/api/chess/move", { move: opts[0] });
+    sel = null; draw(); return;
+  }
+  sel = S.legal.some(m => m.startsWith(name)) ? name : null; draw();
+});
+$("promo").addEventListener("click", ev => { const b = ev.target.closest("button"); if (!b) return;
+  post("/api/chess/move", { move: pendingPromo + b.dataset.p }); $("promo").style.display = "none"; pendingPromo = null; });
+$("start").onclick = () => post("/api/chess/start");
+$("resign").onclick = () => { if (S && !S.result) post("/api/chess/resign"); };
+$("draw").onclick = () => post("/api/chess/draw", { action: S.draw_offer && S.draw_offer !== myColor() ? "accept" : "offer" });
+async function sendSay() { const t = $("say").value.trim(); if (!t) return; const d = await post("/api/chat", { text: t }); if (!d.error) $("say").value = ""; }
+$("send").onclick = sendSay; $("say").addEventListener("keydown", e => { if (e.key === "Enter") sendSay(); });
+$("photo").onchange = async () => { const f = $("photo").files[0]; if (!f) return;
+  const r = await window.sendTablePhoto(f, me(), $("say").value.trim()); $("err").textContent = r.error || ""; $("photo").value = ""; };
+async function poll() {
+  try {
+    const r = await fetch("/api/chess"); S = await r.json(); fetchedAt = Date.now(); draw();
+    const e = await (await fetch("/api/events?since=" + since)).json();
+    if (e.restarted) since = 0;
+    for (const x of e.events || []) {
+      since = x.id;
+      if (x.type === "chat") $("log").insertAdjacentHTML("beforeend", `<div><b>${esc(x.by)}</b> ${esc(x.text)}${x.photo ? `<br><img src="${esc(x.photo)}" alt="photo of the board" loading="lazy">` : ""}</div>`);
+      if (x.type === "chess" && x.kind === "over") $("log").insertAdjacentHTML("beforeend", `<div><b>Game over</b> ${esc(x.result)} · ${esc(x.reason)}</div>`);
+    }
+    $("log").scrollTop = 1e9;
+  } catch {}
+}
+setInterval(poll, 1000); setInterval(tick, 250); poll();
+</script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 # One table room. Build from the repo root:  docker build -f cloud/Dockerfile -t divinci-table .
 FROM python:3.12-slim
-RUN pip install --no-cache-dir numpy pillow
+RUN apt-get update && apt-get install -y --no-install-recommends stockfish && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir numpy pillow chess==1.11.2
 WORKDIR /app
 COPY table/ table/
 COPY decks/ decks/

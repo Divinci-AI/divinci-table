@@ -24,7 +24,7 @@ interface Env {
 }
 
 interface AiSeat { name: string; commander: string; deck: string }
-interface RoomConfig { humans: string[]; ai: AiSeat[]; game: "magic" }
+interface RoomConfig { humans: string[]; ai: AiSeat[]; game: "magic" | "chess"; white?: string; black?: string; minutes?: number; increment?: number }
 interface RoomInfo { id: string; title: string; game: string; humans: string[]; ai: string[]; created: number; claimed?: string[] }
 
 // AI opponents a public room may seat. Each is played by a Divinci release (one per deck).
@@ -314,7 +314,9 @@ async function avatar(path: string, env: Env): Promise<Response> {
 async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<Lobby>): Promise<Response> {
 	const form = await request.formData();
 	const back = (msg: string) => Response.redirect(new URL("/?error=" + encodeURIComponent(msg), request.url).toString(), 303);
+	const game = form.get("game") === "chess" ? "chess" : "magic";
 	const humans = String(form.get("humans") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+	if (game === "chess") return createChess(request, env, lobby, form, humans, back);
 	if (humans.length < 1 || humans.length > 4) return back("Name between one and four human seats.");
 	if (!humans.every((h) => NAME_RE.test(h))) return back("Seat names: letters, numbers and spaces, up to 24 characters.");
 	const ai: AiSeat[] = [];
@@ -337,6 +339,25 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
 }
 
+/** A chess table: one or two people; with one, Leonardo (Stockfish) takes the black pieces. */
+async function createChess(request: Request, env: Env, lobby: DurableObjectStub<Lobby>, form: FormData, humans: string[],
+	back: (msg: string) => Response): Promise<Response> {
+	if (humans.length < 1 || humans.length > 2) return back("Chess seats one or two people (with one, Leonardo plays the other side).");
+	if (!humans.every((h) => NAME_RE.test(h) && !h.includes(":"))) return back("Seat names: letters, numbers and spaces, up to 24 characters.");
+	const level = Math.max(1, Math.min(20, Number(form.get("level")) || 6));
+	const minutes = [5, 10, 15, 30].includes(Number(form.get("minutes"))) ? Number(form.get("minutes")) : 15;
+	const white = humans[0], black = humans[1] ?? `ai:Leonardo:${level}`;
+	const title = String(form.get("title") ?? "").trim().slice(0, 40) || `${humans[0]}'s chess board`;
+	const id = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
+	const why = await lobby.add({ id, title, game: "chess", humans, ai: humans[1] ? [] : [`Leonardo (level ${level})`], created: Date.now() },
+		request.headers.get("CF-Connecting-IP") ?? "unknown");
+	if (why) return back(why);
+	await env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/setup?id=" + id, {
+		method: "POST", body: JSON.stringify({ game: "chess", humans, ai: [], white, black, minutes, increment: minutes >= 15 ? 10 : 5 } satisfies RoomConfig),
+	}));
+	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
+}
+
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const html = (body: string) => new Response(body, { headers: { "Content-Type": "text/html; charset=utf-8" } });
 
@@ -353,8 +374,8 @@ function lobbyPage(rooms: RoomInfo[], error: string): string {
 		? rooms.map((r) => {
 			const open = r.humans.filter((h) => !(r.claimed ?? []).includes(h));
 			const seats = open.length ? `${open.length} seat${open.length > 1 ? "s" : ""} open: ${esc(open.join(", "))}` : "Full";
-			return `<li><a href="/r/${r.id}"><img src="/brand/game-magic.jpg" alt=""><span class="t">${esc(r.title)}</span>
-			<span class="m">Commander · ${seats}${r.ai.length ? " · AI: " + esc(r.ai.join(", ")) : ""} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span>
+			return `<li><a href="/r/${r.id}"><img src="/brand/${r.game === "chess" ? "game-chess" : "game-magic"}.jpg" alt=""><span class="t">${esc(r.title)}</span>
+			<span class="m">${r.game === "chess" ? "Chess" : "Commander"} · ${seats}${r.ai.length ? " · AI: " + esc(r.ai.join(", ")) : ""} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span>
 			<span class="go">${open.length ? "Take a seat →" : "Watch →"}</span></a></li>`; }).join("")
 		: `<li class="empty">No open tables yet. Start the first one.</li>`;
 	return `<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
@@ -421,13 +442,21 @@ footer{text-align:center;color:#7c8b8d;font-size:15px}footer a{color:var(--gold)
 ${error ? `<div class="err">${esc(error)}</div>` : ""}
 <section><h2>Open tables</h2><ul>${list}</ul></section>
 <section><h2>Start a table</h2><form method=post action="/lobby/rooms">
+<label>Game</label><div class="opps">
+<label class="opp"><input type=radio name=game value=magic checked><b>Magic: Commander</b>Two to four seats, people and AI</label>
+<label class="opp"><input type=radio name=game value=chess><b>Chess</b>One or two people; alone, you face Leonardo</label></div>
 <label for=title>Table name</label><input type=text id=title name=title maxlength=40 placeholder="Friday Commander">
-<label for=humans>Human seats (comma-separated names)</label><input type=text id=humans name=humans required placeholder="Michael, Sam">
+<label for=humans>Human seats (comma-separated names; chess: White first)</label><input type=text id=humans name=humans required placeholder="Michael, Sam">
 <label>AI opponents · played by Divinci Fusion · up to two</label>
 <div class="opps">
 <label class="opp"><input type=checkbox name=ai value=tuvasa><b>Tuvasa the Sunlit</b>Enchantments that grow</label>
 <label class="opp"><input type=checkbox name=ai value=kaust><b>Kaust, Eyes of the Glade</b>Face-down surprises</label>
 <label class="opp"><input type=checkbox name=ai value=ellivere><b>Ellivere of the Wild Court</b>Roles and Auras</label></div>
+<details class="chessopts"><summary style="cursor:pointer;color:var(--gold-hi);margin-top:12px">Chess options</summary>
+<label for=minutes>Time per player</label><select id=minutes name=minutes style="padding:8px;border-radius:4px;background:#071820;color:var(--parch);border:1px solid rgba(217,180,106,.5)">
+<option value=5>5 minutes</option><option value=10>10 minutes</option><option value=15 selected>15 minutes</option><option value=30>30 minutes</option></select>
+<label for=level>Leonardo's strength (1–20)</label><input type=text id=level name=level value=6 inputmode=numeric style="max-width:90px">
+</details>
 <button>Start table</button><small>Tables are public and listed here for six hours. Anyone with the link can claim an open seat and watch the game. Photos you share are visible to everyone in the room.</small>
 </form></section>
 <div class="how">
