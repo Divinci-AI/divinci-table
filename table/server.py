@@ -1850,6 +1850,17 @@ class H(BaseHTTPRequestHandler):
             ROOM_ADOPTED[0] = True
             self._send(200, {"ok": True})
             return True
+        if method == "POST" and p0 == "/api/room/release":    # admin, via the room: free a seat whose device is lost
+            b = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            name = next((h["name"] for h in HUMANS if h["name"].lower() == str(b.get("seat", "")).lower()), None)
+            if not name:
+                self._send(404, {"error": "no such human seat"})
+                return True
+            SEAT_KEYS.pop(name, None); SEAT_DEVICES.pop(name, None); SEAT_PROXY.pop(name, None)
+            emit("seat", name=name, kind="released")
+            snapshot()
+            self._send(200, {"ok": True, "released": name})
+            return True
         if method == "GET" and p0 == "/api/room/snapshot":
             snapshot()
             p = research_dir() / "snapshot.pkl"
@@ -2374,7 +2385,8 @@ class H(BaseHTTPRequestHandler):
                     return self._send(200, {"name": name, "key": key})          # another device of the same player
                 if name in SEAT_KEYS and fp not in SEAT_DEVICES.get(name, []):
                     return self._send(409, {"error": f"{name}'s seat is claimed on another device — open the link from "
-                                                     f"that device (👤), or release it from the host laptop"})
+                                                     f"that device (👤), or " + ("ask the table's host to release it"
+                                                                                 if CLOUD else "release it from the host laptop")})
                 key = secrets.token_urlsafe(18)              # a new window on the same device gets its own key
                 SEAT_KEYS.setdefault(name, [])
                 if isinstance(SEAT_KEYS[name], str):

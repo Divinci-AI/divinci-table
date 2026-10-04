@@ -138,6 +138,16 @@ export class TableRoom extends Container<Env> {
 		}
 		const r = await this.room();
 		if (!r) return new Response("This room doesn't exist (or has expired).", { status: 404 });
+		if (url.pathname === "/__room/release") {                  // admin: free a seat whose device is lost
+			await this.startAndWaitForPorts(this.defaultPort);
+			if (this.needsRestore) await this.restoreIfFresh(r);
+			const res = await this.containerFetch(new Request("http://room/api/room/release", {
+				method: "POST", headers: { "X-Room-Token": r.token, "Content-Type": "application/json" },
+				body: JSON.stringify({ seat: url.searchParams.get("seat") ?? "" }) }), this.defaultPort);
+			this.saveSoon();
+			if (res.ok) await this.env.LOBBY.get(this.env.LOBBY.idFromName("lobby")).markReleased(r.id, url.searchParams.get("seat") ?? "");
+			return res;
+		}
 		if (url.pathname === "/__room/sleep") {                    // admin: save now, then stop the container
 			await this.save("admin-sleep");
 			if (this.ctx.container?.running) await this.stop();
@@ -193,6 +203,15 @@ export class Lobby extends DurableObject<Env> {
 		await this.ctx.storage.put("rooms", rooms);
 	}
 
+	/** A seat was released (admin): it shows as open again. */
+	async markReleased(id: string, name: string): Promise<void> {
+		const rooms = await this.list();
+		const r = rooms.find((x) => x.id === id);
+		if (!r) return;
+		r.claimed = (r.claimed ?? []).filter((n) => n.toLowerCase() !== name.toLowerCase());
+		await this.ctx.storage.put("rooms", rooms);
+	}
+
 	/** Take a room off the public list (admin). */
 	async remove(id: string): Promise<boolean> {
 		const rooms = await this.list();
@@ -223,6 +242,12 @@ export default {
 
 		if (url.pathname === "/" && request.method === "GET") {
 			return html(lobbyPage(await lobby.list(), url.searchParams.get("error") ?? ""));
+		}
+		if (url.pathname === "/lobby/admin/release" && request.method === "POST") {
+			if (!env.ADMIN_TOKEN || request.headers.get("Authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("Forbidden", { status: 403 });
+			const id = url.searchParams.get("id") ?? "";
+			if (!/^[a-z0-9]{8}$/.test(id)) return new Response("bad id", { status: 400 });
+			return env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/release?seat=" + encodeURIComponent(url.searchParams.get("seat") ?? "")));
 		}
 		if (url.pathname === "/lobby/admin/sleep" && request.method === "POST") {
 			if (!env.ADMIN_TOKEN || request.headers.get("Authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("Forbidden", { status: 403 });
