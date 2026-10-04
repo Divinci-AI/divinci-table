@@ -94,3 +94,19 @@ test("speechHint: game words always, the deck's names when known, never longer t
 	assert.ok(h.includes("Llanowar Elves,") && h.includes("Chrome Host Seedsharkscript,"));
 	assert.ok(h.length <= 800 && !/[<>]/.test(h));
 });
+
+import { parsePose } from "../src/policy.ts";
+
+test("parsePose: a head (and optional hands) of 7 finite numbers, positions within 20 m, quaternions normalised", () => {
+	const h = [0.2, 1.4, 1.1, 0, 0, 0, 1];
+	assert.deepEqual(parsePose({ h, l: null, r: [0.4, 1.0, 0.9, 0, 0.7071, 0, 0.7071] }), { h, l: null, r: [0.4, 1, 0.9, 0, 0.7071, 0, 0.7071] });
+	assert.deepEqual(parsePose({ h: [0, 1, 0, 0, 0, 0, 1.2] })?.h, [0, 1, 0, 0, 0, 0, 1], "renormalised");
+	assert.equal(parsePose({ h: [0, 1, 0, 0, 0, 0, 2] }), null, "far from unit length");
+	assert.equal(parsePose({ h: [0, 1, 0, 0, 0, 0] }), null, "6 numbers");
+	assert.equal(parsePose({ h: [0, 1, 0, 0, 0, 0, NaN] }), null);
+	assert.equal(parsePose({ h: [0, 1, 99, 0, 0, 0, 1] }), null, "100 m away");
+	assert.equal(parsePose({ h: ["0", 1, 0, 0, 0, 0, 1] }), null, "strings");
+	assert.equal(parsePose({ h: [0, 1, 0, 0, 0, 0, 0] }), null, "zero quaternion");
+	assert.equal(parsePose(null), null);
+	assert.equal(parsePose({ h, l: "x" })?.l, null, "a bad hand is dropped, the head kept");
+});

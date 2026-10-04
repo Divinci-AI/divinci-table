@@ -12,7 +12,7 @@
  */
 import { Container } from "@cloudflare/containers";
 import { DurableObject } from "cloudflare:workers";
-import { aiKeyAllowed, aiRoomRefusal, boardPrompt, speechHint, CODE_FAILS_GLOBAL_PER_HOUR, CODE_FAILS_PER_HOUR, isAdmin, parseBoardReply, sameText,
+import { aiKeyAllowed, aiRoomRefusal, boardPrompt, parsePose, PRESENCE_MAX_BYTES, PRESENCE_MAX_PER_SEC, speechHint, CODE_FAILS_GLOBAL_PER_HOUR, CODE_FAILS_PER_HOUR, isAdmin, parseBoardReply, sameText,
 	STT_MAX_BYTES, STT_PER_10_MIN, VISION_MAX_BYTES, VISION_PER_HOUR, withinRate } from "./policy";
 
 interface Env {
@@ -123,6 +123,53 @@ export class TableRoom extends Container<Env> {
 		this.ctx.waitUntil(this.saving);
 	}
 
+	/** Presence. The first message must be {t:"auth", key} (a browser can't put a header on a WebSocket, and a key in
+	 *  the URL would land in logs); the room's server checks the key, and the socket then carries that seat. A pose
+	 *  {t:"pose", h, l, r, mode} is validated (policy.parsePose) and relayed to the other seated sockets as
+	 *  {t:"pose", seat, …}; a seat's newer socket replaces its older one; closing tells the others {t:"leave", seat}. */
+	async webSocketMessage(ws: WebSocket, msg: string | ArrayBuffer): Promise<void> {
+		if (typeof msg !== "string" || msg.length > PRESENCE_MAX_BYTES) { ws.close(1009, "too large"); return; }
+		const a = ws.deserializeAttachment() as { seat: string | null; opened: number; win: number; n: number };
+		let d: { t?: string; key?: unknown; mode?: unknown } & Record<string, unknown>;
+		try { d = JSON.parse(msg); } catch { return; }
+		if (!a.seat) {
+			if (d?.t !== "auth" || typeof d.key !== "string" || Date.now() - a.opened > 15_000) { ws.close(1008, "auth first"); return; }
+			const r = await this.room();
+			if (!r) { ws.close(1011, "no room"); return; }
+			await this.ensureRunning(r);
+			const check = await this.containerFetch(new Request("http://room/api/seat/check", { method: "POST",
+				headers: { "X-Seat-Key": d.key.slice(0, 200), "X-Forwarded-For": "presence" } }), this.defaultPort).catch(() => null);
+			if (!check?.ok) { ws.send(JSON.stringify({ t: "error", error: "claim your seat first (👤)" })); ws.close(1008, "not seated"); return; }
+			const { seat } = await check.json<{ seat: string }>();
+			for (const o of this.ctx.getWebSockets()) {
+				if (o !== ws && (o.deserializeAttachment() as { seat?: string } | null)?.seat === seat) o.close(1000, "replaced by a newer connection");
+			}
+			ws.serializeAttachment({ ...a, seat });
+			ws.send(JSON.stringify({ t: "hello", seat }));
+			return;
+		}
+		const now = Date.now();
+		if (now - a.win > 1000) { a.win = now; a.n = 0; }
+		if (++a.n > PRESENCE_MAX_PER_SEC) return;                // over the rate: dropped quietly
+		ws.serializeAttachment(a);
+		if (d?.t !== "pose") return;
+		const p = parsePose(d);
+		if (!p) return;
+		const out = JSON.stringify({ t: "pose", seat: a.seat, ...p, mode: d.mode === "ar" ? "ar" : "vr" });
+		for (const o of this.ctx.getWebSockets()) {
+			if (o !== ws && (o.deserializeAttachment() as { seat?: string } | null)?.seat) { try { o.send(out); } catch { /* gone */ } }
+		}
+	}
+
+	async webSocketClose(ws: WebSocket): Promise<void> {
+		const seat = (ws.deserializeAttachment() as { seat?: string } | null)?.seat;
+		if (!seat) return;
+		const out = JSON.stringify({ t: "leave", seat });
+		for (const o of this.ctx.getWebSockets()) {
+			if (o !== ws && (o.deserializeAttachment() as { seat?: string } | null)?.seat !== seat) { try { o.send(out); } catch { /* gone */ } }
+		}
+	}
+
 	/** The headset's voice (hold X) and board photos (Y), run here with Workers AI, for seated players only: the room's
 	 *  server confirms the seat key first. Rate-limited per room, size-capped, off with the AI kill switch. The audio and
 	 *  the photo are never stored; only the words (as the player's own chat line) and a card list come back. */
@@ -213,6 +260,13 @@ export class TableRoom extends Container<Env> {
 		}
 		const r = await this.room();
 		if (!r) return new Response("This room doesn't exist (or has expired).", { status: 404 });
+		if (url.pathname === "/api/xr/presence") {                // headsets' heads and hands, relayed between seated players
+			if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("WebSocket only", { status: 426 });
+			const [client, server] = Object.values(new WebSocketPair());
+			this.ctx.acceptWebSocket(server);                       // hibernation: an idle room costs nothing
+			server.serializeAttachment({ seat: null, opened: Date.now(), win: 0, n: 0 });
+			return new Response(null, { status: 101, webSocket: client });
+		}
 		if (url.pathname === "/__room/release") {                  // admin: free a seat whose device is lost
 			await this.ensureRunning(r);
 			const res = await this.containerFetch(new Request("http://room/api/room/release", {

@@ -103,3 +103,25 @@ export const BOARD_PROMPT = "You see a photo of one player's side of a Magic: Th
 	"face up ON THE TABLE in front of this player (their battlefield). Ignore cards held in hands, card backs, sleeves, " +
 	"dice and anything you cannot read. A card turned sideways is tapped. Group identical cards. Reply with JSON only: " +
 	'[{"name": "<exact English card name>", "tapped": false, "count": 1}]. If unsure of a name, leave that card out.';
+
+// ── presence: head and hands of headset players, in TABLE coordinates (metres at life size) ─────────────
+export const PRESENCE_MAX_BYTES = 600;
+export const PRESENCE_MAX_PER_SEC = 30;
+export interface Pose { h: number[]; l: number[] | null; r: number[] | null }
+
+/** A pose message from a headset, or null. Each part is [x, y, z, qx, qy, qz, qw]: finite, positions within 20 m of
+ *  the table, quaternions normalised. Anything else is dropped, so a client can't send junk to other headsets. */
+export function parsePose(raw: unknown): Pose | null {
+	if (!raw || typeof raw !== "object") return null;
+	const part = (v: unknown): number[] | null => {
+		if (!Array.isArray(v) || v.length !== 7 || !v.every((n) => typeof n === "number" && Number.isFinite(n))) return null;
+		if (v.slice(0, 3).some((n) => Math.abs(n) > 20)) return null;
+		const len = Math.hypot(v[3], v[4], v[5], v[6]);
+		if (len < 0.5 || len > 1.5) return null;
+		return [...v.slice(0, 3).map((n) => Math.round(n * 1000) / 1000), ...v.slice(3).map((n) => Math.round((n / len) * 10000) / 10000)];
+	};
+	const p = raw as { h?: unknown; l?: unknown; r?: unknown };
+	const h = part(p.h);
+	if (!h) return null;
+	return { h, l: p.l == null ? null : part(p.l), r: p.r == null ? null : part(p.r) };
+}

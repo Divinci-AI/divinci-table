@@ -3,6 +3,7 @@
 //   node table/tests/xr_math_test.mjs
 import * as THREE from "../vendor/three.module.min.js";
 import { moveOffset, turnOffset, yawOf, yawToward } from "../assets/xr-controls.js";
+import { toTablePose } from "../assets/xr-presence.js";
 
 let failed = 0;
 const check = (name, ok, detail = "") => { if (!ok) failed++; console.log((ok ? "  ✓ " : "  ✗ ") + name + (ok ? "" : " — " + detail)); };
@@ -48,5 +49,17 @@ check("ends at the seat (x, z)", near(posOf(G).x, seat.x, 1e-6) && near(posOf(G)
 check("keeps the head height", near(posOf(G).y, 1.6, 1e-6));
 check("faces the table's centre", near(wrap(yawOfPose(G) - yawToward(seat, centre)), 0, 1e-5), yawOfPose(G));
 
+console.log("presence: poses travel in table coordinates");
+const tbl = new THREE.Object3D(); tbl.position.set(1.5, 0.3, -2.2); tbl.rotation.y = 0.6; tbl.updateMatrixWorld();
+const localP = new THREE.Vector3(0.4, 1.2, 1.1), localQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 2.0);
+const world = tbl.matrixWorld.clone().multiply(new THREE.Matrix4().compose(localP, localQ, new THREE.Vector3(1, 1, 1)));
+const tp = toTablePose(THREE, tbl.matrixWorld, world);
+check("a head placed at a table-local pose comes back as that pose", near(tp[0], 0.4, 1e-3) && near(tp[1], 1.2, 1e-3) && near(tp[2], 1.1, 1e-3)
+  && Math.abs(new THREE.Quaternion(tp[3], tp[4], tp[5], tp[6]).angleTo(localQ)) < 1e-3, tp);
+const other = new THREE.Object3D(); other.position.set(-3, 0, 4); other.rotation.y = -1.2; other.updateMatrixWorld();   // a different calibration
+const there = other.matrixWorld.clone().multiply(new THREE.Matrix4().compose(new THREE.Vector3(tp[0], tp[1], tp[2]),
+  new THREE.Quaternion(tp[3], tp[4], tp[5], tp[6]), new THREE.Vector3(1, 1, 1)));
+check("another headset with its table elsewhere puts them at the same seat relative to ITS table",
+  near(toTablePose(THREE, other.matrixWorld, there)[2], 1.1, 1e-3));
 console.log(failed ? `${failed} FAILED` : "ok");
 process.exit(failed ? 1 : 0);

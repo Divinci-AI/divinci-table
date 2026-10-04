@@ -53,6 +53,7 @@ import * as SkeletonUtils from "/vendor/jsm/utils/SkeletonUtils.js";
 import { RoomEnvironment } from "/vendor/jsm/environments/RoomEnvironment.js";
 import { createBoard } from "/assets/board3d.js";
 import { installXRControls } from "/assets/xr-controls.js";
+import { installPresence } from "/assets/xr-presence.js";
 const escHtml = t => String(t).replace(/[<>&"']/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[ch]));
 
 // ── the same decks → models → colours as the stage ─────────────────────────────────────────
@@ -100,6 +101,7 @@ shadowCatcher.rotation.x = -Math.PI / 2; shadowCatcher.receiveShadow = true; tab
 // Our own Start AR / Enter VR buttons, top centre and large: the stock three.js ones both sit bottom-centre on a
 // Quest (it supports AR and VR), stacked on each other and under the NEXT bar. Shown whenever the browser has an
 // XR device, hidden only inside a session, re-checked when a headset connects (devicechange).
+const CLOUD_ROOM = /(^|\.)divinci\.ai$|workers\.dev$/.test(location.hostname);   // presence, voice and photos need the room's Worker
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 let ar = false, vr = false, xrExtra = null;                // xrExtra: the "Allow mic & cameras" button, added below
 const xrBar = document.createElement("div");
@@ -324,10 +326,11 @@ async function poll() {
 }
 
 // ── frame ────────────────────────────────────────────────────────────────────────────────
-let last = performance.now(), controls = null;   // controls: set once the panel is installed (below)
+let last = performance.now(), controls = null, presence = null;   // set once installed (below)
 renderer.setAnimationLoop((t, frame) => {
   const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
   controls?.update(frame);
+  presence?.update(dt);
   if (frame && hitSource && !placed) {                       // AR: find the real table under the reticle
     const hits = frame.getHitTestResults(hitSource);
     reticle.visible = hits.length > 0;
@@ -341,7 +344,8 @@ renderer.setAnimationLoop((t, frame) => {
     else { const r = 4.6; camera.position.set(Math.sin(now / 9000) * r, 2.9, Math.cos(now / 9000) * r); camera.lookAt(0, 0.95, 0); }
   }
   for (const a of Object.values(actors)) {
-    a.holder.visible = showAvatars && !(topView && !renderer.xr.isPresenting);   // top-down: the cards, not the heads
+    a.holder.visible = showAvatars && !(topView && !renderer.xr.isPresenting)   // top-down: the cards, not the heads
+      && !presence?.live(a.name);                    // a player here in a headset shows as themselves, not the stage avatar
     if (!a.mixer) continue;
     a.mixer.update(dt);
     if (a.hips) { a.hips.position.x = a.hipsHome.x; a.hips.position.z = a.hipsHome.z; }
@@ -515,6 +519,9 @@ controls = installXRControls({ THREE, renderer, scene, camera, table, board,
   setLifeSize: life => { table.position.y += life ? -0.72 : 0.72; },              // life-size stands on the floor, mini on the tabletop
   media: () => media, talk, snap, record: recordBoard, discard: () => { media.proposal = null; say2("discarded — snap again with Y"); },
 });
+// remote players' heads and hands (assets/xr-presence.js; cloud rooms: the presence WebSocket)
+if (CLOUD_ROOM) presence = installPresence({ THREE, renderer, scene, table, mySeat: () => window.TableSeat?.name() || "",
+  seatKey: () => window.TableSeat?.body().key || "", accentOf: n => actors[n]?.look.accent, label });
 await build(); phase(); poll(); boardRefresh();
 setInterval(phase, 1500); setInterval(boardRefresh, 2500);
 </script>
