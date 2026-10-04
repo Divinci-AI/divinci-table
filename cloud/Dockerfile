@@ -5,7 +5,7 @@ RUN pip install --no-cache-dir numpy pillow chess==1.11.2
 WORKDIR /app
 COPY table/ table/
 COPY decks/ decks/
-COPY cloud/ cloud/
+COPY cloud/entrypoint.py cloud/entrypoint.py   # only this: Worker-only changes must not rebuild the room image
 RUN rm -rf table/.cache table/__pycache__ && mkdir -p table/.cache
 # Card rules text, pre-built (12 MB). Building it in the container means parsing Scryfall's ~170 MB bulk
 # JSON in memory, which killed a 1 GiB instance the first time a board was read.
