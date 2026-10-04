@@ -173,8 +173,13 @@ export class TableRoom extends Container<Env> {
 		let res = await send().catch((e) => e as Error);
 		if (res instanceof Error || res.status === 500 && (await res.clone().text()).includes("disconnected")) {
 			console.error("container dropped mid-request; retrying once", res instanceof Error ? res.message : res.status);
-			await this.ensureRunning(r);
-			res = await send();
+			try {
+				await this.ensureRunning(r);
+				res = await send();
+			} catch (e) {
+				console.error("room unavailable after retry", (e as Error).message);
+				return Response.json({ error: "The table is restarting. Try again in a few seconds." }, { status: 503, headers: { "Retry-After": "5" } });
+			}
 		}
 		if (request.method !== "GET" && request.method !== "HEAD") this.saveSoon();
 		if (url.pathname === "/api/seat/claim" && res.ok) {               // keep the lobby's open-seat count current

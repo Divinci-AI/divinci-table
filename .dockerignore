@@ -3,3 +3,4 @@ table/.cache
 harness
 .git
 table/tests
+!table/.cache/oracle.json
