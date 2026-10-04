@@ -12,6 +12,7 @@
  */
 import { Container } from "@cloudflare/containers";
 import { DurableObject } from "cloudflare:workers";
+import { aiKeyAllowed, aiRoomRefusal, CODE_FAILS_GLOBAL_PER_HOUR, CODE_FAILS_PER_HOUR, isAdmin, sameText } from "./policy";
 
 interface Env {
 	ROOM: DurableObjectNamespace<TableRoom>;
@@ -123,13 +124,16 @@ export class TableRoom extends Container<Env> {
 	/** Start (or reuse) the room's container with its environment, and fill it from R2 if it is fresh.
 	 *  Every path that talks to the container goes through here, so none can boot it without ROOM_TOKEN. */
 	private async ensureRunning(r: { id: string; token: string; config: RoomConfig }): Promise<void> {
+		// The kill switch must hold for a room that wakes up again (an open page keeps polling): no AI key then.
+		const { off } = await this.env.LOBBY.get(this.env.LOBBY.idFromName("lobby")).aiState();
+		const aiOk = aiKeyAllowed((r.config.ai?.length ?? 0) > 0 || r.config.game === "dnd", off);
 		this.envVars = {
 			ROOM_CONFIG: JSON.stringify(r.config),
 			ROOM_TOKEN: r.token,
-			...(this.env.DIVINCI_FUSION_API_KEY ? { DIVINCI_FUSION_API_KEY: this.env.DIVINCI_FUSION_API_KEY } : {}),
+			...(aiOk && this.env.DIVINCI_FUSION_API_KEY ? { DIVINCI_FUSION_API_KEY: this.env.DIVINCI_FUSION_API_KEY } : {}),
 			...(this.env.FUSION_CONFIG ? { FUSION_CONFIG: this.env.FUSION_CONFIG } : {}),
 			FUSION_MAX_CALLS: this.env.FUSION_MAX_CALLS || "300",
-			...(r.config.game === "dnd" && aiDm(this.env) ? { DND_CLOUD_AI: "1", DND_DM_RELEASE_ID: this.env.DND_DM_RELEASE_ID! } : {}),
+			...(aiOk && r.config.game === "dnd" && aiDm(this.env) ? { DND_CLOUD_AI: "1", DND_DM_RELEASE_ID: this.env.DND_DM_RELEASE_ID! } : {}),
 		};
 		await this.startAndWaitForPorts(this.defaultPort);
 		if (this.needsRestore) await this.restoreIfFresh(r);
@@ -255,13 +259,29 @@ export class Lobby extends DurableObject<Env> {
 		return (await this.list()).filter((r) => r.ai.length && r.game === "magic").map((r) => r.id);
 	}
 
-	/** Spend one of today's AI rooms, or say why not. */
-	async takeAiRoom(perDay: number): Promise<string | null> {
-		const { off, today } = await this.aiState();
-		if (off) return "AI players are paused right now. Start a table for people, or try again later.";
-		if (today >= perDay) return "Today's AI tables are all taken. Start a table for people, or try again tomorrow.";
-		await this.ctx.storage.put("ai:" + new Date().toISOString().slice(0, 10), today + 1);
-		return null;
+	/** Today's AI rooms: spend one (the policy already said yes), or give one back. */
+	async spendAiRoom(): Promise<void> {
+		const day = "ai:" + new Date().toISOString().slice(0, 10);
+		await this.ctx.storage.put(day, ((await this.ctx.storage.get<number>(day)) ?? 0) + 1);
+	}
+
+	async refundAiRoom(): Promise<void> {
+		const day = "ai:" + new Date().toISOString().slice(0, 10);
+		await this.ctx.storage.put(day, Math.max(0, ((await this.ctx.storage.get<number>(day)) ?? 0) - 1));
+	}
+
+	/** Wrong invitation codes in the last hour: from this address, and from everyone. */
+	async codeFails(addr: string): Promise<{ here: number; everywhere: number }> {
+		const now = Date.now(), recent = (k: string) => this.ctx.storage.get<number[]>(k).then((v) => (v ?? []).filter((t) => now - t < 3600_000));
+		return { here: (await recent("codefail:" + addr)).length, everywhere: (await recent("codefail:*")).length };
+	}
+
+	async recordCodeFail(addr: string): Promise<void> {
+		const now = Date.now();
+		for (const k of ["codefail:" + addr, "codefail:*"]) {
+			const v = ((await this.ctx.storage.get<number[]>(k)) ?? []).filter((t) => now - t < 3600_000);
+			await this.ctx.storage.put(k, [...v.slice(-200), now]);
+		}
 	}
 
 	/** Register a room, or say why not. */
@@ -288,32 +308,31 @@ export default {
 			return html(lobbyPage(await lobby.list(), url.searchParams.get("error") ?? ""));
 		}
 		if (url.pathname === "/lobby/admin/release" && request.method === "POST") {
-			if (!env.ADMIN_TOKEN || request.headers.get("Authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("Forbidden", { status: 403 });
+			if (!(await isAdmin(request.headers.get("Authorization"), env.ADMIN_TOKEN))) return new Response("Forbidden", { status: 403 });
 			const id = url.searchParams.get("id") ?? "";
 			if (!/^[a-z0-9]{8}$/.test(id)) return new Response("bad id", { status: 400 });
 			return env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/release?seat=" + encodeURIComponent(url.searchParams.get("seat") ?? "")));
 		}
 		if (url.pathname === "/lobby/admin/sleep" && request.method === "POST") {
-			if (!env.ADMIN_TOKEN || request.headers.get("Authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("Forbidden", { status: 403 });
+			if (!(await isAdmin(request.headers.get("Authorization"), env.ADMIN_TOKEN))) return new Response("Forbidden", { status: 403 });
 			const id = url.searchParams.get("id") ?? "";
 			if (!/^[a-z0-9]{8}$/.test(id)) return new Response("bad id", { status: 400 });
 			return env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/sleep"));
 		}
 		if ((url.pathname === "/lobby/admin/ai-off" || url.pathname === "/lobby/admin/ai-on") && request.method === "POST") {
-			if (!env.ADMIN_TOKEN || request.headers.get("Authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("Forbidden", { status: 403 });
+			if (!(await isAdmin(request.headers.get("Authorization"), env.ADMIN_TOKEN))) return new Response("Forbidden", { status: 403 });
 			const off = url.pathname.endsWith("ai-off");
 			const aiRooms = await lobby.setAiOff(off);
 			if (off) for (const id of aiRooms) await env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/sleep"));
 			return Response.json({ ai: off ? "off" : "on", slept: off ? aiRooms : [] });
 		}
 		if (url.pathname === "/lobby/admin/ai-status" && request.method === "GET") {
-			if (!env.ADMIN_TOKEN || request.headers.get("Authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("Forbidden", { status: 403 });
+			if (!(await isAdmin(request.headers.get("Authorization"), env.ADMIN_TOKEN))) return new Response("Forbidden", { status: 403 });
 			return Response.json({ ...(await lobby.aiState()), perDay: Number(env.AI_ROOMS_PER_DAY || 4), maxCalls: Number(env.FUSION_MAX_CALLS || 300),
 				invite: !!env.AI_INVITE_CODE, key: !!env.DIVINCI_FUSION_API_KEY, config: !!env.FUSION_CONFIG });
 		}
 		if (url.pathname === "/lobby/admin/remove" && request.method === "POST") {
-			const auth = request.headers.get("Authorization") ?? "";
-			if (!env.ADMIN_TOKEN || auth !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("Forbidden", { status: 403 });
+			if (!(await isAdmin(request.headers.get("Authorization"), env.ADMIN_TOKEN))) return new Response("Forbidden", { status: 403 });
 			const id = url.searchParams.get("id") ?? "";
 			return Response.json({ removed: await lobby.remove(id) });
 		}
@@ -376,21 +395,30 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 	if (ai.length > 2 || humans.length + ai.length < 2 || humans.length + ai.length > 4) {
 		return back("A table seats two to four players, with at most two AI players.");
 	}
+	const addr = request.headers.get("CF-Connecting-IP") ?? "unknown";
 	if (ai.length) {
-		if (!env.DIVINCI_FUSION_API_KEY || !env.FUSION_CONFIG || !env.AI_INVITE_CODE) return back("AI players aren't available on this server yet.");
-		if (!(await sameText(String(form.get("aicode") ?? "").trim(), env.AI_INVITE_CODE))) {
-			return back("AI players are by invitation for now: enter your invitation code, or leave the AI seats unticked.");
+		const configured = !!(env.DIVINCI_FUSION_API_KEY && env.FUSION_CONFIG && env.AI_INVITE_CODE);
+		const { off, today } = await lobby.aiState();
+		const fails = await lobby.codeFails(addr);
+		const locked = fails.here >= CODE_FAILS_PER_HOUR || fails.everywhere >= CODE_FAILS_GLOBAL_PER_HOUR;   // don't even compare
+		const codeOk = configured && !locked && (await sameText(String(form.get("aicode") ?? "").trim(), env.AI_INVITE_CODE!));
+		const why = aiRoomRefusal({ configured, codeOk, failsHere: fails.here, failsEverywhere: fails.everywhere, off, today,
+			perDay: Number(env.AI_ROOMS_PER_DAY || 4) });
+		if (why) {
+			if (configured && !locked && !codeOk) await lobby.recordCodeFail(addr);
+			return back(why);
 		}
-		const why = await lobby.takeAiRoom(Number(env.AI_ROOMS_PER_DAY || 4));
-		if (why) return back(why);
+		await lobby.spendAiRoom();
 	}
 	const title = String(form.get("title") ?? "").trim().slice(0, 40) || `${humans[0]}'s table`;
 	const mine = PILOT_DECKS[String(form.get("mydeck") ?? "")];                 // the first person plays a virtual deck
 	const pilots: AiSeat[] = mine ? [{ name: humans[0], ...mine }] : [];
 	const id = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
-	const why = await lobby.add({ id, title, game: "magic", humans, ai: ai.map((a) => `${a.name} (${a.commander})`), created: Date.now() },
-		request.headers.get("CF-Connecting-IP") ?? "unknown");
-	if (why) return back(why);
+	const why = await lobby.add({ id, title, game: "magic", humans, ai: ai.map((a) => `${a.name} (${a.commander})`), created: Date.now() }, addr);
+	if (why) {
+		if (ai.length) await lobby.refundAiRoom();                         // the room never started: give today's AI room back
+		return back(why);
+	}
 	await env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/setup?id=" + id, {
 		method: "POST", body: JSON.stringify({ humans: humans.filter((h) => !pilots.some((p) => p.name === h)), ai, pilots, game: "magic" } satisfies RoomConfig),
 	}));
@@ -414,13 +442,6 @@ async function createChess(request: Request, env: Env, lobby: DurableObjectStub<
 		method: "POST", body: JSON.stringify({ game: "chess", humans, ai: [], white, black, minutes, increment: minutes >= 15 ? 10 : 5 } satisfies RoomConfig),
 	}));
 	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
-}
-
-/** Compare a submitted code with the secret without leaking where they differ. */
-async function sameText(a: string, b: string): Promise<boolean> {
-	const enc = new TextEncoder();
-	const [x, y] = await Promise.all([a, b].map((t) => crypto.subtle.digest("SHA-256", enc.encode(t))));
-	return (crypto.subtle as unknown as { timingSafeEqual(a: ArrayBuffer, b: ArrayBuffer): boolean }).timingSafeEqual(x, y);   // Workers-only API
 }
 
 const aiDm = (env: Env) => env.DND_CLOUD_AI === "1" && !!env.DND_DM_RELEASE_ID && !!env.DIVINCI_FUSION_API_KEY;

@@ -293,7 +293,7 @@ async function phase() {
   for (const a of Object.values(actors)) a.ring.visible = a.name === turn;
 }
 document.getElementById("back").addEventListener("click", async () => {
-  await fetch("/api/phase/back", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ by: turn || "xr" }) });
+  await fetch("/api/phase/back", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ by: window.TableSeat?.name() || turn || "xr" }) });
   phase();
 });
 document.getElementById("next").addEventListener("click", async e => {

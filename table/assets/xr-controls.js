@@ -15,6 +15,21 @@
 //
 // Movement in VR moves the reference space (getOffsetReferenceSpace), never the scene, so the table, cards and
 // hit-tests keep their coordinates.
+// ── the movement math, pure so it can be tested (tests/xr_math_test.mjs) ────────────────────────────
+// WebXR: getOffsetReferenceSpace(T) puts the new origin at T in the old space, so a pose seen in the new space
+// is T⁻¹·(old pose). To move the VIEWER by +v, T = translate(−v). To turn the viewer by a (left is +, as in
+// three.js yaw) about the head h, T = translate(h)·rotY(−a)·translate(−h).
+export function moveOffset(THREE, v) {
+  return { pos: v.clone().negate(), quat: null };
+}
+export function turnOffset(THREE, head, a) {
+  const r = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a);
+  return { pos: head.clone().sub(head.clone().applyQuaternion(r)), quat: r };
+}
+// a direction's yaw (0 = looking down −Z, + = turned left) and the yaw that faces from a point toward another
+export const yawOf = d => Math.atan2(-d.x, -d.z);
+export const yawToward = (from, to) => Math.atan2(-(to.x - from.x), -(to.z - from.z));
+
 export function installXRControls(o) {
   const { THREE, renderer, scene, camera, table, board } = o;
   const V = () => new THREE.Vector3(), Q = () => new THREE.Quaternion();
@@ -156,26 +171,22 @@ export function installXRControls(o) {
   }
 
   // ── moving yourself (VR): offsets of the reference space ───────────────────────────────────────
+  const later = [];                                  // work for a coming XR frame (window rAF can pause in a session)
   function offset(pos, quat) {
     const cur = renderer.xr.getReferenceSpace(); if (!cur) return;
     renderer.xr.setReferenceSpace(cur.getOffsetReferenceSpace(new XRRigidTransform(
       { x: pos.x, y: pos.y, z: pos.z, w: 1 }, quat ? { x: quat.x, y: quat.y, z: quat.z, w: quat.w } : undefined)));
   }
   const head = () => { const xc = renderer.xr.getCamera(); xc.updateMatrixWorld(); return V().setFromMatrixPosition(xc.matrixWorld); };
-  const headYaw = () => { const d = V(); renderer.xr.getCamera().getWorldDirection(d); return Math.atan2(-d.x, -d.z); };
-  function moveBy(v) { offset(v.clone().negate()); }                  // the viewer moves by +v in the world
-  function turnBy(a) {                                               // the viewer turns by a (left +), about the head
-    const h = head(), r = Q().setFromAxisAngle(V().set(0, 1, 0), -a);
-    const t = h.clone().sub(h.clone().applyQuaternion(r));            // T = Trans(h)·R·Trans(−h)
-    offset(t, r);
-  }
+  const headYaw = () => { const d = V(); renderer.xr.getCamera().getWorldDirection(d); return yawOf(d); };
+  function moveBy(v) { const t = moveOffset(THREE, v); offset(t.pos); }      // the viewer moves by +v in the world
+  function turnBy(a) { const t = turnOffset(THREE, head(), a); offset(t.pos, t.quat); }   // turns by a (left +) about the head
   function goToSeat() {
     const me = o.mySeat(), holder = o.seatHolder(me) || o.seatHolder(o.firstSeat());
     if (!holder) return say("no seat to go to");
     const seat = holder.getWorldPosition(V()), centre = table.getWorldPosition(V());
-    const want = Math.atan2(-(centre.x - seat.x), -(centre.z - seat.z));      // facing the centre
-    turnBy(want - headYaw());
-    requestAnimationFrame(() => { const h = head(); moveBy(V().set(seat.x - h.x, 0, seat.z - h.z).multiplyScalar(0.92)); });
+    turnBy(yawToward(seat, centre) - headYaw());                              // face the centre…
+    later.push({ frames: 1, fn: () => { const h = head(); moveBy(V().set(seat.x - h.x, 0, seat.z - h.z)); } });   // …then stand at the seat
   }
 
   // ── each frame ────────────────────────────────────────────────────────────────────────────────
@@ -189,6 +200,7 @@ export function installXRControls(o) {
   function update(frame) {
     if (!renderer.xr.isPresenting) return;
     const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
+    for (let i = later.length - 1; i >= 0; i--) if (later[i].frames-- <= 0) later.splice(i, 1)[0].fn();
     panel.visible = visible;
     // pointing: ray length, hover, card under the ray
     let newHover = null, card = null;
@@ -248,7 +260,7 @@ export function installXRControls(o) {
     const s = renderer.xr.getSession();
     mode = s.environmentBlendMode && s.environmentBlendMode !== "opaque" ? "ar" : "vr";
     visible = true; inspect = null; lastDraw = "";
-    requestAnimationFrame(() => setTimeout(placePanel, 300));      // after the first pose arrives
+    later.push({ frames: 20, fn: placePanel });                   // after the first poses have arrived
   });
   renderer.xr.addEventListener("sessionend", () => { mode = null; panel.visible = false; for (const h of hands) h.grab = null; });
   return { update };

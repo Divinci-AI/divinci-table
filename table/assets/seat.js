@@ -99,6 +99,21 @@
       if (qk && r.ok) history.replaceState(null, "", location.pathname + "?player=" + encodeURIComponent(qp));   // don't leave the key in the bar
     }
   })();
+  // Every POST this page makes to its own table carries this device's seat key (X-Seat-Key), so the table can
+  // check that a change comes from a seated player, and for their own seat. Same origin only: never sent elsewhere.
+  const _fetch = window.fetch.bind(window);
+  window.fetch = (input, init = {}) => {
+    try {
+      const url = new URL(typeof input === "string" ? input : input.url, location.href);
+      const method = (init.method || (typeof input === "string" ? "GET" : input.method) || "GET").toUpperCase();
+      if (mine.key && url.origin === location.origin && method !== "GET" && method !== "HEAD") {
+        const h = new Headers(init.headers || (typeof input === "string" ? undefined : input.headers));
+        if (!h.has("X-Seat-Key")) h.set("X-Seat-Key", mine.key);
+        init = { ...init, headers: h };
+      }
+    } catch {}
+    return _fetch(input, init);
+  };
   window.TableSeat = { name: () => (proxied ? qp : mine.name) || "",
                        body: (extra = {}) => ({ by: (proxied ? qp : mine.name) || "", key: mine.key || "", ...extra }), pick, ready };
 })();

@@ -41,6 +41,13 @@ run phases        $PY table/tests/phase_test.py
 run migrate       $PY table/tests/migrate_test.py
 run captains      /usr/bin/python3 table/tests/captains_test.py
 run hearing-names $PY table/tests/hearing_names.py
+run openmic       /usr/bin/python3 table/tests/openmic_test.py
+run dnd           /usr/bin/python3 table/tests/dnd_test.py
+run ledger        /usr/bin/python3 table/tests/ledger_test.py
+run fusion-cap    /usr/bin/python3 table/tests/fusion_cap_test.py
+run remote-guard  $PY table/tests/remote_guard_test.py
+run xr-math       node table/tests/xr_math_test.mjs
+run cloud-policy  node --experimental-strip-types --test cloud/test/policy.test.ts
 if [ "${1:-}" = quick ]; then
   run sensory     $PY table/tests/sense_run.py --tier regression
   run game-sim    $PY table/tests/game_sim.py --games 1 --rounds 6

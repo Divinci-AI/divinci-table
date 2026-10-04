@@ -926,6 +926,18 @@ tok_path.write_text(TOKEN)
 os.chmod(tok_path, 0o600)
 
 
+# State-changing requests from another device need a seat key (Handler._seat_guard): path → (the body field naming
+# the acting seat, OWN). OWN: that seat must be the key's seat (your life, your hand count, your fair word, your
+# attacks, your words, your cards). Otherwise: any seated player, recorded under their own name. On in cloud rooms;
+# on a home network set STRICT_SEATS=1. Pages send the key automatically (assets/seat.js adds X-Seat-Key).
+REMOTE_SEAT_POSTS = {
+    "/api/life": ("player", True), "/api/stage/hand": ("player", True), "/api/fair/word": ("player", True),
+    "/api/declare/attack": ("by", True), "/api/chat": ("by", True), "/api/card-action": ("seat", True),
+    "/api/highroll/start": ("by", False), "/api/highroll/roll": ("by", False),
+    "/api/phase/back": ("by", False), "/api/phase/hold": ("by", False), "/api/phase/windows": ("by", False),
+    "/api/todo/answer": ("by", False), "/api/todo/done": ("by", False), "/api/placed": ("by", False),
+}
+STRICT_SEATS = CLOUD or os.environ.get("STRICT_SEATS") == "1"
 # What another device on the LAN may reach: the player view and public table state. Nothing that
 # reveals or changes the AI's cards, resets the game, or feeds the mic/camera.
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
@@ -1849,6 +1861,8 @@ class H(BaseHTTPRequestHandler):
     JSON_MAX = 256_000                                  # every JSON body is small; audio/images use their own routes
 
     def _json(self):
+        if getattr(self, "_jcache", None) is not None:      # read once per request (the seat guard reads it first)
+            return self._jcache
         try:
             n = int(self.headers.get("Content-Length", 0) or 0)
         except ValueError:
@@ -1862,6 +1876,7 @@ class H(BaseHTTPRequestHandler):
             raise BadRequest("body is not JSON")
         if not isinstance(b, dict):
             raise BadRequest("body must be a JSON object")
+        self._jcache = b
         return b
 
     def _room_token_ok(self) -> bool:
@@ -2104,6 +2119,7 @@ class H(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
+        self._jcache = None                                # keep-alive: one handler object serves many requests
         if self._room_api("POST"):
             return
         try:
@@ -2115,6 +2131,8 @@ class H(BaseHTTPRequestHandler):
     def _do_post(self):
         global T                                           # /api/reset replaces the table (AI seats: reshuffle_all)
         if self._lan_blocked("POST"):
+            return
+        if self._seat_guard():
             return
         try:
             if self.path == "/api/scan":
@@ -2572,8 +2590,13 @@ class H(BaseHTTPRequestHandler):
                 if sn is None:
                     return self._send(404, {"error": f"no AI seat '{b.get('seat')}' (seats: {list(VPS)})"})
                 act = self.path.rsplit("/", 1)[-1]
-                if pilot and act in ("new-game",):          # a person plays their seat; they don't reset the table
-                    return self._send(403, {"error": "only the table's host can start a new game"})
+                if pilot and act in ("new-game", "take"):  # a person plays their seat: no reset, no reaching into a hand
+                    return self._send(403, {"error": "only the table's host can do that" if act == "new-game"
+                                            else "taking a card from another hand is done by the table's host"})
+                if pilot and act == "life" and str(b.get("player", "me")).lower() not in ("me", sn.lower()):
+                    return self._send(403, {"error": "you can only change your own life total"})
+                if pilot and act == "damage":
+                    b["no_life"] = True                     # the players hit say their own life; only my lifelink counts
                 with PHASE_LOCK:
                     blocked = ai_advance(sn, act)
                 if blocked:
@@ -2672,6 +2695,37 @@ class H(BaseHTTPRequestHandler):
 
     def _brain_ok(self):
         return bool(VPS) and secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN)
+
+    def _seat_guard(self) -> bool:
+        """Another device changing the table must hold a seat key (REMOTE_SEAT_POSTS). OWN actions name the seat
+        they act for, and it must be the key's seat; TABLE actions are recorded under the key's seat. Returns
+        True when it refused (and answered). The laptop itself is never asked."""
+        rule = REMOTE_SEAT_POSTS.get(self.path)
+        if not STRICT_SEATS or rule is None or self._is_local():
+            return False
+        field, own = rule
+        try:
+            b = self._json() if int(self.headers.get("Content-Length", 0) or 0) else {}
+        except (ValueError, BadRequest):
+            b = {}
+        self._jcache = b
+        key = str(b.get("key") or self.headers.get("X-Seat-Key", ""))[:200]
+        seats = [h["name"] for h in HUMANS] + sorted(PILOTS)
+        holder = next((n for n in seats if seat_key_ok(n, key)), None) if key else None
+        if not holder:
+            self._send(403, {"error": "claim your seat first (👤): only a seated player can change the table", "need_seat": True})
+            return True
+        if own:                                           # a key can hold two seats (a hand-off): ask about THIS one
+            named = next((n for n in seats if n.lower() == str(b.get(field, "")).strip().lower()), None)
+            if not named or not seat_key_ok(named, key):
+                self._send(403, {"error": f"you can only do that for your own seat ({holder})"})
+                return True
+            b[field] = named
+            if field == "player":
+                b["by"] = named
+        else:
+            b["by"] = holder                                  # recorded under who really did it
+        return False
 
     def _pilot_ok(self, sn) -> bool:
         """A person driving THEIR pilot seat: the seat key in X-Seat-Key, for exactly that seat."""
