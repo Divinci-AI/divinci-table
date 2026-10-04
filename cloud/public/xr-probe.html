@@ -24,7 +24,7 @@ pre{white-space:pre-wrap;background:var(--panel);padding:12px;border-radius:8px;
 <main>
   <h1>Headset probe</h1>
   <p>Checks what this headset's browser can do for the Divinci Table headset format (docs/xr-play-format.md).
-  Nothing is uploaded: results stay on this page. Sit at the table, press <b>1</b>, allow the camera and microphone
+  Nothing is uploaded: results stay on this page. If the headset asks for a boundary, choose <b>Stationary</b> (Settings → Boundary). Sit at the table, press <b>1</b>, allow the camera and microphone
   if asked, then press <b>2</b> and look at the tabletop for a few seconds. The AR check ends by itself after about 15 s.</p>
   <button id="b1">1 · Check browser</button><button id="b2" disabled>2 · Start AR check</button><button id="copy">Copy results</button>
   <table id="out"></table>
@@ -67,10 +67,10 @@ document.getElementById("b1").onclick = async () => {
 };
 
 document.getElementById("b2").onclick = async () => {
-  const want = ["hit-test", "anchors", "plane-detection", "mesh-detection", "hand-tracking", "depth-sensing", "layers", "dom-overlay"];
+  const want = ["local-floor", "hit-test", "anchors", "plane-detection", "mesh-detection", "hand-tracking", "depth-sensing", "layers", "dom-overlay"];
   let session;
   try {
-    session = await navigator.xr.requestSession("immersive-ar", { requiredFeatures: ["local-floor"], optionalFeatures: want,
+    session = await navigator.xr.requestSession("immersive-ar", { optionalFeatures: want,
       depthSensing: { usagePreference: ["gpu-optimized", "cpu-optimized"], dataFormatPreference: ["luminance-alpha", "float32", "unsigned-short"] },
       domOverlay: { root: document.body } });
   } catch (e) { set("AR session", err(e)); return; }
@@ -82,7 +82,10 @@ document.getElementById("b2").onclick = async () => {
 
   // the stress scene: 4 × ~30k-triangle meshes + 300 instanced card quads, roughly a 4-seat Commander table
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType("local-floor");
+  renderer.xr.enabled = true;
+  const floor = session.enabledFeatures ? session.enabledFeatures.includes("local-floor") : true;
+  renderer.xr.setReferenceSpaceType(floor ? "local-floor" : "local");     // no boundary yet → no floor; still run
+  set("floor level (needs a boundary)", floor);
   document.body.appendChild(renderer.domElement);
   const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera();
   scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 2));

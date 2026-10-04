@@ -21,6 +21,9 @@ interface Env {
 	ROOM_SNAPSHOTS: R2Bucket;
 	ASSETS_BUCKET: R2Bucket;
 	FUSION_CONFIG?: string;
+	AI_INVITE_CODE?: string;        // AI seats in public rooms need this code (unset = no AI seats at all)
+	FUSION_MAX_CALLS?: string;      // per-room cap on an AI seat's release requests (default 300)
+	AI_ROOMS_PER_DAY?: string;      // new AI rooms per UTC day across the whole lobby (default 4)
 	DND_CLOUD_AI?: string;          // "1" = AI Dungeon Master in public rooms (a budget decision; unset = a person DMs)
 	DND_DM_RELEASE_ID?: string;
 }
@@ -117,6 +120,7 @@ export class TableRoom extends Container<Env> {
 			ROOM_TOKEN: r.token,
 			...(this.env.DIVINCI_FUSION_API_KEY ? { DIVINCI_FUSION_API_KEY: this.env.DIVINCI_FUSION_API_KEY } : {}),
 			...(this.env.FUSION_CONFIG ? { FUSION_CONFIG: this.env.FUSION_CONFIG } : {}),
+			FUSION_MAX_CALLS: this.env.FUSION_MAX_CALLS || "300",
 			...(r.config.game === "dnd" && aiDm(this.env) ? { DND_CLOUD_AI: "1", DND_DM_RELEASE_ID: this.env.DND_DM_RELEASE_ID! } : {}),
 		};
 		await this.startAndWaitForPorts(this.defaultPort);
@@ -232,6 +236,26 @@ export class Lobby extends DurableObject<Env> {
 		return left.length !== rooms.length;
 	}
 
+	/** AI seats: the kill switch, and a daily budget of new AI rooms. */
+	async aiState(): Promise<{ off: boolean; today: number }> {
+		const day = new Date().toISOString().slice(0, 10);
+		return { off: !!(await this.ctx.storage.get<boolean>("aiOff")), today: (await this.ctx.storage.get<number>("ai:" + day)) ?? 0 };
+	}
+
+	async setAiOff(off: boolean): Promise<string[]> {
+		await this.ctx.storage.put("aiOff", off);
+		return (await this.list()).filter((r) => r.ai.length && r.game === "magic").map((r) => r.id);
+	}
+
+	/** Spend one of today's AI rooms, or say why not. */
+	async takeAiRoom(perDay: number): Promise<string | null> {
+		const { off, today } = await this.aiState();
+		if (off) return "AI players are paused right now. Start a table for people, or try again later.";
+		if (today >= perDay) return "Today's AI tables are all taken. Start a table for people, or try again tomorrow.";
+		await this.ctx.storage.put("ai:" + new Date().toISOString().slice(0, 10), today + 1);
+		return null;
+	}
+
 	/** Register a room, or say why not. */
 	async add(room: RoomInfo, addr: string): Promise<string | null> {
 		const now = Date.now();
@@ -266,6 +290,18 @@ export default {
 			const id = url.searchParams.get("id") ?? "";
 			if (!/^[a-z0-9]{8}$/.test(id)) return new Response("bad id", { status: 400 });
 			return env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/sleep"));
+		}
+		if ((url.pathname === "/lobby/admin/ai-off" || url.pathname === "/lobby/admin/ai-on") && request.method === "POST") {
+			if (!env.ADMIN_TOKEN || request.headers.get("Authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("Forbidden", { status: 403 });
+			const off = url.pathname.endsWith("ai-off");
+			const aiRooms = await lobby.setAiOff(off);
+			if (off) for (const id of aiRooms) await env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/sleep"));
+			return Response.json({ ai: off ? "off" : "on", slept: off ? aiRooms : [] });
+		}
+		if (url.pathname === "/lobby/admin/ai-status" && request.method === "GET") {
+			if (!env.ADMIN_TOKEN || request.headers.get("Authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return new Response("Forbidden", { status: 403 });
+			return Response.json({ ...(await lobby.aiState()), perDay: Number(env.AI_ROOMS_PER_DAY || 4), maxCalls: Number(env.FUSION_MAX_CALLS || 300),
+				invite: !!env.AI_INVITE_CODE, key: !!env.DIVINCI_FUSION_API_KEY, config: !!env.FUSION_CONFIG });
 		}
 		if (url.pathname === "/lobby/admin/remove" && request.method === "POST") {
 			const auth = request.headers.get("Authorization") ?? "";
@@ -332,7 +368,14 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 	if (ai.length > 2 || humans.length + ai.length < 2 || humans.length + ai.length > 4) {
 		return back("A table seats two to four players, with at most two AI players.");
 	}
-	if (ai.length && !env.DIVINCI_FUSION_API_KEY) return back("AI players aren't available on this server yet.");
+	if (ai.length) {
+		if (!env.DIVINCI_FUSION_API_KEY || !env.FUSION_CONFIG || !env.AI_INVITE_CODE) return back("AI players aren't available on this server yet.");
+		if (!(await sameText(String(form.get("aicode") ?? "").trim(), env.AI_INVITE_CODE))) {
+			return back("AI players are by invitation for now: enter your invitation code, or leave the AI seats unticked.");
+		}
+		const why = await lobby.takeAiRoom(Number(env.AI_ROOMS_PER_DAY || 4));
+		if (why) return back(why);
+	}
 	const title = String(form.get("title") ?? "").trim().slice(0, 40) || `${humans[0]}'s table`;
 	const id = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
 	const why = await lobby.add({ id, title, game: "magic", humans, ai: ai.map((a) => `${a.name} (${a.commander})`), created: Date.now() },
@@ -361,6 +404,13 @@ async function createChess(request: Request, env: Env, lobby: DurableObjectStub<
 		method: "POST", body: JSON.stringify({ game: "chess", humans, ai: [], white, black, minutes, increment: minutes >= 15 ? 10 : 5 } satisfies RoomConfig),
 	}));
 	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
+}
+
+/** Compare a submitted code with the secret without leaking where they differ. */
+async function sameText(a: string, b: string): Promise<boolean> {
+	const enc = new TextEncoder();
+	const [x, y] = await Promise.all([a, b].map((t) => crypto.subtle.digest("SHA-256", enc.encode(t))));
+	return (crypto.subtle as unknown as { timingSafeEqual(a: ArrayBuffer, b: ArrayBuffer): boolean }).timingSafeEqual(x, y);   // Workers-only API
 }
 
 const aiDm = (env: Env) => env.DND_CLOUD_AI === "1" && !!env.DND_DM_RELEASE_ID && !!env.DIVINCI_FUSION_API_KEY;
@@ -483,6 +533,7 @@ ${error ? `<div class="err">${esc(error)}</div>` : ""}
 <label class="opp"><input type=checkbox name=ai value=tuvasa><b>Tuvasa the Sunlit</b>Enchantments that grow</label>
 <label class="opp"><input type=checkbox name=ai value=kaust><b>Kaust, Eyes of the Glade</b>Face-down surprises</label>
 <label class="opp"><input type=checkbox name=ai value=ellivere><b>Ellivere of the Wild Court</b>Roles and Auras</label></div>
+<label for=aicode>Invitation code for AI players</label><input type=text id=aicode name=aicode maxlength=60 autocomplete=off placeholder="Only needed with an AI seat">
 <details class="chessopts"><summary style="cursor:pointer;color:var(--gold-hi);margin-top:12px">Chess options</summary>
 <label for=minutes>Time per player</label><select id=minutes name=minutes style="padding:8px;border-radius:4px;background:#071820;color:var(--parch);border:1px solid rgba(217,180,106,.5)">
 <option value=5>5 minutes</option><option value=10>10 minutes</option><option value=15 selected>15 minutes</option><option value=30>30 minutes</option></select>

@@ -84,9 +84,24 @@ class Table:
         return self._req("GET", f"/api/events?since={since}", brain=False)[1]
 
 
+# Spend cap for public rooms: after FUSION_MAX_CALLS release requests this seat stops asking and plays on as a
+# "sleeping" AI (lands, then the passive choice). 0 = no cap (the laptop table). The count lives in the
+# container, so it restarts if the room's container is replaced; the lobby's AI-rooms-per-day limit bounds that.
+MAX_CALLS = int(os.environ.get("FUSION_MAX_CALLS", "0") or 0)
+CALLS = {"n": 0, "announced": False}
+PASSIVE = ("stop", "none", "pass", "block", "keep")
+
+
+def capped() -> bool:
+    return bool(MAX_CALLS) and CALLS["n"] >= MAX_CALLS
+
+
 def ask(prompt: str, dry: bool, release: str | None = None) -> dict:
     if dry:
         return {"choice": 1, "say": ""}
+    if capped():
+        return {"capped": True}
+    CALLS["n"] += 1
     body = json.dumps({"messages": [{"role": "user", "content": prompt}], "releaseId": release or RELEASE_ID}).encode()
     req = urllib.request.Request(API + "/api/v1/chat/completions", data=body, method="POST", headers={
         "Authorization": "Bearer " + os.environ["DIVINCI_FUSION_API_KEY"], "Content-Type": "application/json"})
@@ -175,6 +190,9 @@ def choose(state: dict, options: list[tuple[str, dict]], question: str, dry: boo
     prompt = ("STATE:\n" + json.dumps(state_for_prompt(state), separators=(",", ":")) + "\nOPTIONS:\n"
               + "\n".join(f"{i + 1}. {lab}" for i, (lab, _) in enumerate(options)) + f"\n{question}")
     r = ask(prompt, dry, release_for(state.get("commander")))
+    if r.get("capped"):                                    # sleeping AI: the most passive option, and no talk
+        i = next((k for k, (_, b) in enumerate(options) if b.get("action") in PASSIVE), len(options) - 1)
+        return options[i][1], ""
     try:
         i = int(r.get("choice", 1)) - 1
     except (TypeError, ValueError):
@@ -184,6 +202,9 @@ def choose(state: dict, options: list[tuple[str, dict]], question: str, dry: boo
 
 
 def say(t: Table, line: str):
+    if capped() and not CALLS["announced"]:
+        CALLS["announced"] = True
+        line = "I've reached this table's limit for AI thinking, so I'll just play my lands and pass from here."
     if line:
         t.act("say", text=line[:200])           # the server refuses lines that name a card still in hand
 
@@ -339,7 +360,7 @@ def on_talk(t: Table, e: dict, dry: bool):
     _, line = choose(s, [("reply", {"action": "reply"})],
                      f'Someone at the table said to you: "{e.get("text")}". Reply in one short sentence '
                      "(never name a card in your hand).", dry)
-    say(t, line or "Fair enough.")
+    say(t, line or ("" if capped() else "Fair enough."))
 
 
 MULL_MEMO = Path(__file__).parent / ".cache" / "fusion-mulligans.json"
