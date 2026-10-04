@@ -92,14 +92,18 @@ export class TableRoom extends Container<Env> {
 		this.lastSave = Date.now();
 	}
 
-	/** At most one save every ~20 s while people play; the trailing change is never lost. */
+	/** At most one save every ~20 s while people play. A change that lands while a save is running marks
+	 *  the room dirty, and another save follows, so the last change is never left only in the container
+	 *  (a rollout or crash replaces it without the pre-sleep save). */
+	private dirty = false;
 	private saveSoon(): void {
-		if (this.saving) return;
+		if (this.saving) { this.dirty = true; return; }
+		this.dirty = false;
 		const wait = Math.max(0, 20_000 - (Date.now() - this.lastSave));
 		this.saving = new Promise<void>((done) => setTimeout(done, wait))
 			.then(() => this.save("play"))
 			.catch((e) => console.error("room save failed", e))
-			.finally(() => { this.saving = null; });
+			.finally(() => { this.saving = null; if (this.dirty) this.saveSoon(); });
 		this.ctx.waitUntil(this.saving);
 	}
 
@@ -126,7 +130,15 @@ export class TableRoom extends Container<Env> {
 		await this.startAndWaitForPorts(this.defaultPort);
 		if (this.needsRestore) {
 			this.needsRestore = false;
-			const saved = await this.env.ROOM_SNAPSHOTS.get(this.key(r.id));
+			// onStart can fire for a container that is already running the game, so ask the process first:
+			// only a fresh one (adopted=false) is filled from R2. Anything else would rewind live play.
+			const st = await this.containerFetch(new Request("http://room/api/room/status", { headers: { "X-Room-Token": r.token } }), this.defaultPort)
+				.then((x) => (x.ok ? x.json<{ adopted?: boolean }>() : { adopted: true })).catch(() => ({ adopted: true }));
+			const saved = st.adopted ? null : await this.env.ROOM_SNAPSHOTS.get(this.key(r.id));
+			if (!st.adopted && !saved) {
+				await this.containerFetch(new Request("http://room/api/room/adopt", { method: "POST", headers: { "X-Room-Token": r.token } }), this.defaultPort)
+					.then((x) => x.body?.cancel()).catch(() => undefined);
+			}
 			if (saved) {
 				const res = await this.containerFetch(new Request("http://room/api/room/restore", {
 					method: "POST", headers: { "X-Room-Token": r.token, "Content-Type": "application/octet-stream" },

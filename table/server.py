@@ -341,6 +341,9 @@ def turn_order() -> list[str]:
     return [n for n in ORDER if n in names] + [n for n in names if n not in ORDER]
 
 
+ROOM_ADOPTED = [False]    # cloud rooms: True once this process holds the room's game (restored, or adopted as new)
+
+
 def snapshot():
     """The whole game, pickled next to the research logs after every change: a crash or a restart
     (new code) resumes from here with --restore. Local only — it holds the AI's hands and libraries."""
@@ -1840,6 +1843,13 @@ class H(BaseHTTPRequestHandler):
                 self.rfile.read(int(self.headers.get("Content-Length") or 0))
             self._send(404, {"error": "not found"})
             return True
+        if method == "GET" and p0 == "/api/room/status":     # is this a fresh process the room should fill?
+            self._send(200, {"adopted": ROOM_ADOPTED[0], "rev": _ev_id[0]})
+            return True
+        if method == "POST" and p0 == "/api/room/adopt":     # nothing saved yet: keep this fresh game as the room's
+            ROOM_ADOPTED[0] = True
+            self._send(200, {"ok": True})
+            return True
         if method == "GET" and p0 == "/api/room/snapshot":
             snapshot()
             p = research_dir() / "snapshot.pkl"
@@ -1857,7 +1867,12 @@ class H(BaseHTTPRequestHandler):
             tmp.parent.mkdir(parents=True, exist_ok=True)
             tmp.write_bytes(blob)
             os.chmod(tmp, 0o600)
+            if ROOM_ADOPTED[0]:                            # never overwrite a game already in play here
+                tmp.unlink(missing_ok=True)
+                self._send(409, {"error": "this process already holds the room's game"})
+                return True
             restore(str(tmp))
+            ROOM_ADOPTED[0] = True
             tmp.unlink(missing_ok=True)
             snapshot()                                     # re-save under the restored game's research folder
             self._send(200, {"ok": True, "rev": _ev_id[0], "phase": PHASE})
