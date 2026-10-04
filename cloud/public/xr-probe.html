@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Divinci Table — XR probe</title>
+<style>
+:root{--bg:#040d12;--panel:#0d1d25;--ink:#ece4cf;--dim:#9fb0b0;--gold:#d9b46a;--ok:#5fd38a;--no:#ff8f7a;--warn:#f0c060}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.45 system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:24px 16px 60px}
+h1{font:800 26px Georgia,serif;color:var(--gold);margin:0 0 6px}
+p{color:var(--dim)}
+button{font:700 18px system-ui;padding:14px 22px;border-radius:10px;border:0;background:var(--gold);color:#1a1206;margin:6px 8px 6px 0;cursor:pointer}
+button:disabled{opacity:.4}
+table{width:100%;border-collapse:collapse;margin-top:14px;font-size:16px}
+td{padding:7px 8px;border-bottom:1px solid #ffffff14;vertical-align:top}
+td:first-child{width:46%;color:var(--dim)}
+.ok{color:var(--ok)}.no{color:var(--no)}.warn{color:var(--warn)}
+pre{white-space:pre-wrap;background:var(--panel);padding:12px;border-radius:8px;font-size:12px;max-height:260px;overflow:auto}
+</style>
+</head>
+<body>
+<main>
+  <h1>Headset probe</h1>
+  <p>Checks what this headset's browser can do for the Divinci Table headset format (docs/xr-play-format.md).
+  Nothing is uploaded: results stay on this page. Sit at the table, press <b>1</b>, allow the camera and microphone
+  if asked, then press <b>2</b> and look at the tabletop for a few seconds. The AR check ends by itself after about 15 s.</p>
+  <button id="b1">1 · Check browser</button><button id="b2" disabled>2 · Start AR check</button><button id="copy">Copy results</button>
+  <table id="out"></table>
+  <pre id="json"></pre>
+</main>
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js";
+const R = {}, out = document.getElementById("out");
+const fmt = v => v === true ? `<span class="ok">yes</span>` : v === false ? `<span class="no">no</span>` : typeof v === "object" ? JSON.stringify(v) : String(v);
+function set(k, v) { R[k] = v; out.innerHTML = Object.entries(R).map(([a, b]) => `<tr><td>${a}</td><td>${fmt(b)}</td></tr>`).join("");
+  document.getElementById("json").textContent = JSON.stringify({ ua: navigator.userAgent, ...R }, null, 1); }
+const err = e => (e && (e.name ? e.name + ": " : "") + (e.message || e)) + "";
+document.getElementById("copy").onclick = () => navigator.clipboard?.writeText(document.getElementById("json").textContent)
+  .then(() => set("copied", true), e => set("copied", err(e)));
+
+async function media(constraints) {
+  try {
+    const s = await navigator.mediaDevices.getUserMedia(constraints);
+    const t = s.getTracks()[0], st = t.getSettings?.() || {};
+    const info = { ok: true, label: t.label, w: st.width, h: st.height, fps: st.frameRate };
+    s.getTracks().forEach(x => x.stop());
+    return info;
+  } catch (e) { return { ok: false, error: err(e) }; }
+}
+
+document.getElementById("b1").onclick = async () => {
+  set("secure context", isSecureContext);
+  set("navigator.xr", !!navigator.xr);
+  for (const m of ["immersive-ar", "immersive-vr"]) set(m, navigator.xr ? await navigator.xr.isSessionSupported(m).catch(e => err(e)) : false);
+  const devs = await navigator.mediaDevices?.enumerateDevices?.().catch(() => []) || [];
+  set("cameras listed", devs.filter(d => d.kind === "videoinput").length);
+  set("camera (outside AR)", await media({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } } }));
+  set("microphone (outside AR)", await media({ audio: true }));
+  try {
+    const ac = new AudioContext(); await ac.resume();
+    const p = ac.createPanner(); p.panningModel = "HRTF";
+    set("Web Audio + HRTF panner", ac.state === "running" ? true : ac.state); ac.close();
+  } catch (e) { set("Web Audio + HRTF panner", err(e)); }
+  document.getElementById("b2").disabled = !R["immersive-ar"];
+};
+
+document.getElementById("b2").onclick = async () => {
+  const want = ["hit-test", "anchors", "plane-detection", "mesh-detection", "hand-tracking", "depth-sensing", "layers", "dom-overlay"];
+  let session;
+  try {
+    session = await navigator.xr.requestSession("immersive-ar", { requiredFeatures: ["local-floor"], optionalFeatures: want,
+      depthSensing: { usagePreference: ["gpu-optimized", "cpu-optimized"], dataFormatPreference: ["luminance-alpha", "float32", "unsigned-short"] },
+      domOverlay: { root: document.body } });
+  } catch (e) { set("AR session", err(e)); return; }
+  set("AR session", true);
+  const granted = session.enabledFeatures ? [...session.enabledFeatures] : "enabledFeatures not exposed";
+  set("features granted", granted);
+  set("frame rates offered", session.supportedFrameRates ? [...session.supportedFrameRates] : "not exposed");
+  try { if (session.supportedFrameRates?.includes(72)) await session.updateTargetFrameRate(72); } catch {}
+
+  // the stress scene: 4 × ~30k-triangle meshes + 300 instanced card quads, roughly a 4-seat Commander table
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType("local-floor");
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera();
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 2));
+  const geo = new THREE.TorusKnotGeometry(0.08, 0.025, 600, 24);      // ≈ 28.8k triangles
+  [[-0.5, 0], [0.5, 0], [0, -0.5], [0, 0.5]].forEach(([x, z], i) => {
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: [0xf0a868, 0xd8b45a, 0x5fd3ff, 0xb58cff][i] }));
+    m.position.set(x, 1.0, z - 1.0); scene.add(m);
+  });
+  const cards = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.063, 0.088), new THREE.MeshBasicMaterial({ color: 0xeeeeee }), 300);
+  const mtx = new THREE.Matrix4();
+  for (let i = 0; i < 300; i++) { mtx.makeRotationX(-Math.PI / 2).setPosition((i % 20 - 10) * 0.07, 0.75, -1.4 + Math.floor(i / 20) * 0.09); cards.setMatrixAt(i, mtx); }
+  scene.add(cards);
+  await renderer.xr.setSession(session);
+
+  const viewer = await session.requestReferenceSpace("viewer");
+  let hitSource = null;
+  try { hitSource = await session.requestHitTestSource({ space: viewer }); } catch (e) { set("hit-test source", err(e)); }
+  const t0 = performance.now(); let frames = 0, firstHit = null, maxJoints = 0, anchorTried = false;
+  const local = renderer.xr.getReferenceSpace();
+
+  // camera + mic again, now INSIDE the immersive session (this is when the design needs them)
+  media({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } } }).then(v => set("camera (inside AR)", v));
+  media({ audio: true }).then(v => set("microphone (inside AR)", v));
+
+  renderer.setAnimationLoop((t, frame) => {
+    frames++;
+    for (const src of session.inputSources) if (src.hand) maxJoints = Math.max(maxJoints, src.hand.size || 0);
+    if (hitSource && !firstHit) {
+      const hits = frame.getHitTestResults(hitSource);
+      if (hits.length) {
+        firstHit = Math.round(performance.now() - t0);
+        set("hit-test: first surface hit (ms)", firstHit);
+        if (!anchorTried && hits[0].createAnchor) {
+          anchorTried = true;
+          hits[0].createAnchor().then(async a => {
+            set("anchor created", true);
+            if (a.requestPersistentHandle) {
+              try { const h = await a.requestPersistentHandle(); set("persistent anchor handle", !!h); }
+              catch (e) { set("persistent anchor handle", err(e)); }
+            } else set("persistent anchor handle", "requestPersistentHandle not exposed");
+          }, e => set("anchor created", err(e)));
+        } else if (!hits[0].createAnchor) set("anchor created", "createAnchor not exposed");
+      }
+    }
+    if (frame.detectedPlanes) R["planes seen"] = frame.detectedPlanes.size;
+    if (frame.detectedMeshes) R["meshes seen"] = frame.detectedMeshes.size;
+    renderer.render(scene, cam);
+    const el = performance.now() - t0;
+    if (el > 15000) {
+      set("fps over 15 s (stress scene)", Math.round(frames / (el / 1000)));
+      set("hand joints seen", maxJoints);
+      set("planes seen", R["planes seen"] ?? "plane-detection not active");
+      set("meshes seen", R["meshes seen"] ?? "mesh-detection not active");
+      if (!firstHit) set("hit-test: first surface hit (ms)", "no hit in 15 s");
+      renderer.setAnimationLoop(null);
+      session.end();
+    }
+  });
+  session.addEventListener("end", () => { renderer.domElement.remove(); set("done", new Date().toISOString()); });
+};
+</script>
+</body>
+</html>
