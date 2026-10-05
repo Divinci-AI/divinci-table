@@ -1,12 +1,13 @@
 {
   "about": "Bill of materials for the physical AI player (camera gantry + magnet hand, and the optional SO-101 arm). One entry per part, ordered or not. table/tests/bom_test.py checks it against the manual and the goal doc: every part is used by a step that exists, every Amazon link in those docs is listed here, removed parts stay out of the manual, and the cart totals add up.",
-  "updated": "2026-10-04",
+  "updated": "2026-10-05",
   "docs": {
     "manual": "hardware/gantry/README.md",
     "goal": "docs/ARM-GANTRY-GOAL.md"
   },
   "statuses": {
-    "cart": "in a cart, not yet ordered",
+    "cart": "in a cart, about to be ordered",
+    "saved": "in Amazon's Save for later: waits on the M1 magnet test",
     "on-hand": "already owned",
     "check": "needed; probably on hand, buy only if missing",
     "to-print": "printed on the CR-6 Max before it becomes the gantry",
@@ -15,8 +16,8 @@
   },
   "carts": {
     "amazon": {
-      "subtotal": 331.26,
-      "note": "arm-route items ($258.95) wait on the M1 magnet test"
+      "subtotal": 33.97,
+      "note": "Only the M1 test kit is in the cart (magnet, discs, diodes); everything else is in Save for later until the stack test passes 19/20 (Hermes review, 2026-10-05)"
     },
     "home-depot": {
       "subtotal": 46.49,
@@ -52,7 +53,7 @@
         "magnet",
         "arm"
       ],
-      "role": "prints the parts, then becomes the gantry (and, on the magnet route, the hand)",
+      "role": "prints the Step 3 parts, then becomes the gantry (and, on the magnet route, the hand)",
       "used_in": [
         {
           "doc": "manual",
@@ -74,7 +75,7 @@
         "magnet",
         "arm"
       ],
-      "role": "the magnet swivel and the tap-station foot holder",
+      "role": "the printed parts in Step 3: magnet swivel, deck box, discard chute, privacy wall",
       "used_in": [
         {
           "doc": "manual",
@@ -89,12 +90,12 @@
       "source": "amazon",
       "asin": "B01EMNB8P6",
       "price": 19.99,
-      "status": "cart",
+      "status": "saved",
       "route": [
         "magnet",
         "arm"
       ],
-      "role": "mains power for the camera; Canon recommends the AC kit for tethered shooting",
+      "role": "mains power for the camera; Canon recommends the AC kit for tethered shooting; M1 uses the table's existing fixed camera, so this waits",
       "used_in": [
         {
           "doc": "manual",
@@ -109,7 +110,7 @@
       "source": "amazon",
       "asin": "B078SRKRLK",
       "price": 8.55,
-      "status": "cart",
+      "status": "saved",
       "route": [
         "magnet",
         "arm"
@@ -129,7 +130,7 @@
       "source": "amazon",
       "asin": "B07D9JCP18",
       "price": 9.8,
-      "status": "cart",
+      "status": "saved",
       "route": [
         "magnet",
         "arm"
@@ -218,7 +219,7 @@
       "source": "amazon",
       "asin": "B0CGX8LNMC",
       "price": 31.99,
-      "status": "cart",
+      "status": "saved",
       "route": [
         "magnet",
         "arm"
@@ -242,7 +243,7 @@
       "source": "amazon",
       "asin": "B0GRPJ2Q8F",
       "price": 197.98,
-      "status": "cart",
+      "status": "saved",
       "route": [
         "arm"
       ],
@@ -265,7 +266,7 @@
       "source": "amazon",
       "asin": "B0CNCSFQC1",
       "price": 18.99,
-      "status": "cart",
+      "status": "saved",
       "route": [
         "arm"
       ],
@@ -284,7 +285,7 @@
       "source": "amazon",
       "asin": "B0CD4Q36LW",
       "price": 9.99,
-      "status": "cart",
+      "status": "saved",
       "route": [
         "arm"
       ],
@@ -576,9 +577,44 @@
       ]
     },
     {
+      "id": "bed-mat",
+      "name": "Non-slip shelf liner, cut to the bed",
+      "qty": 1,
+      "source": "hardware store",
+      "status": "check",
+      "route": [
+        "magnet"
+      ],
+      "role": "stops the moving bed from sliding the AI's cards around",
+      "used_in": [
+        {
+          "doc": "manual",
+          "step": "Step 7"
+        }
+      ]
+    },
+    {
+      "id": "multimeter",
+      "name": "Multimeter",
+      "qty": 1,
+      "source": "on-hand",
+      "status": "check",
+      "route": [
+        "magnet",
+        "arm"
+      ],
+      "role": "measures the printer's USB shell against the Mac's ground before the first plug-in",
+      "used_in": [
+        {
+          "doc": "manual",
+          "step": "Step 6"
+        }
+      ]
+    },
+    {
       "id": "magnet-swivel",
       "name": "Printed magnet swivel",
-      "qty": 1,
+      "qty": 2,
       "source": "print",
       "status": "to-print",
       "route": [
@@ -593,6 +629,61 @@
         {
           "doc": "manual",
           "step": "Step 4"
+        }
+      ]
+    },
+    {
+      "id": "deck-box",
+      "name": "Printed deck box with a one-card exit slot",
+      "qty": 1,
+      "source": "print",
+      "status": "to-print",
+      "route": [
+        "magnet"
+      ],
+      "role": "holds the AI's shuffled deck face-up and covered; the magnet slides the top card out through a slot one card thick, so the card below can't follow",
+      "used_in": [
+        {
+          "doc": "manual",
+          "step": "Step 3"
+        },
+        {
+          "doc": "manual",
+          "step": "Step 9"
+        }
+      ]
+    },
+    {
+      "id": "discard-chute",
+      "name": "Printed discard chute",
+      "qty": 1,
+      "source": "print",
+      "status": "to-print",
+      "route": [
+        "magnet"
+      ],
+      "role": "off the bed's edge into a tray: graveyard and exile take no bed space",
+      "used_in": [
+        {
+          "doc": "manual",
+          "step": "Step 3"
+        }
+      ]
+    },
+    {
+      "id": "privacy-wall",
+      "name": "Printed privacy wall",
+      "qty": 1,
+      "source": "print",
+      "status": "to-print",
+      "route": [
+        "magnet"
+      ],
+      "role": "hides the AI's face-up hand zone from the person",
+      "used_in": [
+        {
+          "doc": "manual",
+          "step": "Step 3"
         }
       ]
     },
@@ -622,7 +713,7 @@
       "source": "amazon",
       "price": 8.88,
       "status": "removed",
-      "reason": "tapping is done by an arc move on the swivel; back on only if that fails"
+      "reason": "tapping is done by an arc move on the swivel; back on only if that fails (it is in the Amazon list)"
     },
     {
       "id": "buck-5v",

@@ -3,7 +3,9 @@
 - every part has a valid status, and every part still in the build is used by a step that exists;
 - a part the manual uses appears in the manual by its exact name, so the parts table and the bom can't drift;
 - every Amazon link in the manual or the goal doc is a part in the bom;
-- every Amazon part in a cart is linked from a doc (no orphan purchases);
+- every Amazon part in a cart or in Save for later is linked from a doc (no orphan purchases);
+- the manual's print step names only printed parts the bom lists, and all of them (a part designed in prose but
+  never listed is how the deck box, chute and privacy wall went missing until the Hermes review of 2026-10-05);
 - removed parts never appear in the manual (nobody re-buys them from a stale page);
 - the cart subtotals add up, and the manual states them.
 
@@ -17,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BOM = ROOT / "hardware" / "bom.json"
-STATUSES = {"cart", "on-hand", "check", "to-print", "list-only", "removed"}
+STATUSES = {"cart", "saved", "on-hand", "check", "to-print", "list-only", "removed"}
 ASIN = re.compile(r"amazon\.com/dp/([A-Z0-9]{10})")
 
 
@@ -28,6 +30,18 @@ def headings(text: str) -> list[str]:
 def has_step(text: str, step: str) -> bool:
     """`Step 4` matches '## Step 4 — …'; `G0` matches '## G0 — …'; `M0` matches '### M0 — …'."""
     return any(re.match(rf"{re.escape(step)}\b", h) for h in headings(text))
+
+
+def section(text: str, step: str) -> str:
+    """The body under the heading that starts with `step`, up to the next heading of any level."""
+    out, inside = [], False
+    for line in text.splitlines():
+        if line.startswith("#"):
+            inside = bool(re.match(rf"#+\s*{re.escape(step)}\b", line))
+            continue
+        if inside:
+            out.append(line)
+    return "\n".join(out)
 
 
 def problems(bom: dict, docs: dict[str, str]) -> list[str]:
@@ -70,8 +84,15 @@ def problems(bom: dict, docs: dict[str, str]) -> list[str]:
                 bad.append(f"{iid}: the manual doesn't name it ({i['name']!r})")
             if u["doc"] != "manual" and i["name"] not in doc and (not i.get("asin") or i["asin"] not in doc):
                 bad.append(f"{iid}: {u['doc']} mentions neither its name nor its asin")
-        if st == "cart" and i.get("source") == "amazon" and not any(i["asin"] in t for t in docs.values()):
+        if st in ("cart", "saved") and i.get("source") == "amazon" and not any(i["asin"] in t for t in docs.values()):
             bad.append(f"{iid}: in the Amazon cart but linked from no doc")
+
+    prints = {i["name"] for i in items if i.get("status") == "to-print"}
+    step3 = section(docs["manual"], "Step 3")
+    for name in sorted(set(re.findall(r"\*\*(.+?)\*\*", step3)) - prints):
+        bad.append(f"the manual's Step 3 prints {name!r}, which isn't a to-print part in the bom")
+    for name in sorted(n for n in prints if n not in step3):
+        bad.append(f"{name!r} is a to-print part, but the manual's Step 3 doesn't print it")
 
     known = {i.get("asin") for i in items}
     for name, text in docs.items():
@@ -108,13 +129,20 @@ def self_test(bom: dict, docs: dict[str, str]) -> list[str]:
     def m_orphan_cart(b, d):
         b["items"].append({"id": "ghost", "name": "Ghost part", "source": "amazon", "asin": "B0GHOST000",
                            "price": 0, "status": "cart", "used_in": [{"doc": "manual", "step": "Step 1"}]})
+    def m_unlisted_print(b, d):
+        d["manual"] = re.sub(r"(## Step 3[^\n]*\n)", r"\1- **Printed card tray**: designed, never listed\n", d["manual"], count=1)
+    def m_print_dropped(b, d): d["manual"] = d["manual"].replace("**Printed privacy wall**", "**privacy wall**")
+    def m_saved_orphan(b, d):
+        b["items"].append({"id": "ghost2", "name": "Ghost saved part", "source": "amazon", "asin": "B0GHOST001",
+                           "price": 0, "status": "saved", "used_in": [{"doc": "manual", "step": "Step 1"}]})
     def m_goal_step(b, d): item(b, "so101-kit")["used_in"] = [{"doc": "goal", "step": "G99"}]
 
     if problems(bom, docs):
         return ["(the real bom already fails, so the mutations prove nothing)"]
     slipped = []
     for m in (m_status, m_orphan_step, m_no_use, m_renamed, m_unknown_link, m_removed_in_manual,
-              m_removed_asin, m_total, m_dup, m_orphan_cart, m_goal_step):
+              m_removed_asin, m_total, m_dup, m_orphan_cart, m_goal_step, m_unlisted_print, m_print_dropped,
+              m_saved_orphan):
         b, d = copy.deepcopy(bom), dict(docs)
         m(b, d)
         if not problems(b, d):

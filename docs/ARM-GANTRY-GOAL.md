@@ -80,6 +80,8 @@ the manual and this doc in step. The cart history below is the record of how it 
 - [ ] Four ArUco markers on the bed corners; the overhead frame → **bed millimetres** by homography.
 - [ ] Zones in bed mm, written once (`table/.cache/rig.json`): the AI's battlefield, the AI's hand-holder and library
       tray, the person's half (forbidden to the arm).
+- [ ] *Magnet route:* the person plays beside the printer, not on the bed, so this is **two** frames: the overhead
+      camera over the bed, and the table's fixed camera over the person's side, merged into one board state.
 - [ ] **Check:** a card's centre from the camera vs a ruler, within 3 mm at 5 positions; the zones drawn on a photo.
 
 ## G3 — The arm: assemble, calibrate, teleoperate
@@ -148,11 +150,15 @@ Design notes for the printer-as-hand version:
 - **Magnet on the part-fan output** (24 V, M106/M107): no Nano, MOSFET or 12 V supply. Check the board's
   fan-output current rating first. `gantry.py` gains one narrow exception (magnet on/off); heaters stay refused.
   The magnet must never stay on without a card: the maker warns that long unloaded energising overheats it, so
-  cap the on-time in code the way the pump was capped.
+  cap the on-time in code the way the pump was capped. A cap dies with its process, so also send `M107` on exit and
+  when the table server starts. Only `M106 S255` / `M107`: partial power holds weakly and drops cards.
 - **Never flip a card.** The person shuffles the AI's deck face-down, turns the stack face-up into a covered deck
   box, and every move after that is face-up: box → hand zone (behind a printed privacy wall) → battlefield. Turning
   the stack over keeps the order random; vision ignores the box until a draw. *Flipping was an unsolved gap in the
-  arm plan too.*
+  arm plan too.* The box has a **one-card exit slot**: the magnet slides the top card out, and the slot's lip stops
+  the card below even when its disc is pulled along.
+- **Rules this forces:** the AI never shuffles or searches its own deck physically (the person does, without
+  looking, and the table logs it), and the software never reads the face-up deck before a draw (logged frames).
 - **Tapping with no extra motor:** the magnet sits on a free swivel with light drag. At a tap station a rubber foot
   on the bed pins one corner of the card, and an arc move (G2/G3) a quarter circle around that corner turns the
   card 90°. If that isn't reliable, the MG90S goes back on (it's saved in the list).
@@ -161,20 +167,33 @@ Design notes for the printer-as-hand version:
   and put a mat on the bed so the moving bed doesn't slide the cards around.
 - People's cards and hands stay off the bed, and so out of the machine's reach.
 
-### M0 — Test kit (≈ $38, Amazon, needs Michael's yes before it goes in the cart)
+### M0 — Test kit (in the cart 2026-10-05: magnet, discs and diodes, $33.97; everything else in Save for later)
 - Heschen 24 V holding electromagnet, 20 × 15 mm, rated 2.5 kg on thick steel
   ([B078K3TKFZ](https://www.amazon.com/dp/B078K3TKFZ), $7.19)
 - Ferrous receptive vinyl, 11 × 17" ([B0D8HKWWSL](https://www.amazon.com/dp/B0D8HKWWSL), $9.99). Heavy: about
   13 g per card-sized piece, so it's the test's worst case.
 - 1/2" steel discs, 250-pack ([B081J52GY6](https://www.amazon.com/dp/B081J52GY6), $20.79): the light option, one
   per sleeve, behind the card.
+- 1N4007 diodes ($5.99): the magnet is wired straight to the printer's fan output, which needs the flyback diode.
+- The receptive sheet was dropped before ordering (it stays in the list as the fallback).
 
 ### M1 — The test (decides the route)
 - [ ] 20 single-card picks and drops with the steel discs, the magnet on the printer's part-fan output (M106/M107;
       the 12 V supply, Nano and MOSFETs were dropped). Check the output stays cool at ~0.25 A.
-- [ ] 20 picks off a 40-card stack: count how often it lifts two (stacked discs pull on each other through the
-      stack; the sheet may not). Try tape on the magnet's face and a sideways wiggle as it lifts.
+- [ ] 20 draws from a 40-card stack through the deck box's one-card slot: count how often a second card comes.
+      **Pass: at least 19 of 20.** Compare a staple or paperclip in the sleeve (less steel, less coupling), tape on
+      the magnet's face, and a straight lift from an open box.
 - [ ] 10 swivel-arc taps: within ±5° and ±3 mm?
 - [ ] **Decision, with the numbers:** printer as the hand, arm + magnet, or keep suction. Only then change the carts.
+      M1 uses the table's fixed camera; the Canon mount parts wait in Save for later too.
+
+### Review by Hermes (2026-10-05)
+Hermes read the manual, the bom and this section. Taken: the USB shell fault isn't fixed by taping +5 V (measure the
+shell against the Mac's ground first, connect through something expendable); magnet full-on or off only; `M107` on
+exit and at server start; the shuffle/search and no-peeking rules; two camera frames; the deck box, chute, privacy
+wall and bed mat were missing from the bom (now listed, and the test checks the print step against it); a staple
+test; the fixed camera for M1; and its biggest concern, doubles from the stack, which is now the go/no-go number.
+Not taken: "the swivel is a pendulum" (the bolt only turns in its hole; a settle pause after moves covers spin), and
+"scavenge a diode" (none on hand; $5.99).
 
 ## Done log

@@ -10,7 +10,7 @@ an AI that moves its own cards.
 
 Open source (Apache-2.0, like the rest of this repository). Diagrams are hand-made SVGs in [`img/`](img/). Every part
 below is listed in [`hardware/bom.json`](../bom.json), and `table/tests/bom_test.py` fails if this page and that file
-disagree. **Status (2026-10-04): designed from the parts' specs, not yet assembled.** Step 9 is the test that
+disagree. **Status (2026-10-05): designed from the parts' specs, not yet assembled; reviewed by Hermes.** Step 9 is the test that
 decides whether the printer is the hand or the SO-101 arm is ([docs/ARM-GANTRY-GOAL.md](../../docs/ARM-GANTRY-GOAL.md),
 section M). The suction design this replaced is in git history.
 
@@ -18,15 +18,20 @@ section M). The suction design this replaced is in git history.
 
 ## Safety first
 
-- **The CR-6 has a known USB fault.** Users have measured about 20 V on the USB connector's shell and lost the USB
+- **The CR-6 has a known USB fault.** Users have measured about 20 V on the USB connector's *shell* and lost the USB
   ports of the computer they plugged in (a short from the 24 V heated bed near the bed clips; fixed on board v4.5.3).
-  Do Step 6 *before* the printer's USB cable ever touches the Mac.
+  Taping the cable's +5 V pin does **not** fix that; only the bed-clip fix does. Do Step 6, including the voltage
+  measurement, *before* the printer's USB cable ever touches the Mac, and make the first connection through a
+  spare hub or an old laptop.
 - **Never run a normal print with the camera or magnet head attached.** `gantry.py` allows only motion and status
   commands (and, once added, magnet on/off).
 - **Z homing drives the head down.** With anything hanging below the nozzle it can crash into the bed. Use
   `gantry.py home` (X and Y only) until `min_z` is measured (Step 7).
-- **The magnet must not stay on without a card.** The maker warns that long unloaded energising overheats it, so the
-  software caps its on-time.
+- **The magnet is full-on or off, never in between.** The fan output can run at partial power (PWM); a part-powered
+  magnet holds weakly and can drop a card mid-move. Only `M106 S255` and `M107` are ever sent.
+- **The magnet must not stay on without a card.** The maker rates it for continuous use *under load* and warns that
+  long unloaded energising overheats it. The software caps its on-time, and because a cap dies with the process that
+  enforces it, the driver also sends `M107` when it exits and the table server sends it when it starts.
 - **People's cards and hands stay off the bed.** The bed is the AI's side of the table; the person plays beside the
   printer.
 
@@ -39,8 +44,8 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Part | Qty | Used for |
 |---|---|---|
 | Canon EOS Rebel T5i with 18–55 mm lens | 1 | the eyes |
-| Creality CR-6 Max 3D printer | 1 | prints the swivel, then becomes the gantry |
-| PLA+ filament | — | the printed magnet swivel |
+| Creality CR-6 Max 3D printer | 1 | prints the Step 3 parts, then becomes the gantry |
+| PLA+ filament | — | the Step 3 parts |
 | Zip ties | ~10 | backing up the tape, tidying cables |
 
 **Printed (Step 3, before the printer becomes the gantry)**
@@ -48,6 +53,9 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Part | Qty | Used for |
 |---|---|---|
 | Printed magnet swivel | 1 (+1 spare) | holds the magnet and turns in its bracket |
+| Printed deck box with a one-card exit slot | 1 | the AI's shuffled deck, face-up and covered; one card out at a time |
+| Printed discard chute | 1 | graveyard and exile go off the bed's edge into a tray |
+| Printed privacy wall | 1 | hides the AI's face-up hand zone from the person |
 
 **Check you have these (buy only if missing)**
 
@@ -59,6 +67,8 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Micro-USB cable for the printer (came with it) | 1 | printer to the Mac |
 | USB-C to USB-A adapter | 1 | the Mac has only USB-C; both cables end in USB-A |
 | Card sleeves, inner and outer, for the AI's deck | 2 per card | the steel disc sits between them |
+| Non-slip shelf liner, cut to the bed | 1 | stops the moving bed from sliding the AI's cards |
+| Multimeter | 1 | the USB-shell voltage check (Step 6) and the 24 V check (Step 5) |
 
 **Hardware store (The Home Depot, via Instacart) — $46.49**
 
@@ -72,21 +82,23 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Everbilt spring assortment kit (84-pack) | 1 | one compression spring for the swivel's drag |
 | Scotch Extreme double-sided mounting tape 1" × 48" | 1 | brackets to the beam and the carriage (no drilling into the printer) |
 
-**Online (Amazon) — the exact parts in the cart**
+**Online (Amazon) — the exact parts.** Only the first three are in the cart ($33.97): the M1 test kit. The rest
+are in *Save for later* until the deck-stack test in Step 9 passes 19 times out of 20; M1 uses the table's
+existing fixed camera, so the Canon mount waits too.
 
 | Part | Link | Price |
 |---|---|---|
-| Gonine LP-E8 dummy battery / ACK-E8 AC kit | [amazon.com/dp/B01EMNB8P6](https://www.amazon.com/dp/B01EMNB8P6) | $19.99 |
-| SCOVEE 10 ft Mini-USB camera cable for Canon Rebel | [amazon.com/dp/B078SRKRLK](https://www.amazon.com/dp/B078SRKRLK) | $8.55 |
-| CAMVATE 1/4"-20 mini ball head (2-pack) | [amazon.com/dp/B07D9JCP18](https://www.amazon.com/dp/B07D9JCP18) | $9.80 |
 | Heschen 24 V holding electromagnet HS-P20x15 | [amazon.com/dp/B078K3TKFZ](https://www.amazon.com/dp/B078K3TKFZ) | $7.19 |
 | totalElement 1/2" steel discs, no adhesive (250-pack) | [amazon.com/dp/B081J52GY6](https://www.amazon.com/dp/B081J52GY6) | $20.79 |
 | 1N4007 rectifier diodes (125-pack) | [amazon.com/dp/B0FC2CQF24](https://www.amazon.com/dp/B0FC2CQF24) | $5.99 |
+| Gonine LP-E8 dummy battery / ACK-E8 AC kit | [amazon.com/dp/B01EMNB8P6](https://www.amazon.com/dp/B01EMNB8P6) | $19.99 |
+| SCOVEE 10 ft Mini-USB camera cable for Canon Rebel | [amazon.com/dp/B078SRKRLK](https://www.amazon.com/dp/B078SRKRLK) | $8.55 |
+| CAMVATE 1/4"-20 mini ball head (2-pack) | [amazon.com/dp/B07D9JCP18](https://www.amazon.com/dp/B07D9JCP18) | $9.80 |
 | RSHTECH 7-port powered USB hub (USB-C and USB-A) | [amazon.com/dp/B0CGX8LNMC](https://www.amazon.com/dp/B0CGX8LNMC) | $31.99 |
 
-The Amazon cart reads **$331.26**: these seven parts ($104.30, or $72.31 without the hub if a USB-C adapter is on
-hand) plus the SO-101 arm, its wrist camera and its kill switch ($226.96), which wait on Step 9's result and are
-listed in the goal doc.
+The Amazon cart reads **$33.97**. Save for later holds the other four parts above ($70.33; the hub can be dropped if
+a USB-C adapter is on hand) and the SO-101 arm, its wrist camera and its kill switch ($226.96, listed in the goal
+doc), all waiting on Step 9's result.
 
 **Tools:** drill with a 1/4" bit, hacksaw, file, screwdrivers, multimeter, wire strippers, a lighter or heat gun for
 heat-shrink.
@@ -115,17 +127,22 @@ Drill a **1/4" hole** about 1" from one end of each piece, centred on one leg.
 *Why the beam:* the camera and lens weigh ~800 g. On the X carriage they would shake and strain the X motor; on
 the beam they only ride up and down with Z.
 
-## Step 3 — Print the magnet swivel (while it's still a printer)
+## Step 3 — Print the parts (while it's still a printer)
 
-Print, in PLA+, the **swivel**: a cylinder about 24 mm across and 22 mm tall, 100% infill.
+Everything here is PLA+, printed *before* Step 4, because after that the printer is the gantry. Print a spare swivel.
 
-- **Floor:** a 3.2 mm hole in the centre, for the M3 screw that holds the magnet underneath.
-- **Above the floor:** a sideways **hex slot** that the 1/4" bolt's head slides into (7/16" = 11.1 mm across flats,
-  plus 0.3 mm clearance), so the bolt turns *with* the swivel.
-- **Top:** a 6.5 mm hole where the bolt's thread comes out.
-
-This is the only printed part on the magnet route. Print it and a spare *before* Step 4, because after that the
-printer is the gantry.
+- **Printed magnet swivel**: a cylinder about 24 mm across and 22 mm tall, 100% infill. In its floor, a 3.2 mm hole
+  in the centre for the M3 screw that holds the magnet underneath. Above the floor, a sideways hex slot that the
+  1/4" bolt's head slides into (11.1 mm across flats plus 0.3 mm clearance), so the bolt turns *with* the swivel.
+  On top, a 6.5 mm hole where the bolt's thread comes out.
+- **Printed deck box with a one-card exit slot**: an open-top box that holds the AI's deck face-up, with a lid over
+  the back two-thirds so the deck can't be read from the side. At the front, a slot just one sleeved card thick
+  (measure a sleeved card with its disc; add 0.2 mm). The magnet presses on the top card's exposed front edge and
+  slides it out through the slot, so the card below, even if it's pulled along, is stopped by the slot's lip.
+- **Printed discard chute**: a ramp that clips to the bed's edge and drops cards into a tray: graveyard and exile
+  need no bed space.
+- **Printed privacy wall**: a low wall along the bed's front edge, in front of the AI's hand zone, so the person
+  can't read the AI's face-up hand.
 
 ## Step 4 — Build the magnet head
 
@@ -161,12 +178,18 @@ board, power supply or switch.
 ## Step 6 — USB: make it safe, then connect
 
 1. Read the version printed on the control board. v4.5.3 has Creality's fix; v4.5.2 and earlier are affected.
-2. Put **Kapton tape** under the bed clips, wherever a clip or screw sits near the heater's traces.
-3. On the printer's **micro-USB cable**, cover the **+5 V pin** (the outermost contact on one side of the USB-A
-   plug) with a sliver of Kapton tape, so the Mac and the printer can't power each other.
-4. Connect the printer and the camera to the Mac through the **USB-C to USB-A adapter**, or the powered hub
-   (the RSHTECH hub above) if it stays in the order.
-5. `gantry.py ports` should list the printer, and `gphoto2 --auto-detect` the camera.
+2. Put **Kapton tape** under the bed clips, wherever a clip or screw sits near the heater's traces. This is the fix
+   for the shell fault.
+3. **Measure before plugging in.** Printer on, cable plugged into the printer only: with the **multimeter** on DC
+   volts, measure between the cable's USB-A plug *shell* and the Mac's ground (the metal of a USB-C port's shell, or
+   any unpainted metal on a cable already plugged into the Mac). Over about **1 V**: don't plug in; recheck the bed
+   clips. Hermes's suggestion: make the very first connection through a spare hub or an old laptop anyway.
+4. On the printer's **micro-USB cable**, cover the **+5 V pin** (the outermost contact on one side of the USB-A
+   plug) with a sliver of Kapton tape. That stops the Mac and the printer powering each other; it does nothing for
+   the shell fault.
+5. Connect the printer to the Mac through the **USB-C to USB-A adapter**, or the powered hub (the RSHTECH hub above)
+   if it's bought later.
+6. `gantry.py ports` should list the printer.
 
 ## Step 7 — Measure the rig and set limits
 
@@ -176,6 +199,8 @@ With the printer powered and connected, home X and Y only:
 ~/.venvs/table/bin/python table/gantry.py home
 ~/.venvs/table/bin/python table/gantry.py info
 ```
+
+Cut the **non-slip shelf liner** to the bed and lay it flat: the bed moves in Y, and bare it lets cards slide.
 
 Raise Z well above the bed, then lower it in small steps (`gantry.py goto <x> <y> <z>`) until the magnet *just*
 touches a card. Write what you measured to `table/.cache/gantry.json`:
@@ -200,21 +225,38 @@ Only the AI's deck. For each card: the card into its **inner sleeve**, one **ste
 sleeve's *back*, then the **outer sleeve** over both. The disc sits behind the card's back, so the magnet picks the
 card face-up through the card. Never put steel in a person's cards.
 
-## Step 9 — First picks and the magnet test
+## Step 9 — First picks and the magnet test (M1)
 
-1. Place one sleeved card, move the magnet over its centre, lower to the touch-down height, **M106 S255**, raise
-   20 mm, move, lower, **M107**. Repeat in different spots; note the reliable touch-down height.
-2. **Doubles:** pick 20 times from a 40-card stack and count how often two cards come up. Tape on the magnet's face
-   and a sideways wiggle while lifting both help.
+M1 uses the table's existing fixed camera; the Canon on the beam waits until the result says the printer is the hand.
+
+1. **Single picks:** place one sleeved card, move the magnet over its disc, lower to the touch-down height,
+   `M106 S255`, raise 20 mm, move, pause, lower, `M107`. Repeat in different spots; note the reliable touch-down
+   height. Pause briefly after every move so a card that turned stops before it's set down.
+2. **Doubles, the test that decides the route:** 20 draws from a 40-card stack in the deck box with the one-card
+   exit slot, sliding each top card out. Count how often a second card comes too. **Pass: at least 19 of 20.**
+   - Hermes's cheap first try: a staple or a paperclip in a few sleeves instead of a disc. Less steel may couple
+     less to the card below.
+   - Also try tape on the magnet's face and lifting it straight out of an open box, for comparison.
 3. **Tap by arc:** glue a **rubber washer** to the bed as the tap station. Put a card's corner on it, pick the card at
-   its centre, lower so the corner presses on the washer, then move the magnet a quarter circle around that corner
-   (G2/G3). The card turns 90°. Ten tries: within ±5° and ±3 mm?
-4. Record the numbers in the goal doc's section M. They decide between the printer as the hand and the SO-101 arm.
+   its disc, lower so the corner presses on the washer, then move the magnet a quarter circle around that corner
+   (G2/G3). The card turns 90°. Ten tries: within ±5° and ±3 mm? If the disc slips against the magnet instead of the
+   card turning, the MG90S servo fallback is in the Amazon list.
+4. Record the numbers in the goal doc's section M. Nothing else gets ordered until the doubles test passes.
+
+## Game rules on the magnet route
+
+- **The AI never shuffles or searches its own deck physically.** Anything that shuffles the AI's library or has it
+  search for a card is done by the person, without looking, and the table logs it.
+- **The software never reads the AI's face-up deck before a draw.** The camera doesn't look into the deck box, and
+  the table logs every frame it reads from the AI's zones, so a person can check it.
+- **Two cameras:** the bed (the AI's side) is seen from above; the person's side, beside the printer, by the table's
+  fixed camera. Board state merges both.
 
 ## Software notes (what still needs code)
 
-- `gantry.py`'s gate refuses fans today. The magnet needs one narrow exception, **M106 S255 / M107 only**, plus an
-  on-time cap. Heaters stay refused. Tapping needs **G2/G3** added to the allowed moves.
+- `gantry.py`'s gate refuses fans today. The magnet needs one narrow exception, **M106 S255 / M107 only** (no partial
+  power), an on-time cap, `M107` on exit, and `M107` when the table server starts. Heaters stay refused. Tapping needs
+  **G2/G3** added to the allowed moves, and every move ends with a short settle pause.
 - `gantry.py scan` assumes the camera rides on the **carriage**. With the camera on the **X beam**, X moves don't move
   the camera: use `snap` at the top of Z, and the scan needs a `camera_on: "beam"` setting so it moves only Z and Y.
 
