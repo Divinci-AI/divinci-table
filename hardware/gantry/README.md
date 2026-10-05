@@ -65,8 +65,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 
 | Part | Qty | Used for |
 |---|---|---|
-| M3 × 6 mm screw | 1 | magnet to the printed swivel (the magnet has an M3 thread in its back) |
-| 22 AWG two-core wire, about 1 m, with heat-shrink or lever connectors | 1 | extending the magnet's leads to the part-fan connector |
+| 22 AWG two-core wire, about 1 m | 1 | extending the magnet's leads to the part-fan connector |
 | Kapton (polyimide) tape | 1 roll | under the bed clips, and over the USB cable's +5 V pin |
 | Micro-USB cable for the printer (came with it) | 1 | printer to the Mac |
 | USB-C to USB-A adapter | 1 | the Mac has only USB-C; both cables end in USB-A |
@@ -74,7 +73,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Non-slip shelf liner, cut to the bed | 1 | stops the moving bed from sliding the AI's cards |
 | Multimeter | 1 | the USB-shell voltage check (Step 6) and the 24 V check (Step 5) |
 
-**Hardware store (The Home Depot, via Instacart) — $53.78**
+**Hardware store (The Home Depot, via Instacart) — $58.96**
 
 | Part | Qty | Used for |
 |---|---|---|
@@ -85,6 +84,8 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Everbilt 1/4" rubber flat washers (10-pack) | 1 | damping under the ball head; the tap station's grippy foot |
 | Everbilt spring assortment kit (84-pack) | 1 | one compression spring for the swivel's drag |
 | Scotch Extreme double-sided mounting tape 1" × 48" | 1 | brackets to the beam and the carriage (no drilling into the printer) |
+| Everbilt M3 × 6 mm zinc pan head machine screws (4-pack) | 1 | magnet to the printed swivel (the magnet has an M3 thread in its back) |
+| Commercial Electric 4" heat-shrink tubing assortment (8-pack) | 1 | insulating the diode and the lead splices |
 | Everbilt #10 zinc flat washers (100-pack) | 1 | one per AI card, inside the sleeve (zinc-plated steel is magnetic; stainless mostly isn't) |
 
 **Online (Amazon) — the exact parts.** Only the first two are in the cart ($13.18): the M1 test kit. The rest
@@ -168,7 +169,7 @@ sleeves and bed edge, change the numbers at the top of a file, and re-render wit
 
 1. Stick the 3" angle to the side of the **X carriage** with mounting tape plus zip ties, the drilled leg
    horizontal and sticking out under the carriage.
-2. Screw the **magnet** to the swivel's floor from inside with the **M3 × 6 mm screw** (snug, not tight: PLA
+2. Screw the **magnet** to the swivel's floor from inside with an **M3 × 6 mm screw** (snug, not tight: PLA
    cracks), then slide a **1/4" bolt**'s head into the hex slot, thread up.
 3. Cut ~6 mm off a **nylon spacer** with the hacksaw: it's a low-friction washer. The stack, from the bottom: swivel →
    nylon washer → up through the bracket's hole → a short **spring** from the assortment → **wing nut**. The bolt

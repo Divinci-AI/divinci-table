@@ -20,8 +20,8 @@
    "note": "Only the M1 test kit is in the cart (magnet, diodes); the steel discs were dropped for #10 zinc washers from Home Depot; everything else is in Save for later until the stack test passes 19/20"
   },
   "home-depot": {
-   "subtotal": 53.78,
-   "note": "via Instacart; that cart also holds a copper tee ($23.09) that is not part of this build, so the cart reads $76.87"
+   "subtotal": 58.96,
+   "note": "via Instacart; that cart also holds a copper tee ($23.09) that is not part of this build, so the cart reads $82.05 (over the $3.13 needed for Instacart's $15 restaurant credit)"
   }
  },
  "items": [
@@ -496,10 +496,10 @@
   },
   {
    "id": "m3-screw",
-   "name": "M3 × 6 mm screw",
+   "name": "Everbilt M3 × 6 mm zinc pan head machine screws (4-pack)",
    "qty": 1,
-   "source": "hardware store",
-   "status": "check",
+   "source": "home-depot",
+   "status": "cart",
    "route": [
     "magnet"
    ],
@@ -509,11 +509,12 @@
      "doc": "manual",
      "step": "Step 4"
     }
-   ]
+   ],
+   "price": 2.09
   },
   {
    "id": "hookup-wire",
-   "name": "22 AWG two-core wire, about 1 m, with heat-shrink or lever connectors",
+   "name": "22 AWG two-core wire, about 1 m",
    "qty": 1,
    "source": "hardware store",
    "status": "check",
@@ -521,6 +522,24 @@
     "magnet"
    ],
    "role": "extends the magnet's leads to the part-fan connector",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 5"
+    }
+   ]
+  },
+  {
+   "id": "heat-shrink",
+   "name": "Commercial Electric 4\" heat-shrink tubing assortment (8-pack)",
+   "qty": 1,
+   "source": "home-depot",
+   "price": 3.09,
+   "status": "cart",
+   "route": [
+    "magnet"
+   ],
+   "role": "insulates the diode's legs and the lead splices",
    "used_in": [
     {
      "doc": "manual",
