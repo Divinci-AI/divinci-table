@@ -458,9 +458,22 @@ def companion(name: str) -> dict | None:
     return next((c for c in COMPANIONS if c["name"].lower() == (name or "").lower()), None)
 
 
+BARE_KEY = re.compile(r'^\s*"?(zones|zone|engage|monsters|scene|location|place|move)"?\s*:\s*([\[{"].*)$', re.M)
+
+
 def apply_table_line(text: str) -> str:
     """Strip and apply the DM's optional trailing `TABLE: {...}` line. Accepts monsters and scene only:
-    a player's numbers are never the DM's to set."""
+    a player's numbers are never the DM's to set. A small local model sometimes writes a key without the TABLE
+    wrapper (`zones:[{...}]`, seen in the solo rehearsal): such lines are applied the same way and never shown."""
+    bare = {}
+    for k, v in BARE_KEY.findall(text):
+        try:
+            bare[k] = json.loads(v.strip())
+        except ValueError:
+            pass
+    if bare:
+        text = BARE_KEY.sub("", text).rstrip() + "\nTABLE: " + json.dumps(bare) if not re.search(r"^\s*TABLE:", text, re.M) \
+            else BARE_KEY.sub("", text)
     m = re.search(r"^\s*TABLE:(.*)$", text, re.M | re.S)
     if not m:
         return text.strip()
@@ -546,12 +559,16 @@ def build_prompt(reason: str, speak: list[str]) -> str:
     if people:                                       # T4: the local model sometimes wrote players' lines and actions
         lines.append(f"PLAYERS (real people): {', '.join(people)}. Never write their words or decide what they do; "
                      "describe the world's response and ask them.")
+    if G["mode"] == "theater" and not G["card"]["zones"]:         # solo rehearsal: the DM never set any
+        lines.append('RULE: there is no scene card yet. End this reply with ONE line that sets 2 to 5 zones for where the '
+                     'party is now, exactly like: TABLE: {"zones":[{"name":"the gate","desc":"rusted iron"},{"name":"the yard"}]}')
     now = turn_name()
     if now and now in G["sheets"] and G["sheets"][now]["hp"] == 0:    # T4: both local variants missed this
         lines.append(f"RULE: {now} is down at 0 hit points and it's their turn: ask {now} to roll a death saving throw "
                      "(they roll; you never roll for a player).")
     for n in speak:
-        lines.append(f"Also give {n} one short in-character line and what they do, on its own line starting \"{n}:\".")
+        lines.append(f"Also give {n} one short line of what {n} SAYS, in the first person, spoken aloud (their actions go in "
+                     f"your narration), on its own line starting \"{n}:\".")
     lines += ["", "Narrate the next beat (2-5 sentences), then hand the scene back or ask for rolls by name.",
               "Plain spoken prose only: no markdown, headings, lists, code blocks, diagrams or citation numbers. "
               "Do not speak for the AI companions or the players unless told to above.",
@@ -577,8 +594,14 @@ def ask_dm(prompt: str) -> str:
     return str(d["choices"][0]["message"].get("content") or "")
 
 
+PROMPT_ECHO = re.compile(r'^\s*(STATE|RECENT|NOW|PLAYERS|RULE|AI COMPANIONS)\b[^\n]*:|^\s*[{\[]\s*"|'
+                         r'^\s*"?(zones|zone|engage|monsters|scene|location|place|move)"?\s*:\s*[\[{"]', re.M)
+
+
 def plain(text: str) -> str:
-    """What the table shows and speaks: no code blocks, citation markers or markdown emphasis."""
+    """What the table shows and speaks: no code blocks, citation markers or markdown emphasis, and never a line that
+    echoes the prompt back (a local model once read its STATE JSON aloud: the solo rehearsal, 2026-10-05)."""
+    text = "\n".join(l for l in text.splitlines() if not PROMPT_ECHO.match(l))
     text = re.sub(r"```.*?(```|$)", "", text, flags=re.S)
     text = re.sub(r"\s?\[\d+(?:,\s*\d+)*\]", "", text)
     text = re.sub(r"\*\*|__|^#+\s*", "", text, flags=re.M)
@@ -634,6 +657,17 @@ class Spoken:
         while not self.done:
             if self.line_start:
                 head = self.buf.lstrip()
+                if PROMPT_ECHO.match(head) or (not self.final and "\n" not in head and len(head) < 14 and
+                                               any(w.startswith(head.upper()) for w in ("STATE:", "RECENT", "NOW:", "PLAYERS", "RULE:", '{"'))):
+                    nl = self.buf.find("\n")
+                    if nl < 0 and not PROMPT_ECHO.match(head):
+                        return                                # wait: this line may be an echo of the prompt
+                    if nl < 0:
+                        if self.final:
+                            self.buf = ""
+                        return                                # an echo: drop it whole, up to its end of line
+                    self.buf = self.buf[nl + 1:]
+                    continue
                 if re.match(r"^TABLE\s*:", head) or (not self.final and len(head) < 6 and "TABLE:".startswith(head.upper()) and "\n" not in head):
                     if re.match(r"^TABLE\s*:", head):
                         self.done = True
@@ -723,12 +757,12 @@ def companions_to_speak(text: str, now: float) -> list[str]:
     """Open mic for the party: a companion named at the start of a line always answers; otherwise its
     chattiness sets how often it chimes in (cooldown + budget), never twice in a row."""
     names = [c["name"] for c in COMPANIONS]
+    named = [c["name"] for c in COMPANIONS if re.search(rf"\b{re.escape(c['name'])}\b", text, re.I)]
+    if named:                                         # everyone you name answers ("Leonardo, Mira, get ready")
+        return named
     w = wake_word(text, names)
     if w:
         return [w]
-    for c in COMPANIONS:
-        if c["name"].lower() in text.lower():
-            return [c["name"]]
     out = []
     for c in COMPANIONS:
         p = PRESETS[c["chattiness"]]

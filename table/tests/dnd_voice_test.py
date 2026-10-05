@@ -66,6 +66,18 @@ check("the TABLE line is never spoken", not any("TABLE" in t or "{" in t for _, 
 check("a narrator line with a colon stays the narrator's",
       parts_from(["Suddenly: a crash from the kitchen. Then silence.\n"])[0][0] == "narrator")
 check("a short last line with no full stop is still spoken", parts_from(["Night falls"]) == [("narrator", "Night falls")])
+ECHO = 'You reach a damp chamber.\nSTATE: {"scene": "old ruins", "party": [{"name": "Ana"}]}\nThe air grows cold.'
+for label, chunks in (("whole", [ECHO]), ("a character at a time", list(ECHO))):
+    got = parts_from(chunks)
+    check(f"an echo of the prompt (STATE: …) is never spoken ({label})",
+          got == [("narrator", "You reach a damp chamber."), ("narrator", "The air grows cold.")], str(got))
+check("…nor shown in the log", "STATE" not in D.plain(ECHO) and "{" not in D.plain(ECHO))
+BARE = 'You reach a damp corridor.\nzones:[{"name":"the corridor","desc":"cold stone"},{"name":"the chamber"}]\nWater drips.'
+check("a bare 'zones:[…]' line is never spoken", parts_from([BARE]) == [("narrator", "You reach a damp corridor."), ("narrator", "Water drips.")], str(parts_from([BARE])))
+D.new_game(); D.G["mode"] = "theater"
+shown = D.apply_table_line(BARE)
+check("…but it is applied: the scene card has the zones, and nothing of it is shown",
+      [z["name"] for z in D.G["card"]["zones"]] == ["the corridor", "the chamber"] and "zones" not in shown and "Water drips." in shown, shown)
 
 print("\na whole DM turn (script backend)")
 D.new_game()

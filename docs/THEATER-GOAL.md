@@ -89,7 +89,7 @@ grid, and nothing has been measured for a conversation's pace.
       while a voice speaks).
 
 ## T6 — Solo, with AI companions
-- [ ] One player, the AI DM and two AI companions with their own voices and personalities; the companions speak
+- [x] One player, the AI DM and two AI companions with their own voices and personalities; the companions speak
       when addressed or when their chattiness says so (`openmic.py`, already in the D&D room).
 - [ ] **Check:** Michael plays a 20-minute solo story on a walk, screen off (if T3 found a way). Survey after.
 
@@ -104,6 +104,15 @@ grid, and nothing has been measured for a conversation's pace.
 - [ ] **Check:** the survey, the bug list, the delay numbers, the cost; what broke becomes the next goal.
 
 ## Done log
+
+- **2026-10-05 · T6 built and rehearsed; the walk is Michael's.** `solo_rehearsal.py` plays a solo story with the
+  local DM (Ana + Leonardo + Mira) and writes the transcript (`docs/results/t6-solo-rehearsal.md`). **Reading** the
+  first transcript found four faults the checks missed, all fixed and now checked: the DM read its prompt aloud
+  (`STATE: {…}`); it never set a scene card (so "where am I?" had nothing to say); companions spoke in the third
+  person; only the first companion named answered. A fifth came with the fix: the model wrote a bare `zones:[…]`
+  line, which the table now applies and never speaks. 11/11, first sentence ~0.93 s. **Left to the model** (T4's
+  decision): it still sometimes decides the player's moves, a promised spell never lands, and narration drifts from
+  the card.
 
 - **2026-10-05 · T5 done (the optional positional cues aside).** Instead of CC0 recordings, the ambience is
   **synthesized in the browser** (`table/assets/ambience.js`, Web Audio: noise, filters, oscillators): the table's
