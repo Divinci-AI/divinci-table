@@ -44,6 +44,7 @@ run hearing-names $PY table/tests/hearing_names.py
 run openmic       /usr/bin/python3 table/tests/openmic_test.py
 run dnd           /usr/bin/python3 table/tests/dnd_test.py
 run dnd-assets    /usr/bin/python3 table/tests/dnd_assets_test.py
+run dnd-dm-sim    /usr/bin/python3 table/tests/dnd_dm_sim_test.py
 run ledger        /usr/bin/python3 table/tests/ledger_test.py
 run fusion-cap    /usr/bin/python3 table/tests/fusion_cap_test.py
 run remote-guard  $PY table/tests/remote_guard_test.py

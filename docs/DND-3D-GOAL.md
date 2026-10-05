@@ -150,9 +150,9 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
       parsed, no errors). The immersive check itself needs Michael and the Quest.*
 
 ## D7 — The AI DM runs the map
-- [ ] The DM picks a location from the library (never generates one live), places monsters at spawn
+- [x] The DM picks a location from the library (never generates one live), places monsters at spawn
       points, and moves them on their turns; every move is validated server-side.
-- [ ] **Check:** three simulated encounters (`dnd_test` with a fake DM): no illegal move accepted, no
+- [x] **Check:** three simulated encounters (`dnd_test` with a fake DM): no illegal move accepted, no
       token teleports, the DM never moves a player's character.
 
 ## D8 — Walk-in worlds (research, gated)
@@ -167,6 +167,15 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
 - [ ] **Check:** results in the ledger; what broke goes into the next goal.
 
 ## Done log
+
+- **2026-10-04 · D7 done.** The DM's STATE carries the grid, the locations, the bestiary and which tokens are
+  people's; its TABLE line sets location / place / move; the server checks every move. `dnd_dm_sim_test.py`:
+  three encounters (cave, crypt, bridge) with an adversarial fake DM — teleports, walls, off the map, onto
+  others, players' characters, out of turn, bad locations, mid-fight 'place' — **16 passed**, 12 runs out of 12;
+  5–12 legal walks accepted and 113–142 bad moves refused per encounter. Mutation-checked: without the owner rule
+  the DM moves Ana and Sam; without the turn rule the spider moves on the goblin's turn; without the path/speed
+  rule moves are charged 0 — each fails 3 checks. The first version of the invariant was wrong (a creature may
+  split its speed into legs, so its charge can exceed the straight walk); it failed 4 runs in 6 on the wolf.
 
 - **2026-10-04 · D6 built (the headset check waits for the Quest).** `dnd_xr.html` at `/xr` on the D&D server:
   Start AR / Enter VR; AR hit-test placement; the map as a 0.8 m diorama or life size (1 square = 1.524 m, sticks
