@@ -77,6 +77,7 @@ else
   run dnd-rehearse env PW=$PW node table/tests/dnd_playtest_rehearsal.cjs
   run dnd-voice   env PW=$PW node table/tests/dnd_voice_e2e.cjs
   run dnd-theater env PW=$PW node table/tests/dnd_theater_e2e.cjs
+  run dnd-sound   env PW=$PW node table/tests/dnd_sound_e2e.cjs
   run router      $PY table/tests/route_eval.py
   pid=$(lsof -ti tcp:8800 -sTCP:LISTEN); [ -n "$pid" ] && kill -TERM $pid
 fi

@@ -263,6 +263,7 @@ def map_view() -> dict:
     loc = MAP.location(ASSETS, m.get("location", ""))
     m["assets"] = {k: loc[k] for k in ASSET_KEYS if loc and loc.get(k)} if loc and playable(loc) else {}
     m["draft"] = not loc or loc.get("status") != "approved"
+    m["theme"] = (loc or {}).get("theme") or "tavern"          # the ambience to play (assets/ambience.js)
     return m
 
 
@@ -920,7 +921,8 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, body=f.read_bytes(), ctype=types[f.suffix])
             return self._send(404, {"error": "not found"})
         if p == "/api/dnd/credits":
-            text = CREDIT + ("\n\n" + ASSETS["room_credits"] if ASSETS.get("room_credits") else "")
+            text = CREDIT + ("\n\n" + ASSETS["room_credits"] if ASSETS.get("room_credits") else "") + \
+                "\n\nAmbient sound: synthesized in the browser by the table's own code (Apache-2.0); no recordings."
             return self._send(200, body=text.encode(), ctype="text/plain; charset=utf-8")
         if p == "/api/seat/claims":
             return self._send(200, SEATS.public(device_of(self)))

@@ -83,9 +83,9 @@ grid, and nothing has been measured for a conversation's pace.
       Fusion cloud DM becomes a decision with its cost per session written next to it.
 
 ## T5 — Sound instead of pictures
-- [ ] CC0 ambience per location (tavern chatter, wind on the road, water in the cave), quiet, ducked under speech.
+- [x] CC0 ambience per location (tavern chatter, wind on the road, water in the cave), quiet, ducked under speech.
 - [ ] Optional, headphones: positional cues from the zones (the wolf growls on your left).
-- [ ] **Check:** every sound's licence listed and credited; ambience never covers speech (measured level drop
+- [x] **Check:** every sound's licence listed and credited; ambience never covers speech (measured level drop
       while a voice speaks).
 
 ## T6 — Solo, with AI companions
@@ -104,6 +104,14 @@ grid, and nothing has been measured for a conversation's pace.
 - [ ] **Check:** the survey, the bug list, the delay numbers, the cost; what broke becomes the next goal.
 
 ## Done log
+
+- **2026-10-05 · T5 done (the optional positional cues aside).** Instead of CC0 recordings, the ambience is
+  **synthesized in the browser** (`table/assets/ambience.js`, Web Audio: noise, filters, oscillators): the table's
+  own code, nothing to license or download, works offline. A mix per place (tavern murmur, fire and clinks; wind
+  and birds on the road and in the forest; echoing drips over a low rumble in the cave; water at the bridge…),
+  following the location; 🎵 switch, on by default in theater mode; credited at `/api/dnd/credits`.
+  `dnd_sound_e2e.cjs` 10/10, measured on the actual output: about −39 dBFS, **−12.6 dB under speech** (design 12,
+  floor 9), back after; the DM's move to the cave changes it; the switch turns it off.
 
 - **2026-10-05 · T4, the measurable half.** `t4_dm_eval.py` + `docs/results/t4/` (replies, a blind scoring sheet,
   the hidden key, a summary). gemma4:e2b: first sentence 0.4–1.3 s but 1–3 rule faults in 10 (moving a player in

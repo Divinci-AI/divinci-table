@@ -72,6 +72,7 @@ body.theater #talk{font-size:44px;padding:22px 34px;border-radius:50%}
 <main>
   <section>
     <h1>Divinci Table · Dungeons &amp; Dragons <button id="speak" class="small" aria-pressed="false" title="the table speaks">🔊 Voice off</button>
+      <button id="soundBtn" class="small" aria-pressed="false" title="quiet sound of the place, under the story">🎵 Sound off</button>
       <button id="tableSpeaker" class="small" title="same room: this device speaks for everyone; the others go quiet">🔈 Speak for the table</button></h1>
     <div id="scene"></div>
     <img id="art" alt="the scene">
@@ -303,6 +304,8 @@ function sayLine(text, speaker) {
   VOICE.log.push({ t: performance.now(), speaker, text });
   if (!voiceOn() || !window.speechSynthesis || !text) return;
   const u = new SpeechSynthesisUtterance(text), v = voiceFor(speaker);
+  u.onstart = () => SOUND.amb && SOUND.amb.duck(true);              // the place goes quiet while a voice speaks
+  u.onend = u.onerror = () => SOUND.amb && SOUND.amb.duck(false);
   if (v.voice) u.voice = v.voice;
   u.pitch = v.pitch; u.rate = v.rate;
   speechSynthesis.speak(u);
@@ -335,6 +338,23 @@ document.addEventListener("pointerdown", () => { if (voiceOn() && window.speechS
 if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { VOICE.pool = []; };
 $("tableSpeaker").onclick = () => post("/api/dnd/speaker", { on: !(S && S.speaker === seatName()) });
 window.DNDVOICE = VOICE;
+// ── sound instead of pictures (T5): synthesized ambience per place, ducked under speech ───────────
+const SOUND = { amb: null, loading: null };
+const soundStore = { get() { try { return localStorage.getItem("dnd-sound"); } catch { return null; } },
+                     set(v) { try { localStorage.setItem("dnd-sound", v); } catch {} } };
+function soundOn() { const v = soundStore.get(); return v ? v === "on" : !!(S && S.mode === "theater"); }
+async function soundSync(gesture) {                   // browsers start audio only after a tap: build it then
+  if (soundOn() && !SOUND.amb && gesture) {
+    SOUND.loading ||= import("/assets/ambience.js").then(m => { SOUND.amb = m.createAmbience(); window.DNDSOUND = SOUND.amb; });
+    await SOUND.loading;
+  }
+  if (!SOUND.amb) return;
+  SOUND.amb.setTheme((S && S.map && S.map.theme) || "tavern");
+  if (soundOn() && !SOUND.amb.on) await SOUND.amb.start(); else if (!soundOn() && SOUND.amb.on) SOUND.amb.stop();
+}
+function soundButton() { const on = soundOn(); $("soundBtn").textContent = on ? "🎵 Sound on" : "🎵 Sound off"; $("soundBtn").setAttribute("aria-pressed", on); }
+$("soundBtn").onclick = () => { soundStore.set(soundOn() ? "off" : "on"); soundButton(); soundSync(true); };
+document.addEventListener("pointerdown", () => soundSync(true));
 
 // ── theater of the mind (docs/THEATER-GOAL.md T3) ──────────────────────────────────────────────────
 function renderTheater() {
@@ -388,6 +408,8 @@ async function tick() {
     }
     VOICE.firstBatch = false;
     voiceButton();
+    soundButton();
+    soundSync(false);
     renderTheater();
     draw();
     establishing();
