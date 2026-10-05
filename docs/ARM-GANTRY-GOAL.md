@@ -120,4 +120,58 @@ The AI player gets a body at the table: **eyes overhead and a hand at its own se
 - [ ] A full duel: a person vs the AI, the AI's hand on the table. Survey afterwards.
 - [ ] **Check:** results in the ledger; what broke becomes the next goal.
 
+## M — The magnet route (cheaper; decided by a test, not by argument)
+
+*Added 2026-10-04.* An electromagnet instead of suction, and **steel in the AI's sleeves only**. Aluminium does not
+work: it isn't magnetic. Fridge-magnet sheet doesn't either: it's already magnetised, so cards would stick to each
+other and to the magnet even with the power off. Use an unmagnetised iron-filled ("receptive") sheet or a steel disc.
+
+Why it's worth testing:
+- **Safety becomes physical:** only the AI's cards carry steel, so the magnet *cannot* lift a person's card. The
+  AI-zone rule is then enforced by the hardware as well as by `safe()`.
+- **Cost:** the suction set is $75.34 (pump, valve, cups, fittings, tubing) plus the PTFE tape; one electromagnet
+  is about $7.
+- **The printer can be the hand.** Put the AI's whole side on the CR-6 Max bed and the gantry does the moving. That
+  drops the SO-101 kit ($197.98), the wrist camera ($18.99) and probably the hub ($31.99). Estimated total ~$105–140
+  vs $460.27 for arm + suction.
+
+| Route | Approx. cost | Note |
+|---|---|---|
+| Arm + suction (current carts) | $460.27 | Amazon $410.59 + Home Depot $49.68 |
+| Arm + magnet | ~$355 | Suction set swapped for a magnet and steel |
+| **Printer as the hand + magnet** | **~$105–140** | $0 for tapping with the arc trick, ~$31 with servo + Nano + 5 V |
+| Screen proxy (tablet shows the AI's battlefield) | $0 | No physical hand |
+
+Design notes for the printer-as-hand version:
+- **Magnet on the part-fan output** (24 V, M106/M107): no Nano, MOSFET or 12 V supply. Check the board's
+  fan-output current rating first. `gantry.py` gains one narrow exception (magnet on/off); heaters stay refused.
+  The magnet must never stay on without a card: the maker warns that long unloaded energising overheats it, so
+  cap the on-time in code the way the pump was capped.
+- **Never flip a card.** The person shuffles the AI's deck face-down, turns the stack face-up into a covered deck
+  box, and every move after that is face-up: box → hand zone (behind a printed privacy wall) → battlefield. Turning
+  the stack over keeps the order random; vision ignores the box until a draw. *Flipping was an unsolved gap in the
+  arm plan too.*
+- **Tapping with no extra motor:** the magnet sits on a free swivel with light drag. At a tap station a rubber foot
+  on the bed pins one corner of the card, and an arc move (G2/G3) a quarter circle around that corner turns the
+  card 90°. If that isn't reliable, the MG90S goes back on (it's saved in the list).
+- **Discards and exile:** a printed chute off the bed's edge into a tray, so they take no bed space.
+- **Bed space is the limit:** about 4 × 4 card spots plus the hand zone and the deck box. Lower the Y acceleration
+  and put a mat on the bed so the moving bed doesn't slide the cards around.
+- People's cards and hands stay off the bed, and so out of the machine's reach.
+
+### M0 — Test kit (≈ $38, Amazon, needs Michael's yes before it goes in the cart)
+- Heschen 24 V holding electromagnet, 20 × 15 mm, rated 2.5 kg on thick steel
+  ([B078K3TKFZ](https://www.amazon.com/dp/B078K3TKFZ), $7.19)
+- Ferrous receptive vinyl, 11 × 17" ([B0D8HKWWSL](https://www.amazon.com/dp/B0D8HKWWSL), $9.99). Heavy: about
+  13 g per card-sized piece, so it's the test's worst case.
+- 1/2" steel discs, 250-pack ([B081J52GY6](https://www.amazon.com/dp/B081J52GY6), $20.79): the light option, one
+  per sleeve, behind the card.
+
+### M1 — The test (decides the route)
+- [ ] 20 single-card picks and drops with each insert type, magnet driven by the 12 V supply, then by the fan output.
+- [ ] 20 picks off a 40-card stack: count how often it lifts two (stacked discs pull on each other through the
+      stack; the sheet may not). Try tape on the magnet's face and a sideways wiggle as it lifts.
+- [ ] 10 swivel-arc taps: within ±5° and ±3 mm?
+- [ ] **Decision, with the numbers:** printer as the hand, arm + magnet, or keep suction. Only then change the carts.
+
 ## Done log
