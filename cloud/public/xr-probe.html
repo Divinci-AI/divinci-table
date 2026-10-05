@@ -63,7 +63,9 @@ document.getElementById("b1").onclick = async () => {
     const p = ac.createPanner(); p.panningModel = "HRTF";
     set("Web Audio + HRTF panner", ac.state === "running" ? true : ac.state); ac.close();
   } catch (e) { set("Web Audio + HRTF panner", err(e)); }
-  document.getElementById("b2").disabled = !R["immersive-ar"];
+  const cam = R["camera (outside AR)"], mic = R["microphone (outside AR)"];
+  document.getElementById("b2").disabled = !R["immersive-ar"] || !(cam && cam.ok) || !(mic && mic.ok);
+  if (R["immersive-ar"] && !(cam && cam.ok && mic && mic.ok)) set("before AR", "allow the camera and microphone first (press 1 again): a permission popup can't appear inside AR and freezes the headset");
 };
 
 document.getElementById("b2").onclick = async () => {
@@ -106,9 +108,14 @@ document.getElementById("b2").onclick = async () => {
   const t0 = performance.now(); let frames = 0, firstHit = null, maxJoints = 0, anchorTried = false;
   const local = renderer.xr.getReferenceSpace();
 
-  // camera + mic again, now INSIDE the immersive session (this is when the design needs them)
-  media({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } } }).then(v => set("camera (inside AR)", v));
-  media({ audio: true }).then(v => set("microphone (inside AR)", v));
+  // camera + mic again, now INSIDE the immersive session (this is when the design needs them) — only when already
+  // granted: on the Quest a permission popup can't show inside AR and the whole session froze (2026-10-04).
+  const isGranted = async n => (await navigator.permissions?.query({ name: n }).catch(() => null))?.state === "granted";
+  if (await isGranted("camera")) media({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } } }).then(v => set("camera (inside AR)", v));
+  else set("camera (inside AR)", "skipped: not granted beforehand");
+  if (await isGranted("microphone")) media({ audio: true }).then(v => set("microphone (inside AR)", v));
+  else set("microphone (inside AR)", "skipped: not granted beforehand");
+  setTimeout(() => { if (frames < 10) { set("AR frames", `only ${frames} in 5 s — ended the session`); session.end().catch(() => {}); } }, 5000);
 
   renderer.setAnimationLoop((t, frame) => {
     frames++;

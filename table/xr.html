@@ -79,6 +79,17 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure
 renderer.shadowMap.enabled = true;
 renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
+// Inside AR/VR the Quest can't show a permission popup: asking for the mic or camera there froze the headset
+// (2026-10-04). So in a session we only ask for what was already allowed (the "Allow mic & cameras" button).
+{ const gum = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
+  if (gum) navigator.mediaDevices.getUserMedia = async c => {
+    if (renderer.xr.isPresenting) for (const n of [c.audio && "microphone", c.video && "camera"].filter(Boolean)) {
+      const st = (await navigator.permissions?.query({ name: n }).catch(() => null))?.state;
+      if (st !== "granted") throw new Error(`the ${n} isn't allowed yet — leave AR, press ‘Allow mic & cameras’, then come back`);
+    }
+    return gum(c);
+  };
+}
 const scene = new THREE.Scene();
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
 scene.add(new THREE.HemisphereLight(0xffffff, 0x302820, 0.6));
