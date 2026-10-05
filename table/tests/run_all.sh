@@ -36,6 +36,7 @@ start8800() {      # the older suites expect a particular server config on :8800
 
 run engine        $PY table/tests/engine_rules.py
 run gantry        $PY table/tests/gantry_test.py
+run bom           /usr/bin/python3 table/tests/bom_test.py --self-test
 run fair          $PY table/tests/fair_test.py
 run phases        $PY table/tests/phase_test.py
 run migrate       $PY table/tests/migrate_test.py

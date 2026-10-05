@@ -46,6 +46,8 @@ The AI player gets a body at the table: **eyes overhead and a hand at its own se
 ---
 
 ## G0 — Parts and the print queue (before the printer becomes a gantry)
+*Every part, ordered or not, is in [`hardware/bom.json`](../hardware/bom.json); `table/tests/bom_test.py` keeps it,
+the manual and this doc in step. The cart history below is the record of how it got there.*
 - [ ] Buy: SO-101 **follower** electronics (6 × STS3215 7.4 V 1:345, driver board, 5 V/12 V supply per the vendor,
       table clamps), a **32 × 32 mm UVC wrist camera**, PLA+ filament if short. The gantry carts (Home Depot + the
       Amazon list "Divinci Table – gantry") are already filled. *The leader arm waits for G7.*
@@ -168,7 +170,8 @@ Design notes for the printer-as-hand version:
   per sleeve, behind the card.
 
 ### M1 — The test (decides the route)
-- [ ] 20 single-card picks and drops with each insert type, magnet driven by the 12 V supply, then by the fan output.
+- [ ] 20 single-card picks and drops with the steel discs, the magnet on the printer's part-fan output (M106/M107;
+      the 12 V supply, Nano and MOSFETs were dropped). Check the output stays cool at ~0.25 A.
 - [ ] 20 picks off a 40-card stack: count how often it lifts two (stacked discs pull on each other through the
       stack; the sheet may not). Try tape on the magnet's face and a sideways wiggle as it lifts.
 - [ ] 10 swivel-arc taps: within ±5° and ±3 mm?

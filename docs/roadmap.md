@@ -62,7 +62,7 @@ slowed so the cards don't slide.
 
 Steps:
 1. Mount the Canon pointing down — on the X beam, not the carriage (it weighs ~800 g). Parts, diagrams, wiring and
-   firmware: [hardware/gantry/README.md](../hardware/gantry/README.md), which also adds a suction head that can pick and turn cards.
+   firmware: [hardware/gantry/README.md](../hardware/gantry/README.md), which also adds a magnet hand that picks up the AI's steel-sleeved cards and turns them.
 2. Measure the rig and write `table/.cache/gantry.json`: `min_z`, `lens_at_z0_mm`,
    `cam_offset_mm`.
 3. `gantry.py scan --area all --post` feeds the stitched frame to `/api/board`.

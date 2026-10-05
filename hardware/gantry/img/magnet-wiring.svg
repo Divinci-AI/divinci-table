@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 440" font-family="Helvetica, Arial, sans-serif" font-size="14">
+  <title>Magnet wiring: the printer's part-fan output, a 1N4007 flyback diode, the electromagnet</title>
+  <rect width="960" height="440" fill="#ffffff"/>
+  <text x="24" y="34" font-size="22" font-weight="700" fill="#1a1a1a">4 · Wiring (the whole of it)</text>
+  <rect x="60" y="110" width="250" height="150" rx="10" fill="#2b2d42"/>
+  <text x="185" y="150" text-anchor="middle" fill="#fff" font-weight="700">CR-6 Max mainboard</text>
+  <text x="185" y="176" text-anchor="middle" fill="#cdd3e0" font-size="12">part-cooling fan output, 24 V</text>
+  <text x="185" y="198" text-anchor="middle" fill="#cdd3e0" font-size="12">M106 S255 = on · M107 = off</text>
+  <circle cx="310" cy="150" r="7" fill="#e63946"/><text x="296" y="140" text-anchor="end" fill="#e63946" font-size="12">+</text>
+  <circle cx="310" cy="230" r="7" fill="#222"/><text x="296" y="250" text-anchor="end" fill="#555" font-size="12">−</text>
+  <path d="M317 150 L640 150 L640 170" fill="none" stroke="#e63946" stroke-width="4"/>
+  <path d="M317 230 L640 230 L640 210" fill="none" stroke="#222" stroke-width="4"/>
+  <text x="400" y="138" fill="#1a1a1a" font-size="12">22 AWG extension, about 1 m, along the carriage</text>
+  <rect x="610" y="170" width="60" height="40" rx="4" fill="#b23a48"/>
+  <text x="690" y="195" fill="#b23a48" font-weight="700">electromagnet (~0.25 A)</text>
+  <!-- diode -->
+  <path d="M520 150 L520 172" stroke="#444" stroke-width="3"/>
+  <path d="M520 208 L520 230" stroke="#444" stroke-width="3"/>
+  <path d="M506 208 L534 208 L520 180 Z" fill="#444"/>
+  <rect x="504" y="172" width="32" height="6" fill="#bbb"/>
+  <text x="520" y="256" text-anchor="middle" fill="#1a1a1a" font-size="12">1N4007 across the coil:</text>
+  <text x="520" y="272" text-anchor="middle" fill="#1a1a1a" font-size="12">striped end (cathode) to +</text>
+  <rect x="24" y="300" width="912" height="112" rx="8" fill="#fff6dc" stroke="#d9a400"/>
+  <text x="40" y="326" fill="#5c4400"><tspan font-weight="700">Printer off and unplugged</tspan> while wiring. Unplug the fan, note which wire is + (usually red).</text>
+  <text x="40" y="350" fill="#5c4400">The diode absorbs the coil's switch-off spike, which would otherwise hit the board's fan transistor.</text>
+  <text x="40" y="374" fill="#5c4400">The stock fan draws ~0.10 A; check the output stays cool after a minute holding a card at 0.25 A.</text>
+  <text x="40" y="398" fill="#5c4400">No Arduino, no extra supply: the printer's own firmware switches the hand.</text>
+</svg>

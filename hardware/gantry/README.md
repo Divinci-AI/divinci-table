@@ -1,94 +1,100 @@
-# Camera gantry + suction head — assembly manual
+# Camera gantry + magnet hand — assembly manual
 
-A Creality **CR-6 Max** 3D printer turned into a camera-and-hand for the table: a **Canon EOS Rebel T5i**
-looks straight down at the cards on the bed, and a small **suction cup** on the print head can pick up a card,
-turn it 90° (tap / untap) and put it down. The printer only *moves*: it never heats or extrudes
-(`table/gantry.py` refuses those G-codes). This is the first step toward the "Jumanji table" in
-[docs/roadmap.md](../../docs/roadmap.md) — an AI that can move its own cards.
+A Creality **CR-6 Max** 3D printer turned into eyes and a hand for the table. A **Canon EOS Rebel T5i** looks straight
+down at the cards on the bed, and a small **24 V electromagnet** on the print head picks up the AI's cards, which
+carry a steel disc inside the sleeve. The printer only *moves*: it never heats or extrudes (`table/gantry.py`
+refuses those G-codes). This is the first step toward the "Jumanji table" in [docs/roadmap.md](../../docs/roadmap.md):
+an AI that moves its own cards.
 
-Open source (Apache-2.0, like the rest of this repository). Diagrams are hand-made SVGs in [`img/`](img/);
-edit them freely. **Status (2026-10-04): designed from the parts' specs, not yet assembled.** Expect to
-adjust lengths and positions on the real printer, and please update this page with what you learn.
+**Only the AI's cards have steel in them, so the magnet physically cannot lift a person's card.**
+
+Open source (Apache-2.0, like the rest of this repository). Diagrams are hand-made SVGs in [`img/`](img/). Every part
+below is listed in [`hardware/bom.json`](../bom.json), and `table/tests/bom_test.py` fails if this page and that file
+disagree. **Status (2026-10-04): designed from the parts' specs, not yet assembled.** Step 9 is the test that
+decides whether the printer is the hand or the SO-101 arm is ([docs/ARM-GANTRY-GOAL.md](../../docs/ARM-GANTRY-GOAL.md),
+section M). The suction design this replaced is in git history.
 
 ![The whole rig](img/overview.svg)
 
 ## Safety first
 
-- **Unplug the printer's heaters from your mind and the software:** never run a normal print with the camera or
-  suction head attached. `gantry.py` allows only motion and status commands.
+- **The CR-6 has a known USB fault.** Users have measured about 20 V on the USB connector's shell and lost the USB
+  ports of the computer they plugged in (a short from the 24 V heated bed near the bed clips; fixed on board v4.5.3).
+  Do Step 6 *before* the printer's USB cable ever touches the Mac.
+- **Never run a normal print with the camera or magnet head attached.** `gantry.py` allows only motion and status
+  commands (and, once added, magnet on/off).
 - **Z homing drives the head down.** With anything hanging below the nozzle it can crash into the bed. Use
-  `gantry.py home` (X and Y only) until `min_z` is measured (step 7).
-- **Wire with the 12 V supply unplugged**, and check the 5 V buck converter's output with a multimeter (it should read
-  about 5 V) *before* connecting the servo.
-- The firmware switches the pump off after 60 s on its own and after 2 min with no commands.
+  `gantry.py home` (X and Y only) until `min_z` is measured (Step 7).
+- **The magnet must not stay on without a card.** The maker warns that long unloaded energising overheats it, so the
+  software caps its on-time.
+- **People's cards and hands stay off the bed.** The bed is the AI's side of the table; the person plays beside the
+  printer.
 
 ## Parts
 
 Prices as seen on 2026-10-04; any equivalent part works.
 
-**Hardware store (The Home Depot)**
+**Already on hand**
 
 | Part | Qty | Used for |
 |---|---|---|
-| Everbilt aluminium angle 1" × 3 ft × 1/8" | 1 | camera bracket (~6") and suction bracket (~3") |
-| 1/4"-20 × 1" zinc hex bolt | 4 | camera bracket, spares |
-| 1/4"-20 wing nut (4-pack) | 1 | quick camera adjustments |
-| Nylon spacer 1/2" × 1" (0.257" bore) | 2 | standoffs if the bracket needs clearance |
-| 1/4" rubber flat washers (10-pack) | 1 | vibration damping under the ball head |
-| Spring assortment (84-pack) | 1 | optional extra compliance for the cup |
+| Canon EOS Rebel T5i with 18–55 mm lens | 1 | the eyes |
+| Creality CR-6 Max 3D printer | 1 | prints the swivel, then becomes the gantry |
+| PLA+ filament | — | the printed magnet swivel |
+| Zip ties | ~10 | backing up the tape, tidying cables |
+
+**Printed (Step 3, before the printer becomes the gantry)**
+
+| Part | Qty | Used for |
+|---|---|---|
+| Printed magnet swivel | 1 (+1 spare) | holds the magnet and turns in its bracket |
+
+**Check you have these (buy only if missing)**
+
+| Part | Qty | Used for |
+|---|---|---|
+| M3 × 6 mm screw | 1 | magnet to the printed swivel (the magnet has an M3 thread in its back) |
+| 22 AWG two-core wire, about 1 m, with heat-shrink or lever connectors | 1 | extending the magnet's leads to the part-fan connector |
+| Kapton (polyimide) tape | 1 roll | under the bed clips, and over the USB cable's +5 V pin |
+| Micro-USB cable for the printer (came with it) | 1 | printer to the Mac |
+| USB-C to USB-A adapter | 1 | the Mac has only USB-C; both cables end in USB-A |
+| Card sleeves, inner and outer, for the AI's deck | 2 per card | the steel disc sits between them |
+
+**Hardware store (The Home Depot, via Instacart) — $46.49**
+
+| Part | Qty | Used for |
+|---|---|---|
+| Everbilt aluminium angle 1" × 3 ft × 1/8" | 1 | camera bracket (~6") and magnet bracket (~3") |
+| Everbilt 1/4"-20 × 1" zinc hex bolt | 4 | camera bracket; the swivel's axle; spares |
+| Everbilt 1/4"-20 wing nut (4-pack) | 1 | setting the swivel's drag |
+| Everbilt nylon spacer 1/2" × 1" (0.257" bore) | 2 | cut down: a low-friction washer under the bracket |
+| Everbilt 1/4" rubber flat washers (10-pack) | 1 | damping under the ball head; the tap station's grippy foot |
+| Everbilt spring assortment kit (84-pack) | 1 | one compression spring for the swivel's drag |
 | Scotch Extreme double-sided mounting tape 1" × 48" | 1 | brackets to the beam and the carriage (no drilling into the printer) |
-| Zip ties | a few | backing up the tape, tidying tubes and cables |
 
-**Online (Amazon or similar)**
-
-| Part | Qty | Used for |
-|---|---|---|
-| Canon LP-E8 dummy battery / ACK-E8 AC adapter kit | 1 | mains power for the camera (long scans) |
-| Mini-USB (USB-A to Mini-B) camera cable, 10 ft | 1 | camera to the Mac (gphoto2) |
-| Mini ball head, 1/4"-20 (e.g. CAMVATE, 2-pack) | 1 | aim the camera straight down |
-| 12 V micro diaphragm vacuum pump (~-80 kPa) | 1 | suction |
-| 12 V 2-way normally-closed solenoid air valve, 1/4" NPT | 1 | quick release |
-| 15 mm silicone bellows suction cups, M5 thread (4-pack) | 1 | the "fingertip" |
-| 4 mm push-to-connect fittings kit, 1/4" NPT (straights, elbows, tees) | 1 | valve ports, tee |
-| 4 mm push-to-connect × M5 male fittings | 1–2 | cup connection |
-| 4 mm OD × 2.5 mm ID polyurethane tubing | ~2 m | the vacuum line |
-| MG90S metal-gear micro servo | 1 | turning the cup 90° |
-| Arduino Nano (USB-C, ATmega328P) | 1 | controls pump, valve and servo |
-| MOSFET switch modules (5–36 V, ≥ 5 A) | 2 | switching the pump and the valve |
-| 1N4007 diodes | 2 | flyback protection across the pump and the valve coil |
-| 5 V buck converter, fixed output (≥ 1 A; e.g. a 6-pack of 5 V 3 A modules) | 1 | servo power (not from the Nano) |
-| 12 V 2 A power supply with screw-terminal plug | 1 | pump, valve, buck converter |
-| PTFE thread tape | 1 | sealing the 1/4" NPT fittings |
-
-**The exact parts we bought (Amazon, 2026-10-04 — $169.51 in total; links may change):**
+**Online (Amazon) — the exact parts in the cart**
 
 | Part | Link | Price |
 |---|---|---|
 | Gonine LP-E8 dummy battery / ACK-E8 AC kit | [amazon.com/dp/B01EMNB8P6](https://www.amazon.com/dp/B01EMNB8P6) | $19.99 |
 | SCOVEE 10 ft Mini-USB camera cable for Canon Rebel | [amazon.com/dp/B078SRKRLK](https://www.amazon.com/dp/B078SRKRLK) | $8.55 |
 | CAMVATE 1/4"-20 mini ball head (2-pack) | [amazon.com/dp/B07D9JCP18](https://www.amazon.com/dp/B07D9JCP18) | $9.80 |
-| Micro vacuum pump 12 V with silicone tube | [amazon.com/dp/B071GL3XXQ](https://www.amazon.com/dp/B071GL3XXQ) | $25.99 |
-| Beduan 2-way normally-closed 12 V solenoid air valve, 1/4" NPT | [amazon.com/dp/B07N2LGFYS](https://www.amazon.com/dp/B07N2LGFYS) | $9.99 |
-| uxcell 15 mm bellows suction cups, M5 joint | [amazon.com/dp/B07MHGDFP4](https://www.amazon.com/dp/B07MHGDFP4) | $9.09 |
-| QITUO 4 mm × 1/4" NPT push-to-connect kit (24 pcs) | [amazon.com/dp/B0DCJ2T4MV](https://www.amazon.com/dp/B0DCJ2T4MV) | $14.99 |
-| Kozelo 4 mm × M5 male push-to-connect (10 pcs) | [amazon.com/dp/B0H6FKRWDF](https://www.amazon.com/dp/B0H6FKRWDF) | $6.29 |
-| Quickun 4 mm × 2.5 mm PU tubing | [amazon.com/dp/B083JG4Q8F](https://www.amazon.com/dp/B083JG4Q8F) | $8.99 |
-| MG90S metal-gear micro servos (2-pack) | [amazon.com/dp/B0CNL755KP](https://www.amazon.com/dp/B0CNL755KP) | $8.88 |
-| Nano V3.0 USB-C, ATmega328P/CH340 (3-pack, with cable) | [amazon.com/dp/B0DFGX3MSL](https://www.amazon.com/dp/B0DFGX3MSL) | $12.99 |
-| SANSUN 12 V 2 A power supply, ETL listed | [amazon.com/dp/B01AZLA9XQ](https://www.amazon.com/dp/B01AZLA9XQ) | $8.99 |
-| MOSFET switch driver modules 5–36 V 15 A (11-pack) | [amazon.com/dp/B0DX2KCZHL](https://www.amazon.com/dp/B0DX2KCZHL) | $9.99 |
+| Heschen 24 V holding electromagnet HS-P20x15 | [amazon.com/dp/B078K3TKFZ](https://www.amazon.com/dp/B078K3TKFZ) | $7.19 |
+| totalElement 1/2" steel discs, no adhesive (250-pack) | [amazon.com/dp/B081J52GY6](https://www.amazon.com/dp/B081J52GY6) | $20.79 |
 | 1N4007 rectifier diodes (125-pack) | [amazon.com/dp/B0FC2CQF24](https://www.amazon.com/dp/B0FC2CQF24) | $5.99 |
-| 5 V 3 A fixed buck converters (6-pack) | [amazon.com/dp/B0GYJDP96Q](https://www.amazon.com/dp/B0GYJDP96Q) | $8.99 |
+| RSHTECH 7-port powered USB hub (USB-C and USB-A) | [amazon.com/dp/B0CGX8LNMC](https://www.amazon.com/dp/B0CGX8LNMC) | $31.99 |
 
-From The Home Depot we bought the aluminium angle, bolts, wing nuts, spacers, rubber washers, the spring kit,
-Scotch Extreme mounting tape and Blue Monster 1/2" PTFE tape ($49.68).
+The Amazon cart reads **$331.26**: these seven parts ($104.30, or $72.31 without the hub if a USB-C adapter is on
+hand) plus the SO-101 arm, its wrist camera and its kill switch ($226.96), which wait on Step 9's result and are
+listed in the goal doc.
 
-**Tools:** drill with a 1/4" bit, hacksaw, file, screwdrivers, PTFE tape, multimeter, small wire strippers.
+**Tools:** drill with a 1/4" bit, hacksaw, file, screwdrivers, multimeter, wire strippers, a lighter or heat gun for
+heat-shrink.
 
 ## Step 1 — Cut the brackets
 
-Cut the aluminium angle into a **~6" piece** (camera) and a **~3" piece** (suction head). File the edges smooth.
-Drill a **1/4" hole** about 1" from one end of the 6" piece, centred on one leg.
+Cut the aluminium angle into a **~6" piece** (camera) and a **~3" piece** (magnet head). File the edges smooth.
+Drill a **1/4" hole** about 1" from one end of each piece, centred on one leg.
 
 ## Step 2 — Mount the camera on the X beam
 
@@ -102,73 +108,76 @@ Drill a **1/4" hole** about 1" from one end of the 6" piece, centred on one leg.
 2. From the top: **bolt** down through the hole → **rubber washer** → screw the bolt into the **ball head's
    base**. Hand-tight.
 3. Screw the ball head's top screw into the camera's tripod socket. Fit the **dummy battery** and plug in its AC
-   adapter. Plug the **Mini-USB cable** into the camera and the Mac, and route it along the left upright.
+   adapter. Plug the **Mini-USB cable** into the camera, and route it along the left upright (it reaches the Mac
+   in Step 6).
 4. Set the lens to **18 mm**, autofocus off (manual focus on the bed), and point the camera straight down.
 
 *Why the beam:* the camera and lens weigh ~800 g. On the X carriage they would shake and strain the X motor; on
 the beam they only ride up and down with Z.
 
-## Step 3 — Build the suction head
+## Step 3 — Print the magnet swivel (while it's still a printer)
 
-![Suction head](img/suction-head.svg)
+Print, in PLA+, the **swivel**: a cylinder about 24 mm across and 22 mm tall, 100% infill.
 
-1. Stick the 3" angle to the side of the **X carriage** with mounting tape plus zip ties, the other leg
-   horizontal under the carriage.
-2. Fix the **MG90S servo** under that leg, shaft pointing down (its mounting screws, or tape).
-3. Push the **M5 push-to-connect fitting** through the end hole of the servo horn (secure with its nut), screw the
-   **bellows cup** onto it, and press the horn onto the servo shaft *with the servo at 90°* (centre).
-4. The **cup tip must be the lowest point** of the carriage: at least 5 mm below the nozzle and everything else.
-   The bellows squash a few mm on touch-down; that is the spring. Add a spring from the assortment behind the
-   bracket only if touch-downs are too hard.
+- **Floor:** a 3.2 mm hole in the centre, for the M3 screw that holds the magnet underneath.
+- **Above the floor:** a sideways **hex slot** that the 1/4" bolt's head slides into (7/16" = 11.1 mm across flats,
+  plus 0.3 mm clearance), so the bolt turns *with* the swivel.
+- **Top:** a 6.5 mm hole where the bolt's thread comes out.
 
-## Step 4 — The vacuum line
+This is the only printed part on the magnet route. Print it and a spare *before* Step 4, because after that the
+printer is the gantry.
 
-![Vacuum line](img/vacuum.svg)
+## Step 4 — Build the magnet head
 
-1. Wrap the valve's threads in PTFE tape and screw a **straight 4 mm push-to-connect fitting** into each port.
-2. Pump **IN** (suction port) → 4 mm tube → **tee** → one branch to the **cup**, one branch to the **valve**. The
-   valve's other port stays open to the air. Pump **OUT** vents to the air.
-3. Push tubes fully into the fittings (pull gently: they should not come out). Tie the cup's tube along the
-   carriage with slack for the full X and Z travel.
+![Magnet head](img/magnet-head.svg)
 
-## Step 5 — Wiring
+1. Stick the 3" angle to the side of the **X carriage** with mounting tape plus zip ties, the drilled leg
+   horizontal and sticking out under the carriage.
+2. Screw the **magnet** to the swivel's floor from inside with the **M3 × 6 mm screw** (snug, not tight: PLA
+   cracks), then slide a **1/4" bolt**'s head into the hex slot, thread up.
+3. Cut ~6 mm off a **nylon spacer** with the hacksaw: it's a low-friction washer. The stack, from the bottom: swivel →
+   nylon washer → up through the bracket's hole → a short **spring** from the assortment → **wing nut**. The bolt
+   turns in the bracket's hole. The wing nut sets the drag: tight enough that a card doesn't spin while moving, loose
+   enough that it turns when its corner is held (Step 9). If the thread runs out, use a 1.5" bolt.
+4. The **magnet's face must be the lowest point** of the carriage: at least 5 mm below the nozzle and everything else.
 
-![Wiring](img/wiring.svg)
+## Step 5 — Wire the magnet to the part-fan output
 
-1. 12 V supply **+** and **−** to a +12 V rail and a ground rail (the screw-terminal plug, a terminal strip or
-   Wago connectors).
-2. **MOSFET module A** (pump) and **module B** (valve): VIN from the rails, OUT to the pump / the valve coil.
-3. A **1N4007 across each coil**: the striped end (cathode) to **+**, the other to **−**. Without them the
-   switching spikes can kill the MOSFET modules.
-4. **5 V buck converter** from the rails. *Before connecting anything to it*, check its output reads about **5 V** with
-   the multimeter (an adjustable one: set it to 5.0 V). Then: buck 5 V → servo red, buck GND → servo brown.
-5. **Arduino Nano**: D5 → module A TRIG/PWM, D6 → module B TRIG/PWM, D9 → servo orange, **GND → ground rail**
-   (one shared ground, or the signals mean nothing). The Nano is powered by its USB-C cable from the Mac.
+![Magnet wiring](img/magnet-wiring.svg)
 
-## Step 6 — Firmware
+The part-cooling fan output is 24 V and switched by G-code: **M106 S255** = magnet on, **M107** = off. No extra
+board, power supply or switch.
 
-Open [`firmware/suction/suction.ino`](firmware/suction/suction.ino) in the Arduino IDE (board: *Arduino Nano*,
-processor: *ATmega328P*; older clones may need *ATmega328P (Old Bootloader)*) and upload. Then, in the Serial Monitor
-at **115200** baud, line ending *Newline*:
+1. **Printer off and unplugged.** Unplug the part-cooling fan at its connector and note which wire is **+**
+   (usually red).
+2. Extend the magnet's leads with the **22 AWG two-core wire**, magnet **+** to the fan connector's **+**.
+3. Put a **1N4007 diode** across the magnet's leads: the **striped end (cathode) to +**, the other to −. Without it the
+   switch-off spike can kill the board's fan transistor. Insulate with heat-shrink.
+4. Measure before trusting it: the magnet draws about **0.25 A**, the stock fan about 0.10 A. Read the board's
+   version and the fan output's transistor, and if in doubt check that it stays cool after a minute of `M106 S255`
+   with a card held. If it can't carry the magnet, the fallback is a MOSFET module switched by that output
+   (see the goal doc).
 
-| Command | What should happen |
-|---|---|
-| `STATUS` | `pump=0 valve=0 turn=90` then `ok` |
-| `PICK` | the pump runs; a finger on the cup feels the suction |
-| `DROP` | the pump stops and the valve clicks open for 0.3 s |
-| `TURN 0`, `TURN 180`, `TURN 90` | the cup turns a quarter each way and back |
-| `OFF` | everything off (the safe state) |
+## Step 6 — USB: make it safe, then connect
+
+1. Read the version printed on the control board. v4.5.3 has Creality's fix; v4.5.2 and earlier are affected.
+2. Put **Kapton tape** under the bed clips, wherever a clip or screw sits near the heater's traces.
+3. On the printer's **micro-USB cable**, cover the **+5 V pin** (the outermost contact on one side of the USB-A
+   plug) with a sliver of Kapton tape, so the Mac and the printer can't power each other.
+4. Connect the printer and the camera to the Mac through the **USB-C to USB-A adapter**, or the powered hub
+   (the RSHTECH hub above) if it stays in the order.
+5. `gantry.py ports` should list the printer, and `gphoto2 --auto-detect` the camera.
 
 ## Step 7 — Measure the rig and set limits
 
-With the printer powered and connected (`gantry.py ports` lists it), home X and Y only:
+With the printer powered and connected, home X and Y only:
 
 ```bash
 ~/.venvs/table/bin/python table/gantry.py home
 ~/.venvs/table/bin/python table/gantry.py info
 ```
 
-Raise Z well above the bed, then lower it in small steps (`gantry.py goto <x> <y> <z>`) until the cup *just*
+Raise Z well above the bed, then lower it in small steps (`gantry.py goto <x> <y> <z>`) until the magnet *just*
 touches a card. Write what you measured to `table/.cache/gantry.json`:
 
 ```json
@@ -181,31 +190,42 @@ touches a card. Write what you measured to `table/.cache/gantry.json`:
 }
 ```
 
-- `min_z`: the lowest Z at which the cup still clears the bed by ~2 mm (the touch-down height + 2).
+- `min_z`: the lowest Z at which the magnet still clears the bed by ~2 mm (the touch-down height + 2).
 - `lens_at_z0_mm`: lens front to bed at Z = 0 (measure at some Z and subtract).
 - `y_feed`: the bed carries the cards, so Y moves slowly or the cards slide.
 
-## Step 8 — First picks
+## Step 8 — Sleeve the AI's deck
 
-Place one sleeved card, move the cup over it, lower to the touch-down height, `PICK`, raise 20 mm, `TURN 0`, lower,
-`DROP`. Repeat with the card in different spots and note the reliable touch-down height.
+Only the AI's deck. For each card: the card into its **inner sleeve**, one **steel disc** centred on the inner
+sleeve's *back*, then the **outer sleeve** over both. The disc sits behind the card's back, so the magnet picks the
+card face-up through the card. Never put steel in a person's cards.
+
+## Step 9 — First picks and the magnet test
+
+1. Place one sleeved card, move the magnet over its centre, lower to the touch-down height, **M106 S255**, raise
+   20 mm, move, lower, **M107**. Repeat in different spots; note the reliable touch-down height.
+2. **Doubles:** pick 20 times from a 40-card stack and count how often two cards come up. Tape on the magnet's face
+   and a sideways wiggle while lifting both help.
+3. **Tap by arc:** glue a **rubber washer** to the bed as the tap station. Put a card's corner on it, pick the card at
+   its centre, lower so the corner presses on the washer, then move the magnet a quarter circle around that corner
+   (G2/G3). The card turns 90°. Ten tries: within ±5° and ±3 mm?
+4. Record the numbers in the goal doc's section M. They decide between the printer as the hand and the SO-101 arm.
 
 ## Software notes (what still needs code)
 
+- `gantry.py`'s gate refuses fans today. The magnet needs one narrow exception, **M106 S255 / M107 only**, plus an
+  on-time cap. Heaters stay refused. Tapping needs **G2/G3** added to the allowed moves.
 - `gantry.py scan` assumes the camera rides on the **carriage**. With the camera on the **X beam**, X moves don't move
-  the camera: use `snap` at the top of Z (the whole bed in one or two shots), and the scan needs a `camera_on: "beam"`
-  setting so it moves only Z and Y. To do once the rig exists.
-- The suction head will get `gantry.py pick/drop/turn` commands that talk to the Nano over its serial port, behind the
-  same safety gate as the printer.
-- The arduino sketch has not been compiled on this machine yet (no `arduino-cli` here); the Arduino IDE will show any
-  error on upload.
+  the camera: use `snap` at the top of Z, and the scan needs a `camera_on: "beam"` setting so it moves only Z and Y.
 
 ## Troubleshooting
 
-- **The cup doesn't hold a card:** check every push-fit (pull test), that the valve is *closed* during `PICK`, and that
-  the cup sits flat on the sleeve. Bellows cups need the card face, not its edge.
-- **The card won't let go:** the valve isn't opening (check module B, the diode direction, and that its coil gets
-  12 V during `DROP`).
-- **The servo jitters or the Nano resets:** the servo is drawing from the Nano. Power it from the buck converter.
+- **The magnet doesn't hold a card:** check the disc is centred under the magnet, the magnet's face sits flat on the
+  sleeve, and that the fan output actually reads ~24 V during `M106 S255`.
+- **The card sticks after M107:** the diode may be missing; leftover magnetism on a light card is otherwise rare
+  (the maker rates it near zero). A strip of tape on the magnet's face helps.
+- **Two cards come up from the stack:** lower the touch-down force, add the sideways wiggle, or try the fallback
+  receptive sheet (goal doc, M0).
+- **The card spins while moving:** tighten the wing nut a quarter turn.
 - **Photos are blurry:** autofocus off, manual focus on the bed at the Z you shoot from; shake from Y moves settles
   after ~0.5 s (gantry.py waits for moves to finish).

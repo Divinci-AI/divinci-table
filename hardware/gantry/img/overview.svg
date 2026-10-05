@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" font-family="Helvetica, Arial, sans-serif" font-size="14">
-  <title>Camera gantry overview: CR-6 Max with the Canon on the X beam and the suction head on the carriage</title>
+  <title>Camera gantry overview: CR-6 Max with the Canon on the X beam and the magnet head on the carriage</title>
   <rect width="960" height="620" fill="#ffffff"/>
   <text x="24" y="34" font-size="22" font-weight="700" fill="#1a1a1a">1 · The whole rig (front view, not to scale)</text>
   <!-- base and bed -->
@@ -28,34 +28,25 @@
   <rect x="236" y="312" width="40" height="44" rx="4" fill="#333"/>
   <text x="256" y="372" text-anchor="middle" fill="#1a1a1a" font-size="12">lens points down</text>
   <path d="M236 356 L190 452 L330 452 L276 356 Z" fill="#f5c542" opacity="0.25"/>
-  <!-- carriage + suction head -->
+  <!-- carriage + magnet head -->
   <rect x="470" y="190" width="84" height="54" rx="4" fill="#e3e3e3" stroke="#333"/>
   <text x="512" y="182" text-anchor="middle" fill="#1a1a1a" font-size="12">X carriage (moves left / right)</text>
   <rect x="490" y="244" width="44" height="30" fill="#4a7bd0" stroke="#223"/>
-  <text x="560" y="262" fill="#1a1a1a" font-size="12">MG90S servo</text>
+  <text x="560" y="262" fill="#1a1a1a" font-size="12">swivel + bolt</text>
   <rect x="508" y="274" width="8" height="120" fill="#888"/>
   <path d="M496 394 L528 394 L522 418 L502 418 Z" fill="#d5492f"/>
-  <text x="490" y="410" text-anchor="end" fill="#d5492f" font-weight="700" font-size="13">lowest point: the suction cup</text>
+  <text x="490" y="410" text-anchor="end" fill="#d5492f" font-weight="700" font-size="13">lowest point: the electromagnet</text>
   <!-- tube -->
-  <path d="M520 300 C 640 300, 760 330, 790 380" fill="none" stroke="#2a9d8f" stroke-width="4"/>
-  <!-- control box -->
-  <rect x="740" y="380" width="190" height="140" rx="8" fill="#f2f2f2" stroke="#333"/>
-  <text x="835" y="402" text-anchor="middle" font-weight="700" fill="#1a1a1a">control box</text>
-  <text x="752" y="426" fill="#1a1a1a" font-size="12">vacuum pump + valve</text>
-  <text x="752" y="446" fill="#1a1a1a" font-size="12">2 × MOSFET module</text>
-  <text x="752" y="466" fill="#1a1a1a" font-size="12">Arduino Nano · 5 V buck</text>
-  <text x="752" y="486" fill="#1a1a1a" font-size="12">12 V 2 A power supply</text>
-  <text x="790" y="372" fill="#2a9d8f" font-size="12">4 mm vacuum tube</text>
+  <path d="M520 300 C 600 300, 640 260, 660 240" fill="none" stroke="#c0392b" stroke-width="3"/>
+  <text x="528" y="350" fill="#c0392b" font-size="12">leads → part-fan (24 V)</text>
   <!-- laptop -->
   <rect x="770" y="90" width="150" height="90" rx="6" fill="#1f2a33"/>
   <text x="845" y="140" text-anchor="middle" fill="#fff">Mac (table server)</text>
   <g stroke="#8e44ad" stroke-width="3" fill="none">
     <path d="M216 290 L140 290 L140 60 L840 60 L840 90"/>
     <path d="M690 230 C 730 200, 760 170, 770 160"/>
-    <path d="M835 380 L 845 180"/>
   </g>
   <text x="420" y="54" fill="#8e44ad" font-size="12">USB: Canon (photos), along the left upright</text>
   <text x="700" y="215" fill="#8e44ad" font-size="12">USB: printer</text>
-  <text x="850" y="290" fill="#8e44ad" font-size="12">USB: Nano</text>
-  <text x="24" y="590" fill="#555" font-size="13">The printer only moves things. It never heats or extrudes (table/gantry.py refuses those commands).</text>
+  <text x="24" y="590" fill="#555" font-size="13">The printer only moves things. It never heats or extrudes; only the AI's cards carry steel.</text>
 </svg>
