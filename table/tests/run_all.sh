@@ -44,6 +44,7 @@ run captains      /usr/bin/python3 table/tests/captains_test.py
 run hearing-names $PY table/tests/hearing_names.py
 run openmic       /usr/bin/python3 table/tests/openmic_test.py
 run dnd           /usr/bin/python3 table/tests/dnd_test.py
+run dnd-zones     /usr/bin/python3 table/tests/dnd_zones_test.py
 run dnd-assets    /usr/bin/python3 table/tests/dnd_assets_test.py
 run dnd-dm-sim    /usr/bin/python3 table/tests/dnd_dm_sim_test.py
 run ledger        /usr/bin/python3 table/tests/ledger_test.py

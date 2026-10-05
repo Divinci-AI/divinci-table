@@ -45,12 +45,15 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from core import Events, Room, Seats, clean_text, device_of, jdump, save_photo, save_survey  # noqa: E402
 import dnd_map as MAP  # noqa: E402
+import dnd_zones as ZONES  # noqa: E402
 from openmic import PRESETS, wake_word  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--players", default="Player 1,Player 2", help="comma-separated names of the people at the table")
 ap.add_argument("--companions", default="", help='comma-separated "ai:<name>[:<quiet|normal|chatty>[:<pregen class>]]"')
 ap.add_argument("--dm", default="", help="name of a person who DMs by hand (default: the AI DM)")
+ap.add_argument("--mode", choices=["map", "theater"], default="map",
+                help="map: the battle grid; theater: no board, zones and voice (docs/THEATER-GOAL.md)")
 ap.add_argument("--host", default="127.0.0.1")
 ap.add_argument("--port", type=int, default=8810)
 args = ap.parse_args()
@@ -170,7 +173,8 @@ def new_game() -> None:
     G.clear()
     G.update(game_id=time.strftime("%Y%m%d-%H%M%S"), sheets={}, monsters=[], scene="", begun=False,
              initiative={"active": False, "order": [], "turn": 0, "round": 1, "pending": []},
-             requests=[], dm_calls=0, dm_busy=False, dm_dirty=False, ai_spoke=None)
+             requests=[], dm_calls=0, dm_busy=False, dm_dirty=False, ai_spoke=None,
+             mode=args.mode, card=ZONES.new_card())
     for i, n in enumerate(HUMANS):
         G["sheets"][n] = sheet_from_pregen(n, pregen_order[i % 4])
     for c in COMPANIONS:
@@ -235,6 +239,60 @@ def sync_monster_tokens() -> None:
         if not MAP.token_by_name(m, x["name"]):
             b = bestiary(x["name"]) or {}
             MAP.place(m, x["name"], "monster", size=x.get("size", "medium"), speed=x.get("speed", 30), mini=b.get("mini"))
+
+
+# ── theater of the mind: zones (dnd_zones.py has the rules; this decides who may do what) ─────────
+def sync_zone_creatures() -> None:
+    """Everyone in the scene is somewhere: the party starts in the first zone, monsters in the last (or where the
+    DM said); a monster gone from the list leaves the scene."""
+    c = G["card"]
+    if not c["zones"]:
+        return
+    alive = set(G["sheets"]) | {m["name"] for m in G["monsters"]}
+    for who in [w for w in c["where"] if w not in alive]:
+        ZONES.remove(c, who)
+    for who in G["sheets"]:
+        if who not in c["where"]:
+            ZONES.place(c, who, c["zones"][0]["name"])
+    for m in G["monsters"]:
+        if m["name"] not in c["where"]:
+            ZONES.place(c, m["name"], c["zones"][-1]["name"])
+
+
+def is_person(name: str) -> bool:
+    """A person's character (not an AI companion): only its owner moves it."""
+    return name in HUMANS
+
+
+def apply_zone_lines(d: dict) -> None:
+    """The DM's zone changes from a TABLE line: zones (the scene's places, only outside a fight), zone (where
+    monsters and companions go: anywhere while setting up, by the movement rules on their own turn in combat) and
+    engage (pairs in the same zone). A person's character is never the DM's to move. Anything illegal is dropped."""
+    c, now = G["card"], turn_name()
+    if isinstance(d.get("zones"), list) and not now:
+        if not ZONES.set_zones(c, d["zones"]):
+            sync_zone_creatures()
+            EVENTS.emit("dnd", kind="zones", text="The scene: " + ", ".join(z["name"] for z in c["zones"]))
+    for who, to in list((d.get("zone") or {}).items())[:20] if isinstance(d.get("zone"), dict) else []:
+        dash = isinstance(to, dict) and bool(to.get("dash"))
+        to = to.get("to") if isinstance(to, dict) else to
+        if not isinstance(who, str) or not isinstance(to, str) or is_person(who) or who not in c["where"]:
+            continue
+        if now and now != who:
+            continue                                                  # in combat, only on its own turn
+        if now:
+            err, note = ZONES.move(c, who, to, dash=dash, in_turn=True)
+        else:
+            err, note = ZONES.place(c, who, to), ""
+        if not err:
+            EVENTS.emit("dnd", kind="zone", text=f"{who} → {c['where'][who]}" + (f" ({note})" if note else ""))
+    for pair in (d.get("engage") or [])[:20] if isinstance(d.get("engage"), list) else []:
+        if isinstance(pair, list) and len(pair) == 2 and all(isinstance(x, str) for x in pair):
+            a, b = pair
+            if is_person(a) and is_person(b):
+                continue                                              # two people decide their own fights
+            if not ZONES.engage(c, a, b):
+                EVENTS.emit("dnd", kind="zone", text=f"{a} and {b} are fighting")
 
 
 def turn_name() -> str | None:
@@ -319,9 +377,11 @@ def apply_table_line(text: str) -> str:
                     continue
         G["monsters"] = mons
         sync_monster_tokens()
+        sync_zone_creatures()
     if isinstance(d.get("scene"), str):
         G["scene"] = clean_text(d["scene"], 80)
     apply_map_lines(d)
+    apply_zone_lines(d)
     return text[:m.start()].strip()
 
 
@@ -335,7 +395,7 @@ def state_for_dm() -> dict:
             "initiative": ({"round": ini["round"], "order": [f"{o['name']} ({o['total']})" for o in ini["order"]],
                             "now": ini["order"][ini["turn"]]["name"] if ini["order"] else None,
                             "waiting_to_roll": ini["pending"]} if ini["active"] else None),
-            "map": map_for_dm()}
+            **({"scene_card": ZONES.public(G["card"]), "mode": "theater"} if G["mode"] == "theater" else {"map": map_for_dm()})}
 
 
 def recent_lines(n: int = 30) -> list[str]:
@@ -352,6 +412,23 @@ def recent_lines(n: int = 30) -> list[str]:
     return out[-n:]
 
 
+MAP_TABLE_HELP = [
+    'If monsters, the scene title or the map change, end with ONE line: TABLE: {"monsters":[{"name":"Goblin 1","ac":15,'
+    '"hp":7,"max_hp":7,"size":"small","speed":30}],"scene":"<short title>","location":"<one of map.locations>",'
+    '"place":[{"name":"Goblin 1","x":9,"y":2}],"move":[{"name":"Goblin 1","x":7,"y":3}]} '
+    '(list every monster still in play; include only the keys that change; omit the line otherwise). '
+    "Only move monsters and companions, never the players' characters, and in combat only the creature whose turn it is."]
+THEATER_TABLE_HELP = [
+    "This is theater of the mind: there is no board. Paint the scene in words, and keep it consistent with STATE.scene_card "
+    "(its zones, who is where, who is fighting whom).",
+    'If monsters, the scene or the zones change, end with ONE line: TABLE: {"monsters":[{"name":"Goblin 1","ac":15,"hp":7,'
+    '"max_hp":7}],"scene":"<short title>","zones":[{"name":"the bar","desc":"a long oak counter","cover":"half"},'
+    '{"name":"the door"}],"zone":{"Goblin 1":"the door"},"engage":[["Goblin 1","<a character>"]]} '
+    "(include only the keys that change; omit the line otherwise). Set zones only outside a fight: 2 to 6 short places. "
+    "In combat a creature moves one zone (two with a Dash) on its own turn. Only move monsters and companions, never "
+    "the players' characters; engage only creatures in the same zone."]
+
+
 def build_prompt(reason: str, speak: list[str]) -> str:
     comp = "; ".join(f"{c['name']} ({G['sheets'][c['name']]['class']}, {c['chattiness']} personality)" for c in COMPANIONS)
     lines = [f"STATE: {json.dumps(state_for_dm(), ensure_ascii=False)}", "", "RECENT (oldest first):",
@@ -363,11 +440,7 @@ def build_prompt(reason: str, speak: list[str]) -> str:
     lines += ["", "Narrate the next beat (2-5 sentences), then hand the scene back or ask for rolls by name.",
               "Plain spoken prose only: no markdown, headings, lists, code blocks, diagrams or citation numbers. "
               "Do not speak for the AI companions or the players unless told to above.",
-              'If monsters, the scene title or the map change, end with ONE line: TABLE: {"monsters":[{"name":"Goblin 1","ac":15,'
-              '"hp":7,"max_hp":7,"size":"small","speed":30}],"scene":"<short title>","location":"<one of map.locations>",'
-              '"place":[{"name":"Goblin 1","x":9,"y":2}],"move":[{"name":"Goblin 1","x":7,"y":3}]} '
-              '(list every monster still in play; include only the keys that change; omit the line otherwise). '
-              "Only move monsters and companions, never the players' characters, and in combat only the creature whose turn it is."]
+              *(THEATER_TABLE_HELP if G["mode"] == "theater" else MAP_TABLE_HELP)]
     return "\n".join(lines)
 
 
@@ -539,7 +612,7 @@ def public_state(viewer: str | None = None) -> dict:
                 "companions": [{"name": c["name"], "chattiness": c["chattiness"]} for c in COMPANIONS],
                 "sheets": {n: public_sheet(s) for n, s in G["sheets"].items()}, "monsters": G["monsters"],
                 "initiative": G["initiative"], "pregens": sorted(PREGENS), "credit": CREDIT,
-                "map": map_view(),
+                "map": map_view(), "mode": G["mode"], "card": ZONES.public(G["card"]),
                 "minis": {x["id"]: x["glb"] for x in ASSETS.get("minis", []) if x.get("glb")},
                 "locations": [{"id": x["id"], "name": x["name"] + ("" if x.get("status") == "approved" else " (draft)")}
                               for x in playable_locations()]}
@@ -891,6 +964,7 @@ class H(BaseHTTPRequestHandler):
                 now_name = ini["order"][ini["turn"]]["name"]
                 t = MAP.token_by_name(G["map"], now_name)
                 MAP.new_turn(G["map"], t and t["id"])
+                ZONES.new_turn(G["card"], now_name)
                 EVENTS.emit("dnd", kind="turn", text=f"Round {ini['round']}: {now_name}'s turn")
                 if not any(now_name == h for h in HUMANS):
                     return 200, public_state(), (lambda: dm_turn(f"It is {now_name}'s turn. Take it.",
@@ -898,6 +972,26 @@ class H(BaseHTTPRequestHandler):
             elif act == "end":
                 G["initiative"] = {"active": False, "order": [], "turn": 0, "round": 1, "pending": []}
                 EVENTS.emit("dnd", kind="initiative", text="Combat is over.")
+            return 200, public_state(), None
+        if p in ("/api/dnd/zone/move", "/api/dnd/zone/engage"):     # theater of the mind: your own character
+            c, who = G["card"], (str(b.get("who", "")) if is_dm else by)
+            if who not in c["where"]:
+                return 404, {"error": f"{who} isn't in the scene"}, None
+            if not is_dm and who != by:
+                return 403, {"error": "you move only your own character"}, None
+            now = turn_name()
+            if not is_dm and now and now != who:
+                return 409, {"error": f"it's {now}'s turn"}, None
+            if p.endswith("/engage"):
+                err = ZONES.engage(c, who, str(b.get("target", "")))
+                if err:
+                    return 409, {"error": err}, None
+                EVENTS.emit("dnd", kind="zone", by=by, text=f"{who} engages {b.get('target')}")
+                return 200, public_state(), None
+            err, note = ZONES.move(c, who, str(b.get("zone", "")), dash=bool(b.get("dash")), in_turn=bool(now) and not is_dm)
+            if err:
+                return 409, {"error": err}, None
+            EVENTS.emit("dnd", kind="zone", by=by, text=f"{who} → {c['where'][who]}" + (f" ({note})" if note else ""))
             return 200, public_state(), None
         if p == "/api/dnd/map/move":                          # people walk their own character; the DM moves anyone
             m, t = G["map"], G["map"]["tokens"].get(str(b.get("token", "")))

@@ -156,5 +156,75 @@ encounter("cave", [{"name": "Goblin 1"}, {"name": "Goblin 2"}, {"name": "Giant S
 encounter("crypt", [{"name": "Skeleton 1"}, {"name": "Skeleton 2"}, {"name": "Ghoul 1"}, {"name": "Zombie 1"}])
 encounter("bridge", [{"name": "Bandit 1"}, {"name": "Bandit 2"}, {"name": "Ogre 1"}, {"name": "Wolf 1"}])
 
+
+def zone_encounter(rounds: int = 120) -> None:
+    """Theater of the mind (docs/THEATER-GOAL.md T1): a fake DM sends random zone lines, good and bad, mid-fight
+    and between fights. After every line: nobody stands in a zone that doesn't exist, the DM never moved a
+    person's character, in combat only the creature whose turn it is moved and by at most 2 zones (a Dash), no
+    zones were replaced mid-fight, and engaged pairs share a zone."""
+    print("zones: a randomized fake DM")
+    D.new_game()
+    G = D.G
+    zones = [{"name": n} for n in ("the gate", "the yard", "the well", "the stair", "the roof")]
+    D.apply_table_line("x\nTABLE: " + json.dumps({"zones": zones, "monsters": [{"name": "Orc 1"}, {"name": "Orc 2"}, {"name": "Wolf 1"}]}))
+    people = list(D.HUMANS)
+    names = list(G["card"]["where"]) + ["Nobody"]
+    problems, accepted, refused = [], 0, 0
+    for r in range(rounds):
+        fight = r % 40 >= 10                                       # some lines between fights, most in one
+        if fight and not G["initiative"]["active"]:
+            order = [{"name": n, "total": rng.randint(1, 20), "dex": 10} for n in G["card"]["where"]]
+            G["initiative"] = {"active": True, "pending": [], "turn": 0, "round": 1, "order": order}
+            D.ZONES.new_turn(G["card"], order[0]["name"])
+        if not fight and G["initiative"]["active"]:
+            G["initiative"] = {"active": False, "order": [], "turn": 0, "round": 1, "pending": []}
+        before = dict(G["card"]["where"]); before_zones = [z["name"] for z in G["card"]["zones"]]
+        now = D.turn_name()
+        line = {}
+        k = rng.random()
+        if k < 0.15:
+            line["zones"] = rng.sample(zones, rng.randint(2, 5)) + ([{"name": "the void"}] if rng.random() < .3 else [])
+        if k >= 0.1:
+            line["zone"] = {rng.choice(names): rng.choice([z["name"] for z in zones] + ["the moon"])
+                            for _ in range(rng.randint(1, 3))}
+            if rng.random() < .3:
+                w = rng.choice(names); line["zone"][w] = {"to": rng.choice([z["name"] for z in zones]), "dash": True}
+        if rng.random() < .3:
+            line["engage"] = [[rng.choice(names), rng.choice(names)]]
+        D.apply_table_line("x\nTABLE: " + json.dumps(line))
+        c, after = G["card"], G["card"]["where"]
+        names_now = {z["name"] for z in c["zones"]}
+        for who, z in after.items():
+            if z not in names_now:
+                problems.append(f"{who} in a missing zone {z}")
+        for who in people:
+            if who in before and before[who] != after.get(who) and (not line.get("zones") or after.get(who) in {x["name"] for x in zones}) \
+                    and not line.get("zones"):
+                problems.append(f"the DM moved {who}")
+        if now:
+            if [z["name"] for z in c["zones"]] != before_zones:
+                problems.append("zones replaced mid-fight")
+            for who in after:
+                if who in before and before[who] != after[who]:
+                    if who != now:
+                        problems.append(f"{who} moved out of turn")
+                    elif (D.ZONES.hops(c, before[who], after[who]) or 0) > 2:
+                        problems.append(f"{who} moved {D.ZONES.hops(c, before[who], after[who])} zones")
+        for a, b in c["engaged"]:
+            if after.get(a) != after.get(b):
+                problems.append(f"{a} and {b} engaged across zones")
+        moved = sum(1 for w in after if w in before and before[w] != after[w])
+        accepted += moved
+        refused += len(line.get("zone", {})) - moved
+        if now and rng.random() < .5:                              # the turn moves on
+            ini = G["initiative"]
+            ini["turn"] = (ini["turn"] + 1) % len(ini["order"])
+            D.ZONES.new_turn(c, ini["order"][ini["turn"]]["name"])
+    check(f"zones: {accepted} moves accepted, {refused} refused over {rounds} DM lines, every rule held",
+          not problems and accepted > 0 and refused > 0, "; ".join(problems[:4]) + f" (accepted {accepted}, refused {refused})")
+
+
+zone_encounter()
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

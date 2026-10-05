@@ -37,13 +37,13 @@ grid, and nothing has been measured for a conversation's pace.
 ---
 
 ## T1 — The scene card: positions without a grid
-- [ ] Server state: the scene's **zones** (a few named places: "the bar", "the door", "the gallery"), which zone
+- [x] Server state: the scene's **zones** (a few named places: "the bar", "the door", "the gallery"), which zone
       each creature is in, who is **engaged** with whom, and cover. Range bands derived from it: *engaged*,
       *near* (same or next zone), *far*.
-- [ ] Movement in zones: reaching a next zone takes your move; two zones away needs a Dash; leaving an engaged
+- [x] Movement in zones: reaching a next zone takes your move; two zones away needs a Dash; leaving an engaged
       foe is noted (it can make an opportunity attack). The DM's `TABLE:` line sets zones and moves monsters;
       players move themselves on their own turn, as on the grid.
-- [ ] **Check:** `dnd_test` cases for each rule; the adversarial DM simulation (`dnd_dm_sim_test.py`) gains zone
+- [x] **Check:** `dnd_test` cases for each rule; the adversarial DM simulation (`dnd_dm_sim_test.py`) gains zone
       cases (no teleporting a player, no moving someone else's character, no new zones mid-fight); each rule
       mutation-checked.
 
@@ -104,3 +104,10 @@ grid, and nothing has been measured for a conversation's pace.
 - [ ] **Check:** the survey, the bug list, the delay numbers, the cost; what broke becomes the next goal.
 
 ## Done log
+
+- **2026-10-05 · T1 done.** `table/dnd_zones.py` (zones, range bands, move/Dash, engagement, "where am I?");
+  `dnd_server.py --mode theater`: the scene card in the state and the DM's prompt (theater instructions instead of
+  the grid), `zones` / `zone` / `engage` in the TABLE line, `/api/dnd/zone/move` and `/zone/engage` for players.
+  `dnd_zones_test.py` 36/36; `dnd_dm_sim_test.py` gains a 120-line randomized zone DM (20 accepted, 209 refused,
+  every rule held). Mutation-checked: the DM moving people (2 + sim), no per-turn limit (9), zones mid-fight (5),
+  engaging across zones (4), moving out of turn (sim). Map mode unchanged (all D&D suites green).
