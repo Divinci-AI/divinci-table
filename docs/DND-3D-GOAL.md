@@ -168,6 +168,14 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
 
 ## Done log
 
+- **2026-10-05 · Cloud deploy.** Michael approved all 8 locations; `scripts/dnd_upload.py --yes` put their 24 files
+  (29.3 MB, approved only) in R2 `divinci-table-assets/dnd/`; Worker `d2de80de` serves `/dnd-assets/…`
+  (`dndAssetKey`, traversal-tested, both regex anchors mutation-checked) and the room image rolled to
+  `sha256:0927059b…` (container version 32). Live: room files 200 with the right types, bad paths 404; a fresh
+  D&D room at table.divinci.ai lists all 8 locations as approved and renders the kit-built clearing in 3D.
+  Seen once: on a room's very first load the 3D panel showed the placeholder blocks until a refresh. Not yet
+  reproduced or explained; watch for it. (A room created mid-rollout kept the old image's draft flag.)
+
 - **2026-10-05 · Rooms rebuilt from CC0 kits.** Michael found the primitive rooms too basic. Each layout character
   now becomes a model from KayKit Dungeon Remastered (Kay Lousberg) or Kenney's Nature, Graveyard and Fantasy Town
   kits, all CC0, fetched and SHA-256-pinned by `scripts/dnd_kits.py` (the pin refused the first, branch-zip
