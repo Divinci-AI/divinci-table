@@ -203,6 +203,12 @@ def set_location(loc_id: str, start: bool = False) -> str | None:
     return None
 
 
+def bestiary(name: str) -> dict | None:
+    """'Goblin 2' → the SRD goblin from the manifest's bestiary (size, speed, AC, HP and its mini), if listed."""
+    base = re.sub(r"\s*#?\d+$", "", (name or "").strip()).lower()
+    return next((b for b in ASSETS.get("bestiary", []) if b["srd_name"].lower() == base), None)
+
+
 def sync_monster_tokens() -> None:
     """The map follows the DM's monster list: a monster gone from the list leaves the map, a new one appears
     at a monster spawn."""
@@ -212,7 +218,8 @@ def sync_monster_tokens() -> None:
         del m["tokens"][tid]
     for x in G["monsters"]:
         if not MAP.token_by_name(m, x["name"]):
-            MAP.place(m, x["name"], "monster", size=x.get("size", "medium"), speed=x.get("speed", 30))
+            b = bestiary(x["name"]) or {}
+            MAP.place(m, x["name"], "monster", size=x.get("size", "medium"), speed=x.get("speed", 30), mini=b.get("mini"))
 
 
 def turn_name() -> str | None:
@@ -262,6 +269,7 @@ def map_for_dm() -> dict:
     m = G["map"]
     return {"location": m["location"], "locations": [x["id"] for x in playable_locations()],
             "grid": m["layout"], "legend": "# wall, ~ difficult, D door, P/M spawns; x is the column, y the row, from 0",
+            "bestiary": [b["srd_name"] for b in ASSETS.get("bestiary", [])],
             "tokens": [{"name": t["name"], "x": t["x"], "y": t["y"], "size": t["size"], "speed": t["speed"],
                         **({"player": True} if t["owner"] else {})} for t in m["tokens"].values()]}
 
@@ -286,11 +294,12 @@ def apply_table_line(text: str) -> str:
         for x in d["monsters"][:20]:
             if isinstance(x, dict) and x.get("name"):
                 try:
-                    mx = max(1, int(x.get("max_hp") or x.get("hp") or 1))
-                    mons.append({"name": clean_text(x["name"], 40), "ac": int(x.get("ac") or 10),
+                    b = bestiary(x["name"]) or {}
+                    mx = max(1, int(x.get("max_hp") or x.get("hp") or b.get("hp") or 1))
+                    mons.append({"name": clean_text(x["name"], 40), "ac": int(x.get("ac") or b.get("ac") or 10),
                                  "hp": max(0, min(mx, int(x.get("hp", mx)))), "max_hp": mx,
-                                 "size": x["size"] if x.get("size") in MAP.SIZES else "medium",
-                                 "speed": max(0, min(120, int(x.get("speed") or 30)))})
+                                 "size": x["size"] if x.get("size") in MAP.SIZES else b.get("size", "medium"),
+                                 "speed": max(0, min(120, int(x.get("speed") or b.get("speed") or 30)))})
                 except (TypeError, ValueError):
                     continue
         G["monsters"] = mons

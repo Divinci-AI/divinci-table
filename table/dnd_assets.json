@@ -254,5 +254,188 @@
       "triangles": 2064
     }
   ],
-  "minis": []
+  "minis": [],
+  "bestiary": [
+    {
+      "srd_name": "Goblin",
+      "size": "small",
+      "speed": 30,
+      "ac": 15,
+      "hp": 7,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Wolf",
+      "size": "medium",
+      "speed": 40,
+      "ac": 13,
+      "hp": 11,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Skeleton",
+      "size": "medium",
+      "speed": 30,
+      "ac": 13,
+      "hp": 13,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Zombie",
+      "size": "medium",
+      "speed": 20,
+      "ac": 8,
+      "hp": 22,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Bandit",
+      "size": "medium",
+      "speed": 30,
+      "ac": 12,
+      "hp": 11,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Ogre",
+      "size": "large",
+      "speed": 40,
+      "ac": 11,
+      "hp": 59,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Giant Rat",
+      "size": "small",
+      "speed": 30,
+      "ac": 12,
+      "hp": 7,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Kobold",
+      "size": "small",
+      "speed": 30,
+      "ac": 12,
+      "hp": 5,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Orc",
+      "size": "medium",
+      "speed": 30,
+      "ac": 13,
+      "hp": 15,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Bugbear",
+      "size": "medium",
+      "speed": 30,
+      "ac": 16,
+      "hp": 27,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Giant Spider",
+      "size": "large",
+      "speed": 30,
+      "ac": 14,
+      "hp": 26,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Ghoul",
+      "size": "medium",
+      "speed": 30,
+      "ac": 12,
+      "hp": 22,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Cultist",
+      "size": "medium",
+      "speed": 30,
+      "ac": 12,
+      "hp": 9,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Dire Wolf",
+      "size": "large",
+      "speed": 50,
+      "ac": 14,
+      "hp": 37,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Owlbear",
+      "size": "large",
+      "speed": 40,
+      "ac": 13,
+      "hp": 59,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Hobgoblin",
+      "size": "medium",
+      "speed": 30,
+      "ac": 18,
+      "hp": 11,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Gnoll",
+      "size": "medium",
+      "speed": 30,
+      "ac": 15,
+      "hp": 22,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Shadow",
+      "size": "medium",
+      "speed": 40,
+      "ac": 12,
+      "hp": 16,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Mimic",
+      "size": "medium",
+      "speed": 15,
+      "ac": 12,
+      "hp": 58,
+      "mini": null,
+      "standee": true
+    },
+    {
+      "srd_name": "Gelatinous Cube",
+      "size": "large",
+      "speed": 15,
+      "ac": 6,
+      "hp": 84,
+      "mini": null,
+      "standee": true
+    }
+  ],
+  "_bestiary": "The starter adventure's monsters: size, speed, AC and average HP from the System Reference Document 5.1 (Wizards of the Coast, CC-BY-4.0). 'mini' names a mini in 'minis'; until one exists the monster is a standee."
 }

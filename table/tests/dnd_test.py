@@ -290,6 +290,17 @@ code, out = call("/api/dnd/map/move", {"by": "Michael", "key": mk, "token": "mic
 check("…and past your speed is refused", code == 409 and "too far" in out.get("error", ""), str(out))
 D.G["initiative"] = {"active": False, "order": [], "turn": 0, "round": 1, "pending": []}
 
+print("the bestiary")
+D.apply_table_line('x\nTABLE: {"monsters":[{"name":"Goblin 1","ac":15,"hp":7,"max_hp":7},{"name":"Ogre 1"},{"name":"Dire Wolf #2","speed":45}]}')
+ogre = next(x for x in D.G["monsters"] if x["name"] == "Ogre 1")
+check("a monster the DM names gets its SRD numbers", ogre["size"] == "large" and ogre["ac"] == 11 and ogre["max_hp"] == 59 and ogre["speed"] == 40, str(ogre))
+t = D.MAP.token_by_name(D.G["map"], "Ogre 1")
+check("…and a large footprint on the map", t and t["size"] == "large", str(t))
+dw = next(x for x in D.G["monsters"] if x["name"] == "Dire Wolf #2")
+check("the DM's own numbers win over the bestiary's", dw["speed"] == 45 and dw["size"] == "large", str(dw))
+D.apply_table_line('x\nTABLE: {"monsters":[{"name":"Goblin 1","ac":15,"hp":7,"max_hp":7}]}')
+check("gone from the list, gone from the map", D.MAP.token_by_name(D.G["map"], "Ogre 1") is None)
+
 print("locations: review and approval")
 import shutil  # noqa: E402
 import tempfile  # noqa: E402

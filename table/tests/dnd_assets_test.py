@@ -12,8 +12,10 @@ the Cosmos art and shot once the manifest names them.
 from __future__ import annotations
 
 import json
+import shutil
 import struct
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
@@ -104,16 +106,59 @@ def main() -> None:
             f = d / {"art": "art.jpg", "shot": "shot.mp4", "room": "room.glb", "map_image": "map.jpg", "view": "view.jpg"}[k]
             check(f"{i}: {f.name} exists", f.exists(), str(f))
     print("minis")
-    for mini in man.get("minis", []):
-        i = mini.get("id", "?")
-        check(f"{i}: licence and credit recorded", bool(mini.get("licence")) and "credit" in mini)
-        check(f"{i}: size is a creature size", mini.get("size") in M.SIZES, str(mini.get("size")))
-        f = CACHE / "minis" / f"{i}.glb"
-        if f.exists():
-            t = glb_triangles(f)
-            check(f"{i}: {t:,} triangles (≤ {MINI_TRIS:,})", t <= MINI_TRIS)
+    for problem in mini_problems(man, CACHE, built):
+        check(problem, False)
+    check(f"{len(man.get('minis', []))} minis: licensed, sized and within budget", not mini_problems(man, CACHE, built))
+    print("bestiary")
+    for b in man.get("bestiary", []):
+        mini = b.get("mini")
+        ok = (mini is None and b.get("standee")) or mini in {x["id"] for x in man.get("minis", [])}
+        check(f"{b['srd_name']}: {'mini ' + mini if mini else 'standee'}", ok and b.get("size") in M.SIZES, str(b))
+    check("the bestiary names are unique", len({b["srd_name"].lower() for b in man.get("bestiary", [])}) == len(man.get("bestiary", [])))
+    print("the validator catches bad minis (self-test)")
+    selftest()
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)
+
+
+def mini_problems(man: dict, cache: Path, built: bool) -> list[str]:
+    out = []
+    for mini in man.get("minis", []):
+        i = mini.get("id", "?")
+        if not str(mini.get("licence") or "").strip() or "credit" not in mini:
+            out.append(f"{i}: no licence or credit recorded")
+        if mini.get("size") not in M.SIZES:
+            out.append(f"{i}: size {mini.get('size')!r} is not a creature size")
+        f = cache / "minis" / f"{i}.glb"
+        if f.exists():
+            t = glb_triangles(f)
+            if t > MINI_TRIS:
+                out.append(f"{i}: {t:,} triangles (over {MINI_TRIS:,})")
+        elif built:
+            out.append(f"{i}: {f.name} is missing")
+    return out
+
+
+def selftest() -> None:
+    """A throwaway manifest with an over-budget mini and an unlicensed one: both must be reported."""
+    big = next((f for f in sorted((HERE / ".cache" / "avatars").glob("*.glb")) if glb_triangles(f) > MINI_TRIS), None)
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        (tmp / "minis").mkdir()
+        man = {"minis": [{"id": "fine", "size": "medium", "licence": "ours", "credit": ""},
+                         {"id": "unlicensed", "size": "medium", "licence": "", "credit": ""},
+                         {"id": "huge-file", "size": "medium", "licence": "ours", "credit": ""}]}
+        if big:
+            shutil.copy(big, tmp / "minis" / "huge-file.glb")
+        probs = mini_problems(man, tmp, built=False)
+        check("a mini without a licence is rejected", any(p.startswith("unlicensed:") for p in probs), str(probs))
+        if big:
+            check(f"a mini over {MINI_TRIS:,} triangles is rejected ({big.name})", any(p.startswith("huge-file:") for p in probs), str(probs))
+        else:
+            print("  (no over-budget model in table/.cache/avatars to try the budget rule on)")
+        check("a good mini is not", not any(p.startswith("fine:") for p in probs), str(probs))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":

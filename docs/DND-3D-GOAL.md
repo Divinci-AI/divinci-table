@@ -111,11 +111,19 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
 
 ## D3 — Minis v1
 - [ ] Import the Zombay meshes (D0) through one importer: decimate to budget, convert to GLB, record the licence.
+      *The importer is built (`scripts/dnd_minis.py add`, Blender: decimate, ≤1k textures, scale to creature size,
+      keeps the rig; refuses a model without a licence): Fusion's 62,143-triangle avatar → 19,375 triangles,
+      16.9 MB → 2.1 MB in ~3 s. The Zombay meshes themselves wait on where they are (D0).*
 - [ ] About 20 SRD monsters for the starter adventure (goblin, wolf, skeleton, zombie, bandit, ogre, …) from
       Meshy / Tripo within free credits; rig and animate (idle, walk, attack) only where credits allow.
-- [ ] Standees for everything else, from the creature's art.
-- [ ] **Check:** the validator rejects a mini over 20k triangles or without a licence (mutation-checked);
+      *The bestiary is in the manifest (20 SRD 5.1 monsters with size, speed, AC, HP; the server gives a DM's
+      "Goblin 2" the goblin's numbers and footprint). Generating them with Meshy waits for Michael's yes on credits.*
+- [x] Standees for everything else, from the creature's art.
+      *Every bestiary monster is a standee until it has a mini; D4 draws them.*
+- [x] **Check:** the validator rejects a mini over 20k triangles or without a licence (mutation-checked);
       every SRD monster in the starter adventure resolves to a mini or a standee.
+      *`dnd_assets_test --built` 122 passed, incl. a self-test: an unlicensed mini and a 30k-triangle model are
+      both reported, a good one isn't.*
 
 ## D4 — The 3D table on the web
 - [ ] Stage view (three.js): the location's room, the grid, minis on their squares, animated moves, HP state
