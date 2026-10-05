@@ -110,6 +110,9 @@ grid, and nothing has been measured for a conversation's pace.
   TABLE, echoing the state, **missing the death saving throw**, once speaking for a player); +think: 0–1 fault (the
   death save) but 6–10 s to speak. Waiting on: Michael's blind scores, and his OK for a larger local model's
   download before trying it.
+  Then two prompt rules from the table's own state (who the players are; a downed character's death save):
+  gemma4:e2b over 4 runs asks for the death save every time and writes nothing for players; only TABLE-line
+  hygiene faults remain (0–2 in 10), which the table already drops.
 
 - **2026-10-05 · T3 built; two items wait for real phones.** Theater mode in the room: no board, a large 🎙, a
   "Where things are" panel from the scene card, a mode switch (the DM's seat, or anyone seated when the AI DM runs

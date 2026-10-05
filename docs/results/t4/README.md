@@ -19,3 +19,16 @@ Read, not just counted (the metric-only first pass missed three kinds of fault, 
 **Conclusion so far:** e2b without thinking meets T2's speed but not the rules; with thinking it's better but too
 slow to speak (6–10 s). Next: a larger local model (download size for Michael's OK), and Michael's blind scores.
 If no local model is both quick and rule-abiding, the Fusion cloud DM becomes a decision with its cost per session.
+
+## After two prompt rules (same day)
+
+The table now tells the DM, from its own state: who the players are ("never write their words or decide what they
+do") and, when a downed character's turn comes, to ask them for a death saving throw. Re-measured:
+
+| Model | First sentence (median) | Rule faults |
+|---|---|---|
+| gemma4:e2b | 0.23–1.01 s (4 runs) | 0, 1, 2, 0 of 10: only TABLE-line hygiene (echoing the state, a player move the table drops). **The death save is asked every time** ("Ana, do you roll a death saving throw?"); no lines written for players. |
+| gemma4:e2b +think | 6.6 s | 0 of 10 |
+
+Players never hear the TABLE line, and the table already refuses anything illegal in it, so what's left is untidy,
+not harmful. The fast default now follows the checkable rules; how vivid it is stays Michael's call (`score.html`).

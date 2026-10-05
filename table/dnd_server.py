@@ -541,6 +541,14 @@ def build_prompt(reason: str, speak: list[str]) -> str:
              *[f"- {x}" for x in recent_lines()], "", f"NOW: {reason}"]
     if comp:
         lines.append(f"AI COMPANIONS in the party (you voice them only when told below): {comp}.")
+    people = [n for n in G["sheets"] if not G["sheets"][n].get("companion")]
+    if people:                                       # T4: the local model sometimes wrote players' lines and actions
+        lines.append(f"PLAYERS (real people): {', '.join(people)}. Never write their words or decide what they do; "
+                     "describe the world's response and ask them.")
+    now = turn_name()
+    if now and now in G["sheets"] and G["sheets"][now]["hp"] == 0:    # T4: both local variants missed this
+        lines.append(f"RULE: {now} is down at 0 hit points and it's their turn: ask {now} to roll a death saving throw "
+                     "(they roll; you never roll for a player).")
     for n in speak:
         lines.append(f"Also give {n} one short in-character line and what they do, on its own line starting \"{n}:\".")
     lines += ["", "Narrate the next beat (2-5 sentences), then hand the scene back or ask for rolls by name.",
