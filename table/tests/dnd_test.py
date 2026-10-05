@@ -361,6 +361,18 @@ for bad in ("/dnd-assets/../secret.txt", "/dnd-assets/locations/fixture/../../se
     check(f"no reaching outside the assets ({bad})", code == 404)
 D.CLOUD = True                                      # a public room
 fx["status"] = "draft"
+try:
+    code = urllib.request.urlopen(BASE + "/dnd-assets/locations/fixture/room.glb").status
+except urllib.error.HTTPError as e:
+    code = e.code
+check("in a cloud room, a draft's files aren't served even if they're on disk", code == 404)
+(D.ASSET_DIR / "minis").mkdir(parents=True, exist_ok=True)
+(D.ASSET_DIR / "minis" / "unlisted.glb").write_bytes(b"glTF")
+try:
+    code = urllib.request.urlopen(BASE + "/dnd-assets/minis/unlisted.glb").status
+except urllib.error.HTTPError as e:
+    code = e.code
+check("…nor a mini the manifest doesn't list", code == 404)
 check("in a cloud room, drafts aren't offered", "fixture" not in [x["id"] for x in D.public_state()["locations"]])
 check("…can't be switched to", D.set_location("fixture") is not None)
 D.set_location("fixture", start=True)

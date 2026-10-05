@@ -643,8 +643,11 @@ class H(BaseHTTPRequestHandler):
             rel = unquote(p[len("/dnd-assets/"):])
             f = (ASSET_DIR / rel).resolve()
             types = {".glb": "model/gltf-binary", ".jpg": "image/jpeg", ".png": "image/png", ".mp4": "video/mp4"}
+            parts = rel.split("/")
+            listed = (parts[0] == "locations" and playable(MAP.location(ASSETS, parts[1] if len(parts) > 1 else ""))) or \
+                     (parts[0] == "minis" and any(f"dnd/{rel}" == x.get("glb") for x in ASSETS.get("minis", [])))
             if re.fullmatch(r"(locations/[a-z0-9-]{1,40}/[a-z_]{1,20}|minis/[a-z0-9-]{1,40})\.(glb|jpg|png|mp4)", rel) \
-                    and f.is_file() and ASSET_DIR.resolve() in f.parents:
+                    and listed and f.is_file() and ASSET_DIR.resolve() in f.parents:    # a draft's files never go out in public
                 return self._send(200, body=f.read_bytes(), ctype=types[f.suffix])
             return self._send(404, {"error": "not found"})
         if p == "/api/dnd/credits":
