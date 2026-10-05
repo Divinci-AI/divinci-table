@@ -71,7 +71,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Non-slip shelf liner, cut to the bed | 1 | stops the moving bed from sliding the AI's cards |
 | Multimeter | 1 | the USB-shell voltage check (Step 6) and the 24 V check (Step 5) |
 
-**Hardware store (The Home Depot, via Instacart) — $46.49**
+**Hardware store (The Home Depot, via Instacart) — $53.78**
 
 | Part | Qty | Used for |
 |---|---|---|
@@ -82,6 +82,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Everbilt 1/4" rubber flat washers (10-pack) | 1 | damping under the ball head; the tap station's grippy foot |
 | Everbilt spring assortment kit (84-pack) | 1 | one compression spring for the swivel's drag |
 | Scotch Extreme double-sided mounting tape 1" × 48" | 1 | brackets to the beam and the carriage (no drilling into the printer) |
+| Everbilt #10 zinc flat washers (100-pack) | 1 | stand-in for the steel discs (they arrive 10 Oct): one per AI card, in the sleeve |
 
 **Online (Amazon) — the exact parts.** Only the first three are in the cart ($33.97): the M1 test kit. The rest
 are in *Save for later* until the deck-stack test in Step 9 passes 19 times out of 20; M1 uses the table's
@@ -226,7 +227,7 @@ touches a card. Write what you measured to `table/.cache/gantry.json`:
 
 ## Step 8 — Sleeve the AI's deck
 
-Only the AI's deck. For each card: the card into its **inner sleeve**, one **steel disc** centred on the inner
+Only the AI's deck. For each card: the card into its **inner sleeve**, one **steel disc** (or a **#10 zinc washer** until the discs arrive) centred on the inner
 sleeve's *back*, then the **outer sleeve** over both. The disc sits behind the card's back, so the magnet picks the
 card face-up through the card. Never put steel in a person's cards.
 

@@ -1,848 +1,870 @@
 {
-  "about": "Bill of materials for the physical AI player (camera gantry + magnet hand, and the optional SO-101 arm). One entry per part, ordered or not. table/tests/bom_test.py checks it against the manual and the goal doc: every part is used by a step that exists, every Amazon link in those docs is listed here, removed parts stay out of the manual, and the cart totals add up.",
-  "updated": "2026-10-05",
-  "docs": {
-    "manual": "hardware/gantry/README.md",
-    "goal": "docs/ARM-GANTRY-GOAL.md"
+ "about": "Bill of materials for the physical AI player (camera gantry + magnet hand, and the optional SO-101 arm). One entry per part, ordered or not. table/tests/bom_test.py checks it against the manual and the goal doc: every part is used by a step that exists, every Amazon link in those docs is listed here, removed parts stay out of the manual, and the cart totals add up.",
+ "updated": "2026-10-05",
+ "docs": {
+  "manual": "hardware/gantry/README.md",
+  "goal": "docs/ARM-GANTRY-GOAL.md"
+ },
+ "statuses": {
+  "cart": "in a cart, about to be ordered",
+  "saved": "in Amazon's Save for later: waits on the M1 magnet test",
+  "on-hand": "already owned",
+  "check": "needed; probably on hand, buy only if missing",
+  "to-print": "printed on the CR-6 Max before it becomes the gantry",
+  "list-only": "saved in the Amazon list, not in the cart (a fallback)",
+  "removed": "was in a cart, taken out; kept here so nobody re-adds it by accident"
+ },
+ "carts": {
+  "amazon": {
+   "subtotal": 33.97,
+   "note": "Only the M1 test kit is in the cart (magnet, discs, diodes); everything else is in Save for later until the stack test passes 19/20 (Hermes review, 2026-10-05)"
   },
-  "statuses": {
-    "cart": "in a cart, about to be ordered",
-    "saved": "in Amazon's Save for later: waits on the M1 magnet test",
-    "on-hand": "already owned",
-    "check": "needed; probably on hand, buy only if missing",
-    "to-print": "printed on the CR-6 Max before it becomes the gantry",
-    "list-only": "saved in the Amazon list, not in the cart (a fallback)",
-    "removed": "was in a cart, taken out; kept here so nobody re-adds it by accident"
-  },
-  "carts": {
-    "amazon": {
-      "subtotal": 33.97,
-      "note": "Only the M1 test kit is in the cart (magnet, discs, diodes); everything else is in Save for later until the stack test passes 19/20 (Hermes review, 2026-10-05)"
-    },
-    "home-depot": {
-      "subtotal": 46.49,
-      "note": "via Instacart; that cart also holds a copper tee ($23.09) that is not part of this build, so the cart reads $69.58"
+  "home-depot": {
+   "subtotal": 53.78,
+   "note": "via Instacart; that cart also holds a copper tee ($23.09) that is not part of this build, so the cart reads $76.87"
+  }
+ },
+ "items": [
+  {
+   "id": "canon-t5i",
+   "name": "Canon EOS Rebel T5i with 18–55 mm lens",
+   "qty": 1,
+   "source": "on-hand",
+   "status": "on-hand",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "the eyes: photographs the bed from above",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 2"
     }
+   ]
   },
-  "items": [
+  {
+   "id": "cr6-max",
+   "name": "Creality CR-6 Max 3D printer",
+   "qty": 1,
+   "source": "on-hand",
+   "status": "on-hand",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "prints the Step 3 parts, then becomes the gantry (and, on the magnet route, the hand)",
+   "used_in": [
     {
-      "id": "canon-t5i",
-      "name": "Canon EOS Rebel T5i with 18–55 mm lens",
-      "qty": 1,
-      "source": "on-hand",
-      "status": "on-hand",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "the eyes: photographs the bed from above",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 2"
-        }
-      ]
+     "doc": "manual",
+     "step": "Step 3"
     },
     {
-      "id": "cr6-max",
-      "name": "Creality CR-6 Max 3D printer",
-      "qty": 1,
-      "source": "on-hand",
-      "status": "on-hand",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "prints the Step 3 parts, then becomes the gantry (and, on the magnet route, the hand)",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 3"
-        },
-        {
-          "doc": "manual",
-          "step": "Step 4"
-        }
-      ]
-    },
-    {
-      "id": "pla-plus",
-      "name": "PLA+ filament",
-      "qty": 1,
-      "source": "on-hand",
-      "status": "on-hand",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "the printed parts in Step 3: magnet swivel, deck box, discard chute, privacy wall",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 3"
-        }
-      ]
-    },
-    {
-      "id": "dummy-battery",
-      "name": "Gonine LP-E8 dummy battery / ACK-E8 AC kit",
-      "qty": 1,
-      "source": "amazon",
-      "asin": "B01EMNB8P6",
-      "price": 19.99,
-      "status": "saved",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "mains power for the camera; Canon recommends the AC kit for tethered shooting; M1 uses the table's existing fixed camera, so this waits",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 2"
-        }
-      ]
-    },
-    {
-      "id": "camera-cable",
-      "name": "SCOVEE 10 ft Mini-USB camera cable for Canon Rebel",
-      "qty": 1,
-      "source": "amazon",
-      "asin": "B078SRKRLK",
-      "price": 8.55,
-      "status": "saved",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "camera to the Mac (the T5i's port is Mini-B); skip if the camera's own cable turns up",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 2"
-        }
-      ]
-    },
-    {
-      "id": "ball-head",
-      "name": "CAMVATE 1/4\"-20 mini ball head (2-pack)",
-      "qty": 1,
-      "source": "amazon",
-      "asin": "B07D9JCP18",
-      "price": 9.8,
-      "status": "saved",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "aims the camera straight down (one used, one spare)",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 2"
-        }
-      ]
-    },
-    {
-      "id": "electromagnet",
-      "name": "Heschen 24 V holding electromagnet HS-P20x15",
-      "qty": 1,
-      "source": "amazon",
-      "asin": "B078K3TKFZ",
-      "price": 7.19,
-      "status": "cart",
-      "route": [
-        "magnet"
-      ],
-      "role": "the hand: picks up steel-sleeved cards; about 0.25 A / 3 W at 24 V",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 4"
-        },
-        {
-          "doc": "manual",
-          "step": "Step 5"
-        },
-        {
-          "doc": "goal",
-          "step": "M0"
-        }
-      ]
-    },
-    {
-      "id": "steel-discs",
-      "name": "totalElement 1/2\" steel discs, no adhesive (250-pack)",
-      "qty": 1,
-      "source": "amazon",
-      "asin": "B081J52GY6",
-      "price": 20.79,
-      "status": "cart",
-      "route": [
-        "magnet"
-      ],
-      "role": "one behind each of the AI's cards, inside the sleeve; enough for four decks",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 8"
-        },
-        {
-          "doc": "goal",
-          "step": "M0"
-        }
-      ]
-    },
-    {
-      "id": "diodes",
-      "name": "1N4007 rectifier diodes (125-pack)",
-      "qty": 1,
-      "source": "amazon",
-      "asin": "B0FC2CQF24",
-      "price": 5.99,
-      "status": "cart",
-      "route": [
-        "magnet"
-      ],
-      "role": "one across the magnet's coil to absorb the switch-off spike",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 5"
-        }
-      ]
-    },
-    {
-      "id": "usb-hub",
-      "name": "RSHTECH 7-port powered USB hub (USB-C and USB-A)",
-      "qty": 1,
-      "source": "amazon",
-      "asin": "B0CGX8LNMC",
-      "price": 31.99,
-      "status": "saved",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "the Mac has only USB-C; camera and printer cables end in USB-A. A USB-C to USB-A adapter you already own does the same for the magnet route, so this can go",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 6"
-        },
-        {
-          "doc": "goal",
-          "step": "G0"
-        }
-      ]
-    },
-    {
-      "id": "so101-kit",
-      "name": "ForgeMotion Labs SO-101 follower arm kit with printed frame",
-      "qty": 1,
-      "source": "amazon",
-      "asin": "B0GRPJ2Q8F",
-      "price": 197.98,
-      "status": "saved",
-      "route": [
-        "arm"
-      ],
-      "role": "the arm route's hand: 6 × STS3215 servos, driver board, 12 V 5 A supply, frame; needs a USB-C cable",
-      "used_in": [
-        {
-          "doc": "goal",
-          "step": "G0"
-        },
-        {
-          "doc": "goal",
-          "step": "G3"
-        }
-      ]
-    },
-    {
-      "id": "wrist-camera",
-      "name": "innomaker 1080p 32 × 32 mm UVC wrist camera",
-      "qty": 1,
-      "source": "amazon",
-      "asin": "B0CNCSFQC1",
-      "price": 18.99,
-      "status": "saved",
-      "route": [
-        "arm"
-      ],
-      "role": "close-up view from the arm's wrist",
-      "used_in": [
-        {
-          "doc": "goal",
-          "step": "G0"
-        }
-      ]
-    },
-    {
-      "id": "kill-switch",
-      "name": "KarlKers 20 A inline 12–24 V switch",
-      "qty": 1,
-      "source": "amazon",
-      "asin": "B0CD4Q36LW",
-      "price": 9.99,
-      "status": "saved",
-      "route": [
-        "arm"
-      ],
-      "role": "hard power cut for the arm (the printer has its own switch)",
-      "used_in": [
-        {
-          "doc": "goal",
-          "step": "G0"
-        }
-      ]
-    },
-    {
-      "id": "alu-angle",
-      "name": "Everbilt aluminium angle 1\" × 3 ft × 1/8\"",
-      "qty": 1,
-      "source": "home-depot",
-      "price": 17.79,
-      "status": "cart",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "camera bracket (~6\") and magnet bracket (~3\")",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 1"
-        },
-        {
-          "doc": "manual",
-          "step": "Step 2"
-        },
-        {
-          "doc": "manual",
-          "step": "Step 4"
-        }
-      ]
-    },
-    {
-      "id": "hex-bolts",
-      "name": "Everbilt 1/4\"-20 × 1\" zinc hex bolt",
-      "qty": 4,
-      "source": "home-depot",
-      "price": 1.16,
-      "status": "cart",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "ball head to the camera bracket; the magnet swivel's axle",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 2"
-        },
-        {
-          "doc": "manual",
-          "step": "Step 4"
-        }
-      ]
-    },
-    {
-      "id": "wing-nuts",
-      "name": "Everbilt 1/4\"-20 wing nut (4-pack)",
-      "qty": 1,
-      "source": "home-depot",
-      "price": 1.69,
-      "status": "cart",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "sets the swivel's drag by hand",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 4"
-        }
-      ]
-    },
-    {
-      "id": "nylon-spacers",
-      "name": "Everbilt nylon spacer 1/2\" × 1\" (0.257\" bore)",
-      "qty": 2,
-      "source": "home-depot",
-      "price": 6.38,
-      "status": "cart",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "cut to ~6 mm: a low-friction washer between the swivel and its bracket",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 4"
-        }
-      ]
-    },
-    {
-      "id": "rubber-washers",
-      "name": "Everbilt 1/4\" rubber flat washers (10-pack)",
-      "qty": 1,
-      "source": "home-depot",
-      "price": 4.09,
-      "status": "cart",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "vibration damping under the ball head; the tap station's grippy foot",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 2"
-        },
-        {
-          "doc": "manual",
-          "step": "Step 9"
-        }
-      ]
-    },
-    {
-      "id": "springs",
-      "name": "Everbilt spring assortment kit (84-pack)",
-      "qty": 1,
-      "source": "home-depot",
-      "price": 6.59,
-      "status": "cart",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "one compression spring under the swivel's wing nut for drag; four more under the deck box's follower plate",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 4"
-        },
-        {
-          "doc": "manual",
-          "step": "Step 3"
-        }
-      ]
-    },
-    {
-      "id": "mounting-tape",
-      "name": "Scotch Extreme double-sided mounting tape 1\" × 48\"",
-      "qty": 1,
-      "source": "home-depot",
-      "price": 8.79,
-      "status": "cart",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "brackets to the beam and the carriage without drilling the printer",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 2"
-        },
-        {
-          "doc": "manual",
-          "step": "Step 4"
-        }
-      ]
-    },
-    {
-      "id": "zip-ties",
-      "name": "Zip ties",
-      "qty": 10,
-      "source": "on-hand",
-      "status": "on-hand",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "back up the tape; tidy cables",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 2"
-        },
-        {
-          "doc": "manual",
-          "step": "Step 4"
-        }
-      ]
-    },
-    {
-      "id": "m3-screw",
-      "name": "M3 × 6 mm screw",
-      "qty": 1,
-      "source": "hardware store",
-      "status": "check",
-      "route": [
-        "magnet"
-      ],
-      "role": "fixes the magnet (M3 thread in its back) to the printed swivel",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 4"
-        }
-      ]
-    },
-    {
-      "id": "hookup-wire",
-      "name": "22 AWG two-core wire, about 1 m, with heat-shrink or lever connectors",
-      "qty": 1,
-      "source": "hardware store",
-      "status": "check",
-      "route": [
-        "magnet"
-      ],
-      "role": "extends the magnet's leads to the part-fan connector",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 5"
-        }
-      ]
-    },
-    {
-      "id": "kapton-tape",
-      "name": "Kapton (polyimide) tape",
-      "qty": 1,
-      "source": "hardware store",
-      "status": "check",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "insulates under the bed clips (the CR-6 USB fault) and covers the cable's +5 V pin",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 6"
-        }
-      ]
-    },
-    {
-      "id": "printer-usb-cable",
-      "name": "Micro-USB cable for the printer (came with it)",
-      "qty": 1,
-      "source": "on-hand",
-      "status": "check",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "printer to the Mac, with its +5 V pin taped over",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 6"
-        }
-      ]
-    },
-    {
-      "id": "usb-c-adapter",
-      "name": "USB-C to USB-A adapter",
-      "qty": 1,
-      "source": "on-hand",
-      "status": "check",
-      "route": [
-        "magnet"
-      ],
-      "role": "replaces the hub on the magnet route",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 6"
-        }
-      ]
-    },
-    {
-      "id": "sleeves",
-      "name": "Card sleeves, inner and outer, for the AI's deck",
-      "qty": 2,
-      "source": "on-hand",
-      "status": "check",
-      "route": [
-        "magnet"
-      ],
-      "role": "a steel disc sits between the inner and outer sleeve, behind the card",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 8"
-        }
-      ]
-    },
-    {
-      "id": "bed-mat",
-      "name": "Non-slip shelf liner, cut to the bed",
-      "qty": 1,
-      "source": "hardware store",
-      "status": "check",
-      "route": [
-        "magnet"
-      ],
-      "role": "stops the moving bed from sliding the AI's cards around",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 7"
-        }
-      ]
-    },
-    {
-      "id": "multimeter",
-      "name": "Multimeter",
-      "qty": 1,
-      "source": "on-hand",
-      "status": "check",
-      "route": [
-        "magnet",
-        "arm"
-      ],
-      "role": "measures the printer's USB shell against the Mac's ground before the first plug-in",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 6"
-        }
-      ]
-    },
-    {
-      "id": "magnet-swivel",
-      "name": "Printed magnet swivel",
-      "qty": 2,
-      "source": "print",
-      "status": "to-print",
-      "route": [
-        "magnet"
-      ],
-      "role": "holds the magnet and the swivel bolt, turning in the bracket for tapping by arc",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 3"
-        },
-        {
-          "doc": "manual",
-          "step": "Step 4"
-        }
-      ],
-      "scad": "hardware/gantry/parts/magnet_swivel.scad",
-      "stl": "hardware/gantry/parts/stl/magnet_swivel.stl"
-    },
-    {
-      "id": "deck-box",
-      "name": "Printed deck box with a one-card exit slot",
-      "qty": 1,
-      "source": "print",
-      "status": "to-print",
-      "route": [
-        "magnet"
-      ],
-      "role": "holds the AI's shuffled deck face-up and covered; the magnet slides the top card out through a slot one card thick, so the card below can't follow",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 3"
-        },
-        {
-          "doc": "manual",
-          "step": "Step 9"
-        }
-      ],
-      "scad": "hardware/gantry/parts/deck_box.scad",
-      "stl": "hardware/gantry/parts/stl/deck_box.stl"
-    },
-    {
-      "id": "deck-box-follower",
-      "name": "Printed deck box follower plate",
-      "qty": 1,
-      "source": "print",
-      "status": "to-print",
-      "route": [
-        "magnet"
-      ],
-      "role": "rides on four springs inside the deck box, keeping the top card against the lips at the exit slot",
-      "scad": "hardware/gantry/parts/deck_box.scad",
-      "stl": "hardware/gantry/parts/stl/deck_box_follower.stl",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 3"
-        }
-      ]
-    },
-    {
-      "id": "discard-chute",
-      "name": "Printed discard chute",
-      "qty": 1,
-      "source": "print",
-      "status": "to-print",
-      "route": [
-        "magnet"
-      ],
-      "role": "off the bed's edge into a tray: graveyard and exile take no bed space",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 3"
-        }
-      ],
-      "scad": "hardware/gantry/parts/discard_chute.scad",
-      "stl": "hardware/gantry/parts/stl/discard_chute.stl"
-    },
-    {
-      "id": "privacy-wall",
-      "name": "Printed privacy wall",
-      "qty": 1,
-      "source": "print",
-      "status": "to-print",
-      "route": [
-        "magnet"
-      ],
-      "role": "hides the AI's face-up hand zone from the person",
-      "used_in": [
-        {
-          "doc": "manual",
-          "step": "Step 3"
-        }
-      ],
-      "scad": "hardware/gantry/parts/privacy_wall.scad",
-      "stl": "hardware/gantry/parts/stl/privacy_wall.stl"
-    },
-    {
-      "id": "receptive-sheet",
-      "name": "Ferrous receptive vinyl sheet 11 × 17\"",
-      "qty": 1,
-      "source": "amazon",
-      "asin": "B0D8HKWWSL",
-      "price": 9.99,
-      "status": "list-only",
-      "route": [
-        "magnet"
-      ],
-      "role": "fallback card insert if the discs lift two cards at once; about 13 g per card",
-      "used_in": [
-        {
-          "doc": "goal",
-          "step": "M0"
-        }
-      ]
-    },
-    {
-      "id": "mg90s",
-      "name": "MG90S micro servos (2-pack)",
-      "asin": "B0CNL755KP",
-      "source": "amazon",
-      "price": 8.88,
-      "status": "removed",
-      "reason": "tapping is done by an arc move on the swivel; back on only if that fails (it is in the Amazon list)"
-    },
-    {
-      "id": "buck-5v",
-      "name": "AKEYSRC 5 V buck converters (6-pack)",
-      "asin": "B0GYJDP96Q",
-      "source": "amazon",
-      "price": 8.99,
-      "status": "removed",
-      "reason": "only powered the servo"
-    },
-    {
-      "id": "pump",
-      "name": "12 V micro vacuum pump",
-      "asin": "B071GL3XXQ",
-      "source": "amazon",
-      "price": 25.99,
-      "status": "removed",
-      "reason": "magnet replaces suction"
-    },
-    {
-      "id": "valve",
-      "name": "Beduan 12 V solenoid air valve",
-      "asin": "B07N2LGFYS",
-      "source": "amazon",
-      "price": 9.99,
-      "status": "removed",
-      "reason": "magnet replaces suction"
-    },
-    {
-      "id": "cups",
-      "name": "uxcell 15 mm bellows suction cups",
-      "asin": "B07MHGDFP4",
-      "source": "amazon",
-      "price": 9.09,
-      "status": "removed",
-      "reason": "magnet replaces suction"
-    },
-    {
-      "id": "npt-fittings",
-      "name": "QITUO 4 mm × 1/4\" NPT fitting kit",
-      "asin": "B0DCJ2T4MV",
-      "source": "amazon",
-      "price": 14.99,
-      "status": "removed",
-      "reason": "magnet replaces suction"
-    },
-    {
-      "id": "m5-fittings",
-      "name": "Kozelo 4 mm × M5 fittings",
-      "asin": "B0H6FKRWDF",
-      "source": "amazon",
-      "price": 6.29,
-      "status": "removed",
-      "reason": "magnet replaces suction"
-    },
-    {
-      "id": "tubing",
-      "name": "Quickun 4 mm PU tubing",
-      "asin": "B083JG4Q8F",
-      "source": "amazon",
-      "price": 8.99,
-      "status": "removed",
-      "reason": "magnet replaces suction"
-    },
-    {
-      "id": "psu-12v",
-      "name": "SANSUN 12 V 2 A power supply",
-      "asin": "B01AZLA9XQ",
-      "source": "amazon",
-      "price": 8.99,
-      "status": "removed",
-      "reason": "the magnet runs on the printer's 24 V"
-    },
-    {
-      "id": "nano",
-      "name": "Nano V3.0 USB-C (3-pack)",
-      "asin": "B0DFGX3MSL",
-      "source": "amazon",
-      "price": 12.99,
-      "status": "removed",
-      "reason": "the printer's part-fan output switches the magnet (M106/M107)"
-    },
-    {
-      "id": "mosfets",
-      "name": "MOSFET switch modules (11-pack)",
-      "asin": "B0DX2KCZHL",
-      "source": "amazon",
-      "price": 9.99,
-      "status": "removed",
-      "reason": "the printer's part-fan output switches the magnet"
-    },
-    {
-      "id": "ptfe-tape",
-      "name": "Blue Monster 1/2\" PTFE thread tape",
-      "source": "home-depot",
-      "price": 3.19,
-      "status": "removed",
-      "reason": "only sealed the valve's threads"
+     "doc": "manual",
+     "step": "Step 4"
     }
-  ]
+   ]
+  },
+  {
+   "id": "pla-plus",
+   "name": "PLA+ filament",
+   "qty": 1,
+   "source": "on-hand",
+   "status": "on-hand",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "the printed parts in Step 3: magnet swivel, deck box, discard chute, privacy wall",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    }
+   ]
+  },
+  {
+   "id": "dummy-battery",
+   "name": "Gonine LP-E8 dummy battery / ACK-E8 AC kit",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B01EMNB8P6",
+   "price": 19.99,
+   "status": "saved",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "mains power for the camera; Canon recommends the AC kit for tethered shooting; M1 uses the table's existing fixed camera, so this waits",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 2"
+    }
+   ]
+  },
+  {
+   "id": "camera-cable",
+   "name": "SCOVEE 10 ft Mini-USB camera cable for Canon Rebel",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B078SRKRLK",
+   "price": 8.55,
+   "status": "saved",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "camera to the Mac (the T5i's port is Mini-B); skip if the camera's own cable turns up",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 2"
+    }
+   ]
+  },
+  {
+   "id": "ball-head",
+   "name": "CAMVATE 1/4\"-20 mini ball head (2-pack)",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B07D9JCP18",
+   "price": 9.8,
+   "status": "saved",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "aims the camera straight down (one used, one spare)",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 2"
+    }
+   ]
+  },
+  {
+   "id": "electromagnet",
+   "name": "Heschen 24 V holding electromagnet HS-P20x15",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B078K3TKFZ",
+   "price": 7.19,
+   "status": "cart",
+   "route": [
+    "magnet"
+   ],
+   "role": "the hand: picks up steel-sleeved cards; about 0.25 A / 3 W at 24 V",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 4"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 5"
+    },
+    {
+     "doc": "goal",
+     "step": "M0"
+    }
+   ]
+  },
+  {
+   "id": "steel-discs",
+   "name": "totalElement 1/2\" steel discs, no adhesive (250-pack)",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B081J52GY6",
+   "price": 20.79,
+   "status": "cart",
+   "route": [
+    "magnet"
+   ],
+   "role": "one behind each of the AI's cards, inside the sleeve; enough for four decks",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 8"
+    },
+    {
+     "doc": "goal",
+     "step": "M0"
+    }
+   ]
+  },
+  {
+   "id": "zinc-washers",
+   "name": "Everbilt #10 zinc flat washers (100-pack)",
+   "qty": 1,
+   "source": "home-depot",
+   "price": 7.29,
+   "status": "cart",
+   "route": [
+    "magnet"
+   ],
+   "role": "stand-in for the steel discs, which arrive 10 Oct: zinc-plated steel, about 1/2\" across, one per AI card; thicker, so measure card_t before printing the deck box",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 8"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 9"
+    }
+   ]
+  },
+  {
+   "id": "diodes",
+   "name": "1N4007 rectifier diodes (125-pack)",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B0FC2CQF24",
+   "price": 5.99,
+   "status": "cart",
+   "route": [
+    "magnet"
+   ],
+   "role": "one across the magnet's coil to absorb the switch-off spike",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 5"
+    }
+   ]
+  },
+  {
+   "id": "usb-hub",
+   "name": "RSHTECH 7-port powered USB hub (USB-C and USB-A)",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B0CGX8LNMC",
+   "price": 31.99,
+   "status": "saved",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "the Mac has only USB-C; camera and printer cables end in USB-A. A USB-C to USB-A adapter you already own does the same for the magnet route, so this can go",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 6"
+    },
+    {
+     "doc": "goal",
+     "step": "G0"
+    }
+   ]
+  },
+  {
+   "id": "so101-kit",
+   "name": "ForgeMotion Labs SO-101 follower arm kit with printed frame",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B0GRPJ2Q8F",
+   "price": 197.98,
+   "status": "saved",
+   "route": [
+    "arm"
+   ],
+   "role": "the arm route's hand: 6 × STS3215 servos, driver board, 12 V 5 A supply, frame; needs a USB-C cable",
+   "used_in": [
+    {
+     "doc": "goal",
+     "step": "G0"
+    },
+    {
+     "doc": "goal",
+     "step": "G3"
+    }
+   ]
+  },
+  {
+   "id": "wrist-camera",
+   "name": "innomaker 1080p 32 × 32 mm UVC wrist camera",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B0CNCSFQC1",
+   "price": 18.99,
+   "status": "saved",
+   "route": [
+    "arm"
+   ],
+   "role": "close-up view from the arm's wrist",
+   "used_in": [
+    {
+     "doc": "goal",
+     "step": "G0"
+    }
+   ]
+  },
+  {
+   "id": "kill-switch",
+   "name": "KarlKers 20 A inline 12–24 V switch",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B0CD4Q36LW",
+   "price": 9.99,
+   "status": "saved",
+   "route": [
+    "arm"
+   ],
+   "role": "hard power cut for the arm (the printer has its own switch)",
+   "used_in": [
+    {
+     "doc": "goal",
+     "step": "G0"
+    }
+   ]
+  },
+  {
+   "id": "alu-angle",
+   "name": "Everbilt aluminium angle 1\" × 3 ft × 1/8\"",
+   "qty": 1,
+   "source": "home-depot",
+   "price": 17.79,
+   "status": "cart",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "camera bracket (~6\") and magnet bracket (~3\")",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 1"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 2"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 4"
+    }
+   ]
+  },
+  {
+   "id": "hex-bolts",
+   "name": "Everbilt 1/4\"-20 × 1\" zinc hex bolt",
+   "qty": 4,
+   "source": "home-depot",
+   "price": 1.16,
+   "status": "cart",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "ball head to the camera bracket; the magnet swivel's axle",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 2"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 4"
+    }
+   ]
+  },
+  {
+   "id": "wing-nuts",
+   "name": "Everbilt 1/4\"-20 wing nut (4-pack)",
+   "qty": 1,
+   "source": "home-depot",
+   "price": 1.69,
+   "status": "cart",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "sets the swivel's drag by hand",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 4"
+    }
+   ]
+  },
+  {
+   "id": "nylon-spacers",
+   "name": "Everbilt nylon spacer 1/2\" × 1\" (0.257\" bore)",
+   "qty": 2,
+   "source": "home-depot",
+   "price": 6.38,
+   "status": "cart",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "cut to ~6 mm: a low-friction washer between the swivel and its bracket",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 4"
+    }
+   ]
+  },
+  {
+   "id": "rubber-washers",
+   "name": "Everbilt 1/4\" rubber flat washers (10-pack)",
+   "qty": 1,
+   "source": "home-depot",
+   "price": 4.09,
+   "status": "cart",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "vibration damping under the ball head; the tap station's grippy foot",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 2"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 9"
+    }
+   ]
+  },
+  {
+   "id": "springs",
+   "name": "Everbilt spring assortment kit (84-pack)",
+   "qty": 1,
+   "source": "home-depot",
+   "price": 6.59,
+   "status": "cart",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "one compression spring under the swivel's wing nut for drag; four more under the deck box's follower plate",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 4"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    }
+   ]
+  },
+  {
+   "id": "mounting-tape",
+   "name": "Scotch Extreme double-sided mounting tape 1\" × 48\"",
+   "qty": 1,
+   "source": "home-depot",
+   "price": 8.79,
+   "status": "cart",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "brackets to the beam and the carriage without drilling the printer",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 2"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 4"
+    }
+   ]
+  },
+  {
+   "id": "zip-ties",
+   "name": "Zip ties",
+   "qty": 10,
+   "source": "on-hand",
+   "status": "on-hand",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "back up the tape; tidy cables",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 2"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 4"
+    }
+   ]
+  },
+  {
+   "id": "m3-screw",
+   "name": "M3 × 6 mm screw",
+   "qty": 1,
+   "source": "hardware store",
+   "status": "check",
+   "route": [
+    "magnet"
+   ],
+   "role": "fixes the magnet (M3 thread in its back) to the printed swivel",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 4"
+    }
+   ]
+  },
+  {
+   "id": "hookup-wire",
+   "name": "22 AWG two-core wire, about 1 m, with heat-shrink or lever connectors",
+   "qty": 1,
+   "source": "hardware store",
+   "status": "check",
+   "route": [
+    "magnet"
+   ],
+   "role": "extends the magnet's leads to the part-fan connector",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 5"
+    }
+   ]
+  },
+  {
+   "id": "kapton-tape",
+   "name": "Kapton (polyimide) tape",
+   "qty": 1,
+   "source": "hardware store",
+   "status": "check",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "insulates under the bed clips (the CR-6 USB fault) and covers the cable's +5 V pin",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 6"
+    }
+   ]
+  },
+  {
+   "id": "printer-usb-cable",
+   "name": "Micro-USB cable for the printer (came with it)",
+   "qty": 1,
+   "source": "on-hand",
+   "status": "check",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "printer to the Mac, with its +5 V pin taped over",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 6"
+    }
+   ]
+  },
+  {
+   "id": "usb-c-adapter",
+   "name": "USB-C to USB-A adapter",
+   "qty": 1,
+   "source": "on-hand",
+   "status": "check",
+   "route": [
+    "magnet"
+   ],
+   "role": "replaces the hub on the magnet route",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 6"
+    }
+   ]
+  },
+  {
+   "id": "sleeves",
+   "name": "Card sleeves, inner and outer, for the AI's deck",
+   "qty": 2,
+   "source": "on-hand",
+   "status": "check",
+   "route": [
+    "magnet"
+   ],
+   "role": "a steel disc sits between the inner and outer sleeve, behind the card",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 8"
+    }
+   ]
+  },
+  {
+   "id": "bed-mat",
+   "name": "Non-slip shelf liner, cut to the bed",
+   "qty": 1,
+   "source": "hardware store",
+   "status": "check",
+   "route": [
+    "magnet"
+   ],
+   "role": "stops the moving bed from sliding the AI's cards around",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 7"
+    }
+   ]
+  },
+  {
+   "id": "multimeter",
+   "name": "Multimeter",
+   "qty": 1,
+   "source": "on-hand",
+   "status": "check",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "measures the printer's USB shell against the Mac's ground before the first plug-in",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 6"
+    }
+   ]
+  },
+  {
+   "id": "magnet-swivel",
+   "name": "Printed magnet swivel",
+   "qty": 2,
+   "source": "print",
+   "status": "to-print",
+   "route": [
+    "magnet"
+   ],
+   "role": "holds the magnet and the swivel bolt, turning in the bracket for tapping by arc",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 4"
+    }
+   ],
+   "scad": "hardware/gantry/parts/magnet_swivel.scad",
+   "stl": "hardware/gantry/parts/stl/magnet_swivel.stl"
+  },
+  {
+   "id": "deck-box",
+   "name": "Printed deck box with a one-card exit slot",
+   "qty": 1,
+   "source": "print",
+   "status": "to-print",
+   "route": [
+    "magnet"
+   ],
+   "role": "holds the AI's shuffled deck face-up and covered; the magnet slides the top card out through a slot one card thick, so the card below can't follow",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 9"
+    }
+   ],
+   "scad": "hardware/gantry/parts/deck_box.scad",
+   "stl": "hardware/gantry/parts/stl/deck_box.stl"
+  },
+  {
+   "id": "deck-box-follower",
+   "name": "Printed deck box follower plate",
+   "qty": 1,
+   "source": "print",
+   "status": "to-print",
+   "route": [
+    "magnet"
+   ],
+   "role": "rides on four springs inside the deck box, keeping the top card against the lips at the exit slot",
+   "scad": "hardware/gantry/parts/deck_box.scad",
+   "stl": "hardware/gantry/parts/stl/deck_box_follower.stl",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    }
+   ]
+  },
+  {
+   "id": "discard-chute",
+   "name": "Printed discard chute",
+   "qty": 1,
+   "source": "print",
+   "status": "to-print",
+   "route": [
+    "magnet"
+   ],
+   "role": "off the bed's edge into a tray: graveyard and exile take no bed space",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    }
+   ],
+   "scad": "hardware/gantry/parts/discard_chute.scad",
+   "stl": "hardware/gantry/parts/stl/discard_chute.stl"
+  },
+  {
+   "id": "privacy-wall",
+   "name": "Printed privacy wall",
+   "qty": 1,
+   "source": "print",
+   "status": "to-print",
+   "route": [
+    "magnet"
+   ],
+   "role": "hides the AI's face-up hand zone from the person",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    }
+   ],
+   "scad": "hardware/gantry/parts/privacy_wall.scad",
+   "stl": "hardware/gantry/parts/stl/privacy_wall.stl"
+  },
+  {
+   "id": "receptive-sheet",
+   "name": "Ferrous receptive vinyl sheet 11 × 17\"",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B0D8HKWWSL",
+   "price": 9.99,
+   "status": "list-only",
+   "route": [
+    "magnet"
+   ],
+   "role": "fallback card insert if the discs lift two cards at once; about 13 g per card",
+   "used_in": [
+    {
+     "doc": "goal",
+     "step": "M0"
+    }
+   ]
+  },
+  {
+   "id": "mg90s",
+   "name": "MG90S micro servos (2-pack)",
+   "asin": "B0CNL755KP",
+   "source": "amazon",
+   "price": 8.88,
+   "status": "removed",
+   "reason": "tapping is done by an arc move on the swivel; back on only if that fails (it is in the Amazon list)"
+  },
+  {
+   "id": "buck-5v",
+   "name": "AKEYSRC 5 V buck converters (6-pack)",
+   "asin": "B0GYJDP96Q",
+   "source": "amazon",
+   "price": 8.99,
+   "status": "removed",
+   "reason": "only powered the servo"
+  },
+  {
+   "id": "pump",
+   "name": "12 V micro vacuum pump",
+   "asin": "B071GL3XXQ",
+   "source": "amazon",
+   "price": 25.99,
+   "status": "removed",
+   "reason": "magnet replaces suction"
+  },
+  {
+   "id": "valve",
+   "name": "Beduan 12 V solenoid air valve",
+   "asin": "B07N2LGFYS",
+   "source": "amazon",
+   "price": 9.99,
+   "status": "removed",
+   "reason": "magnet replaces suction"
+  },
+  {
+   "id": "cups",
+   "name": "uxcell 15 mm bellows suction cups",
+   "asin": "B07MHGDFP4",
+   "source": "amazon",
+   "price": 9.09,
+   "status": "removed",
+   "reason": "magnet replaces suction"
+  },
+  {
+   "id": "npt-fittings",
+   "name": "QITUO 4 mm × 1/4\" NPT fitting kit",
+   "asin": "B0DCJ2T4MV",
+   "source": "amazon",
+   "price": 14.99,
+   "status": "removed",
+   "reason": "magnet replaces suction"
+  },
+  {
+   "id": "m5-fittings",
+   "name": "Kozelo 4 mm × M5 fittings",
+   "asin": "B0H6FKRWDF",
+   "source": "amazon",
+   "price": 6.29,
+   "status": "removed",
+   "reason": "magnet replaces suction"
+  },
+  {
+   "id": "tubing",
+   "name": "Quickun 4 mm PU tubing",
+   "asin": "B083JG4Q8F",
+   "source": "amazon",
+   "price": 8.99,
+   "status": "removed",
+   "reason": "magnet replaces suction"
+  },
+  {
+   "id": "psu-12v",
+   "name": "SANSUN 12 V 2 A power supply",
+   "asin": "B01AZLA9XQ",
+   "source": "amazon",
+   "price": 8.99,
+   "status": "removed",
+   "reason": "the magnet runs on the printer's 24 V"
+  },
+  {
+   "id": "nano",
+   "name": "Nano V3.0 USB-C (3-pack)",
+   "asin": "B0DFGX3MSL",
+   "source": "amazon",
+   "price": 12.99,
+   "status": "removed",
+   "reason": "the printer's part-fan output switches the magnet (M106/M107)"
+  },
+  {
+   "id": "mosfets",
+   "name": "MOSFET switch modules (11-pack)",
+   "asin": "B0DX2KCZHL",
+   "source": "amazon",
+   "price": 9.99,
+   "status": "removed",
+   "reason": "the printer's part-fan output switches the magnet"
+  },
+  {
+   "id": "ptfe-tape",
+   "name": "Blue Monster 1/2\" PTFE thread tape",
+   "source": "home-depot",
+   "price": 3.19,
+   "status": "removed",
+   "reason": "only sealed the valve's threads"
+  }
+ ]
 }
