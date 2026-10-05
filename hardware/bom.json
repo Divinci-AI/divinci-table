@@ -16,8 +16,8 @@
  },
  "carts": {
   "amazon": {
-   "subtotal": 33.97,
-   "note": "Only the M1 test kit is in the cart (magnet, discs, diodes); everything else is in Save for later until the stack test passes 19/20 (Hermes review, 2026-10-05)"
+   "subtotal": 13.18,
+   "note": "Only the M1 test kit is in the cart (magnet, diodes); the steel discs were dropped for #10 zinc washers from Home Depot; everything else is in Save for later until the stack test passes 19/20"
   },
   "home-depot": {
    "subtotal": 53.78,
@@ -177,16 +177,12 @@
    "source": "amazon",
    "asin": "B081J52GY6",
    "price": 20.79,
-   "status": "cart",
+   "status": "list-only",
    "route": [
     "magnet"
    ],
-   "role": "one behind each of the AI's cards, inside the sleeve; enough for four decks",
+   "role": "thinner than the #10 washers; dropped 2026-10-05 (they arrive 10 Oct) — reorder for the real deck if the washers make the stack too tall",
    "used_in": [
-    {
-     "doc": "manual",
-     "step": "Step 8"
-    },
     {
      "doc": "goal",
      "step": "M0"
@@ -203,7 +199,7 @@
    "route": [
     "magnet"
    ],
-   "role": "stand-in for the steel discs, which arrive 10 Oct: zinc-plated steel, about 1/2\" across, one per AI card; thicker, so measure card_t before printing the deck box",
+   "role": "one behind each of the AI's cards, inside the sleeve (zinc-plated steel, about 1/2\" across, ~1.2 mm); measure card_t before printing the deck box",
    "used_in": [
     {
      "doc": "manual",

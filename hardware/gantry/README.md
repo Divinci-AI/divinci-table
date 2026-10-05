@@ -2,7 +2,7 @@
 
 A Creality **CR-6 Max** 3D printer turned into eyes and a hand for the table. A **Canon EOS Rebel T5i** looks straight
 down at the cards on the bed, and a small **24 V electromagnet** on the print head picks up the AI's cards, which
-carry a steel disc inside the sleeve. The printer only *moves*: it never heats or extrudes (`table/gantry.py`
+carry a steel washer inside the sleeve. The printer only *moves*: it never heats or extrudes (`table/gantry.py`
 refuses those G-codes). This is the first step toward the "Jumanji table" in [docs/roadmap.md](../../docs/roadmap.md):
 an AI that moves its own cards.
 
@@ -67,7 +67,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Kapton (polyimide) tape | 1 roll | under the bed clips, and over the USB cable's +5 V pin |
 | Micro-USB cable for the printer (came with it) | 1 | printer to the Mac |
 | USB-C to USB-A adapter | 1 | the Mac has only USB-C; both cables end in USB-A |
-| Card sleeves, inner and outer, for the AI's deck | 2 per card | the steel disc sits between them |
+| Card sleeves, inner and outer, for the AI's deck | 2 per card | the washer sits between them |
 | Non-slip shelf liner, cut to the bed | 1 | stops the moving bed from sliding the AI's cards |
 | Multimeter | 1 | the USB-shell voltage check (Step 6) and the 24 V check (Step 5) |
 
@@ -82,23 +82,22 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Everbilt 1/4" rubber flat washers (10-pack) | 1 | damping under the ball head; the tap station's grippy foot |
 | Everbilt spring assortment kit (84-pack) | 1 | one compression spring for the swivel's drag |
 | Scotch Extreme double-sided mounting tape 1" × 48" | 1 | brackets to the beam and the carriage (no drilling into the printer) |
-| Everbilt #10 zinc flat washers (100-pack) | 1 | stand-in for the steel discs (they arrive 10 Oct): one per AI card, in the sleeve |
+| Everbilt #10 zinc flat washers (100-pack) | 1 | one per AI card, inside the sleeve (zinc-plated steel is magnetic; stainless mostly isn't) |
 
-**Online (Amazon) — the exact parts.** Only the first three are in the cart ($33.97): the M1 test kit. The rest
+**Online (Amazon) — the exact parts.** Only the first two are in the cart ($13.18): the M1 test kit. The rest
 are in *Save for later* until the deck-stack test in Step 9 passes 19 times out of 20; M1 uses the table's
 existing fixed camera, so the Canon mount waits too.
 
 | Part | Link | Price |
 |---|---|---|
 | Heschen 24 V holding electromagnet HS-P20x15 | [amazon.com/dp/B078K3TKFZ](https://www.amazon.com/dp/B078K3TKFZ) | $7.19 |
-| totalElement 1/2" steel discs, no adhesive (250-pack) | [amazon.com/dp/B081J52GY6](https://www.amazon.com/dp/B081J52GY6) | $20.79 |
 | 1N4007 rectifier diodes (125-pack) | [amazon.com/dp/B0FC2CQF24](https://www.amazon.com/dp/B0FC2CQF24) | $5.99 |
 | Gonine LP-E8 dummy battery / ACK-E8 AC kit | [amazon.com/dp/B01EMNB8P6](https://www.amazon.com/dp/B01EMNB8P6) | $19.99 |
 | SCOVEE 10 ft Mini-USB camera cable for Canon Rebel | [amazon.com/dp/B078SRKRLK](https://www.amazon.com/dp/B078SRKRLK) | $8.55 |
 | CAMVATE 1/4"-20 mini ball head (2-pack) | [amazon.com/dp/B07D9JCP18](https://www.amazon.com/dp/B07D9JCP18) | $9.80 |
 | RSHTECH 7-port powered USB hub (USB-C and USB-A) | [amazon.com/dp/B0CGX8LNMC](https://www.amazon.com/dp/B0CGX8LNMC) | $31.99 |
 
-The Amazon cart reads **$33.97**. Save for later holds the other four parts above ($70.33; the hub can be dropped if
+The Amazon cart reads **$13.18**. Save for later holds the other four parts above ($70.33; the hub can be dropped if
 a USB-C adapter is on hand) and the SO-101 arm, its wrist camera and its kill switch ($226.96, listed in the goal
 doc), all waiting on Step 9's result.
 
@@ -227,7 +226,7 @@ touches a card. Write what you measured to `table/.cache/gantry.json`:
 
 ## Step 8 — Sleeve the AI's deck
 
-Only the AI's deck. For each card: the card into its **inner sleeve**, one **steel disc** (or a **#10 zinc washer** until the discs arrive) centred on the inner
+Only the AI's deck. For each card: the card into its **inner sleeve**, one **#10 zinc washer** centred on the inner
 sleeve's *back*, then the **outer sleeve** over both. The disc sits behind the card's back, so the magnet picks the
 card face-up through the card. Never put steel in a person's cards.
 

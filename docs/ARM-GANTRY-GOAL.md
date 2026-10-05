@@ -167,18 +167,18 @@ Design notes for the printer-as-hand version:
   and put a mat on the bed so the moving bed doesn't slide the cards around.
 - People's cards and hands stay off the bed, and so out of the machine's reach.
 
-### M0 — Test kit (in the cart 2026-10-05: magnet, discs and diodes, $33.97; everything else in Save for later)
+### M0 — Test kit (in the cart 2026-10-05: magnet and diodes on Amazon, $13.18; #10 zinc washers from Home Depot instead of the discs, which would arrive 10 Oct; everything else in Save for later)
 - Heschen 24 V holding electromagnet, 20 × 15 mm, rated 2.5 kg on thick steel
   ([B078K3TKFZ](https://www.amazon.com/dp/B078K3TKFZ), $7.19)
 - Ferrous receptive vinyl, 11 × 17" ([B0D8HKWWSL](https://www.amazon.com/dp/B0D8HKWWSL), $9.99). Heavy: about
   13 g per card-sized piece, so it's the test's worst case.
-- 1/2" steel discs, 250-pack ([B081J52GY6](https://www.amazon.com/dp/B081J52GY6), $20.79): the light option, one
+- Dropped for now: 1/2" steel discs, 250-pack ([B081J52GY6](https://www.amazon.com/dp/B081J52GY6), $20.79), thinner than the washers; the light option, one
   per sleeve, behind the card.
 - 1N4007 diodes ($5.99): the magnet is wired straight to the printer's fan output, which needs the flyback diode.
 - The receptive sheet was dropped before ordering (it stays in the list as the fallback).
 
 ### M1 — The test (decides the route)
-- [ ] 20 single-card picks and drops with the steel discs, the magnet on the printer's part-fan output (M106/M107;
+- [ ] 20 single-card picks and drops with the #10 zinc washers, the magnet on the printer's part-fan output (M106/M107;
       the 12 V supply, Nano and MOSFETs were dropped). Check the output stays cool at ~0.25 A.
 - [ ] 20 draws from a 40-card stack through the deck box's one-card slot: count how often a second card comes.
       **Pass: at least 19 of 20.** Compare a staple or paperclip in the sleeve (less steel, less coupling), tape on
