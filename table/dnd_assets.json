@@ -11,7 +11,7 @@
         "town",
         "starter"
       ],
-      "status": "draft",
+      "status": "approved",
       "layout": [
         "################",
         "#K..K..#B.....B#",
@@ -33,7 +33,8 @@
       "view": "dnd/locations/tavern/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 60697
+      "triangles": 60697,
+      "review_note": ""
     },
     {
       "id": "road",
@@ -44,7 +45,7 @@
         "travel",
         "ambush"
       ],
-      "status": "draft",
+      "status": "approved",
       "layout": [
         "TT..T....TT....T..TT",
         "T.......R.......T..T",
@@ -62,7 +63,8 @@
       "view": "dnd/locations/road/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 6481
+      "triangles": 6481,
+      "review_note": ""
     },
     {
       "id": "clearing",
@@ -73,7 +75,7 @@
         "forest",
         "starter"
       ],
-      "status": "draft",
+      "status": "approved",
       "layout": [
         "TTTT..TTTTT..TTT",
         "TT....~~.....TTT",
@@ -91,7 +93,8 @@
       "view": "dnd/locations/clearing/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 10942
+      "triangles": 10942,
+      "review_note": ""
     },
     {
       "id": "cave",
@@ -101,7 +104,7 @@
         "underground",
         "cave"
       ],
-      "status": "draft",
+      "status": "approved",
       "layout": [
         "################",
         "###....######..#",
@@ -123,7 +126,8 @@
       "view": "dnd/locations/cave/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 76826
+      "triangles": 76826,
+      "review_note": ""
     },
     {
       "id": "crypt",
@@ -133,7 +137,7 @@
         "underground",
         "undead"
       ],
-      "status": "draft",
+      "status": "approved",
       "layout": [
         "###############",
         "#O..O..#..O..O#",
@@ -154,7 +158,8 @@
       "view": "dnd/locations/crypt/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 96654
+      "triangles": 96654,
+      "review_note": ""
     },
     {
       "id": "keep",
@@ -164,7 +169,7 @@
         "indoor",
         "castle"
       ],
-      "status": "draft",
+      "status": "approved",
       "layout": [
         "##################",
         "#O..O..O..O..O..O#",
@@ -186,7 +191,8 @@
       "view": "dnd/locations/keep/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 93082
+      "triangles": 93082,
+      "review_note": ""
     },
     {
       "id": "bridge",
@@ -197,7 +203,7 @@
         "river",
         "ambush"
       ],
-      "status": "draft",
+      "status": "approved",
       "layout": [
         "TT..T......T....TTTT",
         "T..PP...........T.TT",
@@ -219,7 +225,8 @@
       "view": "dnd/locations/bridge/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 11499
+      "triangles": 11499,
+      "review_note": ""
     },
     {
       "id": "ruins",
@@ -229,7 +236,7 @@
         "outdoor",
         "ruins"
       ],
-      "status": "draft",
+      "status": "approved",
       "layout": [
         "#.##..#####..##.##",
         "#...O....O.....R.#",
@@ -251,7 +258,8 @@
       "view": "dnd/locations/ruins/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 51071
+      "triangles": 51071,
+      "review_note": ""
     }
   ],
   "minis": [],

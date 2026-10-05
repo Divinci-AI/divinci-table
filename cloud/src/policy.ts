@@ -125,3 +125,15 @@ export function parsePose(raw: unknown): Pose | null {
 	if (!h) return null;
 	return { h, l: p.l == null ? null : part(p.l), r: p.r == null ? null : part(p.r) };
 }
+
+/** A D&D room file the Worker may serve from R2 (dnd/<rel>), or null. Same shape the laptop server allows
+ *  (table/dnd_server.py): a location's room/map/view or a mini, nothing else. Only approved locations are ever
+ *  uploaded (scripts/dnd_upload.py), so R2 holds no drafts for this to leak. */
+const DND_TYPES: Record<string, string> = { glb: "model/gltf-binary", jpg: "image/jpeg", png: "image/png", mp4: "video/mp4" };
+export function dndAssetKey(pathname: string): { key: string; type: string } | null {
+	if (!pathname.startsWith("/dnd-assets/")) return null;
+	let rel: string;
+	try { rel = decodeURIComponent(pathname.slice("/dnd-assets/".length)); } catch { return null; }
+	const m = /^(locations\/[a-z0-9-]{1,40}\/[a-z_]{1,20}|minis\/[a-z0-9-]{1,40})\.(glb|jpg|png|mp4)$/.exec(rel);
+	return m ? { key: "dnd/" + rel, type: DND_TYPES[m[2]] } : null;
+}

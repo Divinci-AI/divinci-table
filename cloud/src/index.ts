@@ -13,7 +13,7 @@
 import { Container } from "@cloudflare/containers";
 import { DurableObject } from "cloudflare:workers";
 import { aiKeyAllowed, aiRoomRefusal, boardPrompt, parsePose, PRESENCE_MAX_BYTES, PRESENCE_MAX_PER_SEC, speechHint, CODE_FAILS_GLOBAL_PER_HOUR, CODE_FAILS_PER_HOUR, isAdmin, parseBoardReply, sameText,
-	STT_MAX_BYTES, STT_PER_10_MIN, VISION_MAX_BYTES, VISION_PER_HOUR, withinRate } from "./policy";
+	STT_MAX_BYTES, STT_PER_10_MIN, VISION_MAX_BYTES, VISION_PER_HOUR, withinRate, dndAssetKey } from "./policy";
 
 interface Env {
 	ROOM: DurableObjectNamespace<TableRoom>;
@@ -485,6 +485,7 @@ export default {
 		}
 		if (url.pathname.startsWith("/__room") || url.pathname.startsWith("/api/room/")) return new Response("Not found", { status: 404 });
 		if (url.pathname.startsWith("/avatars/") && request.method === "GET") return avatar(url.pathname, env);
+		if (url.pathname.startsWith("/dnd-assets/") && request.method === "GET") return dndAsset(url.pathname, env);
 
 		const room = (request.headers.get("Cookie") ?? "").match(/(?:^|;\s*)room=([a-z0-9]{8})/)?.[1];
 		if (!room) return Response.redirect(url.origin + "/", 302);
@@ -509,6 +510,15 @@ async function avatar(path: string, env: Env): Promise<Response> {
 	return new Response(obj.body, { headers: {
 		"Content-Type": obj.httpMetadata?.contentType ?? (name.endsWith(".png") ? "image/png" : "model/gltf-binary"),
 		"Cache-Control": "public, max-age=86400", "ETag": obj.httpEtag } });
+}
+
+/** D&D rooms, maps and minis, shared by every room: R2 dnd/<…>. Only approved locations are uploaded. */
+async function dndAsset(path: string, env: Env): Promise<Response> {
+	const k = dndAssetKey(path);
+	const obj = k ? await env.ASSETS_BUCKET.get(k.key) : null;
+	if (!k || !obj) return new Response("Not found", { status: 404 });
+	return new Response(obj.body, { headers: {
+		"Content-Type": k.type, "Cache-Control": "public, max-age=3600", "ETag": obj.httpEtag } });
 }
 
 async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<Lobby>): Promise<Response> {

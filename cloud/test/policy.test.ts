@@ -1,7 +1,7 @@
 // The lobby's AI and admin rules (src/policy.ts).  node --experimental-strip-types --test cloud/test/policy.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { aiKeyAllowed, aiRoomRefusal, CODE_FAILS_GLOBAL_PER_HOUR, CODE_FAILS_PER_HOUR, isAdmin, sameText } from "../src/policy.ts";
+import { aiKeyAllowed, aiRoomRefusal, CODE_FAILS_GLOBAL_PER_HOUR, CODE_FAILS_PER_HOUR, dndAssetKey, isAdmin, sameText } from "../src/policy.ts";
 
 const ok = { configured: true, codeOk: true, failsHere: 0, failsEverywhere: 0, off: false, today: 0, perDay: 4 };
 
@@ -109,4 +109,15 @@ test("parsePose: a head (and optional hands) of 7 finite numbers, positions with
 	assert.equal(parsePose({ h: [0, 1, 0, 0, 0, 0, 0] }), null, "zero quaternion");
 	assert.equal(parsePose(null), null);
 	assert.equal(parsePose({ h, l: "x" })?.l, null, "a bad hand is dropped, the head kept");
+});
+
+test("dndAssetKey: a location's room/map/view or a mini maps to R2 dnd/…; anything else is refused", () => {
+	assert.deepEqual(dndAssetKey("/dnd-assets/locations/tavern/room.glb"), { key: "dnd/locations/tavern/room.glb", type: "model/gltf-binary" });
+	assert.deepEqual(dndAssetKey("/dnd-assets/locations/cave/map.jpg"), { key: "dnd/locations/cave/map.jpg", type: "image/jpeg" });
+	assert.deepEqual(dndAssetKey("/dnd-assets/minis/goblin.glb"), { key: "dnd/minis/goblin.glb", type: "model/gltf-binary" });
+	for (const bad of ["/dnd-assets/../avatars/x.glb", "/dnd-assets/locations/tavern/../../secret.glb",
+		"/dnd-assets/locations/tavern/room.json", "/dnd-assets/locations/Tavern/room.glb", "/dnd-assets/kits/kaykit.zip",
+		"/dnd-assets/locations/tavern%2F..%2F..%2Fx/room.glb", "/dnd-assets/../locations/tavern/room.glb", "/dnd-assets/x/minis/goblin.glb", "/dnd-assets/locations/tavern/room.glb.html", "/dnd-assets/%E0%A4%A", "/avatars/room.glb", "/dnd-assets/"]) {
+		assert.equal(dndAssetKey(bad), null, bad);
+	}
 });
