@@ -168,6 +168,15 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
 
 ## Done log
 
+- **2026-10-05 · Rooms rebuilt from CC0 kits.** Michael found the primitive rooms too basic. Each layout character
+  now becomes a model from KayKit Dungeon Remastered (Kay Lousberg) or Kenney's Nature, Graveyard and Fantasy Town
+  kits, all CC0, fetched and SHA-256-pinned by `scripts/dnd_kits.py` (the pin refused the first, branch-zip
+  download), fitted to its square and merged into one mesh. Kenney's mint/teal nature colours are recoloured to a
+  woodland palette; maps render with Eevee (Workbench showed the kits' factor-only colours as white). All 8 rooms
+  6.5k–97k triangles (budget 150k); kit credits at `/api/dnd/credits`. `dnd_assets_test` 98/98, `dnd_test`
+  128/128, `dnd_page_e2e` 11/11, `dnd_round_e2e` 9/9, `dnd_xr_e2e` 8/8. Contact sheet checked by eye; fixed on the
+  way: wood walls that vanished on the map, water rendering white, a bridge turned along the river.
+
 - **2026-10-04 · D7 done.** The DM's STATE carries the grid, the locations, the bestiary and which tokens are
   people's; its TABLE line sets location / place / move; the server checks every move. `dnd_dm_sim_test.py`:
   three encounters (cave, crypt, bridge) with an adversarial fake DM — teleports, walls, off the map, onto

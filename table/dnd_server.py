@@ -651,7 +651,8 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, body=f.read_bytes(), ctype=types[f.suffix])
             return self._send(404, {"error": "not found"})
         if p == "/api/dnd/credits":
-            return self._send(200, body=CREDIT.encode(), ctype="text/plain; charset=utf-8")
+            text = CREDIT + ("\n\n" + ASSETS["room_credits"] if ASSETS.get("room_credits") else "")
+            return self._send(200, body=text.encode(), ctype="text/plain; charset=utf-8")
         if p == "/api/seat/claims":
             return self._send(200, SEATS.public(device_of(self)))
         if p == "/api/events":

@@ -33,7 +33,7 @@
       "view": "dnd/locations/tavern/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 1822
+      "triangles": 60697
     },
     {
       "id": "road",
@@ -62,7 +62,7 @@
       "view": "dnd/locations/road/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 1424
+      "triangles": 6481
     },
     {
       "id": "clearing",
@@ -91,7 +91,7 @@
       "view": "dnd/locations/clearing/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 1874
+      "triangles": 10942
     },
     {
       "id": "cave",
@@ -123,7 +123,7 @@
       "view": "dnd/locations/cave/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 2206
+      "triangles": 76826
     },
     {
       "id": "crypt",
@@ -154,7 +154,7 @@
       "view": "dnd/locations/crypt/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 1432
+      "triangles": 96654
     },
     {
       "id": "keep",
@@ -186,7 +186,7 @@
       "view": "dnd/locations/keep/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 2110
+      "triangles": 93082
     },
     {
       "id": "bridge",
@@ -219,7 +219,7 @@
       "view": "dnd/locations/bridge/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 2076
+      "triangles": 11499
     },
     {
       "id": "ruins",
@@ -251,7 +251,7 @@
       "view": "dnd/locations/ruins/view.jpg",
       "licence": "Layout and room: Divinci Table (Apache-2.0)",
       "credit": "",
-      "triangles": 2064
+      "triangles": 51071
     }
   ],
   "minis": [],
@@ -437,5 +437,6 @@
       "standee": true
     }
   ],
-  "_bestiary": "The starter adventure's monsters: size, speed, AC and average HP from the System Reference Document 5.1 (Wizards of the Coast, CC-BY-4.0). 'mini' names a mini in 'minis'; until one exists the monster is a standee."
+  "_bestiary": "The starter adventure's monsters: size, speed, AC and average HP from the System Reference Document 5.1 (Wizards of the Coast, CC-BY-4.0). 'mini' names a mini in 'minis'; until one exists the monster is a standee.",
+  "room_credits": "3D rooms built from KayKit Dungeon Remastered 1.0 by Kay Lousberg (https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0), CC0. Nature Kit 2.1 by Kenney (https://kenney.nl/assets/nature-kit), CC0. Graveyard Kit 5.0 by Kenney (https://kenney.nl/assets/graveyard-kit), CC0. Fantasy Town Kit 2.0 by Kenney (https://kenney.nl/assets/fantasy-town-kit), CC0."
 }

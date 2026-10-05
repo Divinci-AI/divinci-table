@@ -21,13 +21,17 @@ ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "table" / "dnd_assets.json"
 OUT = ROOT / "table" / ".cache" / "dnd" / "locations"
 BLENDER = shutil.which("blender") or "/Applications/Blender.app/Contents/MacOS/Blender"
+sys.path.insert(0, str(ROOT / "scripts"))
+from dnd_kits import credits as kit_credits, ensure as ensure_kits  # noqa: E402
+
+KITS: dict[str, str] = {}
 
 
 def build(loc: dict) -> dict:
     out = OUT / loc["id"]
     with tempfile.TemporaryDirectory() as td:
         spec = Path(td) / "spec.json"
-        spec.write_text(json.dumps({k: loc[k] for k in ("id", "theme", "layout")}))
+        spec.write_text(json.dumps({**{k: loc[k] for k in ("id", "theme", "layout")}, "kits": KITS}))
         t0 = time.time()
         r = subprocess.run([BLENDER, "-b", "--factory-startup", "--python", str(ROOT / "scripts" / "dnd_room_blender.py"),
                             "--", str(spec), str(out)], capture_output=True, text=True, timeout=600)
@@ -41,6 +45,7 @@ def build(loc: dict) -> dict:
 
 
 def main() -> None:
+    KITS.update(ensure_kits())                       # CC0 model kits, pinned and cached (scripts/dnd_kits.py)
     man = json.loads(MANIFEST.read_text())
     want = set(sys.argv[1:])
     for loc in man["locations"]:
@@ -49,6 +54,7 @@ def main() -> None:
         info = build(loc)
         base = f"dnd/locations/{loc['id']}/"
         loc.update(room=base + "room.glb", map_image=base + "map.jpg", view=base + "view.jpg", triangles=info["triangles"])
+    man["room_credits"] = "3D rooms built from " + kit_credits()
     MANIFEST.write_text(json.dumps(man, indent=2, ensure_ascii=False) + "\n")
 
 
