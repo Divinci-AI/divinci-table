@@ -18,8 +18,8 @@ adjust lengths and positions on the real printer, and please update this page wi
   suction head attached. `gantry.py` allows only motion and status commands.
 - **Z homing drives the head down.** With anything hanging below the nozzle it can crash into the bed. Use
   `gantry.py home` (X and Y only) until `min_z` is measured (step 7).
-- **Wire with the 12 V supply unplugged**, and check the 5 V buck converter's output with a multimeter *before*
-  connecting the servo.
+- **Wire with the 12 V supply unplugged**, and check the 5 V buck converter's output with a multimeter (it should read
+  about 5 V) *before* connecting the servo.
 - The firmware switches the pump off after 60 s on its own and after 2 min with no commands.
 
 ## Parts
@@ -56,7 +56,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Arduino Nano (USB-C, ATmega328P) | 1 | controls pump, valve and servo |
 | MOSFET switch modules (5–36 V, ≥ 5 A) | 2 | switching the pump and the valve |
 | 1N4007 diodes | 2 | flyback protection across the pump and the valve coil |
-| 5 V buck converter (≥ 1 A) | 1 | servo power (not from the Nano) |
+| 5 V buck converter, fixed output (≥ 1 A; e.g. a 6-pack of 5 V 3 A modules) | 1 | servo power (not from the Nano) |
 | 12 V 2 A power supply with screw-terminal plug | 1 | pump, valve, buck converter |
 | PTFE thread tape | 1 | sealing the 1/4" NPT fittings |
 
@@ -114,8 +114,8 @@ the beam they only ride up and down with Z.
 2. **MOSFET module A** (pump) and **module B** (valve): VIN from the rails, OUT to the pump / the valve coil.
 3. A **1N4007 across each coil**: the striped end (cathode) to **+**, the other to **−**. Without them the
    switching spikes can kill the MOSFET modules.
-4. **5 V buck converter** from the rails. *Before connecting anything to it*, adjust its output to **5.0 V** with the
-   multimeter. Then: buck 5 V → servo red, buck GND → servo brown.
+4. **5 V buck converter** from the rails. *Before connecting anything to it*, check its output reads about **5 V** with
+   the multimeter (an adjustable one: set it to 5.0 V). Then: buck 5 V → servo red, buck GND → servo brown.
 5. **Arduino Nano**: D5 → module A TRIG/PWM, D6 → module B TRIG/PWM, D9 → servo orange, **GND → ground rail**
    (one shared ground, or the signals mean nothing). The Nano is powered by its USB-C cable from the Mac.
 

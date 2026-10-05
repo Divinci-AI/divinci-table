@@ -31,7 +31,7 @@
   <text x="760" y="246" text-anchor="middle" fill="#fff" font-weight="700">5 V buck converter</text>
   <text x="760" y="266" text-anchor="middle" fill="#e6fffb">IN: 12 V rails</text>
   <text x="760" y="284" text-anchor="middle" fill="#e6fffb">OUT: 5 V → servo only</text>
-  <text x="760" y="302" text-anchor="middle" fill="#e6fffb">(set to 5.0 V first!)</text>
+  <text x="760" y="302" text-anchor="middle" fill="#e6fffb">(measure 5 V first!)</text>
   <path d="M720 100 L720 220" stroke="#d62828" stroke-width="3"/><path d="M800 150 L800 220" stroke="#111" stroke-width="3"/>
   <!-- loads -->
   <rect x="250" y="400" width="160" height="70" rx="8" fill="#3d5a80"/><text x="330" y="440" text-anchor="middle" fill="#fff" font-weight="700">vacuum pump</text>
