@@ -34,6 +34,8 @@ if cfg.get("game") == "dnd":                        # D&D: one process; the AI D
                 "--players", ",".join(cfg.get("humans") or ["Player 1"])]
     if cfg.get("dm"):
         dnd_args += ["--dm", cfg["dm"]]
+    if cfg.get("mode") == "theater":                # an allow-list: anything else is the battle map
+        dnd_args += ["--mode", "theater"]
     env = dict(os.environ, TABLE_CLOUD="1")
     sys.exit(subprocess.call(dnd_args, cwd=ROOT, env=env))
 

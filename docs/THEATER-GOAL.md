@@ -60,16 +60,16 @@ grid, and nothing has been measured for a conversation's pace.
       word**, measured. Target to beat: **≤ 3 s** with the local model.
 
 ## T3 — Theater mode in the room
-- [ ] A room setting (chosen at creation, switchable by the DM): no map; one large 🎙 hold-to-talk button; the
+- [x] A room setting (chosen at creation, switchable by the DM): no map; one large 🎙 hold-to-talk button; the
       scene card as plain text for anyone looking; the log.
-- [ ] Spoken questions answered **by code from the scene card**, not by the model: "where am I?", "what's near
+- [x] Spoken questions answered **by code from the scene card**, not by the model: "where am I?", "what's near
       me?", "whose turn is it?", "how hurt am I?". Consistent every time, and instant.
-- [ ] Voice dice: "roll stealth", "roll a d20 with advantage", "I rolled fourteen" (a real die).
+- [x] Voice dice: "roll stealth", "roll a d20 with advantage", "I rolled fourteen" (a real die).
 - [ ] Eyes-free: works with screen reader on; large targets; nothing needs looking at.
 - [ ] **Screen-off risk, tested first:** phones pause web pages when the screen locks, which would stop the voice on
       a walk. Measure on an iPhone and an Android phone with the screen locked; mitigations to try in order: a
       wake lock with the screen dimmed, a media session that keeps audio alive, a home-screen app.
-- [ ] **Check:** a browser test plays a whole scene using only spoken input (fake microphone) and spoken output
+- [x] **Check:** a browser test plays a whole scene using only spoken input (fake microphone) and spoken output
       (stubbed synthesis), never clicking the map; the answers to the four questions match the scene card.
 
 ## T4 — The local DM, measured
@@ -104,6 +104,16 @@ grid, and nothing has been measured for a conversation's pace.
 - [ ] **Check:** the survey, the bug list, the delay numbers, the cost; what broke becomes the next goal.
 
 ## Done log
+
+- **2026-10-05 · T3 built; two items wait for real phones.** Theater mode in the room: no board, a large 🎙, a
+  "Where things are" panel from the scene card, a mode switch (the DM's seat, or anyone seated when the AI DM runs
+  it), and in the cloud lobby a new "D&D, theater of the mind" choice (Worker + entrypoint; **not deployed**).
+  "Where am I?", "what's near me?", "whose turn is it?", "how hurt am I?" are answered by code to the asker only,
+  and the DM isn't called; dice by voice ("roll stealth with advantage", "I rolled fourteen for perception").
+  `dnd_theater_e2e.cjs` 18/18 (a scene with no board touched; one question spoken into a fake mic and transcribed by
+  Whisper, answered aloud); `dnd_voice_test.py` 32/32 (commands, and eight ordinary lines that must stay actions).
+  **Still open:** eyes-free with a real screen reader, and the **locked-screen test on an iPhone and an Android
+  phone** (a "☀ Keep awake" wake-lock switch is in, the first mitigation; whether it's enough needs the phones).
 
 - **2026-10-05 · T2 done.** The DM's reply streams (`--dm-backend ollama:<model>[+think]`, or `script:<file>` for
   tests and demos) and becomes `dm_part` events, one per finished sentence, each with its voice (narrator, an AI

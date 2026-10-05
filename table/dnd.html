@@ -51,6 +51,11 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 30px;font-size:12.5px;color
 #maphint{min-height:1.3em}
 #art{display:none;width:100%;height:120px;object-fit:cover;border-radius:10px;margin:2px 0 10px;box-shadow:inset 0 0 0 1px var(--line)}
 #talk{touch-action:none;user-select:none;-webkit-user-select:none}
+body.theater #mapPanel{display:none}
+body.theater #talk{font-size:44px;padding:22px 34px;border-radius:50%}
+#cardPanel{display:none} body.theater #cardPanel{display:block}
+#card .zone{margin:6px 0;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.04)}
+#card .zone b{color:var(--gold)} #card .who{opacity:.9} #card .fight{color:#ff9b6a}
 #talk.rec{background:#7a2318;border-color:#ff9b6a}
 #map3d{position:relative;height:min(62vh,560px);border-radius:8px;overflow:hidden;background:#071820;touch-action:none;display:none}
 #map3d canvas{display:block;width:100%;height:100%}
@@ -77,7 +82,12 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 30px;font-size:12.5px;color
       <div class="row small"><span id="maphint">Tap your character, then a square.</span><span style="flex:1"></span>
         <select id="loc" style="width:auto;display:none" aria-label="location"></select></div>
     </div>
+    <div class="panel" id="cardPanel"><div class="row" style="margin:0 0 6px"><h2 style="margin:0;flex:1">Where things are</h2>
+        <button id="awake" class="small" aria-pressed="false" title="keep this phone's screen on so the voice keeps going">☀ Keep awake</button></div>
+      <div id="card" aria-live="polite"></div></div>
     <div class="panel">
+      <div class="row small" style="margin:0 0 6px"><span style="flex:1"></span>
+        <button id="modeBtn" class="small" title="switch between the battle map and theater of the mind">🎭 Theater of the mind</button></div>
       <div id="log" aria-live="polite"></div>
       <div id="think"></div>
       <div id="begin" style="display:none;margin-top:10px">
@@ -300,6 +310,7 @@ function sayLine(text, speaker) {
 function seatName() { return window.TableSeat && TableSeat.name ? TableSeat.name() : null; }
 function speakEvent(e) {
   if (e.type === "dm_part") { VOICE.spokenTurns.add(e.turn); return sayLine(e.text, e.voice); }
+  if (e.type === "answer") return e.to === seatName() ? sayLine(e.text, "table") : undefined;   // to the asker only
   if ((e.type === "dm" || e.type === "say") && e.turn && VOICE.spokenTurns.has(e.turn)) return;   // already spoken in parts
   if (e.type === "dm") return sayLine(e.text, "narrator");
   if (e.type === "say" && e.by !== seatName()) return sayLine(e.text, e.by);   // what others said or did, in their voice
@@ -325,8 +336,39 @@ if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { VOICE.pool
 $("tableSpeaker").onclick = () => post("/api/dnd/speaker", { on: !(S && S.speaker === seatName()) });
 window.DNDVOICE = VOICE;
 
+// ── theater of the mind (docs/THEATER-GOAL.md T3) ──────────────────────────────────────────────────
+function renderTheater() {
+  const th = !!(S && S.mode === "theater");
+  document.body.classList.toggle("theater", th);
+  $("modeBtn").textContent = th ? "🗺 Back to the battle map" : "🎭 Theater of the mind";
+  if (!th) return;
+  const c = S.card || { zones: [], where: {}, engaged: [] };
+  if (!c.zones.length) { $("card").innerHTML = '<p class="small">No scene yet: the Dungeon Master sets the places.</p>'; return; }
+  const fights = c.engaged.map(p => p.join(" ⚔ "));
+  $("card").innerHTML = c.zones.map(z => {
+    const here = Object.entries(c.where).filter(([, w]) => w === z.name).map(([n]) => n);
+    return `<div class="zone"><b>${esc(z.name)}</b>${z.desc ? ` · ${esc(z.desc)}` : ""}${z.cover !== "none" ? ` · ${esc(z.cover)} cover` : ""}
+      <div class="who">${here.length ? here.map(esc).join(", ") : "nobody"}</div>
+      <div class="small">next to: ${z.next.map(esc).join(", ") || "nowhere"}</div></div>`;
+  }).join("") + (fights.length ? `<div class="fight">Fighting: ${fights.map(esc).join(" · ")}</div>` : "");
+}
+$("modeBtn").onclick = () => post("/api/dnd/mode", { mode: S && S.mode === "theater" ? "map" : "theater" });
+let wake = null;                              // a screen wake lock: the first try at keeping the voice going on a walk
+async function keepAwake(on) {
+  try {
+    if (on && navigator.wakeLock) { wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => { wake = null; showAwake(); }); }
+    else if (wake) { await wake.release(); wake = null; }
+  } catch (e) { $("err").textContent = "This phone won't keep the screen on: " + e.message; }
+  showAwake();
+}
+function showAwake() { $("awake").textContent = wake ? "☀ Screen stays on" : "☀ Keep awake"; $("awake").setAttribute("aria-pressed", !!wake); }
+$("awake").onclick = () => keepAwake(!wake);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && $("awake").dataset.want === "1" && !wake) keepAwake(true); });
+$("awake").addEventListener("click", () => { $("awake").dataset.want = wake ? "0" : "1"; });
+
 function line(e) {
   if (e.type === "dm") return `<div class="dm">${esc(e.text)}</div>`;
+  if (e.type === "answer") return e.to === seatName() ? `<div class="e note">↳ ${esc(e.text)}</div>` : "";
   if (e.type === "roll") return `<div class="e roll ${e.roll && e.roll.crit ? "crit" : ""} ${e.roll && e.roll.fumble ? "fumble" : ""}">🎲 ${esc(e.text)}</div>`;
   if (e.type === "say") return `<div class="e ${e.ic ? "" : "ooc"}"><b>${esc(e.by)}</b>${e.ic ? "" : " (table talk)"}: ${esc(e.text)}${e.photo ? `<br><img src="${esc(e.photo)}" alt="photo">` : ""}</div>`;
   if (e.type === "dnd" && e.kind !== "thinking") return `<div class="e note">${esc(e.text)}</div>`;
@@ -346,6 +388,7 @@ async function tick() {
     }
     VOICE.firstBatch = false;
     voiceButton();
+    renderTheater();
     draw();
     establishing();
   } catch {}

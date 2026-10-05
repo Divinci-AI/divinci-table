@@ -90,5 +90,25 @@ check("a short reply is still split into sentences", parts_from(["Hi there. Run!
 check("a short companion line at the very end keeps its voice", parts_from(["The door opens.\nLeonardo: Careful."])[-1] == ("Leonardo", "Careful."))
 check("a local backend runs the AI DM on the laptop with no Fusion key", D.ai_dm_enabled())
 
+print("\nspoken commands (T3): dice and questions, and what must stay an action")
+R = D.spoken_roll
+check("'roll stealth with advantage'", R("Roll stealth with advantage") == {"dice": "d20", "mode": "adv", "why": "stealth"})
+check("'roll a d20'", R("roll a d20") == {"dice": "d20", "mode": "", "why": ""})
+check("'let me roll 2d6 for damage'", R("let me roll 2d6 for damage") == {"dice": "2d6", "mode": "", "why": "damage"})
+check("'I rolled fourteen for perception' (a real die)", R("I rolled fourteen for perception") == {"dice": "d20", "mode": "", "why": "perception", "physical": [14]})
+check("'I rolled twenty-one' isn't a d20", R("I rolled twenty-one") is None)
+check("'I rolled a 17 and a 4 with disadvantage'", R("I rolled a 17 and a 4 with disadvantage") == {"dice": "d20", "mode": "dis", "why": "", "physical": [17, 4]})
+for act in ("I rolled under the table.", "I roll the barrel down the stairs.", "I tell him to roll with it.",
+            "The dice are rolling in my head", "I look for the sleight of hand trick he used"):
+    check(f"an action stays an action: {act!r}", R(act) is None, str(R(act)))
+D.new_game()
+D.ZONES.set_zones(D.G["card"], [{"name": "the bar"}, {"name": "the door"}]); D.sync_zone_creatures()
+Q = D.spoken_question
+check("'where am I?' answers from the card", (Q("Michael", "Where am I?") or "").startswith("You're in the bar"))
+check("'what's around me' too", (Q("Michael", "what's around me") or "").startswith("You're in the bar"))
+check("'how hurt am I' is your own hit points", (Q("Michael", "how hurt am I") or "").startswith("You have "))
+for act in ("I ask the barkeep where the caravan went.", "I turn around and draw my bow.", "It's my turn to buy a round!"):
+    check(f"a line that isn't a question to the table stays an action: {act!r}", Q("Michael", act) is None, str(Q("Michael", act)))
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

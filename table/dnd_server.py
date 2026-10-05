@@ -339,6 +339,68 @@ def apply_zone_lines(d: dict) -> None:
                 EVENTS.emit("dnd", kind="zone", text=f"{a} and {b} are fighting")
 
 
+# ── spoken commands (docs/THEATER-GOAL.md T3): answered by code, never by the model ───────────────
+NUMBER_WORDS = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve thirteen "
+                                           "fourteen fifteen sixteen seventeen eighteen nineteen twenty".split())}
+SKILLS = ("acrobatics animal handling arcana athletics deception history insight intimidation investigation medicine "
+          "nature perception performance persuasion religion sleight of hand stealth survival initiative strength "
+          "dexterity constitution intelligence wisdom charisma attack damage death save").split()
+
+
+def _num(w: str) -> int | None:
+    w = w.strip().lower()
+    if w.isdigit():
+        return int(w)
+    if w in NUMBER_WORDS:
+        return NUMBER_WORDS[w]
+    m = re.fullmatch(r"twenty[- ]?(one|two|three|four|five|six|seven|eight|nine)", w)
+    return 20 + NUMBER_WORDS[m.group(1)] if m else None
+
+
+def spoken_question(by: str, text: str) -> str | None:
+    """'Where am I?', 'what's near me?', 'whose turn is it?', 'how hurt am I?': answered from the table's own state,
+    the same every time, and instantly. None if the line isn't one of these."""
+    t = re.sub(r"[^a-z' ]", " ", text.lower())
+    t = " ".join(t.split())
+    if re.search(r"\b(where am i|where are we|where is everyone|what('s| is) (near|around) me|who('s| is) (near|around) me)\b", t):
+        if not G["card"]["zones"]:
+            return "There's no scene card yet: ask the Dungeon Master to set the scene."
+        return ZONES.describe(G["card"], by)
+    if re.search(r"\b(whose turn|who('s| is) (turn|up|next))\b", t):
+        now = turn_name()
+        if not now:
+            return "We're not in a fight: nobody's turn." if not G["initiative"]["pending"] else \
+                "Initiative: still waiting for " + ", ".join(G["initiative"]["pending"]) + " to roll."
+        ini = G["initiative"]
+        nxt = ini["order"][(ini["turn"] + 1) % len(ini["order"])]["name"]
+        return f"Round {ini['round']}: it's {'your' if now == by else now + chr(39) + 's'} turn. Next up: {nxt}."
+    if re.search(r"\b(how hurt am i|how am i doing|my (hit points|hp|health)|how many hit points)\b", t):
+        sh = G["sheets"].get(by)
+        if not sh:
+            return "You don't have a character sheet at this table."
+        cond = ", ".join(sh["conditions"])
+        return f"You have {sh['hp']} of {sh['max_hp']} hit points" + (f", and you're {cond}" if cond else "") + "."
+    return None
+
+
+def spoken_roll(text: str) -> dict | None:
+    """'roll stealth with advantage', 'roll a d20', 'I rolled fourteen for perception': a roll request, or None."""
+    t = " ".join(re.sub(r"[^a-z0-9' -]", " ", text.lower()).split())
+    mode = "adv" if "advantage" in t and "disadvantage" not in t else "dis" if "disadvantage" in t else ""
+    why = next((k for k in sorted(SKILLS, key=len, reverse=True) if re.search(rf"\b{k}\b", t)), "")
+    m = re.search(r"\bi rolled (?:an? )?([a-z0-9-]+)(?: and (?:an? )?([a-z0-9-]+))?", t)
+    if m:
+        faces = [n for n in (_num(m.group(1)), _num(m.group(2)) if m.group(2) else None) if n is not None]
+        if faces and all(1 <= f <= 20 for f in faces):
+            return {"dice": "d20", "mode": mode if len(faces) == 2 else "", "why": why, "physical": faces}
+        return None
+    m = re.match(r"^(?:let me |i )?roll(?: (?:a|an|for|my))? ?(?:(\d*)d(\d+))?", t)
+    if m and (m.group(2) or why):
+        dice = f"{m.group(1) or ''}d{m.group(2)}" if m.group(2) else "d20"
+        return {"dice": dice, "mode": mode, "why": why}
+    return None
+
+
 def turn_name() -> str | None:
     ini = G["initiative"]
     return ini["order"][ini["turn"]]["name"] if ini["active"] and ini["order"] and not ini["pending"] else None
@@ -985,6 +1047,13 @@ class H(BaseHTTPRequestHandler):
             text = clean_text(b.get("text"), 600)
             if not text:
                 return 400, {"error": "say or do something"}, None
+            ans = spoken_question(by, text)                   # a question to the table, not an action: answered by
+            if ans:                                           # code, to the asker only, and the DM isn't called
+                EVENTS.emit("answer", to=by, q=text, text=ans)
+                return 200, {"ok": True, "answer": ans}, None
+            r = spoken_roll(text)
+            if r:
+                return self._act("/api/dnd/roll", r, by, is_dm)
             EVENTS.emit("say", by=by, text=text, ic=True)
             G["ai_spoke"] = None
             speak = companions_to_speak(text, now)
@@ -1080,6 +1149,15 @@ class H(BaseHTTPRequestHandler):
             elif act == "end":
                 G["initiative"] = {"active": False, "order": [], "turn": 0, "round": 1, "pending": []}
                 EVENTS.emit("dnd", kind="initiative", text="Combat is over.")
+            return 200, public_state(), None
+        if p == "/api/dnd/mode":                              # map or theater: the DM's seat, or anyone seated when the AI runs it
+            mode = b.get("mode")
+            if mode not in ("map", "theater"):
+                return 400, {"error": "mode is map or theater"}, None
+            if DM_HUMAN and not is_dm:
+                return 403, {"error": "only the DM's seat changes the mode"}, None
+            G["mode"] = mode
+            EVENTS.emit("dnd", kind="mode", text="Theater of the mind: no board, just the story" if mode == "theater" else "The battle map is back")
             return 200, public_state(), None
         if p == "/api/dnd/speaker":                           # same room: one device speaks for the table
             if b.get("on"):

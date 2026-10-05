@@ -34,7 +34,8 @@ interface Env {
 }
 
 interface AiSeat { name: string; commander: string; deck: string }
-interface RoomConfig { humans: string[]; ai: AiSeat[]; pilots?: AiSeat[]; game: "magic" | "chess" | "dnd"; white?: string; black?: string; minutes?: number; increment?: number; dm?: string }
+interface RoomConfig { humans: string[]; ai: AiSeat[]; pilots?: AiSeat[]; game: "magic" | "chess" | "dnd"; white?: string; black?: string; minutes?: number; increment?: number; dm?: string;
+	mode?: "map" | "theater" }       // D&D: the battle map, or theater of the mind (docs/THEATER-GOAL.md)
 interface RoomInfo { id: string; title: string; game: string; humans: string[]; ai: string[]; created: number; claimed?: string[] }
 
 // AI opponents a public room may seat. Each is played by a Divinci release (one per deck).
@@ -527,10 +528,10 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 	const form = await request.formData();
 	const back = (msg: string) => Response.redirect(new URL("/?error=" + encodeURIComponent(msg), request.url).toString(), 303);
 	const g = String(form.get("game") ?? "");
-	const game = g === "chess" || g === "dnd" ? g : "magic";
+	const game = g === "chess" || g === "dnd" || g === "dnd-theater" ? g : "magic";
 	const humans = String(form.get("humans") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 	if (game === "chess") return createChess(request, env, lobby, form, humans, back);
-	if (game === "dnd") return createDnd(request, env, lobby, form, humans, back);
+	if (game === "dnd" || game === "dnd-theater") return createDnd(request, env, lobby, form, humans, back, game === "dnd-theater" ? "theater" : "map");
 	if (humans.length < 1 || humans.length > 4) return back("Name between one and four human seats.");
 	if (!humans.every((h) => NAME_RE.test(h))) return back("Seat names: letters, numbers and spaces, up to 24 characters.");
 	const ai: AiSeat[] = [];
@@ -604,7 +605,7 @@ const aiDm = (env: Env) => env.DND_CLOUD_AI === "1" && !!env.DND_DM_RELEASE_ID &
 /** A D&D one-shot: up to six players. Unless the AI Dungeon Master is switched on for public rooms
  *  (a budget decision), the FIRST name runs the game from behind the screen. */
 async function createDnd(request: Request, env: Env, lobby: DurableObjectStub<Lobby>, form: FormData, humans: string[],
-	back: (msg: string) => Response): Promise<Response> {
+	back: (msg: string) => Response, mode: "map" | "theater" = "map"): Promise<Response> {
 	const ai = aiDm(env);
 	if (humans.length < (ai ? 1 : 2) || humans.length > 6) {
 		return back(ai ? "D&D seats one to six players." : "D&D seats two to seven people: the first name is the Dungeon Master.");
@@ -618,7 +619,7 @@ async function createDnd(request: Request, env: Env, lobby: DurableObjectStub<Lo
 		request.headers.get("CF-Connecting-IP") ?? "unknown");
 	if (why) return back(why);
 	await env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/setup?id=" + id, {
-		method: "POST", body: JSON.stringify({ game: "dnd", humans: players, ai: [], dm } satisfies RoomConfig),
+		method: "POST", body: JSON.stringify({ game: "dnd", humans: players, ai: [], dm, mode } satisfies RoomConfig),
 	}));
 	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
 }
@@ -711,7 +712,8 @@ ${error ? `<div class="err">${esc(error)}</div>` : ""}
 <label>Game</label><div class="opps">
 <label class="opp"><input type=radio name=game value=magic checked><b>Magic: Commander</b>Two to four seats, people and AI</label>
 <label class="opp"><input type=radio name=game value=chess><b>Chess</b>One or two people; alone, you face Leonardo</label>
-<label class="opp"><input type=radio name=game value=dnd><b>D&amp;D one-shot</b>Real dice or fair ones; the first name is the Dungeon Master</label></div>
+<label class="opp"><input type=radio name=game value=dnd><b>D&amp;D one-shot</b>Real dice or fair ones; the first name is the Dungeon Master</label>
+<label class="opp"><input type=radio name=game value=dnd-theater><b>D&amp;D, theater of the mind</b>No board: the table speaks, you talk, the story lives in your heads</label></div>
 <label for=title>Table name</label><input type=text id=title name=title maxlength=40 placeholder="Friday Commander">
 <label for=humans>Human seats (comma-separated names; chess: White first)</label><input type=text id=humans name=humans required placeholder="Michael, Sam">
 <label>AI opponents · played by Divinci Fusion · up to two</label>
