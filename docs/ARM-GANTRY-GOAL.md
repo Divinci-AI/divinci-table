@@ -49,8 +49,17 @@ The AI player gets a body at the table: **eyes overhead and a hand at its own se
 - [ ] Buy: SO-101 **follower** electronics (6 × STS3215 7.4 V 1:345, driver board, 5 V/12 V supply per the vendor,
       table clamps), a **32 × 32 mm UVC wrist camera**, PLA+ filament if short. The gantry carts (Home Depot + the
       Amazon list "Divinci Table – gantry") are already filled. *The leader arm waits for G7.*
-- [ ] **Print the SO-101 follower parts first** (TheRobotStudio STLs; ≥ 220 × 220 bed; PLA+), plus our **suction
-      wrist adapter** (G4) and the wrist-camera mount, while the CR-6 Max is still a printer.
+      *2026-10-04, in the Amazon cart and the private list "Divinci Table – rig" (not yet checked out):*
+      ForgeMotion Labs SO-101 follower kit with printed frame — 6 × STS3215 12 V 1:345 (C018), board, power supply
+      ([B0GRPJ2Q8F](https://www.amazon.com/dp/B0GRPJ2Q8F), $197.98); innomaker 1080p 32 × 32 mm UVC wrist camera
+      ([B0CNCSFQC1](https://www.amazon.com/dp/B0CNCSFQC1), $18.99); RSHTECH 7-port powered USB hub
+      ([B0CGX8LNMC](https://www.amazon.com/dp/B0CGX8LNMC), $31.99 — Canon, printer, Nano, arm board and wrist camera
+      outnumber the Mac's ports); KarlKers 20 A inline 12–24 V switch as the arm's kill switch
+      ([B0CD4Q36LW](https://www.amazon.com/dp/B0CD4Q36LW), $9.99). Amazon cart total with the gantry parts: $428.46.
+      Buying the frame printed frees the CR-6 Max to become the gantry at once; PLA+ (in hand) is for the suction
+      wrist adapter and camera mount only.
+- [ ] **Print our suction wrist adapter** (G4) **and the wrist-camera mount** while the CR-6 Max is still a printer
+      (the SO-101 frame comes printed with the kit).
 - [ ] Decide the suction hardware split: **phase 1 puts the one suction set (pump, valve, cups, Nano) on the arm**; the
       gantry is camera-only. A second set for a gantry head only if G8 shows we need long moves.
 - [ ] **Check:** every part in hand; prints pass a fit test (servo horns press on, screws bite).
