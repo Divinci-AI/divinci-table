@@ -19,6 +19,14 @@ function load(url) {
   if (!cache.has(url)) cache.set(url, loader.loadAsync(url).catch(e => { cache.delete(url); throw e; }));
   return cache.get(url);
 }
+// A failed download is tried again (1, 3, 9, 20 s later) for as long as it's still wanted. Without this one blip
+// (a dropped request, a rollout, an edge hiccup) left the placeholder up until a refresh (seen live 2026-10-05).
+export const RETRY_MS = [1000, 3000, 9000, 20000];
+function loadRetry(url, wanted, onLoad, attempt = 0) {
+  load(url).then(g => { if (wanted()) onLoad(g); }).catch(() => {
+    if (wanted() && attempt < RETRY_MS.length) setTimeout(() => wanted() && loadRetry(url, wanted, onLoad, attempt + 1), RETRY_MS[attempt]);
+  });
+}
 
 export function createDndScene() {
   const root = new THREE.Group();                        // move/scale this to put the table somewhere (XR diorama)
@@ -64,13 +72,12 @@ export function createDndScene() {
     clear(roomG); clear(gridG);
     roomG.add(fallbackRoom(layout)); gridG.add(grid());
     const url = assetURL(map.assets?.room);
-    if (url) load(url).then(gltf => {
-      if (key !== k) return;                             // the location changed while it loaded
+    if (url) loadRetry(url, () => key === k, gltf => {   // the placeholder stays until (unless) it arrives
       clear(roomG);
       const room = gltf.scene.clone(true);
       room.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
       roomG.add(room);
-    }).catch(() => {});                                  // keep the fallback
+    });
   }
 
   function standee(t) {                                  // the creature's initials on a card in its side's colour
@@ -106,7 +113,7 @@ export function createDndScene() {
     group.traverse(o => { o.userData.tokenId = t.id; });
     const rec = { group, body, ring, turn, from: null, to: null, t: 1, data: t, mixer: null };
     const url = t.mini && minis[t.mini] ? assetURL(minis[t.mini]) : null;
-    if (url) load(url).then(gltf => {
+    if (url) loadRetry(url, () => toks.get(t.id) === rec, gltf => {   // the standee stays until (unless) it arrives
       const model = cloneSkinned(gltf.scene);
       model.traverse(o => { if (o.isMesh) o.castShadow = true; o.userData.tokenId = t.id; });
       model.position.y = 0.05;
@@ -117,7 +124,7 @@ export function createDndScene() {
         rec.mixer.clipAction(clip).play();
         rec.walk = gltf.animations.find(a => /walk|run/i.test(a.name));
       }
-    }).catch(() => {});                                  // keep the standee
+    });
     return rec;
   }
 

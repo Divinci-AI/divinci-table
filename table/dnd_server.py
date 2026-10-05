@@ -195,12 +195,25 @@ def set_location(loc_id: str, start: bool = False) -> str | None:
     if not loc or not (start or playable(loc)):
         return "no such location"
     G["map"] = MAP.new_map(loc, ASSETS.get("cell_ft", 5))
-    G["map"]["assets"] = {k: loc.get(k) for k in ("room", "map_image", "view", "art", "shot", "shot_orig") if loc.get(k)} if playable(loc) else {}
-    G["map"]["draft"] = loc.get("status") != "approved"
     for name, s in G["sheets"].items():
         MAP.place(G["map"], name, "pc", owner=None if s.get("companion") else name, speed=s.get("speed", 30))
     sync_monster_tokens()
     return None
+
+
+ASSET_KEYS = ("room", "map_image", "view", "art", "shot", "shot_orig")
+
+
+def map_view() -> dict:
+    """The map as players see it. Its files and its draft mark come from the location's status NOW, not when the
+    map was set: a game started on a draft (or restored from a snapshot taken before approval, or set by an older
+    image mid-rollout) picks up the room once it's approved, and a location sent back to draft stops going out at
+    once. Seen live 2026-10-05: a room created mid-rollout kept "draft" and the placeholder after approval."""
+    m = MAP.public(G["map"])
+    loc = MAP.location(ASSETS, m.get("location", ""))
+    m["assets"] = {k: loc[k] for k in ASSET_KEYS if loc and loc.get(k)} if loc and playable(loc) else {}
+    m["draft"] = not loc or loc.get("status") != "approved"
+    return m
 
 
 def bestiary(name: str) -> dict | None:
@@ -524,7 +537,7 @@ def public_state(viewer: str | None = None) -> dict:
                 "companions": [{"name": c["name"], "chattiness": c["chattiness"]} for c in COMPANIONS],
                 "sheets": {n: public_sheet(s) for n, s in G["sheets"].items()}, "monsters": G["monsters"],
                 "initiative": G["initiative"], "pregens": sorted(PREGENS), "credit": CREDIT,
-                "map": MAP.public(G["map"]),
+                "map": map_view(),
                 "minis": {x["id"]: x["glb"] for x in ASSETS.get("minis", []) if x.get("glb")},
                 "locations": [{"id": x["id"], "name": x["name"] + ("" if x.get("status") == "approved" else " (draft)")}
                               for x in playable_locations()]}

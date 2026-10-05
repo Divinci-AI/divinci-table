@@ -376,10 +376,18 @@ check("…nor a mini the manifest doesn't list", code == 404)
 check("in a cloud room, drafts aren't offered", "fixture" not in [x["id"] for x in D.public_state()["locations"]])
 check("…can't be switched to", D.set_location("fixture") is not None)
 D.set_location("fixture", start=True)
-check("…and a game that starts on a draft's grid gets none of its files", D.G["map"]["assets"] == {})
+pm = D.public_state()["map"]
+check("…and a game that starts on a draft's grid gets none of its files", pm["assets"] == {} and pm["draft"])
+fx["status"] = "approved"
+pm = D.public_state()["map"]
+check("once approved, the running game's map picks up its files without being reset (stale-draft fix)",
+      pm["assets"].get("room") == "dnd/locations/fixture/room.glb" and not pm["draft"])
+fx["status"] = "draft"
+pm = D.public_state()["map"]
+check("…and sent back to draft, a running game stops offering them at once", pm["assets"] == {} and pm["draft"])
 fx["status"] = "approved"
 D.set_location("fixture")
-check("once approved, its files go out", D.G["map"]["assets"].get("room") == "dnd/locations/fixture/room.glb")
+check("once approved, its files go out", D.public_state()["map"]["assets"].get("room") == "dnd/locations/fixture/room.glb")
 D.CLOUD = False
 shutil.rmtree(tmp, ignore_errors=True)
 
