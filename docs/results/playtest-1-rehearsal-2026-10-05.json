@@ -1,0 +1,421 @@
+{
+ "started": "2026-10-05T10:18:05.388Z",
+ "checks": [
+  {
+   "ok": true,
+   "what": "every player has a pregen sheet"
+  },
+  {
+   "ok": true,
+   "what": "tavern: the DM's two bandits are on the map"
+  },
+  {
+   "ok": true,
+   "what": "tavern brawl: initiative is set (players rolled; the table rolled Bandit 1, Bandit 2)"
+  },
+  {
+   "ok": true,
+   "what": "tavern brawl: a full round came round"
+  },
+  {
+   "ok": true,
+   "what": "a real-die entry (Cy's 14) is in the public log"
+  },
+  {
+   "ok": true,
+   "what": "every roll is public (5 rolls in the log)"
+  },
+  {
+   "ok": true,
+   "what": "road: 4 goblins and a wolf are on the map"
+  },
+  {
+   "ok": true,
+   "what": "road: a 45-ft move on Ben's 30-ft turn is refused (\"too far: 25 ft of movement left this turn\")"
+  },
+  {
+   "ok": true,
+   "what": "road: Cy's 3D table walks Ben's token to its new square"
+  },
+  {
+   "ok": true,
+   "what": "cave: the bugbear and two goblins are on the map"
+  },
+  {
+   "ok": true,
+   "what": "cave fight: initiative is set (players rolled; the table rolled Bugbear, Goblin 1, Goblin 2)"
+  },
+  {
+   "ok": true,
+   "what": "cave fight: a full round came round"
+  },
+  {
+   "ok": true,
+   "what": "cave: Ben marks himself poisoned and Ana's phone shows it"
+  },
+  {
+   "ok": true,
+   "what": "cave: the DM can't change Ana's hit points (\"only a player has hit points here\")"
+  },
+  {
+   "ok": true,
+   "what": "cave: Ana takes her own damage, goes down, and the log says so"
+  },
+  {
+   "ok": true,
+   "what": "Ana's survey is saved"
+  },
+  {
+   "ok": true,
+   "what": "Ben's survey is saved"
+  },
+  {
+   "ok": true,
+   "what": "Cy's survey is saved"
+  },
+  {
+   "ok": true,
+   "what": "three surveys in the room's research folder, none in the public log (3 files)"
+  },
+  {
+   "ok": true,
+   "what": "survey answers are not in the public log"
+  },
+  {
+   "ok": true,
+   "what": "Ana (phone): no horizontal scrolling"
+  },
+  {
+   "ok": true,
+   "what": "Ben (phone): no horizontal scrolling"
+  },
+  {
+   "ok": true,
+   "what": "no page errors on any device"
+  }
+ ],
+ "metrics": [
+  {
+   "what": "room load (3D room)",
+   "device": "Michael (DM, desktop)",
+   "ms": 7120,
+   "limit": 5000,
+   "ok": false
+  },
+  {
+   "what": "room load (2D map picture)",
+   "device": "Ana (phone)",
+   "ms": 329,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "room load (2D map picture)",
+   "device": "Ben (phone)",
+   "ms": 443,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "room load (3D room)",
+   "device": "Cy (desktop 3D)",
+   "ms": 2913,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "room load (headset 3D)",
+   "device": "Cy (headset page)",
+   "ms": 3658,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → tavern",
+   "device": "Michael (DM, desktop)",
+   "ms": 120,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → tavern",
+   "device": "Ana (phone)",
+   "ms": 1149,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → tavern",
+   "device": "Ben (phone)",
+   "ms": 1150,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → tavern",
+   "device": "Cy (desktop 3D)",
+   "ms": 1407,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → tavern",
+   "device": "Cy (headset page)",
+   "ms": 1408,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Michael (DM, desktop)",
+   "ms": 314,
+   "limit": 1000,
+   "ok": true
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Ana (phone)",
+   "ms": 1186,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Cy (desktop 3D)",
+   "ms": 1445,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Cy (headset page)",
+   "ms": 1445,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Michael (DM, desktop)",
+   "ms": 361,
+   "limit": 1000,
+   "ok": true
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Ana (phone)",
+   "ms": 1240,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Ben (phone)",
+   "ms": 1241,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Cy (headset page)",
+   "ms": 1242,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Michael (DM, desktop)",
+   "ms": 628,
+   "limit": 1000,
+   "ok": true
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Ben (phone)",
+   "ms": 990,
+   "limit": 1000,
+   "ok": true
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Cy (desktop 3D)",
+   "ms": 991,
+   "limit": 1000,
+   "ok": true
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Cy (headset page)",
+   "ms": 992,
+   "limit": 1000,
+   "ok": true
+  },
+  {
+   "what": "location switch → road",
+   "device": "Michael (DM, desktop)",
+   "ms": 56,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → road",
+   "device": "Ana (phone)",
+   "ms": 467,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → road",
+   "device": "Ben (phone)",
+   "ms": 1474,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → road",
+   "device": "Cy (desktop 3D)",
+   "ms": 1475,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → road",
+   "device": "Cy (headset page)",
+   "ms": 1476,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → cave",
+   "device": "Michael (DM, desktop)",
+   "ms": 56,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → cave",
+   "device": "Ana (phone)",
+   "ms": 829,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → cave",
+   "device": "Ben (phone)",
+   "ms": 829,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → cave",
+   "device": "Cy (desktop 3D)",
+   "ms": 1087,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "location switch → cave",
+   "device": "Cy (headset page)",
+   "ms": 1652,
+   "limit": 5000,
+   "ok": true
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Michael (DM, desktop)",
+   "ms": 822,
+   "limit": 1000,
+   "ok": true
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Ana (phone)",
+   "ms": 822,
+   "limit": 1000,
+   "ok": true
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Ben (phone)",
+   "ms": 1232,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Cy (headset page)",
+   "ms": 1232,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Michael (DM, desktop)",
+   "ms": 1083,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Ben (phone)",
+   "ms": 1495,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Cy (desktop 3D)",
+   "ms": 1496,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Cy (headset page)",
+   "ms": 1497,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Michael (DM, desktop)",
+   "ms": 1083,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Ana (phone)",
+   "ms": 1083,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Cy (desktop 3D)",
+   "ms": 1084,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "a move reaches the others",
+   "device": "Cy (headset page)",
+   "ms": 1084,
+   "limit": 1000,
+   "ok": false
+  },
+  {
+   "what": "headset page frame time (headless, software GL: a ceiling, not the Quest)",
+   "device": "Cy (headset page)",
+   "ms": 59,
+   "limit": null,
+   "ok": true
+  }
+ ],
+ "findings": [],
+ "summary": {
+  "checks": 23,
+  "failed": 0,
+  "metrics": 45,
+  "over_target": 17
+ }
+}

@@ -56,7 +56,9 @@ ap.add_argument("--port", type=int, default=8810)
 args = ap.parse_args()
 
 CLOUD = os.environ.get("TABLE_CLOUD") == "1" or sys.platform != "darwin"
-RESEARCH = HERE / ".cache" / "research" / "dnd"
+RESEARCH = Path(os.environ.get("TABLE_RESEARCH_DIR") or HERE / ".cache" / "research") / "dnd"   # like server.py: tests
+# point TABLE_RESEARCH_DIR at a temp dir. Until 2026-10-05 this ignored it, so every browser test's games and surveys
+# landed among real games' research data (found by the Playtest 1 rehearsal).
 API = "https://api.divinci.app"
 _CONF = {}
 try:

@@ -166,6 +166,25 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
 - [ ] A two-hour one-shot with people on web, phone and headset together; surveys afterwards.
 - [ ] **Check:** results in the ledger; what broke goes into the next goal.
 
+## D10 — Playtest 1: the rehearsal's bug list, then the real one
+
+*2026-10-05.* `table/tests/dnd_playtest_rehearsal.cjs` plays all of `docs/PLAYTEST-1.md` on a local table: Michael
+as DM on a desktop, Ana and Ben on phones, Cy on a desktop in 3D with the headset page open too; three scenes
+(tavern brawl, road ambush, the goblin cave), with the plan's measurements. 23/23 checks pass; the measurements
+are in `docs/results/playtest-1-rehearsal-2026-10-05.json`. What it can't measure is everything the plan is really
+for: confusion, comfort, the Quest itself, the cloud's latency. Those need the real playtest.
+
+| # | Finding | Status |
+|---|---|---|
+| 1 | **Moves reach the other devices too slowly:** median 1.08 s, worst 1.50 s; 16 of 24 over the 1 s target, on phones, 3D desktop and headset alike. Cause: the pages poll (`dnd.html` every 1.5 s, `/xr` every 1 s). | **Open, needs a decision.** Long-poll `/api/events` (the server answers as soon as anything happens, ≤ 25 s): near-instant, and fewer requests than polling faster. Or poll every 0.5 s: simple, but ~3× the requests through the Worker in the cloud. Recommended: long-poll. |
+| 2 | **`dnd_server.py` ignored `TABLE_RESEARCH_DIR`**, so every D&D browser test wrote its games and surveys among real games' research data (`table/.cache/research/dnd/`, 52 dated entries from test runs). | **Fixed.** Tests now leave that folder untouched (54 entries before and after a full D&D test pass). The 52 older entries are left for Michael to clear: some could be real local games. |
+| 3 | Location switches: median 1.15 s, worst 1.65 s to every device, headset included (target 5 s). Rolls (phone and real), damage and conditions owned by their players, a 45-ft move on a 30-ft turn refused, someone going down, surveys private: all as designed. | Fine. |
+| 4 | The first desktop's 3D room took 7.1 s with five browsers starting at once on one laptop; a desktop alone takes 2.7–3.6 s. | Not a bug: an artefact of simulating everyone on one machine with software graphics. Re-measure on real devices. |
+| 5 | Headset page frame time 59 ms under headless software GL. | Says nothing about the Quest (72 fps there in D6's check). Measure on the headset. |
+
+- [ ] Decide #1 (long-poll recommended) and fix it; the rehearsal's move metric is the check (< 1 s on every device).
+- [ ] The real Playtest 1 with people: confusion, comfort, the Quest, cloud load and switch times, the cost.
+
 ## Done log
 
 - **2026-10-05 · Hardening after the first cloud check.** (1) A failed room/mini download is retried
