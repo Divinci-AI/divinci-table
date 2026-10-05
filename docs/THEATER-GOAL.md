@@ -73,7 +73,7 @@ grid, and nothing has been measured for a conversation's pace.
       (stubbed synthesis), never clicking the map; the answers to the four questions match the scene card.
 
 ## T4 — The local DM, measured
-- [ ] Ten fixed scenes (a tavern talk, an ambush, a chase, a puzzle door, a death-saving throw…), each with a
+- [x] Ten fixed scenes (a tavern talk, an ambush, a chase, a puzzle door, a death-saving throw…), each with a
       scene card and a player's line. Score each DM reply: **vivid** (does it paint a picture?), **consistent**
       (does it contradict the scene card?), **rules** (does it roll or change a player's numbers? it must not),
       **time to first sentence**.
@@ -104,6 +104,12 @@ grid, and nothing has been measured for a conversation's pace.
 - [ ] **Check:** the survey, the bug list, the delay numbers, the cost; what broke becomes the next goal.
 
 ## Done log
+
+- **2026-10-05 · T4, the measurable half.** `t4_dm_eval.py` + `docs/results/t4/` (replies, a blind scoring sheet,
+  the hidden key, a summary). gemma4:e2b: first sentence 0.4–1.3 s but 1–3 rule faults in 10 (moving a player in
+  TABLE, echoing the state, **missing the death saving throw**, once speaking for a player); +think: 0–1 fault (the
+  death save) but 6–10 s to speak. Waiting on: Michael's blind scores, and his OK for a larger local model's
+  download before trying it.
 
 - **2026-10-05 · T3 built; two items wait for real phones.** Theater mode in the room: no board, a large 🎙, a
   "Where things are" panel from the scene card, a mode switch (the DM's seat, or anyone seated when the AI DM runs
