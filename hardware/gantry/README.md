@@ -259,9 +259,13 @@ M1 uses the table's existing fixed camera; the Canon on the beam waits until the
 
 ## Software notes (what still needs code)
 
-- `gantry.py`'s gate refuses fans today. The magnet needs one narrow exception, **M106 S255 / M107 only** (no partial
-  power), an on-time cap, `M107` on exit, and `M107` when the table server starts. Heaters stay refused. Tapping needs
-  **G2/G3** added to the allowed moves, and every move ends with a short settle pause.
+- **Done (2026-10-05):** `gantry.py`'s gate allows exactly `M106 S255` / `M107` (no partial power, no other fan)
+  and `G2`/`G3` arcs without extrusion whose whole circle stays inside the travel. The printer sends `M107` when it
+  connects; a timer turns the magnet off after `magnet_max_s` (default 20 s); leaving `with Printer(...)`, an error,
+  Ctrl-C or SIGTERM turn it off. Commands: `gantry.py magnet on|off`, `carry X1 Y1 X2 Y2` (pick and place in one
+  run, because the magnet goes off when the program ends), `tap CX CY X Y [--ccw]`. `pick`/`place` need `touch_z`
+  (measured in Step 7) in `gantry.json`. Tested against a fake Marlin board in `table/tests/gantry_test.py`,
+  mutation-checked (no timer, any fan command). Still to do: a settle pause after moves, tuned on the real rig.
 - `gantry.py scan` assumes the camera rides on the **carriage**. With the camera on the **X beam**, X moves don't move
   the camera: use `snap` at the top of Z, and the scan needs a `camera_on: "beam"` setting so it moves only Z and Y.
 

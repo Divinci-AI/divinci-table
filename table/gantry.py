@@ -19,11 +19,24 @@ is clear of the probe path.
 
 `scan` photographs a grid, stitches it into one overhead frame, and with --post sends that frame to
 the table server's /api/board, the same endpoint a fixed overhead camera uses.
+
+The magnet hand (hardware/gantry/README.md, magnet route): a 24 V electromagnet on the part-cooling fan
+output. It is ONLY ever full on (M106 S255) or off (M107): part power holds weakly and drops cards. The
+printer sends M107 the moment it connects; a timer turns the magnet off after `magnet_max_s` (gantry.json,
+default 20 s: the maker warns against long unloaded energising); leaving `with Printer(...)`, an error, or
+SIGTERM all turn it off. Tapping is a quarter-circle arc (G2/G3) around a card corner pinned on a rubber foot.
+
+  ~/.venvs/table/bin/python table/gantry.py magnet on|off
+  ~/.venvs/table/bin/python table/gantry.py carry X1 Y1 X2 Y2  # pick at 1, put down at 2 (needs touch_z)
+  ~/.venvs/table/bin/python table/gantry.py tap CX CY X Y [--ccw]   # card held at X Y, corner pinned at CX CY
 """
 from __future__ import annotations
 
 import argparse
 import glob
+import math
+import signal
+import threading
 import json
 import re
 import subprocess
@@ -53,7 +66,9 @@ SAFE_DEFAULT = (200, 200, 200)            # unknown machine: stay inside the sma
 #   focal_mm, sensor_mm   18 mm kit lens at its widest on the T5i's APS-C sensor (22.3 x 14.9)
 #   y_feed           the bed carries the cards, so Y moves gently or they slide
 RIG_DEFAULT = {"min_z": 0, "lens_at_z0_mm": 0, "cam_offset_mm": [0, 0], "focal_mm": 18,
-               "sensor_mm": [22.3, 14.9], "y_feed": 1200, "overlap": 0.3}
+               "sensor_mm": [22.3, 14.9], "y_feed": 1200, "overlap": 0.3, "magnet_max_s": 20, "touch_z": None,
+               "lift_mm": 20, "arc_feed": 1500}
+MAGNET_ON, MAGNET_OFF = "M106 S255", "M107"
 
 
 def config() -> dict:
@@ -108,6 +123,14 @@ def safe(line: str) -> str:
     word = line.split()[0]
     if word in HEATERS_OFF and re.fullmatch(rf"{word}( T\d)? S0", line):
         return line
+    if word in ("M106", "M107"):                   # the part-fan output drives the magnet: full on or off, nothing else
+        if line in (MAGNET_ON, MAGNET_OFF):
+            return line
+        raise Refused(f"{line}: the fan output is the magnet; only '{MAGNET_ON}' and '{MAGNET_OFF}' are allowed")
+    if word in ("G2", "G3"):                       # arcs, for tapping: X Y end and I J centre offset, never extruding
+        if re.search(r"\bE", line) or not re.fullmatch(r"G[23]( [XYIJF]-?[\d.]+)+", line):
+            raise Refused(f"{line}: an arc needs X Y I J (F) only")
+        return line
     if word not in ALLOWED:
         raise Refused(f"{word} is not a camera move (no heating, extruding, fans or EEPROM)")
     if word in ("G0", "G1") and re.search(r"\bE", line):
@@ -125,6 +148,9 @@ def find_ports() -> list[str]:
 class Printer:
     def __init__(self, port: str | None = None, baud: int | None = None, ser=None, log=print):
         self.log = log
+        self._lock = threading.RLock()                 # the magnet's timer and the caller share one serial line
+        self._magnet_timer: threading.Timer | None = None
+        self.magnet = False
         if ser is None:
             import serial
             ports = [port] if port else find_ports()
@@ -147,9 +173,21 @@ class Printer:
                 raise SystemExit(f"{ports[0]} opened but no Marlin answer at 115200 or 250000 baud")
         self.ser = ser
         self.travel = self._travel()
+        self.magnet_off()                              # whatever a crashed run left behind
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.magnet_off()
+        return False
 
     def send(self, line: str, timeout: float = 30) -> list[str]:
         cmd = safe(line)
+        with self._lock:
+            return self._send_locked(cmd, timeout)
+
+    def _send_locked(self, cmd: str, timeout: float) -> list[str]:
         self.ser.write((cmd + "\n").encode())
         out, deadline = [], time.time() + timeout
         while time.time() < deadline:
@@ -213,6 +251,76 @@ class Printer:
         self.send("G90")
         self.send(f"G0 {' '.join(parts)} F{feed}")
         self.send("M400", timeout=120)             # wait until the move has finished
+
+    # ── the magnet hand ───────────────────────────────────────────────────────────────────────────
+    def magnet_on(self, max_s: float | None = None):
+        """Full on, with a timer that turns it off after max_s (gantry.json magnet_max_s) whatever happens next."""
+        cap = float(max_s if max_s is not None else config().get("magnet_max_s") or 20)
+        with self._lock:
+            if self._magnet_timer:
+                self._magnet_timer.cancel()
+            self.send(MAGNET_ON)
+            self.magnet = True
+            self._magnet_timer = threading.Timer(cap, self._magnet_timeout)
+            self._magnet_timer.daemon = True
+            self._magnet_timer.start()
+
+    def _magnet_timeout(self):
+        self.log("magnet on too long: turning it off")
+        self.magnet_off()
+
+    def magnet_off(self):
+        with self._lock:
+            if self._magnet_timer:
+                self._magnet_timer.cancel()
+                self._magnet_timer = None
+            self.send(MAGNET_OFF)
+            self.magnet = False
+
+    def arc(self, x: float, y: float, cx: float, cy: float, ccw: bool = False, feed: float | None = None):
+        """From the current XY to (x, y) around the centre (cx, cy). The whole circle must stay inside the travel,
+        so no part of the swing can leave it."""
+        pos = self.position()
+        r = math.hypot(pos["X"] - cx, pos["Y"] - cy)
+        if abs(math.hypot(x - cx, y - cy) - r) > 0.5:
+            raise Refused(f"({x}, {y}) is not on the circle of radius {r:.1f} around ({cx}, {cy})")
+        for axis, c, hi in (("X", cx, self.travel[0]), ("Y", cy, self.travel[1])):
+            if c - r < 0 or c + r > hi:
+                raise Refused(f"an arc of radius {r:.1f} around {axis}{c} leaves 0..{hi} mm")
+        feed = min(feed or config()["arc_feed"], config()["y_feed"])
+        self.send("G90")
+        self.send(f"G{3 if ccw else 2} X{x:.2f} Y{y:.2f} I{cx - pos['X']:.2f} J{cy - pos['Y']:.2f} F{feed:.0f}")
+        self.send("M400", timeout=120)
+
+    def _touch_z(self) -> float:
+        z = config().get("touch_z")
+        if z is None:
+            raise Refused("measure touch_z (the Z where the magnet just touches a card) into gantry.json first")
+        return float(z)
+
+    def pick(self, x: float, y: float):
+        z, lift = self._touch_z(), config()["lift_mm"]
+        self.goto(x, y, z + lift)
+        self.goto(z=z)
+        self.magnet_on()
+        time.sleep(0.2)
+        self.goto(z=z + lift)
+
+    def place(self, x: float, y: float):
+        z, lift = self._touch_z(), config()["lift_mm"]
+        self.goto(x, y, z + lift)
+        self.goto(z=z)
+        self.magnet_off()
+        time.sleep(0.2)
+        self.goto(z=z + lift)
+
+    def tap(self, cx: float, cy: float, ccw: bool = False):
+        """The held card turns a quarter about its corner pinned at (cx, cy): the magnet swings a quarter circle."""
+        pos = self.position()
+        dx, dy = pos["X"] - cx, pos["Y"] - cy
+        ex, ey = (cx - dy, cy + dx) if ccw else (cx + dy, cy - dx)
+        self.arc(ex, ey, cx, cy, ccw=ccw)
+        return ex, ey
 
     def temps(self) -> dict:
         for l in self.send("M105"):
@@ -311,6 +419,14 @@ def main(argv=None):
     s = sub.add_parser("scan")
     s.add_argument("--area", choices=list(DUEL_AREAS), default="all")
     s.add_argument("--z", type=float); s.add_argument("--post", action="store_true")
+    mg = sub.add_parser("magnet"); mg.add_argument("state", choices=["on", "off"])
+    cr = sub.add_parser("carry")                   # one run: the magnet goes off when the program ends
+    for k in ("x1", "y1", "x2", "y2"):
+        cr.add_argument(k, type=float)
+    tp = sub.add_parser("tap")
+    for k in ("cx", "cy", "x", "y"):
+        tp.add_argument(k, type=float)
+    tp.add_argument("--ccw", action="store_true")
     pl = sub.add_parser("plan")
     pl.add_argument("--area", choices=list(DUEL_AREAS), default="all"); pl.add_argument("--z", type=float, default=300)
     a = ap.parse_args(argv)
@@ -325,8 +441,30 @@ def main(argv=None):
     if a.cmd == "snap":
         print(snap(CACHE / time.strftime("snap-%Y%m%d-%H%M%S.jpg")))
         return
-    p = Printer(a.port, a.baud)
-    if a.cmd == "info":
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))   # so `with` turns the magnet off on a kill too
+    with Printer(a.port, a.baud) as p:
+        run(p, a)
+
+
+def run(p: Printer, a) -> None:
+    if a.cmd == "magnet":
+        if a.state == "on":
+            p.magnet_on()
+            print("magnet on; Ctrl-C (or the time limit) turns it off")
+            try:
+                while p.magnet:
+                    time.sleep(0.2)
+            except KeyboardInterrupt:
+                pass
+        else:
+            p.magnet_off()
+    elif a.cmd == "carry":
+        p.pick(a.x1, a.y1)
+        p.place(a.x2, a.y2)
+        print(p.position())
+    elif a.cmd == "tap":
+        p.goto(a.x, a.y); print(p.tap(a.cx, a.cy, ccw=a.ccw))
+    elif a.cmd == "info":
         print(json.dumps(p.info(), indent=2))
     elif a.cmd == "home":
         p.home(z=a.z); print(p.position())
