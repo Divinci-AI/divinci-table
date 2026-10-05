@@ -60,6 +60,29 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | 12 V 2 A power supply with screw-terminal plug | 1 | pump, valve, buck converter |
 | PTFE thread tape | 1 | sealing the 1/4" NPT fittings |
 
+**The exact parts we bought (Amazon, 2026-10-04 — $169.51 in total; links may change):**
+
+| Part | Link | Price |
+|---|---|---|
+| Gonine LP-E8 dummy battery / ACK-E8 AC kit | [amazon.com/dp/B01EMNB8P6](https://www.amazon.com/dp/B01EMNB8P6) | $19.99 |
+| SCOVEE 10 ft Mini-USB camera cable for Canon Rebel | [amazon.com/dp/B078SRKRLK](https://www.amazon.com/dp/B078SRKRLK) | $8.55 |
+| CAMVATE 1/4"-20 mini ball head (2-pack) | [amazon.com/dp/B07D9JCP18](https://www.amazon.com/dp/B07D9JCP18) | $9.80 |
+| Micro vacuum pump 12 V with silicone tube | [amazon.com/dp/B071GL3XXQ](https://www.amazon.com/dp/B071GL3XXQ) | $25.99 |
+| Beduan 2-way normally-closed 12 V solenoid air valve, 1/4" NPT | [amazon.com/dp/B07N2LGFYS](https://www.amazon.com/dp/B07N2LGFYS) | $9.99 |
+| uxcell 15 mm bellows suction cups, M5 joint | [amazon.com/dp/B07MHGDFP4](https://www.amazon.com/dp/B07MHGDFP4) | $9.09 |
+| QITUO 4 mm × 1/4" NPT push-to-connect kit (24 pcs) | [amazon.com/dp/B0DCJ2T4MV](https://www.amazon.com/dp/B0DCJ2T4MV) | $14.99 |
+| Kozelo 4 mm × M5 male push-to-connect (10 pcs) | [amazon.com/dp/B0H6FKRWDF](https://www.amazon.com/dp/B0H6FKRWDF) | $6.29 |
+| Quickun 4 mm × 2.5 mm PU tubing | [amazon.com/dp/B083JG4Q8F](https://www.amazon.com/dp/B083JG4Q8F) | $8.99 |
+| MG90S metal-gear micro servos (2-pack) | [amazon.com/dp/B0CNL755KP](https://www.amazon.com/dp/B0CNL755KP) | $8.88 |
+| Nano V3.0 USB-C, ATmega328P/CH340 (3-pack, with cable) | [amazon.com/dp/B0DFGX3MSL](https://www.amazon.com/dp/B0DFGX3MSL) | $12.99 |
+| SANSUN 12 V 2 A power supply, ETL listed | [amazon.com/dp/B01AZLA9XQ](https://www.amazon.com/dp/B01AZLA9XQ) | $8.99 |
+| MOSFET switch driver modules 5–36 V 15 A (11-pack) | [amazon.com/dp/B0DX2KCZHL](https://www.amazon.com/dp/B0DX2KCZHL) | $9.99 |
+| 1N4007 rectifier diodes (125-pack) | [amazon.com/dp/B0FC2CQF24](https://www.amazon.com/dp/B0FC2CQF24) | $5.99 |
+| 5 V 3 A fixed buck converters (6-pack) | [amazon.com/dp/B0GYJDP96Q](https://www.amazon.com/dp/B0GYJDP96Q) | $8.99 |
+
+From The Home Depot we bought the aluminium angle, bolts, wing nuts, spacers, rubber washers, the spring kit,
+Scotch Extreme mounting tape and Blue Monster 1/2" PTFE tape ($49.68).
+
 **Tools:** drill with a 1/4" bit, hacksaw, file, screwdrivers, PTFE tape, multimeter, small wire strippers.
 
 ## Step 1 — Cut the brackets
