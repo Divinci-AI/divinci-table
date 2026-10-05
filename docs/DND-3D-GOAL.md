@@ -126,10 +126,10 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
       both reported, a good one isn't.*
 
 ## D4 — The 3D table on the web
-- [ ] Stage view (three.js): the location's room, the grid, minis on their squares, animated moves, HP state
+- [x] Stage view (three.js): the location's room, the grid, minis on their squares, animated moves, HP state
       as a ring, the active turn highlighted. A location change plays its establishing shot first.
-- [ ] Falls back to the 2D map when WebGL is weak or the device asks for reduced motion.
-- [ ] **Check:** Playwright (`table/tests/dnd_page_e2e.cjs`): load, move a token from the phone view, see it
+- [x] Falls back to the 2D map when WebGL is weak or the device asks for reduced motion.
+- [x] **Check:** Playwright (`table/tests/dnd_page_e2e.cjs`): load, move a token from the phone view, see it
       move on the stage; frame time logged on the laptop.
 
 ## D5 — Phones
@@ -164,6 +164,16 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
 - [ ] **Check:** results in the ledger; what broke goes into the next goal.
 
 ## Done log
+
+- **2026-10-04 · D4 done.** `assets/dnd-scene.js` (one module for the web stage and, next, the headset): the room
+  (or boxes from the layout when there's no approved room), grid, minis (SkeletonUtils clones, idle animation) or
+  standees that face the viewer, HP rings, the active turn's pulsing ring, walks animated over 0.45 s, raycast
+  picking. `dnd.html`: 2D/3D toggle (3D by default on desktops with WebGL2; 2D on phones and with reduced
+  motion), orbit by drag, wheel/pinch zoom, tap-to-move in 3D; a location change plays its establishing shot
+  (VP9 original first, H.264 copy for Safari). Checked: `dnd_page_e2e` **11/11** (3D raycast move, the phone's
+  move walks on the 3D table, reduced motion → 2D); 3D frame time 17 ms in headless software GL; a screenshot
+  with the clearing's room, standees, a 2×2 ogre and a real mini; the establishing shot shown, played and
+  closed (Playwright's Chromium can't decode H.264 — the reason both encodings ship).
 
 - **2026-10-04 · D2 (all but Cosmos and the review).** Eight layouts with theme characters; `scripts/dnd_room_blender.py`
   + `scripts/dnd_rooms.py` build room.glb / map.jpg (flat Workbench, aligned to the grid) / view.jpg for all eight in

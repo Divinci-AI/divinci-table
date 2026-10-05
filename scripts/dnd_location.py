@@ -8,8 +8,8 @@
 Needs NVIDIA_API_KEY (build.nvidia.com; free credits — docs/DND-3D-GOAL.md rule 5). Two requests per location:
   art.jpg    text2image from the location's name, theme and tags, in the table's painted style.
   shot.mp4   image2video FROM THE ROOM'S BLENDER VIEW (scripts/dnd_rooms.py), so the shot shows the same room the
-             map uses. Cosmos returns VP9-in-MP4; players get an H.264 copy (iPhones), and the original is kept
-             beside it as shot.orig.mp4 because the SynthID watermark is checked on the untouched file.
+             map uses. Cosmos returns VP9-in-MP4: published untouched as shot_orig.mp4 (Chrome and the Quest play
+             it, and SynthID is checked on the untouched file) beside an H.264 copy, shot.mp4, for iPhones.
 
 The API shape (POST https://ai.api.nvidia.com/v1/cosmos/nvidia/cosmos3-nano; model_mode, prompt, resolution,
 num_frames, num_inference_steps, fps, seed, input_reference; b64_image / b64_video back) is from NVIDIA's
@@ -107,12 +107,13 @@ def main() -> None:
                            check=True, capture_output=True)
             loc["art"] = f"dnd/locations/{loc['id']}/art.jpg"
         else:
-            (d / "shot.orig.mp4").write_bytes(base64.b64decode(r["b64_video"], validate=True))
+            (d / "shot_orig.mp4").write_bytes(base64.b64decode(r["b64_video"], validate=True))
             if not shutil.which("ffmpeg"):
                 raise SystemExit("ffmpeg is needed to make the H.264 copy players can play")
-            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(d / "shot.orig.mp4"), "-c:v", "libx264",
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(d / "shot_orig.mp4"), "-c:v", "libx264",
                             "-pix_fmt", "yuv420p", "-crf", "23", "-movflags", "+faststart", "-an", str(d / "shot.mp4")], check=True)
             loc["shot"] = f"dnd/locations/{loc['id']}/shot.mp4"
+            loc["shot_orig"] = f"dnd/locations/{loc['id']}/shot_orig.mp4"
         loc["credit"] = "Key art and establishing shot built on NVIDIA Cosmos (Cosmos3-Nano, OpenMDW-1.1); SynthID-watermarked."
         loc["status"] = "draft"                          # new pictures: a person looks again before players do
         print(f"  {loc['id']}/{kind}: saved")

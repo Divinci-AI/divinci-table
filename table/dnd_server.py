@@ -195,7 +195,7 @@ def set_location(loc_id: str, start: bool = False) -> str | None:
     if not loc or not (start or playable(loc)):
         return "no such location"
     G["map"] = MAP.new_map(loc, ASSETS.get("cell_ft", 5))
-    G["map"]["assets"] = {k: loc.get(k) for k in ("room", "map_image", "view", "art", "shot") if loc.get(k)} if playable(loc) else {}
+    G["map"]["assets"] = {k: loc.get(k) for k in ("room", "map_image", "view", "art", "shot", "shot_orig") if loc.get(k)} if playable(loc) else {}
     G["map"]["draft"] = loc.get("status") != "approved"
     for name, s in G["sheets"].items():
         MAP.place(G["map"], name, "pc", owner=None if s.get("companion") else name, speed=s.get("speed", 30))
@@ -525,6 +525,7 @@ def public_state(viewer: str | None = None) -> dict:
                 "sheets": {n: public_sheet(s) for n, s in G["sheets"].items()}, "monsters": G["monsters"],
                 "initiative": G["initiative"], "pregens": sorted(PREGENS), "credit": CREDIT,
                 "map": MAP.public(G["map"]),
+                "minis": {x["id"]: x["glb"] for x in ASSETS.get("minis", []) if x.get("glb")},
                 "locations": [{"id": x["id"], "name": x["name"] + ("" if x.get("status") == "approved" else " (draft)")}
                               for x in playable_locations()]}
 
@@ -647,10 +648,11 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, EVENTS.since(EVENTS.next_id - 1 if q == "latest" else int(q or 0)))
         if p == "/api/voice-config":
             return self._send(200, {"humans": [{"name": n} for n in HUMANS], "ai_players": [{"name": c["name"]} for c in COMPANIONS]})
-        if p.startswith("/assets/"):
-            f = (HERE / "assets" / p[8:]).resolve()
-            if f.is_file() and (HERE / "assets") in f.parents and f.suffix in ASSET_TYPES:
-                return self._send(200, body=f.read_bytes(), ctype=ASSET_TYPES[f.suffix])
+        for pre, root in (("/assets/", HERE / "assets"), ("/vendor/", HERE / "vendor")):   # page code; three.js
+            if p.startswith(pre):
+                f = (root / unquote(p[len(pre):])).resolve()
+                if f.is_file() and root.resolve() in f.parents and f.suffix in ASSET_TYPES:
+                    return self._send(200, body=f.read_bytes(), ctype=ASSET_TYPES[f.suffix])
         if p.startswith("/photos/"):
             f = (RESEARCH / G["game_id"] / "photos" / p[8:]).resolve()
             if f.is_file() and RESEARCH in f.parents and f.suffix in (".jpg", ".png"):

@@ -44,6 +44,12 @@ textarea{min-height:70px;resize:vertical}
 footer{max-width:1180px;margin:0 auto;padding:0 16px 30px;font-size:12.5px;color:var(--dim)}
 #map{max-width:100%;display:block;margin:0 auto;border-radius:8px;touch-action:none;cursor:pointer;background:#071820}
 #maphint{min-height:1.3em}
+#map3d{position:relative;height:min(62vh,560px);border-radius:8px;overflow:hidden;background:#071820;touch-action:none;display:none}
+#map3d canvas{display:block;width:100%;height:100%}
+.views button{padding:3px 10px;font-size:13px}
+#shot{position:fixed;inset:0;z-index:70;background:#000;display:none;align-items:center;justify-content:center}
+#shot video{max-width:100%;max-height:100%}
+#shot button{position:absolute;right:16px;bottom:16px}
 </style>
 <script src="/assets/seat.js" defer></script>
 <script src="/assets/photo.js" defer></script>
@@ -54,8 +60,10 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 30px;font-size:12.5px;color
   <section>
     <h1>Divinci Table · Dungeons &amp; Dragons</h1>
     <div id="scene"></div>
-    <div class="panel" id="mapPanel"><h2 id="mapName">The map</h2>
+    <div class="panel" id="mapPanel"><div class="row" style="margin:0 0 8px"><h2 id="mapName" style="margin:0;flex:1">The map</h2>
+        <span class="btns views"><button data-view="2d">2D</button><button data-view="3d">3D</button></span></div>
       <canvas id="map" aria-label="battle map"></canvas>
+      <div id="map3d" aria-label="battle map in 3D"></div>
       <div class="row small"><span id="maphint">Tap your character, then a square.</span><span style="flex:1"></span>
         <select id="loc" style="width:auto;display:none" aria-label="location"></select></div>
     </div>
@@ -90,6 +98,7 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 30px;font-size:12.5px;color
     <div class="panel"><h2>The party</h2><div id="party"></div><h2 style="margin-top:12px">Foes</h2><div id="mons" class="small">None in sight.</div></div>
   </aside>
 </main>
+<div id="shot"><video playsinline muted></video><button>Skip ▸</button></div>
 <footer><a href="/survey" style="color:var(--teal)">How was the game? (optional survey)</a><div id="credit" style="margin-top:6px"></div></footer>
 <script>
 const $ = id => document.getElementById(id);
@@ -256,9 +265,112 @@ async function tick() {
       since = e.last; if (atEnd) $("log").scrollTop = $("log").scrollHeight;
     }
     draw();
+    establishing();
   } catch {}
 }
+let lastLoc = null;
+function establishing() {                       // a new location plays its establishing shot first (if it has one)
+  const m = S && S.map; if (!m) return;
+  if (lastLoc !== null && m.location !== lastLoc && m.assets && m.assets.shot) {
+    const box = $("shot"), v = box.querySelector("video");
+    const src = p => "/dnd-assets/" + p.replace(/^dnd\//, "");      // VP9 original first (Chrome, Quest), H.264 (Safari)
+    v.innerHTML = (m.assets.shot_orig ? `<source src="${src(m.assets.shot_orig)}" type='video/mp4; codecs="vp09.00.10.08"'>` : "") +
+      `<source src="${src(m.assets.shot)}" type='video/mp4; codecs="avc1.42E01E"'>`;
+    v.load(); box.style.display = "flex";
+    const done = () => { box.style.display = "none"; v.pause(); };
+    v.onended = done; box.querySelector("button").onclick = done; v.play().catch(done);
+  }
+  lastLoc = m.location;
+}
 tick(); setInterval(tick, 1500);
+</script>
+<script type="importmap">{ "imports": { "three": "/vendor/three.module.min.js" } }</script>
+<script type="module">
+// The 3D table (assets/dnd-scene.js): orbit by dragging, zoom with the wheel or a pinch, tap a token then a square.
+import * as THREE from "three";
+import { createDndScene } from "/assets/dnd-scene.js";
+const box = document.getElementById("map3d"), flat = document.getElementById("map");
+const can3d = (() => { try { return !!document.createElement("canvas").getContext("webgl2"); } catch { return false; } })();
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const saved = (() => { try { return localStorage.getItem("dnd.view"); } catch { return null; } })();
+let mode = saved || (can3d && !reduce && innerWidth >= 860 ? "3d" : "2d");
+let renderer = null, camera, scene3, dnd, last = null, frames = [];
+const orbit = { theta: 0.6, phi: 0.95, r: 18, cx: 6, cz: 4 };
+
+function start() {
+  if (renderer) return true;
+  try { renderer = new THREE.WebGLRenderer({ antialias: true }); } catch { return false; }
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+  renderer.shadowMap.enabled = true; renderer.outputColorSpace = THREE.SRGBColorSpace;
+  box.appendChild(renderer.domElement);
+  scene3 = new THREE.Scene(); scene3.background = new THREE.Color(0x071820);
+  scene3.add(new THREE.HemisphereLight(0xdfe8ff, 0x2a2016, 1.1));
+  const sun = new THREE.DirectionalLight(0xfff1dc, 1.6); sun.position.set(-8, 16, 6); sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20 });
+  scene3.add(sun, sun.target);
+  camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
+  dnd = createDndScene(); scene3.add(dnd.root);
+  window.DND3D = { dnd, camera, frames, mode: () => mode };
+  let t0 = performance.now();
+  renderer.setAnimationLoop(now => {
+    const dt = Math.min(0.1, (now - t0) / 1000); t0 = now;
+    if (mode !== "3d") return;
+    frames.push(dt * 1000); if (frames.length > 240) frames.shift();
+    if (typeof S !== "undefined" && S && S !== last) {
+      last = S; dnd.update(S);
+      const { w, h } = dnd.size(); if (orbit.fitted !== w + "x" + h) { orbit.cx = w / 2; orbit.cz = h / 2; orbit.r = Math.max(w, h) * 1.1; orbit.fitted = w + "x" + h; }
+      sun.target.position.set(orbit.cx, 0, orbit.cz); sun.position.set(orbit.cx - 8, 16, orbit.cz + 6);
+    }
+    const W = box.clientWidth, H = box.clientHeight;
+    if (renderer.domElement.width !== Math.round(W * renderer.getPixelRatio())) { renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); }
+    camera.position.set(orbit.cx + orbit.r * Math.sin(orbit.phi) * Math.sin(orbit.theta), orbit.r * Math.cos(orbit.phi),
+                        orbit.cz + orbit.r * Math.sin(orbit.phi) * Math.cos(orbit.theta));
+    camera.lookAt(orbit.cx, 0, orbit.cz);
+    dnd.tick(dt, camera);
+    renderer.render(scene3, camera);
+  });
+  input();
+  return true;
+}
+
+function input() {
+  const el = renderer.domElement, pts = new Map(); let down = null, pinch = null;
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const aim = ev => { const r = el.getBoundingClientRect(); ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); };
+  el.addEventListener("pointerdown", ev => { el.setPointerCapture(ev.pointerId); pts.set(ev.pointerId, [ev.clientX, ev.clientY]); down = { x: ev.clientX, y: ev.clientY, moved: false }; });
+  el.addEventListener("pointermove", ev => {
+    if (!pts.has(ev.pointerId)) return;
+    const [px, py] = pts.get(ev.pointerId); pts.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    if (pts.size === 2) {                                  // pinch to zoom
+      const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      if (pinch) orbit.r = Math.min(60, Math.max(4, orbit.r * pinch / d)); pinch = d; if (down) down.moved = true; return;
+    }
+    if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > 6) down.moved = true;
+    if (down && down.moved) { orbit.theta -= (ev.clientX - px) * 0.008; orbit.phi = Math.min(1.45, Math.max(0.25, orbit.phi - (ev.clientY - py) * 0.006)); }
+  });
+  const up = ev => {
+    pts.delete(ev.pointerId); if (pts.size < 2) pinch = null;
+    if (!down || down.moved) { down = null; return; }
+    down = null; aim(ev);
+    const id = dnd.tokenAt(ray), t = id && S.map.tokens[id];
+    if (t && canMove(t) && MAP.sel !== id) { MAP.sel = id; drawMap(); return; }
+    const sq = dnd.squareAt(ray);
+    if (MAP.sel && sq) { const sel = MAP.sel; MAP.sel = null; post("/api/dnd/map/move", { token: sel, x: sq[0], y: sq[1] }).then(drawMap); }
+  };
+  el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+  el.addEventListener("wheel", ev => { ev.preventDefault(); orbit.r = Math.min(60, Math.max(4, orbit.r * (1 + Math.sign(ev.deltaY) * 0.1))); }, { passive: false });
+}
+
+function setMode(m) {
+  if (m === "3d" && !can3d) m = "2d";
+  if (m === "3d" && !start()) m = "2d";
+  mode = m; try { localStorage.setItem("dnd.view", m); } catch {}
+  box.style.display = m === "3d" ? "block" : "none"; flat.style.display = m === "3d" ? "none" : "block";
+  document.querySelectorAll("[data-view]").forEach(b => b.classList.toggle("on", b.dataset.view === m));
+  if (m === "2d") drawMap();
+}
+document.querySelector(".views").addEventListener("click", ev => { const v = ev.target.dataset.view; if (v) setMode(v); });
+setMode(mode);
 </script>
 </body>
 </html>
