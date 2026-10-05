@@ -5,13 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Divinci Table — D&amp;D</title>
 <link rel="stylesheet" href="/assets/brand.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#040d12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Adventure">
+<link rel="apple-touch-icon" href="/assets/dnd-icon-192.png">
 <style>
 :root{--bg:#040d12;--panel:#0d1d25;--line:#d9b46a33;--ink:#ece4cf;--dim:#9fb0b0;--gold:#d9b46a;--gold-hi:#f4dc9b;--gold-lo:#8a6a2e;--teal:#3fd0c9;--red:#ff9b6a}
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;color:var(--ink);font:17px/1.45 system-ui,-apple-system,sans-serif;
   background:radial-gradient(800px 500px at 50% -80px,#16465a 0%,transparent 70%),var(--bg)}
 main{max-width:1180px;margin:0 auto;padding:14px 16px 60px;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,380px);gap:20px;align-items:start}
-@media (max-width:860px){main{grid-template-columns:1fr}}
+@media (max-width:860px){main{grid-template-columns:1fr} h1{padding-right:96px} #log{height:34vh}}
 h1{font:900 22px Cinzel,Georgia,serif;letter-spacing:.06em;margin:4px 0 2px;
   background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));-webkit-background-clip:text;background-clip:text;color:transparent}
 #scene{color:var(--teal);font:italic 16px Georgia,serif;min-height:1.3em;margin-bottom:8px}
@@ -44,6 +49,9 @@ textarea{min-height:70px;resize:vertical}
 footer{max-width:1180px;margin:0 auto;padding:0 16px 30px;font-size:12.5px;color:var(--dim)}
 #map{max-width:100%;display:block;margin:0 auto;border-radius:8px;touch-action:none;cursor:pointer;background:#071820}
 #maphint{min-height:1.3em}
+#art{display:none;width:100%;height:120px;object-fit:cover;border-radius:10px;margin:2px 0 10px;box-shadow:inset 0 0 0 1px var(--line)}
+#talk{touch-action:none;user-select:none;-webkit-user-select:none}
+#talk.rec{background:#7a2318;border-color:#ff9b6a}
 #map3d{position:relative;height:min(62vh,560px);border-radius:8px;overflow:hidden;background:#071820;touch-action:none;display:none}
 #map3d canvas{display:block;width:100%;height:100%}
 .views button{padding:3px 10px;font-size:13px}
@@ -60,6 +68,7 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 30px;font-size:12.5px;color
   <section>
     <h1>Divinci Table · Dungeons &amp; Dragons</h1>
     <div id="scene"></div>
+    <img id="art" alt="the scene">
     <div class="panel" id="mapPanel"><div class="row" style="margin:0 0 8px"><h2 id="mapName" style="margin:0;flex:1">The map</h2>
         <span class="btns views"><button data-view="2d">2D</button><button data-view="3d">3D</button></span></div>
       <canvas id="map" aria-label="battle map"></canvas>
@@ -74,7 +83,9 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 30px;font-size:12.5px;color
         <input type="text" id="premise" placeholder="Premise (optional): a missing caravan, a haunted lighthouse…" autocomplete="off">
         <div class="btns" style="margin-top:8px"><button class="gold" id="go">Begin the adventure</button></div>
       </div>
-      <div class="row"><input type="text" id="act" placeholder="What do you say or do?" autocomplete="off"><button class="gold" id="send">Act</button></div>
+      <div class="row"><input type="text" id="act" placeholder="What do you say or do?" autocomplete="off">
+        <button id="talk" title="Hold to talk: what you say is what your character says or does" aria-label="hold to talk">🎙</button>
+        <button class="gold" id="send">Act</button></div>
       <div class="row small"><label><input type="checkbox" id="ooc"> out of character (the DM won't answer)</label>
         <span style="flex:1"></span><button id="cont" title="Ask the DM to go on">Continue ▸</button>
         <label style="cursor:pointer"><input id="photo" type="file" accept="image/*" capture="environment" hidden>📷</label></div>
@@ -173,6 +184,10 @@ function draw() {
     ${(p.conditions || []).length ? `<span class="small"> (${p.conditions.map(esc).join(", ")})</span>` : ""}</span><span>${p.hp}/${p.max_hp} · AC ${p.ac}</span></div>`).join("");
   $("mons").innerHTML = S.monsters.length ? S.monsters.map(m => `<div class="who"><span>${esc(m.name)}</span><span>${m.hp > 0 ? (m.hp <= m.max_hp / 2 ? "bloodied" : "unhurt") : "down"} · AC ${m.ac}</span></div>`).join("") : "None in sight.";
   $("credit").textContent = S.credit;
+  const a = S.map && S.map.assets, pic = a && (a.art || a.view);
+  const want = pic ? "/dnd-assets/" + pic.replace(/^dnd\//, "") : "";
+  if ($("art").dataset.src !== want) { $("art").dataset.src = want; if (want) $("art").src = want; }
+  $("art").style.display = want ? "block" : "none";
   drawMap();
 }
 // ── the battle map (2D): tap your character, then a square; the server decides ─────────────────
@@ -268,6 +283,49 @@ async function tick() {
     establishing();
   } catch {}
 }
+// ── hold to talk: 16 kHz WAV → /api/xr/stt (the room's Worker in the cloud, Whisper on the laptop) → your action ──
+const talk = { ctx: null, stream: null, node: null, chunks: null };
+function wav16k(chunks, rate) {
+  const n = chunks.reduce((a, c) => a + c.length, 0), all = new Float32Array(n); let o = 0;
+  for (const c of chunks) { all.set(c, o); o += c.length; }
+  const step = rate / 16000, len = Math.floor(n / step), pcm = new Int16Array(len);
+  for (let i = 0; i < len; i++) pcm[i] = Math.max(-1, Math.min(1, all[Math.floor(i * step)])) * 0x7fff;
+  const b = new DataView(new ArrayBuffer(44 + pcm.length * 2)), w = (p, t) => [...t].forEach((ch, i) => b.setUint8(p + i, ch.charCodeAt(0)));
+  w(0, "RIFF"); b.setUint32(4, 36 + pcm.length * 2, true); w(8, "WAVEfmt "); b.setUint32(16, 16, true); b.setUint16(20, 1, true);
+  b.setUint16(22, 1, true); b.setUint32(24, 16000, true); b.setUint32(28, 32000, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true);
+  w(36, "data"); b.setUint32(40, pcm.length * 2, true); new Int16Array(b.buffer, 44).set(pcm);
+  return new Blob([b.buffer], { type: "audio/wav" });
+}
+async function talkStart(ev) {
+  ev.preventDefault();
+  if (!me()) { window.TableSeat && TableSeat.pick(); return; }
+  try {
+    talk.stream ||= await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    talk.ctx ||= new (window.AudioContext || window.webkitAudioContext)();
+    await talk.ctx.resume();
+    const src = talk.ctx.createMediaStreamSource(talk.stream);
+    talk.node = talk.ctx.createScriptProcessor(4096, 1, 1); talk.chunks = [];
+    talk.node.onaudioprocess = e => { if (talk.chunks) talk.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+    src.connect(talk.node); talk.node.connect(talk.ctx.destination);
+    $("talk").classList.add("rec"); $("err").textContent = "Listening… let go to send.";
+  } catch { $("err").textContent = "The microphone isn't available here."; }
+}
+async function talkStop() {
+  if (!talk.chunks) return;
+  const chunks = talk.chunks; talk.chunks = null; talk.node && talk.node.disconnect();
+  $("talk").classList.remove("rec");
+  const secs = chunks.reduce((a, c) => a + c.length, 0) / talk.ctx.sampleRate;
+  if (secs < 0.4) { $("err").textContent = "Hold the button while you talk."; return; }
+  $("err").textContent = "…";
+  const r = await fetch("/api/xr/stt", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: wav16k(chunks, talk.ctx.sampleRate) });
+  const d = await r.json().catch(() => ({}));
+  const text = (d.text || "").trim();
+  if (!r.ok || !text) { $("err").textContent = d.error || "I didn't catch that — try again."; return; }
+  $("err").textContent = "";
+  post($("ooc").checked ? "/api/chat" : "/api/dnd/act", { text });
+}
+$("talk").addEventListener("pointerdown", talkStart);
+for (const e of ["pointerup", "pointercancel", "pointerleave"]) $("talk").addEventListener(e, talkStop);
 let lastLoc = null;
 function establishing() {                       // a new location plays its establishing shot first (if it has one)
   const m = S && S.map; if (!m) return;

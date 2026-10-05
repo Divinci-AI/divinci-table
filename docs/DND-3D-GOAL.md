@@ -133,9 +133,10 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
       move on the stage; frame time logged on the laptop.
 
 ## D5 — Phones
-- [ ] The phone page: your sheet, dice, scene art, the 2D map with tap-to-move, initiative, push-to-talk to
+- [x] The phone page: your sheet, dice, scene art, the 2D map with tap-to-move, initiative, push-to-talk to
       the DM (reusing `/api/xr/stt` in cloud rooms; Whisper on the laptop table). Installable as a web app.
 - [ ] **Check:** a full combat round played from two phones on the laptop table and in a cloud room.
+      *Laptop: done (`dnd_round_e2e` 9/9). Cloud room: waits for the next deploy (Michael's OK).*
 
 ## D6 — The headset (Quest 3S)
 - [ ] **AR:** the battle map as a diorama on the real table (place / re-place / scale from xr-controls);
@@ -164,6 +165,16 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
 - [ ] **Check:** results in the ledger; what broke goes into the next goal.
 
 ## Done log
+
+- **2026-10-04 · D5 (laptop done; cloud check waits for the deploy).** Phone page: scene art banner (Cosmos art,
+  else the room's view), 🎙 hold-to-talk (16 kHz WAV → `/api/xr/stt`: the room's Worker in the cloud, Whisper on
+  the laptop via `voice.py`; the words become your character's action), `/api/seat/check` for the Worker,
+  installable (web app manifest + icons), shorter log and room for the seat chip on phones. Checked: `say` →
+  Whisper through the D&D server word-perfect in 2.5 s; `dnd_round_e2e` **9/9** — initiative from a phone, both
+  roll d20 from the dice panel, each moves on their own turn by tapping, the DM moves the goblin, round 2; a fake
+  microphone's spoken action reaches the log as Michael's. `dnd_test` **126 passed** (talk needs a key, >1 min
+  refused, the container never transcribes in the cloud, manifest). Found by the test, not the app: after
+  tapping the dice the phone is scrolled below the map, so the test scrolls back first.
 
 - **2026-10-04 · D4 done.** `assets/dnd-scene.js` (one module for the web stage and, next, the headset): the room
   (or boxes from the layout when there's no approved room), grid, minis (SkeletonUtils clones, idle animation) or

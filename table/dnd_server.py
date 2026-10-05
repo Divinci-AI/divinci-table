@@ -625,6 +625,13 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / STATIC[p]).read_bytes(), ctype="text/html; charset=utf-8")
         if p == "/api/dnd":
             return self._send(200, public_state())
+        if p == "/manifest.webmanifest":                 # add to the home screen: the table as an app
+            return self._send(200, body=json.dumps({
+                "name": "Divinci Table — adventure", "short_name": "Adventure", "start_url": "/", "scope": "/",
+                "display": "standalone", "background_color": "#040d12", "theme_color": "#040d12",
+                "icons": [{"src": "/assets/dnd-icon-192.png", "sizes": "192x192", "type": "image/png"},
+                          {"src": "/assets/dnd-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}]}).encode(),
+                ctype="application/manifest+json")
         if p in ("/dnd/review", "/api/dnd/review"):
             if CLOUD or not self._local():
                 return self._send(404, {"error": "not found"})
@@ -659,6 +666,44 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, body=f.read_bytes(), ctype=ASSET_TYPES[f.suffix])
         return self._send(404, {"error": "not found"})
 
+    def _seat_of(self, key: str) -> str | None:
+        key = str(key or "")[:200]
+        return next((n for n in HUMANS + ([DM_HUMAN] if DM_HUMAN else []) if key and SEATS.ok(n, key)), None)
+
+    STT_MAX = 2_000_000                                    # ~60 s of 16 kHz mono WAV
+    STT_PER_MIN = 20
+
+    def _stt(self):
+        """Whisper on this Mac (voice.py) for a seated player's held-down talk button: the words come back, the
+        audio is never stored. The phone sends 16 kHz mono WAV, the same as it sends the cloud Worker."""
+        n = int(self.headers.get("Content-Length") or 0)
+        if CLOUD:
+            self._body()
+            return self._send(404, {"error": "not found"})
+        who = self._seat_of(self.headers.get("X-Seat-Key", ""))
+        if not who:
+            self._body()
+            return self._send(403, {"error": "claim your seat first (👤)", "need_seat": True})
+        if not 44 < n <= self.STT_MAX:
+            self._body() if n <= 9_000_000 else None
+            self.close_connection = True
+            return self._send(413, {"error": "keep it under a minute"})
+        now = time.time()
+        recent = [t for t in G.setdefault("stt_at", {}).get(who, []) if now - t < 60]
+        if len(recent) >= self.STT_PER_MIN:
+            self._body()
+            return self._send(429, {"error": "too much talking for a moment — try again shortly"})
+        G["stt_at"][who] = recent + [now]
+        data = self._body()
+        try:
+            import voice                                   # numpy + mlx_whisper: loaded only when someone talks
+            hint = "Dungeons and Dragons. " + ", ".join(HUMANS + [c["name"] for c in COMPANIONS])
+            text, _ = voice.transcribe(voice.wav_to_float32(data), hint)
+        except Exception as e:                             # noqa: BLE001
+            print(f"stt failed: {type(e).__name__}: {str(e)[:120]}", flush=True)
+            return self._send(502, {"error": "couldn't hear that — try again"})
+        return self._send(200, {"seat": who, "text": " ".join(str(text).split())[:400]})
+
     def _local(self) -> bool:
         """The laptop itself (the review page is the host's, like the Magic referee tools)."""
         return self.client_address[0] in ("127.0.0.1", "::1") and not any(
@@ -668,6 +713,12 @@ class H(BaseHTTPRequestHandler):
         p = urlparse(self.path).path
         if self._room("POST", p):
             return
+        if p == "/api/seat/check":                         # the room's Worker asks before it transcribes (cloud)
+            self._body()
+            who = self._seat_of(self.headers.get("X-Seat-Key", ""))
+            return self._send(200, {"seat": who}) if who else self._send(403, {"error": "no such seat key"})
+        if p == "/api/xr/stt":                             # push-to-talk on the laptop table (the cloud Worker answers it there)
+            return self._stt()
         if p == "/api/dnd/review":                         # the host approves (or sends back) a location
             b = self._json()
             if CLOUD or not self._local():

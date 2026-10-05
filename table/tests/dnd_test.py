@@ -301,6 +301,29 @@ check("the DM's own numbers win over the bestiary's", dw["speed"] == 45 and dw["
 D.apply_table_line('x\nTABLE: {"monsters":[{"name":"Goblin 1","ac":15,"hp":7,"max_hp":7}]}')
 check("gone from the list, gone from the map", D.MAP.token_by_name(D.G["map"], "Ogre 1") is None)
 
+print("push-to-talk and the seat check")
+def raw(path, data=b"", headers=None):
+    req = urllib.request.Request(BASE + path, data=data, method="POST", headers=headers or {})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status, json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read() or b"{}")
+code, out = raw("/api/seat/check", headers={"X-Seat-Key": mk})
+check("the seat check names the key's seat (the Worker asks before transcribing)", code == 200 and out.get("seat") == "Michael", str(out))
+code, _ = raw("/api/seat/check", headers={"X-Seat-Key": "made-up"})
+check("…and refuses a made-up key", code == 403)
+code, _ = raw("/api/xr/stt", b"RIFF" + b"\0" * 100, {"Content-Type": "audio/wav"})
+check("talking needs a seat key", code == 403)
+code, _ = raw("/api/xr/stt", b"\0" * (2_000_001), {"Content-Type": "audio/wav", "X-Seat-Key": mk})
+check("over a minute of audio is refused", code == 413)
+D.CLOUD = True
+code, _ = raw("/api/xr/stt", b"RIFF" + b"\0" * 100, {"Content-Type": "audio/wav", "X-Seat-Key": mk})
+check("in a cloud room the container never transcribes (the Worker does)", code == 404)
+D.CLOUD = False
+code, man = 200, json.loads(urllib.request.urlopen(BASE + "/manifest.webmanifest").read())
+check("the page can be installed (a web app manifest with icons)", man.get("display") == "standalone" and len(man.get("icons", [])) == 2)
+
 print("locations: review and approval")
 import shutil  # noqa: E402
 import tempfile  # noqa: E402
