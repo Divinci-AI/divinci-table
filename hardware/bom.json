@@ -718,23 +718,108 @@
    "stl": "hardware/gantry/parts/stl/discard_chute.stl"
   },
   {
-   "id": "privacy-wall",
-   "name": "Printed privacy wall",
+   "id": "hand-rack",
+   "name": "Printed hand rack",
    "qty": 1,
    "source": "print",
    "status": "to-print",
    "route": [
     "magnet"
    ],
-   "role": "hides the AI's face-up hand zone from the person",
+   "role": "the AI's hand, up to seven cards in a staircase along the bed's back edge; its fence hides the faces from the person",
    "used_in": [
     {
      "doc": "manual",
      "step": "Step 3"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 7"
     }
    ],
-   "scad": "hardware/gantry/parts/privacy_wall.scad",
-   "stl": "hardware/gantry/parts/stl/privacy_wall.stl"
+   "scad": "hardware/gantry/parts/hand_rack.scad",
+   "stl": "hardware/gantry/parts/stl/hand_rack.stl"
+  },
+  {
+   "id": "sleeve-jig-tray",
+   "name": "Printed sleeving jig tray",
+   "qty": 1,
+   "source": "print",
+   "status": "to-print",
+   "route": [
+    "magnet"
+   ],
+   "role": "holds an inner-sleeved card face-down while its washer is placed",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 8"
+    }
+   ],
+   "scad": "hardware/gantry/parts/sleeve_jig.scad",
+   "stl": "hardware/gantry/parts/stl/sleeve_jig_tray.stl"
+  },
+  {
+   "id": "sleeve-jig-bridge",
+   "name": "Printed sleeving jig bridge",
+   "qty": 1,
+   "source": "print",
+   "status": "to-print",
+   "route": [
+    "magnet"
+   ],
+   "role": "its hole drops every washer at the card's centre",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 8"
+    }
+   ],
+   "scad": "hardware/gantry/parts/sleeve_jig.scad",
+   "stl": "hardware/gantry/parts/stl/sleeve_jig_bridge.stl"
+  },
+  {
+   "id": "lead-clip",
+   "name": "Printed lead clip",
+   "qty": 4,
+   "source": "print",
+   "status": "to-print",
+   "route": [
+    "magnet"
+   ],
+   "role": "holds the magnet's leads with a loop of slack so the swivel can turn",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    },
+    {
+     "doc": "manual",
+     "step": "Step 5"
+    }
+   ],
+   "scad": "hardware/gantry/parts/lead_clip.scad",
+   "stl": "hardware/gantry/parts/stl/lead_clip.stl"
+  },
+  {
+   "id": "privacy-wall",
+   "name": "Printed privacy wall",
+   "qty": 1,
+   "source": "print",
+   "status": "removed",
+   "route": [
+    "magnet"
+   ],
+   "role": "hides the AI's face-up hand zone from the person",
+   "reason": "the hand rack's fence hides the AI's hand (2026-10-05)"
   },
   {
    "id": "receptive-sheet",

@@ -136,8 +136,8 @@ def self_test(bom: dict, docs: dict[str, str]) -> list[str]:
                            "price": 0, "status": "cart", "used_in": [{"doc": "manual", "step": "Step 1"}]})
     def m_unlisted_print(b, d):
         d["manual"] = re.sub(r"(## Step 3[^\n]*\n)", r"\1- **Printed card tray**: designed, never listed\n", d["manual"], count=1)
-    def m_print_dropped(b, d): d["manual"] = d["manual"].replace("**Printed privacy wall**", "**privacy wall**")
-    def m_print_no_file(b, d): item(b, "privacy-wall")["stl"] = "hardware/gantry/parts/stl/nope.stl"
+    def m_print_dropped(b, d): d["manual"] = d["manual"].replace("**Printed hand rack**", "**hand rack**")
+    def m_print_no_file(b, d): item(b, "hand-rack")["stl"] = "hardware/gantry/parts/stl/nope.stl"
     def m_saved_orphan(b, d):
         b["items"].append({"id": "ghost2", "name": "Ghost saved part", "source": "amazon", "asin": "B0GHOST001",
                            "price": 0, "status": "saved", "used_in": [{"doc": "manual", "step": "Step 1"}]})

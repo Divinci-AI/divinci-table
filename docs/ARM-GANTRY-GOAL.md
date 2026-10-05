@@ -153,7 +153,7 @@ Design notes for the printer-as-hand version:
   cap the on-time in code the way the pump was capped. A cap dies with its process, so also send `M107` on exit and
   when the table server starts. Only `M106 S255` / `M107`: partial power holds weakly and drops cards.
 - **Never flip a card.** The person shuffles the AI's deck face-down, turns the stack face-up into a covered deck
-  box, and every move after that is face-up: box → hand zone (behind a printed privacy wall) → battlefield. Turning
+  box, and every move after that is face-up: box → hand rack (a printed staircase on the bed's back edge; its fence hides the faces) → battlefield. Turning
   the stack over keeps the order random; vision ignores the box until a draw. *Flipping was an unsolved gap in the
   arm plan too.* The box has a **one-card exit slot**: the magnet slides the top card out, and the slot's lip stops
   the card below even when its disc is pulled along.
@@ -163,7 +163,8 @@ Design notes for the printer-as-hand version:
   on the bed pins one corner of the card, and an arc move (G2/G3) a quarter circle around that corner turns the
   card 90°. If that isn't reliable, the MG90S goes back on (it's saved in the list).
 - **Discards and exile:** a printed chute off the bed's edge into a tray, so they take no bed space.
-- **Bed space is the limit:** about 4 × 4 card spots plus the hand zone and the deck box. Lower the Y acceleration
+- **Bed space is the limit:** the hand rack takes the back ~110 mm (seven cards; an eighth waits on a spare
+  battlefield spot until the AI discards), leaving about ten card spots plus the deck box and the tap station. Lower the Y acceleration
   and put a mat on the bed so the moving bed doesn't slide the cards around.
 - People's cards and hands stay off the bed, and so out of the machine's reach.
 

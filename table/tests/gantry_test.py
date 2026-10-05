@@ -123,5 +123,36 @@ pts, (c, r), _ = gantry.plan((0, 0, 300, 200), 400, cfg)
 ok &= check("an area smaller than one frame is one shot, centred", (c, r) == (1, 1) and pts == [(150, 100)])
 ok &= check("lens into the bed is refused", refused(lambda: gantry.footprint(100, cfg)))
 
+# ── the hand rack: rise before crossing, slide out from under the next shelf ─────────────────────
+cfg = dict(gantry.RIG_DEFAULT, touch_z=5, travel_z=60, rack={"slot0": [40, 350], "pitch": 46, "rise": 3.6, "slots": 7})
+gantry.config = lambda: cfg
+fake = FakeMarlin("CR-6 Max")
+p = gantry.Printer(ser=fake, log=lambda *_: None)
+n = len(fake.sent)
+p.pick(50, 50)
+moves = [l for l in fake.sent[n:] if l.startswith("G0")]
+ok &= check("pick rises to travel_z before moving across", moves[0].startswith("G0 Z60.0") and moves[1].startswith("G0 X50.0 Y50.0"))
+ok &= check("…then down to touch_z", moves[2].startswith("G0 Z5.0"))
+s2 = p.rack_slot(2)
+ok &= check("slot 2 = two pitches right, two rises up, out sideways", s2 == {"x": 132, "y": 350, "dz": 7.2, "slide_x": -46})
+ok &= check("slot 0 has nothing over it: straight up", p.rack_slot(0)["slide_x"] == 0.0)
+ok &= check("refuses a slot the rack doesn't have", refused(lambda: p.rack_slot(7)))
+n = len(fake.sent)
+p.pick(**s2)
+seq = fake.sent[n:]
+i_on = seq.index("M106 S255")
+after = [l for l in seq[i_on:] if l.startswith("G0")]
+ok &= check("rack pick grips at the slot's height", any(l.startswith("G0 Z12.2") for l in seq[:i_on]))
+ok &= check("…slides out to the left before lifting", after[0].startswith("G0 X86.0") and after[1].startswith("G0 Z60.0"))
+n = len(fake.sent)
+p.place(**s2)
+seq = fake.sent[n:]
+i_off = seq.index("M107")
+before = [l for l in seq[:i_off] if l.startswith("G0")]
+ok &= check("rack place comes down beside the slot and slides in, then lets go",
+            before[-3].startswith("G0 X86.0 Y350.0") and before[-2].startswith("G0 Z12.2") and before[-1].startswith("G0 X132.0"))
+cfg["rack"] = {"slot0": None}
+ok &= check("refuses the rack before slot 0 is measured", refused(lambda: p.rack_slot(0)))
+
 print("ALL PASS" if ok else "SOME FAILED")
 sys.exit(0 if ok else 1)

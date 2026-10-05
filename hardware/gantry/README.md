@@ -56,7 +56,10 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Printed deck box with a one-card exit slot | 1 | the AI's shuffled deck, face-up and covered; one card out at a time |
 | Printed deck box follower plate | 1 | rides on four springs, keeping the top card at the exit slot |
 | Printed discard chute | 1 | graveyard and exile go off the bed's edge into a tray |
-| Printed privacy wall | 1 | hides the AI's face-up hand zone from the person |
+| Printed hand rack | 1 | the AI's hand: seven cards in a staircase on the bed's back edge, faces hidden by its fence |
+| Printed sleeving jig tray | 1 | holds a card while its washer goes on |
+| Printed sleeving jig bridge | 1 | drops every washer at the card's centre |
+| Printed lead clip | 4 | the magnet's leads, with slack for the swivel |
 
 **Check you have these (buy only if missing)**
 
@@ -146,8 +149,18 @@ sleeves and bed edge, change the numbers at the top of a file, and re-render wit
   compresses to about `spring_room` (14 mm).
 - **Printed discard chute** ([`discard_chute.scad`](parts/discard_chute.scad)): hooks over the bed's front edge
   (set `bed_t`) and drops cards into a tray: graveyard and exile need no bed space.
-- **Printed privacy wall** ([`privacy_wall.scad`](parts/privacy_wall.scad)): a low wall with taped feet along the
-  bed's front edge, in front of the AI's hand zone, so the person can't read the AI's face-up hand.
+- **Printed hand rack** ([`hand_rack.scad`](parts/hand_rack.scad)): the AI's hand, held in front of it on the
+  bed's back edge, the way a player holds their cards close. Seven slots in a staircase: each card lies flat on
+  its own shelf, 46 mm right of and 3.6 mm above the one before, so its left strip (with the washer under the card's
+  centre) stays open to the magnet and the camera while the rest slides under the next card's shelf. A 40 mm fence on
+  the person's side hides the faces. Print it standing on the fence (the STL is already turned that way): the slots
+  become upright slits and need no supports. It is ~347 mm long, so it uses most of the 400 mm bed; set `card_t` to
+  the same number as the deck box.
+- **Printed sleeving jig tray** ([`sleeve_jig.scad`](parts/sleeve_jig.scad)) and **Printed sleeving jig bridge**
+  (the same file, `part = "bridge"`): put every washer at the centre of the card's back (Step 8), which the deck box
+  and the rack both rely on.
+- **Printed lead clip** ([`lead_clip.scad`](parts/lead_clip.scad), print four): tape-on clips for the magnet's leads
+  (Step 5).
 
 ## Step 4 — Build the magnet head
 
@@ -179,6 +192,8 @@ board, power supply or switch.
    version and the fan output's transistor, and if in doubt check that it stays cool after a minute of `M106 S255`
    with a card held. If it can't carry the magnet, the fallback is a MOSFET module switched by that output
    (see the goal doc).
+5. Clip the leads to the bracket with two **printed lead clips**, leaving a loop of slack between the clip and the
+   magnet so the swivel can turn a quarter for a tap; two more along the carriage.
 
 ## Step 6 — USB: make it safe, then connect
 
@@ -223,11 +238,23 @@ touches a card. Write what you measured to `table/.cache/gantry.json`:
 - `min_z`: the lowest Z at which the magnet still clears the bed by ~2 mm (the touch-down height + 2).
 - `lens_at_z0_mm`: lens front to bed at Z = 0 (measure at some Z and subtract).
 - `y_feed`: the bed carries the cards, so Y moves slowly or the cards slide.
+- `travel_z`: the head rises to at least this before any X/Y move while carrying. Set it ~10 mm above the hand rack's
+  fence (Z where the magnet's face is 50 mm over the bed), so the head never crosses the fence diagonally.
+- `rack`: `{"slot0": [x, y]}`, the carriage position over the centre of a card in the rack's leftmost slot. Pitch
+  (46) and rise (3.6) are already the .scad's numbers; change them here if you change them there.
+
+![Bed layout](img/bed-layout.svg)
+
+**Bed layout.** The hand rack along the **back** edge (the AI's side), fence toward the person. The discard chute
+hooks over the **front** edge at the left; the deck box at the front right. The battlefield is the middle, about
+400 × 260 mm: roughly ten card spots plus the tap station's rubber washer. Tape everything down on the shelf liner.
 
 ## Step 8 — Sleeve the AI's deck
 
-Only the AI's deck. For each card: the card into its **inner sleeve**, one **#10 zinc washer** centred on the inner
-sleeve's *back*, then the **outer sleeve** over both. The disc sits behind the card's back, so the magnet picks the
+Only the AI's deck. For each card: the card into its **inner sleeve**, then face-down into the **sleeving jig**'s
+tray; set the bridge across, drop one **#10 zinc washer** through its hole, lift the bridge off, put a small piece of
+clear tape over the washer so it can't wander, then slide the **outer sleeve** over both. Every washer at the centre
+matters: the magnet goes to the centre of a card in the deck box, on the battlefield and in the rack. The disc sits behind the card's back, so the magnet picks the
 card face-up through the card. Never put steel in a person's cards.
 
 ## Step 9 — First picks and the magnet test (M1)

@@ -8,7 +8,7 @@
 part        = "box";   // "box" or "follower"
 card_w      = 66.5;    // double-sleeved card, measure yours
 card_l      = 92.5;
-card_t      = 0.9;     // one sleeved card with its disc: measure 10 and divide (a #10 zinc washer is ~1.2 mm, so ~1.6)
+card_t      = 1.6;     // one sleeved card with its #10 zinc washer: measure 10 and divide
 slot_play   = 0.25;    // the exit slot = one card + this
 deck_n      = 60;
 clear       = 1.0;     // around the stack

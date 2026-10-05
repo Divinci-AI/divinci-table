@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700" font-family="Helvetica, Arial, sans-serif" font-size="14">
+<title>Bed layout, top view: hand rack on the back edge, battlefield in the middle, discard chute and deck box at the front</title>
+<rect width="960" height="700" fill="#ffffff"/>
+<text x="24.0" y="34.0" font-size="22" text-anchor="start" font-weight="700" fill="#1a1a1a">5 · The bed, from above (to scale, 400 × 400 mm)</text>
+<text x="300.0" y="66.0" font-size="12" text-anchor="middle" font-weight="700" fill="#555">BACK: the AI's side</text>
+<rect x="50.0" y="80.0" width="500.0" height="500.0" fill="#f4f1ea" stroke="#1a1a1a" stroke-width="2"/>
+<rect x="51.2" y="81.2" width="433.8" height="139.1" fill="#dfe7ef" stroke="#3b5b7a" stroke-width="1.5"/>
+<rect x="51.2" y="216.1" width="433.8" height="3.0" fill="#3b5b7a"/>
+<rect x="54.2" y="87.5" width="83.1" height="115.6" fill="#ffffff" stroke="#7a8da0" stroke-width="1"/>
+<circle cx="95.8" cy="145.0" r="6.9" fill="#9aa3ab"/>
+<text x="69.2" y="105.0" font-size="12" text-anchor="start" font-weight="700" fill="#3b5b7a">0</text>
+<rect x="111.8" y="87.5" width="83.1" height="115.6" fill="#ffffff" stroke="#7a8da0" stroke-width="1"/>
+<circle cx="153.3" cy="145.0" r="6.9" fill="#9aa3ab"/>
+<text x="126.8" y="105.0" font-size="12" text-anchor="start" font-weight="700" fill="#3b5b7a">1</text>
+<rect x="169.2" y="87.5" width="83.1" height="115.6" fill="#ffffff" stroke="#7a8da0" stroke-width="1"/>
+<circle cx="210.8" cy="145.0" r="6.9" fill="#9aa3ab"/>
+<text x="184.2" y="105.0" font-size="12" text-anchor="start" font-weight="700" fill="#3b5b7a">2</text>
+<rect x="226.8" y="87.5" width="83.1" height="115.6" fill="#ffffff" stroke="#7a8da0" stroke-width="1"/>
+<circle cx="268.3" cy="145.0" r="6.9" fill="#9aa3ab"/>
+<text x="241.8" y="105.0" font-size="12" text-anchor="start" font-weight="700" fill="#3b5b7a">3</text>
+<rect x="284.2" y="87.5" width="83.1" height="115.6" fill="#ffffff" stroke="#7a8da0" stroke-width="1"/>
+<circle cx="325.8" cy="145.0" r="6.9" fill="#9aa3ab"/>
+<text x="299.2" y="105.0" font-size="12" text-anchor="start" font-weight="700" fill="#3b5b7a">4</text>
+<rect x="341.8" y="87.5" width="83.1" height="115.6" fill="#ffffff" stroke="#7a8da0" stroke-width="1"/>
+<circle cx="383.3" cy="145.0" r="6.9" fill="#9aa3ab"/>
+<text x="356.8" y="105.0" font-size="12" text-anchor="start" font-weight="700" fill="#3b5b7a">5</text>
+<rect x="399.2" y="87.5" width="83.1" height="115.6" fill="#ffffff" stroke="#7a8da0" stroke-width="1"/>
+<circle cx="440.8" cy="145.0" r="6.9" fill="#9aa3ab"/>
+<text x="414.2" y="105.0" font-size="12" text-anchor="start" font-weight="700" fill="#3b5b7a">6</text>
+<rect x="60.0" y="232.5" width="480.0" height="268.8" fill="none" stroke="#7a6a3a" stroke-dasharray="6 5" stroke-width="1.5"/>
+<rect x="67.5" y="242.5" width="83.1" height="115.6" fill="none" stroke="#c9bd95" stroke-width="1"/>
+<rect x="67.5" y="371.2" width="83.1" height="115.6" fill="none" stroke="#c9bd95" stroke-width="1"/>
+<rect x="162.5" y="242.5" width="83.1" height="115.6" fill="none" stroke="#c9bd95" stroke-width="1"/>
+<rect x="162.5" y="371.2" width="83.1" height="115.6" fill="none" stroke="#c9bd95" stroke-width="1"/>
+<rect x="257.5" y="242.5" width="83.1" height="115.6" fill="none" stroke="#c9bd95" stroke-width="1"/>
+<rect x="257.5" y="371.2" width="83.1" height="115.6" fill="none" stroke="#c9bd95" stroke-width="1"/>
+<rect x="352.5" y="242.5" width="83.1" height="115.6" fill="none" stroke="#c9bd95" stroke-width="1"/>
+<rect x="352.5" y="371.2" width="83.1" height="115.6" fill="none" stroke="#c9bd95" stroke-width="1"/>
+<rect x="447.5" y="242.5" width="83.1" height="115.6" fill="none" stroke="#c9bd95" stroke-width="1"/>
+<rect x="447.5" y="371.2" width="83.1" height="115.6" fill="none" stroke="#c9bd95" stroke-width="1"/>
+<circle cx="515.0" cy="492.5" r="7.5" fill="#333"/>
+<rect x="60.0" y="555.0" width="93.1" height="25.0" fill="#e8dccd" stroke="#8a5a2b" stroke-width="1.5"/>
+<rect x="60.0" y="580.0" width="93.1" height="42.5" fill="#efe6da" stroke="#8a5a2b" stroke-width="1.5" stroke-dasharray="4 3"/>
+<rect x="425.0" y="505.0" width="95.0" height="72.5" fill="#e6efe6" stroke="#3e7a4f" stroke-width="1.5"/>
+<text x="300.0" y="652.0" font-size="12" text-anchor="middle" font-weight="700" fill="#555">FRONT: the person sits here</text>
+<text x="578.0" y="100.0" font-size="14" text-anchor="start" font-weight="700" fill="#1a1a1a">Hand rack (back edge)</text>
+<text x="578.0" y="118.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">seven slots, numbered 0–6; grey dot = the washer</text>
+<text x="578.0" y="134.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">each card slides out to the left, then lifts</text>
+<text x="578.0" y="150.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">fence on the person's side hides the faces</text>
+<text x="578.0" y="230.0" font-size="14" text-anchor="start" font-weight="700" fill="#1a1a1a">Battlefield (dashed)</text>
+<text x="578.0" y="248.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">about ten card spots, 400 × 260 mm</text>
+<text x="578.0" y="264.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">black dot, bottom right: the tap station</text>
+<text x="578.0" y="280.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">(a rubber washer glued to the bed)</text>
+<text x="578.0" y="370.0" font-size="14" text-anchor="start" font-weight="700" fill="#1a1a1a">Discard chute (front left)</text>
+<text x="578.0" y="388.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">hooks over the front edge; cards slide</text>
+<text x="578.0" y="404.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">off into a tray on the table below</text>
+<text x="578.0" y="460.0" font-size="14" text-anchor="start" font-weight="700" fill="#1a1a1a">Deck box (front right)</text>
+<text x="578.0" y="478.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">face-up deck under its lid; the magnet</text>
+<text x="578.0" y="494.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">slides the top card out of the open strip</text>
+<text x="24.0" y="688.0" font-size="12" text-anchor="start" font-weight="400" fill="#555">The bed moves toward / away from you (Y); the magnet head moves left / right (X). Keep people's cards off the bed.</text>
+</svg>

@@ -67,7 +67,12 @@ SAFE_DEFAULT = (200, 200, 200)            # unknown machine: stay inside the sma
 #   y_feed           the bed carries the cards, so Y moves gently or they slide
 RIG_DEFAULT = {"min_z": 0, "lens_at_z0_mm": 0, "cam_offset_mm": [0, 0], "focal_mm": 18,
                "sensor_mm": [22.3, 14.9], "y_feed": 1200, "overlap": 0.3, "magnet_max_s": 20, "touch_z": None,
-               "lift_mm": 20, "arc_feed": 1500}
+               "lift_mm": 20, "arc_feed": 1500, "travel_z": None,
+               "rack": {"slot0": None, "pitch": 46, "rise": 3.6, "slots": 7}}
+# travel_z: the head rises at least this high before any X/Y move while carrying, so it clears the hand rack's fence
+# rack: the printed hand rack (hardware/gantry/parts/hand_rack.scad). slot0 = [x, y] of the centre of slot 0's card,
+#   measured in Step 7; pitch and rise match the .scad. Each slot k sits k*pitch to the right and k*rise higher; a
+#   card leaves and enters its slot sideways, from one pitch to the left, because the next card's shelf covers it.
 MAGNET_ON, MAGNET_OFF = "M106 S255", "M107"
 
 
@@ -298,21 +303,48 @@ class Printer:
             raise Refused("measure touch_z (the Z where the magnet just touches a card) into gantry.json first")
         return float(z)
 
-    def pick(self, x: float, y: float):
-        z, lift = self._touch_z(), config()["lift_mm"]
-        self.goto(x, y, z + lift)
+    def _travel_z(self, z: float) -> float:
+        cfg = config()
+        return max(z + cfg["lift_mm"], float(cfg.get("travel_z") or 0))
+
+    def _over(self, x: float, y: float, z: float):
+        """Up to the travel height first (never diagonally through the rack's fence), across, then down to z."""
+        up = self._travel_z(z)
+        self.goto(z=max(up, self.position()["Z"]))
+        self.goto(x, y)
         self.goto(z=z)
+        return up
+
+    def pick(self, x: float, y: float, dz: float = 0.0, slide_x: float = 0.0):
+        """Grip the card centred at (x, y). dz: how much higher than a card lying on the bed (a rack slot).
+        slide_x: after gripping, slide the card this far in X at the same height before lifting."""
+        z = self._touch_z() + dz
+        up = self._over(x, y, z)
         self.magnet_on()
         time.sleep(0.2)
-        self.goto(z=z + lift)
+        if slide_x:
+            self.goto(x + slide_x)
+        self.goto(z=up)
 
-    def place(self, x: float, y: float):
-        z, lift = self._touch_z(), config()["lift_mm"]
-        self.goto(x, y, z + lift)
-        self.goto(z=z)
+    def place(self, x: float, y: float, dz: float = 0.0, slide_x: float = 0.0):
+        """Set the held card down centred at (x, y); with slide_x it comes down at x + slide_x and slides in."""
+        z = self._touch_z() + dz
+        up = self._over(x + slide_x, y, z)
+        if slide_x:
+            self.goto(x)
         self.magnet_off()
         time.sleep(0.2)
-        self.goto(z=z + lift)
+        self.goto(z=up)
+
+    def rack_slot(self, k: int) -> dict:
+        """Where slot k of the hand rack is: pick(**rack_slot(k)) takes its card, place(**rack_slot(k)) fills it."""
+        r = dict(RIG_DEFAULT["rack"], **(config().get("rack") or {}))
+        if r.get("slot0") is None:
+            raise Refused("measure the hand rack's slot 0 (rack.slot0 in gantry.json) first")
+        if not 0 <= k < r["slots"]:
+            raise Refused(f"the rack has slots 0..{r['slots'] - 1}")
+        x0, y0 = r["slot0"]
+        return {"x": x0 + k * r["pitch"], "y": y0, "dz": k * r["rise"], "slide_x": -r["pitch"] if k else 0.0}
 
     def tap(self, cx: float, cy: float, ccw: bool = False):
         """The held card turns a quarter about its corner pinned at (cx, cy): the magnet swings a quarter circle."""

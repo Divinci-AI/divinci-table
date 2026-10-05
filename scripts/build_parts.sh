@@ -11,5 +11,7 @@ render() {                                    # name, output, extra args…  (ou
   grep -q "Status: *NoError" <<<"$log" || { echo "$name: not a clean solid" >&2; echo "$log" >&2; exit 1; }
   echo "  $out"
 }
-for f in magnet_swivel deck_box discard_chute privacy_wall; do render "$f" "stl/$f.stl" "$f.scad"; done
+for f in magnet_swivel deck_box discard_chute hand_rack lead_clip; do render "$f" "stl/$f.stl" "$f.scad"; done
 render "deck_box follower" stl/deck_box_follower.stl -D 'part="follower"' deck_box.scad
+render "sleeve_jig tray" stl/sleeve_jig_tray.stl sleeve_jig.scad
+render "sleeve_jig bridge" stl/sleeve_jig_bridge.stl -D 'part="bridge"' sleeve_jig.scad
