@@ -139,13 +139,15 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
       *Laptop: done (`dnd_round_e2e` 9/9). Cloud room: waits for the next deploy (Michael's OK).*
 
 ## D6 — The headset (Quest 3S)
-- [ ] **AR:** the battle map as a diorama on the real table (place / re-place / scale from xr-controls);
+- [x] **AR:** the battle map as a diorama on the real table (place / re-place / scale from xr-controls);
       grab your own mini to move it (the server decides); dice on a button and by voice.
-- [ ] **VR:** the location's room around the table at life size, or the diorama in front of you; remote
+- [x] **VR:** the location's room around the table at life size, or the diorama in front of you; remote
       players as head-and-hands avatars (presence, as in Magic).
-- [ ] Controller map consistent with Magic (A = end turn, X = talk, panel on left-stick click).
+- [x] Controller map consistent with Magic (A = end turn, X = talk, panel on left-stick click).
 - [ ] **Check:** a session on the actual headset: 72 fps with 4 players and 12 minis, mic and cameras
       work during the immersive session, presence holds for 30 minutes. Record the numbers.
+      *Built and checked outside a headset (`dnd_xr_e2e` 8/8: renders, every token, 0.80 m diorama, spoken dice
+      parsed, no errors). The immersive check itself needs Michael and the Quest.*
 
 ## D7 — The AI DM runs the map
 - [ ] The DM picks a location from the library (never generates one live), places monsters at spawn
@@ -165,6 +167,14 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
 - [ ] **Check:** results in the ledger; what broke goes into the next goal.
 
 ## Done log
+
+- **2026-10-04 · D6 built (the headset check waits for the Quest).** `dnd_xr.html` at `/xr` on the D&D server:
+  Start AR / Enter VR; AR hit-test placement; the map as a 0.8 m diorama or life size (1 square = 1.524 m, sticks
+  walk you and snap-turn you through the reference space); trigger or squeeze on your own mini, then a square
+  (the server decides); a wrist panel (turn, your HP and movement left, Roll d20, Next turn, Diorama/Life size,
+  Re-place); A = next turn on yours, hold X = talk, Y = d20, left-stick click = panel; "roll a d20 for stealth"
+  rolls, anything else said is your action; presence (heads and hands) in cloud rooms, unmodified, because the
+  table group stays in metres. `dnd_xr_e2e` **8/8**; a preview screenshot of the cave diorama checked by eye.
 
 - **2026-10-04 · D5 (laptop done; cloud check waits for the deploy).** Phone page: scene art banner (Cosmos art,
   else the room's view), 🎙 hold-to-talk (16 kHz WAV → `/api/xr/stt`: the room's Worker in the cloud, Whisper on

@@ -68,6 +68,7 @@ else
   run table-page  env PW=$PW node table/tests/table_e2e.cjs
   run dnd-page    env PW=$PW node table/tests/dnd_page_e2e.cjs
   run dnd-round   env PW=$PW node table/tests/dnd_round_e2e.cjs
+  run dnd-xr      env PW=$PW node table/tests/dnd_xr_e2e.cjs
   run router      $PY table/tests/route_eval.py
   pid=$(lsof -ti tcp:8800 -sTCP:LISTEN); [ -n "$pid" ] && kill -TERM $pid
 fi

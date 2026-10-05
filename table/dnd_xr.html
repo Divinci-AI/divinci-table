@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Divinci Table — adventure in XR</title>
+<style>
+  :root { --ink: #ece4cf; --dim: #9fb0b0; --gold: #d9b46a; --bg: #040d12; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: system-ui, sans-serif; }
+  canvas { display: block; }
+  #overlay { position: fixed; inset: 0; pointer-events: none; }
+  #hint { position: absolute; top: max(16px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    padding: 8px 14px; border-radius: 999px; background: #000a; font-size: 14px; color: var(--dim); white-space: nowrap; }
+  #msg { position: fixed; bottom: 16px; left: 16px; right: 16px; font-size: 13px; color: var(--dim); text-align: center; }
+  #xrstart { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 70; display: none; gap: 12px; }
+  #xrstart button { all: unset; cursor: pointer; padding: 16px 28px; border-radius: 999px; font: 800 20px system-ui, sans-serif; }
+  #xrstart [data-mode="immersive-ar"] { background: var(--gold); color: #1a1206; }
+  #xrstart [data-mode="immersive-vr"] { background: #000c; color: var(--ink); box-shadow: inset 0 0 0 2px var(--gold); }
+</style>
+<script type="importmap">{ "imports": { "three": "/vendor/three.module.min.js" } }</script>
+<script src="/assets/seat.js" defer></script>
+</head>
+<body>
+<div id="overlay"><div id="hint">Loading the table…</div></div>
+<div id="xrstart"></div>
+<div id="msg"></div>
+<script type="module">
+// The adventure in a headset (docs/DND-3D-GOAL.md D6). AR: the battle map as a diorama on your real table (or
+// life size around you); VR: the same, in front of you. Point at your own mini and pull the trigger (or squeeze),
+// then at a square: the server decides. Wrist panel on the left hand; A = next turn (yours), hold X = talk,
+// Y = roll a d20. Say "roll a d20 for stealth" to roll; anything else you say is what your character says or does.
+import * as THREE from "three";
+import { createDndScene } from "/assets/dnd-scene.js";
+import { moveOffset, turnOffset, yawOf } from "/assets/xr-controls.js";
+import { installPresence } from "/assets/xr-presence.js";
+
+const $ = id => document.getElementById(id);
+const SQUARE_M = 1.524;                                     // one 5-ft square, in metres
+let S = null, sel = null, life = false, placed = false, panelOn = true, note = "";
+const me = () => (window.TableSeat && TableSeat.name()) || "";
+async function post(path, extra) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(Object.assign(window.TableSeat ? TableSeat.body() : { by: me() }, extra || {})) });
+  const d = await r.json().catch(() => ({})); note = d.error || ""; if (d.sheets) S = d; drawPanel(); return d;
+}
+
+// ── renderer, scene, the table ────────────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.shadowMap.enabled = true; renderer.xr.enabled = true;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x2a2016, 1.1));
+const sun = new THREE.DirectionalLight(0xfff1dc, 1.6); sun.position.set(-1, 3, 1); scene.add(sun);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.01, 200); camera.position.set(0, 1.4, 1.2);
+addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+const table = new THREE.Group(); scene.add(table);          // metres: scale 1 at life size (presence only then)
+const dnd = createDndScene(); table.add(dnd.root);
+dnd.root.scale.setScalar(SQUARE_M);
+function fit() {                                           // centre the map on the table; diorama ≈ 0.8 m across
+  const { w, h } = dnd.size();
+  dnd.root.position.set(-w / 2 * SQUARE_M, 0, -h / 2 * SQUARE_M);
+  table.scale.setScalar(life ? 1 : 0.8 / (Math.max(w, h) * SQUARE_M));
+}
+
+// ── Start AR / Enter VR ──────────────────────────────────────────────────────────────────────────
+const CLOUD_ROOM = /(^|\.)divinci\.ai$|workers\.dev$/.test(location.hostname);
+async function enterXR(mode) {
+  try {
+    const session = await navigator.xr.requestSession(mode, mode === "immersive-ar"
+      ? { optionalFeatures: ["hit-test", "local-floor", "hand-tracking"] } : { optionalFeatures: ["local-floor", "hand-tracking"] });
+    const feats = session.enabledFeatures ? [...session.enabledFeatures] : null;
+    renderer.xr.setReferenceSpaceType(feats && !feats.includes("local-floor") ? "local" : "local-floor");
+    await renderer.xr.setSession(session);
+  } catch (e) { $("msg").textContent = `⚠ couldn't start ${mode === "immersive-ar" ? "AR" : "VR"}: ${e.message || e}`; }
+}
+async function checkXR() {
+  const ar = !!navigator.xr && await navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
+  const vr = !!navigator.xr && await navigator.xr.isSessionSupported("immersive-vr").catch(() => false);
+  $("xrstart").innerHTML = (ar ? `<button data-mode="immersive-ar">Start AR</button>` : "") + (vr ? `<button data-mode="immersive-vr">Enter VR</button>` : "");
+  if (!renderer.xr.isPresenting) $("xrstart").style.display = ar || vr ? "flex" : "none";
+  $("hint").textContent = ar ? "Tap ‘Start AR’, look at your table, pull the trigger to place the map" : vr ? "Tap ‘Enter VR’"
+    : "No AR/VR here — this is the preview (drag to look around)";
+}
+$("xrstart").addEventListener("click", e => { const m = e.target.closest("button")?.dataset.mode; if (m) enterXR(m); });
+await checkXR();
+navigator.xr?.addEventListener("devicechange", checkXR);
+
+let hitSource = null;
+const reticle = new THREE.Mesh(new THREE.RingGeometry(0.06, 0.08, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+reticle.matrixAutoUpdate = false; reticle.visible = false; scene.add(reticle);
+renderer.xr.addEventListener("sessionstart", async () => {
+  $("xrstart").style.display = "none";
+  const s = renderer.xr.getSession();
+  if (s.environmentBlendMode && s.environmentBlendMode !== "opaque") {
+    placed = false; table.visible = false;
+    hitSource = await s.requestHitTestSource?.({ space: await s.requestReferenceSpace("viewer") });
+  } else { placed = true; table.visible = true; table.position.set(0, life ? 0 : 0.85, life ? 0 : -0.9); }
+  fit();
+});
+renderer.xr.addEventListener("sessionend", () => { hitSource = null; table.visible = true; table.position.set(0, 0, 0); checkXR(); });
+
+// ── the wrist panel (left hand): state and buttons, hit-tested from the right hand's ray ─────────────────
+const PW = 640, PH = 520;
+const pc = document.createElement("canvas"); pc.width = PW; pc.height = PH;
+const ptex = new THREE.CanvasTexture(pc); ptex.colorSpace = THREE.SRGBColorSpace;
+const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2 * PH / PW), new THREE.MeshBasicMaterial({ map: ptex, transparent: true }));
+let buttons = [];
+function turnName() { const i = S && S.initiative; return i && i.active && i.order.length && !i.pending.length ? i.order[i.turn].name : null; }
+function mine() { return S && Object.values(S.map.tokens).find(t => t.owner === me()); }
+function drawPanel() {
+  const g = pc.getContext("2d"); g.clearRect(0, 0, PW, PH);
+  g.fillStyle = "rgba(4,13,18,.92)"; g.beginPath(); g.roundRect(4, 4, PW - 8, PH - 8, 28); g.fill();
+  g.strokeStyle = "#d9b46a"; g.lineWidth = 3; g.stroke();
+  g.fillStyle = "#d9b46a"; g.font = "700 34px Georgia"; g.fillText((S?.map?.name || "The map").slice(0, 26), 28, 56);
+  const now = turnName(), t = mine(), s = S?.sheets?.[me()];
+  g.fillStyle = "#ece4cf"; g.font = "28px system-ui";
+  g.fillText(now ? (now === me() ? "Your turn" : `${now}'s turn`) : "Not in combat", 28, 104);
+  if (s) g.fillText(`${me()} · ${s.hp}/${s.max_hp} HP · AC ${s.ac}`, 28, 146);
+  if (t && now === me()) g.fillText(`${Math.max(0, t.speed - ((S.map.used || {})[t.id] || 0))} ft of movement left`, 28, 188);
+  g.fillStyle = "#ff9b6a"; g.font = "24px system-ui"; g.fillText((note || (sel ? "Now point at a square" : "")).slice(0, 44), 28, 230);
+  buttons = [["d20", "Roll d20", 28, 260], ["next", "Next turn", 330, 260], ["size", life ? "Diorama" : "Life size", 28, 380]];
+  if (!life && renderer.xr.getSession()?.environmentBlendMode !== "opaque") buttons.push(["replace", "Re-place", 330, 380]);
+  for (const [id, text, x, y] of buttons) {
+    const off = id === "next" && now !== me();
+    g.fillStyle = off ? "#1a2a30" : "#10242d"; g.beginPath(); g.roundRect(x, y, 282, 96, 18); g.fill();
+    g.strokeStyle = off ? "#33444a" : "#d9b46a"; g.lineWidth = 2; g.stroke();
+    g.fillStyle = off ? "#667" : "#ece4cf"; g.font = "700 32px system-ui"; g.fillText(text, x + 24, y + 60);
+  }
+  ptex.needsUpdate = true;
+}
+function pressPanel(uv) {
+  const px = uv.x * PW, py = (1 - uv.y) * PH, b = buttons.find(([, , x, y]) => px >= x && px <= x + 282 && py >= y && py <= y + 96);
+  if (!b) return false;
+  const id = b[0];
+  if (id === "d20") post("/api/dnd/roll", { dice: "d20", why: "" });
+  if (id === "next" && turnName() === me()) post("/api/dnd/initiative", { action: "next" });
+  if (id === "size") { life = !life; if (life) table.position.set(0, 0, 0); fit(); drawPanel(); }
+  if (id === "replace") { placed = false; table.visible = false; }
+  return true;
+}
+
+// ── controllers: rays, select / squeeze on your mini then a square ───────────────────────────────────
+const ctrl = [0, 1].map(i => {
+  const c = renderer.xr.getController(i);
+  c.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -4)]),
+    new THREE.LineBasicMaterial({ color: 0xf4dc9b, transparent: true, opacity: 0.6 })));
+  c.addEventListener("connected", e => { c.userData.hand = e.data.handedness; c.userData.gp = e.data.gamepad; if (e.data.handedness === "left") c.add(panel); });
+  c.addEventListener("disconnected", () => { c.userData.hand = null; });
+  c.addEventListener("selectstart", () => act(c));
+  c.addEventListener("squeezestart", () => act(c, true));
+  c.addEventListener("squeezeend", () => { if (sel && c.userData.grab) act(c); c.userData.grab = false; });
+  scene.add(c); return c;
+});
+panel.position.set(0, 0.06, -0.08); panel.rotation.x = -Math.PI / 3;
+const ray = new THREE.Raycaster(), _m = new THREE.Matrix4();
+function aim(c) { _m.identity().extractRotation(c.matrixWorld); ray.ray.origin.setFromMatrixPosition(c.matrixWorld); ray.ray.direction.set(0, 0, -1).applyMatrix4(_m); return ray; }
+function act(c, grab = false) {
+  const r = aim(c);
+  if (panelOn && c.userData.hand !== "left") { const hit = r.intersectObject(panel)[0]; if (hit && pressPanel(hit.uv)) return; }
+  if (!placed && reticle.visible) { table.position.setFromMatrixPosition(reticle.matrix); table.visible = placed = true; return; }
+  if (!S) return;
+  const id = dnd.tokenAt(r), t = id && S.map.tokens[id];
+  if (t && (t.owner === me() || (S.dm_human && S.dm_human === me()))) { sel = id; c.userData.grab = grab; note = ""; drawPanel(); return; }
+  const sq = dnd.squareAt(r);
+  if (sel && sq) { const id2 = sel; sel = null; post("/api/dnd/map/move", { token: id2, x: sq[0], y: sq[1] }); }
+}
+
+// ── voice: hold X (or say it) → /api/xr/stt; "roll a d20 for stealth" rolls, anything else is your action ─────
+const talk = { ctx: null, stream: null, node: null, chunks: null };
+function wav16k(chunks, rate) {
+  const n = chunks.reduce((a, c) => a + c.length, 0), all = new Float32Array(n); let o = 0;
+  for (const c of chunks) { all.set(c, o); o += c.length; }
+  const step = rate / 16000, len = Math.floor(n / step), pcm = new Int16Array(len);
+  for (let i = 0; i < len; i++) pcm[i] = Math.max(-1, Math.min(1, all[Math.floor(i * step)])) * 0x7fff;
+  const b = new DataView(new ArrayBuffer(44 + pcm.length * 2)), w = (p, t) => [...t].forEach((ch, i) => b.setUint8(p + i, ch.charCodeAt(0)));
+  w(0, "RIFF"); b.setUint32(4, 36 + pcm.length * 2, true); w(8, "WAVEfmt "); b.setUint32(16, 16, true); b.setUint16(20, 1, true);
+  b.setUint16(22, 1, true); b.setUint32(24, 16000, true); b.setUint32(28, 32000, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true);
+  w(36, "data"); b.setUint32(40, pcm.length * 2, true); new Int16Array(b.buffer, 44).set(pcm);
+  return new Blob([b.buffer], { type: "audio/wav" });
+}
+async function talkOn() {
+  try {
+    talk.stream ||= await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    talk.ctx ||= new AudioContext(); await talk.ctx.resume();
+    talk.node = talk.ctx.createScriptProcessor(4096, 1, 1); talk.chunks = [];
+    talk.node.onaudioprocess = e => talk.chunks && talk.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    talk.ctx.createMediaStreamSource(talk.stream).connect(talk.node); talk.node.connect(talk.ctx.destination);
+    note = "Listening…"; drawPanel();
+  } catch { note = "The microphone isn't available"; drawPanel(); }
+}
+function rollFromSpeech(text) {                       // "roll a d20 for stealth" → {dice: "d20", why: "stealth"}
+  const m = /\broll(?:ing)?\s+(?:an?\s+)?(\d{0,2})\s*d\s*(4|6|8|10|12|20|100)\b(?:\s*(?:plus|\+)\s*(\d{1,2}))?(?:\s+for\s+(.{1,40}))?/i.exec(text || "");
+  return m ? { dice: `${m[1] || ""}d${m[2]}${m[3] ? "+" + m[3] : ""}`, why: (m[4] || "").replace(/[.!?]+$/, "") } : null;
+}
+window.rollFromSpeech = rollFromSpeech;
+async function talkOff() {
+  if (!talk.chunks) return;
+  const chunks = talk.chunks; talk.chunks = null; talk.node?.disconnect();
+  if (chunks.reduce((a, c) => a + c.length, 0) / talk.ctx.sampleRate < 0.4) { note = ""; drawPanel(); return; }
+  const r = await fetch("/api/xr/stt", { method: "POST", headers: { "Content-Type": "audio/wav" }, body: wav16k(chunks, talk.ctx.sampleRate) });
+  const d = await r.json().catch(() => ({})), text = (d.text || "").trim();
+  if (!r.ok || !text) { note = d.error || "I didn't catch that"; drawPanel(); return; }
+  const roll = rollFromSpeech(text);
+  note = `“${text.slice(0, 36)}”`;
+  roll ? post("/api/dnd/roll", roll) : post("/api/dnd/act", { text });
+}
+
+// ── state, presence, the loop ──────────────────────────────────────────────────────────────────────
+async function poll() {
+  try { S = await (await fetch("/api/dnd")).json(); dnd.update(S); fit(); drawPanel(); } catch {}
+}
+await poll(); setInterval(poll, 1000);
+if (CLOUD_ROOM) installPresence({ THREE, renderer, scene, table, mySeat: me, seatKey: () => (window.TableSeat ? TableSeat.body().key : ""),
+  accentOf: () => "#d9b46a", label: (t, col) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ color: col })); s.scale.set(0.3, 0.08, 1); return s; } });
+$("hint").textContent ||= "";
+let drag = null, yaw = 0.6, pitch = 0.5;                     // the preview (no headset): drag to look around
+renderer.domElement.addEventListener("pointerdown", e => (drag = [e.clientX, e.clientY]));
+addEventListener("pointerup", () => (drag = null));
+addEventListener("pointermove", e => { if (!drag) return; yaw -= (e.clientX - drag[0]) * 0.01; pitch = Math.min(1.4, Math.max(0.1, pitch + (e.clientY - drag[1]) * 0.01)); drag = [e.clientX, e.clientY]; });
+const prevBtn = new Map();
+function offset(pos, quat) {                                 // life size: move yourself (the reference space), never the map
+  const cur = renderer.xr.getReferenceSpace(); if (!cur) return;
+  renderer.xr.setReferenceSpace(cur.getOffsetReferenceSpace(new XRRigidTransform(
+    { x: pos.x, y: pos.y, z: pos.z, w: 1 }, quat ? { x: quat.x, y: quat.y, z: quat.z, w: quat.w } : undefined)));
+}
+const headPos = () => { const xc = renderer.xr.getCamera(); xc.updateMatrixWorld(); return new THREE.Vector3().setFromMatrixPosition(xc.matrixWorld); };
+const headYaw = () => { const d = new THREE.Vector3(); renderer.xr.getCamera().getWorldDirection(d); return yawOf(d); };
+let t0 = performance.now();
+window.DNDXR = { dnd, table, frames: [], state: () => S, rollFromSpeech };
+renderer.setAnimationLoop((now, frame) => {
+  const dt = Math.min(0.1, (now - t0) / 1000); t0 = now; DNDXR.frames.push(dt * 1000); if (DNDXR.frames.length > 300) DNDXR.frames.shift();
+  if (frame && hitSource && !placed) {
+    const hits = frame.getHitTestResults(hitSource), pose = hits[0]?.getPose(renderer.xr.getReferenceSpace());
+    reticle.visible = !!pose; if (pose) reticle.matrix.fromArray(pose.transform.matrix);
+  } else reticle.visible = false;
+  for (const c of ctrl) {                                    // A next turn · X hold talk · Y d20 · left stick click: panel · sticks walk in life size
+    const gp = c.userData.gp; if (!gp) continue;
+    const was = prevBtn.get(c) || [], down = i => !!gp.buttons[i]?.pressed;
+    if (c.userData.hand === "right" && down(4) && !was[4] && turnName() === me()) post("/api/dnd/initiative", { action: "next" });
+    if (c.userData.hand === "left" && down(4) && !was[4]) talkOn();
+    if (c.userData.hand === "left" && !down(4) && was[4]) talkOff();
+    if (c.userData.hand === "left" && down(5) && !was[5]) post("/api/dnd/roll", { dice: "d20", why: "" });
+    if (c.userData.hand === "left" && down(3) && !was[3]) { panelOn = !panelOn; panel.visible = panelOn; }
+    if (life && renderer.xr.isPresenting) {
+      const [x, y] = [gp.axes[2] || 0, gp.axes[3] || 0];
+      if (c.userData.hand === "left" && Math.hypot(x, y) > 0.2) {
+        const yw = headYaw(), fwd = new THREE.Vector3(-Math.sin(yw), 0, -Math.cos(yw)), right = new THREE.Vector3(Math.cos(yw), 0, -Math.sin(yw));
+        offset(moveOffset(THREE, new THREE.Vector3().addScaledVector(right, x * 2 * dt).addScaledVector(fwd, -y * 2 * dt)).pos);
+      }
+      if (c.userData.hand === "right" && Math.abs(x) > 0.7 && Math.abs(was.ax || 0) <= 0.7) { const t = turnOffset(THREE, headPos(), x > 0 ? -Math.PI / 6 : Math.PI / 6); offset(t.pos, t.quat); }
+    }
+    prevBtn.set(c, Object.assign(gp.buttons.map(b => b.pressed), { ax: gp.axes[2] || 0 }));
+  }
+  if (!renderer.xr.isPresenting) {
+    camera.position.set(Math.sin(yaw) * 1.1, 0.3 + Math.cos(pitch) * 0.9, Math.cos(yaw) * 1.1); camera.lookAt(0, 0, 0);
+  }
+  dnd.tick(dt, renderer.xr.isPresenting ? renderer.xr.getCamera() : camera);
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>

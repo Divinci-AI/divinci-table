@@ -554,7 +554,8 @@ ROOM = Room(dump, load)
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────────────────────────────
-STATIC = {"/survey": "survey.html", "/": "dnd.html", "/stage": "dnd.html", "/me": "dnd.html", "/dnd": "dnd.html"}
+STATIC = {"/survey": "survey.html", "/": "dnd.html", "/stage": "dnd.html", "/me": "dnd.html", "/dnd": "dnd.html",
+          "/xr": "dnd_xr.html"}
 ASSET_TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".png": "image/png", ".jpg": "image/jpeg"}
 
 
