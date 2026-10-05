@@ -1,0 +1,52 @@
+{
+ "model": "gemma4:e2b",
+ "when": "2026-10-05T10:39:30.028Z",
+ "median_ms": 6444,
+ "rows": [
+  {
+   "line": "I walk up to the bar and ask the barkeep about the missing caravan.",
+   "heard": "I walk up to the bar and ask the barkeep about the missing caravan.",
+   "stt_ms": 1684,
+   "dm_first_sentence_ms": 5770,
+   "page_pickup_ms": 1732,
+   "release_to_first_word_ms": 9186,
+   "first_words": "The air in the tavern is thick with the smell of stale ale and woodsmoke, and th"
+  },
+  {
+   "line": "I draw my sword and step between the bandit and the old woman.",
+   "heard": "I draw my sword and step between the bandit and the old woman.",
+   "stt_ms": 277,
+   "dm_first_sentence_ms": 5070,
+   "page_pickup_ms": 1097,
+   "release_to_first_word_ms": 6444,
+   "first_words": "The bandit froze, his hand hovering near his weapon, while the old woman stared "
+  },
+  {
+   "line": "I search the hearth for anything hidden in the ashes.",
+   "heard": "I search the hearth for anything hidden in the ashes.",
+   "stt_ms": 333,
+   "dm_first_sentence_ms": 4960,
+   "page_pickup_ms": 294,
+   "release_to_first_word_ms": 5587,
+   "first_words": "The ashes were cold and yielded nothing but soot, but as Ana pulled out a few ha"
+  },
+  {
+   "line": "I whisper to Leonardo that we should leave by the back door.",
+   "heard": "I whisper to Leonardo that we should leave by the back door.",
+   "stt_ms": 301,
+   "dm_first_sentence_ms": 5390,
+   "page_pickup_ms": 968,
+   "release_to_first_word_ms": 6659,
+   "first_words": "The barkeep, sensing the shift in energy, shifted uncomfortably, but made no mov"
+  },
+  {
+   "line": "I toss a silver coin to the bard and ask for a song about dragons.",
+   "heard": "I toss a silver coin to the bard and ask for a song about dragons.",
+   "stt_ms": 310,
+   "dm_first_sentence_ms": 4520,
+   "page_pickup_ms": 1097,
+   "release_to_first_word_ms": 5927,
+   "first_words": "The cool night air hit them immediately, carrying the damp smell of refuse and s"
+  }
+ ]
+}

@@ -1,0 +1,94 @@
+"""The table speaks (docs/THEATER-GOAL.md T2), server side: the DM's streamed reply becomes spoken parts, one per
+finished sentence, each with its voice (narrator, an AI companion's line, an NPC's line), never the TABLE line;
+however the stream happens to be chopped up. And a whole DM turn through the script backend.
+
+    python3 table/tests/dnd_voice_test.py      (no network)
+"""
+from __future__ import annotations
+
+import os
+import random
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(HERE))
+os.environ.pop("DIVINCI_FUSION_API_KEY", None)
+SCRIPT = Path(tempfile.mkdtemp()) / "dm.txt"
+REPLY = ('The tavern falls silent. A hooded figure rises from the corner table!\n'
+         'Leonardo: Stay close. I sense old magic here.\n'
+         'NPC Barkeep: No trouble in my house, friends.\n'
+         'The fire crackles\n'
+         'TABLE: {"scene":"The Sleeping Griffin","monsters":[{"name":"Bandit 1"}]}')
+SCRIPT.write_text(REPLY + "\n---\nSecond reply. Short.")
+sys.argv = ["dnd_server.py", "--players", "Michael,Sam", "--companions", "ai:Leonardo:chatty:wizard",
+            "--dm-backend", f"script:{SCRIPT}", "--port", "0"]
+import dnd_server as D  # noqa: E402
+
+PASS = FAIL = 0
+EXPECT = [("narrator", "The tavern falls silent."), ("narrator", "A hooded figure rises from the corner table!"),
+          ("Leonardo", "Stay close."), ("Leonardo", "I sense old magic here."),
+          ("NPC Barkeep", "No trouble in my house, friends."), ("narrator", "The fire crackles")]
+
+
+def check(name: str, ok: bool, detail: str = "") -> None:
+    global PASS, FAIL
+    ok = bool(ok)
+    PASS, FAIL = PASS + ok, FAIL + (not ok)
+    print(("  ✓ " if ok else "  ✗ ") + name + ("" if ok else f" — {detail}"))
+
+
+def parts_from(chunks: list[str]) -> list[tuple[str, str]]:
+    D.new_game()
+    start = D.EVENTS.next_id
+    sp = D.Spoken("t1")
+    for c in chunks:
+        sp.feed(c)
+    sp.finish()
+    return [(e["voice"], e["text"]) for e in D.EVENTS.items if e["id"] >= start and e["type"] == "dm_part"]
+
+
+print("streamed reply → spoken parts")
+rng = random.Random(7)
+for label, chunks in (("one piece", [REPLY]), ("a character at a time", list(REPLY)),
+                      ("random chunks", [REPLY[i:i + n] for i, n in
+                                         ((i, rng.randint(1, 12)) for i in range(0, len(REPLY), 6))]),
+                      ("word by word", [w for w in __import__("re").split(r"(\s+)", REPLY) if w])):
+    if label == "random chunks":                              # rebuild exactly from random cut points
+        cuts = sorted(rng.sample(range(1, len(REPLY)), 40))
+        chunks = [REPLY[a:b] for a, b in zip([0] + cuts, cuts + [len(REPLY)])]
+    got = parts_from(chunks)
+    check(f"{label}: the right parts, voices and order", got == EXPECT, str(got))
+got = parts_from([REPLY])
+check("the TABLE line is never spoken", not any("TABLE" in t or "{" in t for _, t in got))
+check("a narrator line with a colon stays the narrator's",
+      parts_from(["Suddenly: a crash from the kitchen. Then silence.\n"])[0][0] == "narrator")
+check("a short last line with no full stop is still spoken", parts_from(["Night falls"]) == [("narrator", "Night falls")])
+
+print("\na whole DM turn (script backend)")
+D.new_game()
+start = D.EVENTS.next_id
+t0 = time.time()
+D._dm_worker("prompt", [])
+evs = [e for e in D.EVENTS.items if e["id"] >= start]
+parts = [e for e in evs if e["type"] == "dm_part"]
+full = [e for e in evs if e["type"] == "dm"]
+said = [e for e in evs if e["type"] == "say"]
+check("the parts went out, then the full reply for the log, under the same turn",
+      len(parts) == 6 and full and full[0]["turn"] == parts[0]["turn"], str([e["type"] for e in evs]))
+check("the companion's line also goes to the log as Leonardo's, marked with the turn (so nobody speaks it twice)",
+      said and said[0]["by"] == "Leonardo" and said[0]["turn"] == parts[0]["turn"])
+check("the TABLE line was applied (scene and monster)", D.G["scene"] == "The Sleeping Griffin" and D.G["monsters"][0]["name"] == "Bandit 1")
+first = next(e for e in evs if e["type"] == "dm_part")
+check(f"the first sentence was out {first['ts'] - t0:.2f} s in, before the reply finished ({full[0]['ts'] - t0:.2f} s)",
+      first["ts"] < full[0]["ts"])
+D._dm_worker("prompt", [])
+check("the script backend plays its replies in turn", any(e["type"] == "dm_part" and e["text"] == "Second reply." for e in D.EVENTS.items))
+check("a short reply is still split into sentences", parts_from(["Hi there. Run!"]) == [("narrator", "Hi there."), ("narrator", "Run!")])
+check("a short companion line at the very end keeps its voice", parts_from(["The door opens.\nLeonardo: Careful."])[-1] == ("Leonardo", "Careful."))
+check("a local backend runs the AI DM on the laptop with no Fusion key", D.ai_dm_enabled())
+
+print(f"\n{PASS} passed, {FAIL} failed")
+sys.exit(1 if FAIL else 0)

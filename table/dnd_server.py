@@ -52,6 +52,10 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--players", default="Player 1,Player 2", help="comma-separated names of the people at the table")
 ap.add_argument("--companions", default="", help='comma-separated "ai:<name>[:<quiet|normal|chatty>[:<pregen class>]]"')
 ap.add_argument("--dm", default="", help="name of a person who DMs by hand (default: the AI DM)")
+ap.add_argument("--dm-backend", default=os.environ.get("DND_DM_BACKEND", ""),
+                help="the AI DM: 'ollama:<model>[+think]' (local, streamed; laptop only; +think lets it reason first, "
+                     "~5 s slower to speak), 'script:<file>' (replays written "
+                     "replies word by word: tests and offline demos), or empty for the Divinci Fusion release")
 ap.add_argument("--mode", choices=["map", "theater"], default="map",
                 help="map: the battle grid; theater: no board, zones and voice (docs/THEATER-GOAL.md)")
 ap.add_argument("--host", default="127.0.0.1")
@@ -76,9 +80,49 @@ CREDIT = ("This game uses material from the System Reference Document 5.1 (\"SRD
 
 
 def ai_dm_enabled() -> bool:
-    if args.dm or not DM_RELEASE or not os.environ.get("DIVINCI_FUSION_API_KEY"):
+    if args.dm:
+        return False
+    if args.dm_backend.startswith(("ollama:", "script:")):
+        return not CLOUD                                      # local backends live on the laptop only
+    if not DM_RELEASE or not os.environ.get("DIVINCI_FUSION_API_KEY"):
         return False
     return (not CLOUD) or os.environ.get("DND_CLOUD_AI") == "1"
+
+
+OLLAMA = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+
+
+def ask_dm_stream(prompt: str):
+    """The DM's reply as it's written, in pieces. Local Ollama streams; the script backend replays a file's replies
+    in turn, word by word; the Fusion release answers whole (one piece)."""
+    b = args.dm_backend
+    if b.startswith("ollama:"):
+        model, think = b[len("ollama:"):].removesuffix("+think"), b.endswith("+think")
+        body = json.dumps({"model": model, "stream": True, "messages": [{"role": "user", "content": prompt}],
+                           "think": think,           # gemma4 thinks 4.5-5.3 s before its first word (measured
+                           "options": {"temperature": 0.8}, "keep_alive": "30m"}).encode()    # 2026-10-05): off by default
+        req = urllib.request.Request(OLLAMA + "/api/chat", data=body, method="POST", headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            for line in resp:
+                if line.strip():
+                    d = json.loads(line)
+                    piece = (d.get("message") or {}).get("content") or ""
+                    if piece:
+                        yield piece
+                    if d.get("done"):
+                        return
+        return
+    if b.startswith("script:"):
+        replies = [r.strip() for r in Path(b[len("script:"):]).read_text().split("\n---\n") if r.strip()]
+        n = G.setdefault("script_i", 0)
+        G["script_i"] = n + 1
+        text = replies[n % len(replies)] if replies else "The DM has nothing written."
+        for w in re.split(r"(\s+)", text):
+            if w:
+                time.sleep(0.01 if w.isspace() else 0.03)
+                yield w
+        return
+    yield ask_dm(prompt)
 
 
 def parse_companion(spec: str) -> dict | None:
@@ -174,7 +218,7 @@ def new_game() -> None:
     G.update(game_id=time.strftime("%Y%m%d-%H%M%S"), sheets={}, monsters=[], scene="", begun=False,
              initiative={"active": False, "order": [], "turn": 0, "round": 1, "pending": []},
              requests=[], dm_calls=0, dm_busy=False, dm_dirty=False, ai_spoke=None,
-             mode=args.mode, card=ZONES.new_card())
+             mode=args.mode, card=ZONES.new_card(), speaker=None)
     for i, n in enumerate(HUMANS):
         G["sheets"][n] = sheet_from_pregen(n, pregen_order[i % 4])
     for c in COMPANIONS:
@@ -500,12 +544,76 @@ def dm_turn(reason: str, speak: list[str] | None = None) -> None:
     threading.Thread(target=_dm_worker, args=(prompt, speak or []), daemon=True).start()
 
 
+SENTENCE_END = re.compile(r"(?<=[.!?…])[\"'”’)]*\s+")
+
+
+class Spoken:
+    """Turns the DM's reply, as it streams in, into spoken parts: each finished sentence becomes a dm_part event
+    with its voice (the narrator, an AI companion's 'Name:' line, or an 'NPC Name:' line). Stops at the TABLE line,
+    which is never spoken. The full reply still goes to the log as before; devices speak only the parts."""
+
+    def __init__(self, turn: str):
+        self.turn, self.buf, self.seq, self.done = turn, "", 0, False
+        self.voice, self.line_start, self.final = "narrator", True, False
+
+    def feed(self, piece: str) -> None:
+        if self.done:
+            return
+        self.buf += piece
+        while not self.done:
+            if self.line_start:
+                head = self.buf.lstrip()
+                if re.match(r"^TABLE\s*:", head) or (not self.final and len(head) < 6 and "TABLE:".startswith(head.upper()) and "\n" not in head):
+                    if re.match(r"^TABLE\s*:", head):
+                        self.done = True
+                    return                                    # wait: this line may be the TABLE line
+                m = re.match(r"^\s*\**(?:NPC\s+)?([A-Z][\w' -]{0,30}?)\**\s*:\s*", self.buf)
+                if m and (companion(m.group(1)) or re.match(r"^\s*\**NPC\s", self.buf)):
+                    self.voice = companion(m.group(1))["name"] if companion(m.group(1)) else "NPC " + m.group(1)
+                    self.buf = self.buf[m.end():]
+                elif "\n" not in self.buf and len(self.buf) < 40 and not self.final:
+                    return                                    # too little to know whose line this is yet
+                self.line_start = False
+            nl = self.buf.find("\n")
+            m = SENTENCE_END.search(self.buf)
+            cut = min(x for x in (nl if nl >= 0 else 10**9, m.end() if m else 10**9))
+            if cut == 10**9:
+                return
+            self._say(self.buf[:cut])
+            if nl >= 0 and cut == nl:
+                self.buf, self.line_start, self.voice = self.buf[nl + 1:], True, "narrator"
+            else:
+                self.buf = self.buf[cut:]
+
+    def _say(self, text: str) -> None:
+        text = plain(text).strip()
+        if text:
+            EVENTS.emit("dm_part", turn=self.turn, seq=self.seq, voice=self.voice, text=clean_text(text, 400))
+            self.seq += 1
+
+    def finish(self) -> None:
+        """The stream ended: split what's left by the same rules (it may be short, or end without a full stop)."""
+        self.final = True
+        self.feed("")
+        if not self.done and self.buf.strip() and not re.match(r"^\s*TABLE\s*:", self.buf):
+            self._say(self.buf)
+        self.done, self.buf = True, ""
+
+
 def _dm_worker(prompt: str, speak: list[str]) -> None:
     EVENTS.emit("dnd", kind="thinking")
     t0 = time.time()
+    turn = secrets.token_hex(4)
+    spoken = Spoken(turn)
+    pieces = []
     try:
-        raw = ask_dm(prompt)
-        err = None
+        for piece in ask_dm_stream(prompt):
+            pieces.append(piece)
+            with LOCK:
+                spoken.feed(piece)
+        with LOCK:
+            spoken.finish()
+        raw, err = "".join(pieces), None
     except Exception as e:                                   # noqa: BLE001 — the table keeps going without the DM
         raw, err = "", f"{type(e).__name__}: {str(e)[:160]}"
     with LOCK:
@@ -514,11 +622,11 @@ def _dm_worker(prompt: str, speak: list[str]) -> None:
         else:
             text, said = split_companions(plain(apply_table_line(raw)))
             if text:
-                EVENTS.emit("dm", text=clean_text_keep_lines(text, 2000))
+                EVENTS.emit("dm", text=clean_text_keep_lines(text, 2000), turn=turn)
             for name, line in said:
                 c = companion(name)
                 c["spoke_at"].append(time.time())
-                EVENTS.emit("say", by=name, text=clean_text(line, 300), ic=True, ai=True)
+                EVENTS.emit("say", by=name, text=clean_text(line, 300), ic=True, ai=True, turn=turn)
         _log({"prompt": prompt, "reply": raw, "error": err, "seconds": round(time.time() - t0, 1)})
         G["dm_busy"] = False
         again, more = G["dm_dirty"], G.pop("dm_pending_speak", [])
@@ -612,7 +720,7 @@ def public_state(viewer: str | None = None) -> dict:
                 "companions": [{"name": c["name"], "chattiness": c["chattiness"]} for c in COMPANIONS],
                 "sheets": {n: public_sheet(s) for n, s in G["sheets"].items()}, "monsters": G["monsters"],
                 "initiative": G["initiative"], "pregens": sorted(PREGENS), "credit": CREDIT,
-                "map": map_view(), "mode": G["mode"], "card": ZONES.public(G["card"]),
+                "map": map_view(), "mode": G["mode"], "card": ZONES.public(G["card"]), "speaker": G.get("speaker"),
                 "minis": {x["id"]: x["glb"] for x in ASSETS.get("minis", []) if x.get("glb")},
                 "locations": [{"id": x["id"], "name": x["name"] + ("" if x.get("status") == "approved" else " (draft)")}
                               for x in playable_locations()]}
@@ -972,6 +1080,14 @@ class H(BaseHTTPRequestHandler):
             elif act == "end":
                 G["initiative"] = {"active": False, "order": [], "turn": 0, "round": 1, "pending": []}
                 EVENTS.emit("dnd", kind="initiative", text="Combat is over.")
+            return 200, public_state(), None
+        if p == "/api/dnd/speaker":                           # same room: one device speaks for the table
+            if b.get("on"):
+                G["speaker"] = by
+            elif G.get("speaker") == by:
+                G["speaker"] = None
+            EVENTS.emit("dnd", kind="speaker", text=(f"{G['speaker']}'s device speaks for the table" if G.get("speaker")
+                                                     else "Every device speaks for itself"))
             return 200, public_state(), None
         if p in ("/api/dnd/zone/move", "/api/dnd/zone/engage"):     # theater of the mind: your own character
             c, who = G["card"], (str(b.get("who", "")) if is_dm else by)

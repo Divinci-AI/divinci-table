@@ -45,6 +45,7 @@ run hearing-names $PY table/tests/hearing_names.py
 run openmic       /usr/bin/python3 table/tests/openmic_test.py
 run dnd           /usr/bin/python3 table/tests/dnd_test.py
 run dnd-zones     /usr/bin/python3 table/tests/dnd_zones_test.py
+run dnd-voice-srv /usr/bin/python3 table/tests/dnd_voice_test.py
 run dnd-assets    /usr/bin/python3 table/tests/dnd_assets_test.py
 run dnd-dm-sim    /usr/bin/python3 table/tests/dnd_dm_sim_test.py
 run ledger        /usr/bin/python3 table/tests/ledger_test.py
@@ -74,6 +75,7 @@ else
   run dnd-xr      env PW=$PW node table/tests/dnd_xr_e2e.cjs
   run dnd-load    env PW=$PW node table/tests/dnd_room_load_e2e.cjs
   run dnd-rehearse env PW=$PW node table/tests/dnd_playtest_rehearsal.cjs
+  run dnd-voice   env PW=$PW node table/tests/dnd_voice_e2e.cjs
   run router      $PY table/tests/route_eval.py
   pid=$(lsof -ti tcp:8800 -sTCP:LISTEN); [ -n "$pid" ] && kill -TERM $pid
 fi

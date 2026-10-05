@@ -48,14 +48,14 @@ grid, and nothing has been measured for a conversation's pace.
       mutation-checked.
 
 ## T2 — The table speaks
-- [ ] The DM's narration goes out **sentence by sentence** as it's written (events per sentence), so the first
+- [x] The DM's narration goes out **sentence by sentence** as it's written (events per sentence), so the first
       words are heard before the whole reply exists.
-- [ ] Each device speaks with **its own built-in voices** (Web Speech API): no audio over the network, no cost.
+- [x] Each device speaks with **its own built-in voices** (Web Speech API): no audio over the network, no cost.
       Every speaker has a steady voice: the narrator, each NPC, each AI companion, picked from what the device has.
-- [ ] Rolls, hit points, turns and conditions are announced in short spoken lines ("Ana: 9 of 13", "Ben's turn").
-- [ ] **Same room:** one device is "the table speaker"; the others stay quiet unless their owner wants their own
+- [x] Rolls, hit points, turns and conditions are announced in short spoken lines ("Ana: 9 of 13", "Ben's turn").
+- [x] **Same room:** one device is "the table speaker"; the others stay quiet unless their owner wants their own
       copy in earbuds.
-- [ ] **Check:** a browser test with a stubbed `speechSynthesis` records what each device says and when: the
+- [x] **Check:** a browser test with a stubbed `speechSynthesis` records what each device says and when: the
       right voice per speaker, nothing said twice, and **time from the player letting go of 🎙 to the first spoken
       word**, measured. Target to beat: **≤ 3 s** with the local model.
 
@@ -104,6 +104,18 @@ grid, and nothing has been measured for a conversation's pace.
 - [ ] **Check:** the survey, the bug list, the delay numbers, the cost; what broke becomes the next goal.
 
 ## Done log
+
+- **2026-10-05 · T2 done.** The DM's reply streams (`--dm-backend ollama:<model>[+think]`, or `script:<file>` for
+  tests and demos) and becomes `dm_part` events, one per finished sentence, each with its voice (narrator, an AI
+  companion's line, an `NPC Name:` line), never the TABLE line, however the stream is chopped (`dnd_voice_test.py`
+  15/15). Each device speaks with its own voices, one steady voice per speaker; rolls, hit points, turns, conditions
+  and zone moves are announced; others' actions are voiced, your own isn't read back; a page that opens later
+  doesn't read the history out; the same room picks one table speaker (`dnd_voice_e2e.cjs` 14/14).
+  **Measured** (`table/tests/measure_voice_loop.cjs`, real Whisper + gemma4:e2b, 5 trials): release 🎙 → first
+  spoken word **median 2.65 s** (target ≤ 3 s; STT ~0.3 s, the DM's first sentence 0.65–1.07 s, the page's poll
+  0.7–1.9 s). With gemma4's thinking on it was **6.4 s**: it thinks 4.5–5.3 s before its first word, so thinking is
+  off by default (`+think` turns it on; T4 judges whether it writes better). The poll is now the largest piece:
+  long-polling (DND-3D-GOAL D10 #1) would take the median to about 1.6 s.
 
 - **2026-10-05 · T1 done.** `table/dnd_zones.py` (zones, range bands, move/Dash, engagement, "where am I?");
   `dnd_server.py --mode theater`: the scene card in the state and the DM's prompt (theater instructions instead of

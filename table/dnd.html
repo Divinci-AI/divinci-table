@@ -66,7 +66,8 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 30px;font-size:12.5px;color
 <body data-brand="me">
 <main>
   <section>
-    <h1>Divinci Table · Dungeons &amp; Dragons</h1>
+    <h1>Divinci Table · Dungeons &amp; Dragons <button id="speak" class="small" aria-pressed="false" title="the table speaks">🔊 Voice off</button>
+      <button id="tableSpeaker" class="small" title="same room: this device speaks for everyone; the others go quiet">🔈 Speak for the table</button></h1>
     <div id="scene"></div>
     <img id="art" alt="the scene">
     <div class="panel" id="mapPanel"><div class="row" style="margin:0 0 8px"><h2 id="mapName" style="margin:0;flex:1">The map</h2>
@@ -261,6 +262,69 @@ $("map").addEventListener("pointerup", ev => {
 });
 $("loc").onchange = () => post("/api/dnd/map/location", { id: $("loc").value });
 window.addEventListener("resize", () => drawMap());
+// ── the table speaks (docs/THEATER-GOAL.md T2): each device, its own voices, no audio over the network ────
+const VOICE = { pool: [], firstBatch: true, spokenTurns: new Set(), log: [] };
+const voiceStore = { get() { try { return localStorage.getItem("dnd-voice"); } catch { return null; } },
+                     set(v) { try { localStorage.setItem("dnd-voice", v); } catch {} } };
+function voiceOn() {                         // your own choice wins; otherwise on in theater mode, unless another
+  const v = voiceStore.get();                 // device speaks for the table (same room) and you haven't asked for your own copy
+  if (v) return v === "on";
+  if (S && S.speaker && S.speaker !== seatName()) return false;
+  return !!(S && S.mode === "theater");
+}
+function voicePool() {
+  if (!window.speechSynthesis) return [];
+  if (!VOICE.pool.length) {
+    const all = speechSynthesis.getVoices(), en = all.filter(v => /^en/i.test(v.lang));
+    VOICE.pool = (en.length ? en : all).filter(v => !/(Bad News|Bells|Bubbles|Cellos|Jester|Organ|Whisper|Zarvox|Trinoids|Boing|Albert|Wobble|Good News|Superstar|Bahh|Junior)/.test(v.name));
+  }
+  return VOICE.pool;
+}
+const hash = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+function voiceFor(speaker) {                 // the same speaker always sounds the same; the narrator keeps one voice
+  const pool = voicePool(), h = hash(speaker);
+  const narr = pool.find(v => /Daniel|Google UK English Male|Arthur|Oliver/.test(v.name)) || pool[0];
+  if (speaker === "narrator") return { voice: narr, pitch: 1, rate: 1 };
+  if (speaker === "table") return { voice: pool.find(v => /Samantha|Google US English|Karen/.test(v.name)) || narr, pitch: 1.05, rate: 1.1 };
+  const others = pool.filter(v => v !== narr);
+  return { voice: others.length ? others[h % others.length] : narr, pitch: 0.8 + (h % 9) * 0.05, rate: 0.95 + (h % 3) * 0.05 };
+}
+function sayLine(text, speaker) {
+  VOICE.log.push({ t: performance.now(), speaker, text });
+  if (!voiceOn() || !window.speechSynthesis || !text) return;
+  const u = new SpeechSynthesisUtterance(text), v = voiceFor(speaker);
+  if (v.voice) u.voice = v.voice;
+  u.pitch = v.pitch; u.rate = v.rate;
+  speechSynthesis.speak(u);
+}
+function seatName() { return window.TableSeat && TableSeat.name ? TableSeat.name() : null; }
+function speakEvent(e) {
+  if (e.type === "dm_part") { VOICE.spokenTurns.add(e.turn); return sayLine(e.text, e.voice); }
+  if ((e.type === "dm" || e.type === "say") && e.turn && VOICE.spokenTurns.has(e.turn)) return;   // already spoken in parts
+  if (e.type === "dm") return sayLine(e.text, "narrator");
+  if (e.type === "say" && e.by !== seatName()) return sayLine(e.text, e.by);   // what others said or did, in their voice
+  if (e.type === "roll" && e.roll) {
+    const who = (String(e.text).match(/^ROLL ([^:]+):/) || [])[1] || e.by, why = (String(e.text).match(/\(([^)]*)\)$/) || [])[1];
+    return sayLine(`${who}${why && why !== "physical die" ? ", " + why : ""}: ${e.roll.total}${e.roll.crit ? ", a critical!" : e.roll.fumble ? ", a fumble." : ""}`, "table");
+  }
+  if (e.type === "dnd" && ["hp", "turn", "condition", "zone", "zones", "initiative"].includes(e.kind)) return sayLine(e.text, "table");
+}
+function voiceButton() {
+  const on = voiceOn(); $("speak").textContent = on ? "🔊 Voice on" : "🔈 Voice off"; $("speak").setAttribute("aria-pressed", on);
+  const mine = S && S.speaker === seatName();
+  $("tableSpeaker").textContent = mine ? "📢 Speaking for the table" : S && S.speaker ? `📢 ${S.speaker} speaks for the table` : "🔈 Speak for the table";
+}
+$("speak").onclick = () => {
+  voiceStore.set(voiceOn() ? "off" : "on"); voiceButton();
+  if (voiceOn() && window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance(""));   // unlocks speech on phones
+  else if (window.speechSynthesis) speechSynthesis.cancel();
+};
+document.addEventListener("pointerdown", () => { if (voiceOn() && window.speechSynthesis && !VOICE.unlocked) {
+  VOICE.unlocked = true; speechSynthesis.speak(new SpeechSynthesisUtterance("")); } }, { once: true });
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { VOICE.pool = []; };
+$("tableSpeaker").onclick = () => post("/api/dnd/speaker", { on: !(S && S.speaker === seatName()) });
+window.DNDVOICE = VOICE;
+
 function line(e) {
   if (e.type === "dm") return `<div class="dm">${esc(e.text)}</div>`;
   if (e.type === "roll") return `<div class="e roll ${e.roll && e.roll.crit ? "crit" : ""} ${e.roll && e.roll.fumble ? "fumble" : ""}">🎲 ${esc(e.text)}</div>`;
@@ -275,10 +339,13 @@ async function tick() {
     const e = await (await fetch("/api/events?since=" + since)).json();
     if (e.restarted) { since = 0; $("log").innerHTML = ""; }
     else if (e.events.length) {
+      if (!VOICE.firstBatch) e.events.forEach(speakEvent);    // never read the history out when a page opens
       const atEnd = $("log").scrollTop + $("log").clientHeight >= $("log").scrollHeight - 30;
       $("log").insertAdjacentHTML("beforeend", e.events.map(line).join(""));
       since = e.last; if (atEnd) $("log").scrollTop = $("log").scrollHeight;
     }
+    VOICE.firstBatch = false;
+    voiceButton();
     draw();
     establishing();
   } catch {}

@@ -1,0 +1,52 @@
+{
+ "model": "gemma4:e2b",
+ "when": "2026-10-05T10:41:17.344Z",
+ "median_ms": 2649,
+ "rows": [
+  {
+   "line": "I walk up to the bar and ask the barkeep about the missing caravan.",
+   "heard": "I walk up to the bar and ask the barkeep about the missing caravan.",
+   "stt_ms": 2205,
+   "dm_first_sentence_ms": 790,
+   "page_pickup_ms": 1594,
+   "release_to_first_word_ms": 4589,
+   "first_words": "That sounds like a serious matter, Ana."
+  },
+  {
+   "line": "I draw my sword and step between the bandit and the old woman.",
+   "heard": "I draw my sword and step between the bandit and the old woman.",
+   "stt_ms": 322,
+   "dm_first_sentence_ms": 850,
+   "page_pickup_ms": 683,
+   "release_to_first_word_ms": 1855,
+   "first_words": "The bandit stops, momentarily startled by her sudden action, while the old woman"
+  },
+  {
+   "line": "I search the hearth for anything hidden in the ashes.",
+   "heard": "I search the hearth for anything hidden in the ashes.",
+   "stt_ms": 260,
+   "dm_first_sentence_ms": 830,
+   "page_pickup_ms": 1559,
+   "release_to_first_word_ms": 2649,
+   "first_words": "She searches methodically, hoping to uncover some forgotten clue or hidden item "
+  },
+  {
+   "line": "I whisper to Leonardo that we should leave by the back door.",
+   "heard": "I whisper to Leonardo that we should leave by the back door.",
+   "stt_ms": 262,
+   "dm_first_sentence_ms": 1070,
+   "page_pickup_ms": 835,
+   "release_to_first_word_ms": 2167,
+   "first_words": "The air in the bar grows thick with unspoken tension as Ana shifts her attention"
+  },
+  {
+   "line": "I toss a silver coin to the bard and ask for a song about dragons.",
+   "heard": "I toss a silver coin to the Bart and ask for a song about dragons.",
+   "stt_ms": 318,
+   "dm_first_sentence_ms": 650,
+   "page_pickup_ms": 1932,
+   "release_to_first_word_ms": 2900,
+   "first_words": "The barkeep pauses, his weary expression shifting slightly as he catches the coi"
+  }
+ ]
+}
