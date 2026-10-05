@@ -44,6 +44,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from core import Events, Room, Seats, clean_text, device_of, jdump, save_photo, save_survey  # noqa: E402
+import dnd_map as MAP  # noqa: E402
 from openmic import PRESETS, wake_word  # noqa: E402
 
 ap = argparse.ArgumentParser()
@@ -92,6 +93,8 @@ SEATS = Seats(HUMANS + ([DM_HUMAN] if DM_HUMAN else []))
 EVENTS = Events()
 LOCK = threading.RLock()
 PREGENS = {k: v for k, v in json.loads((HERE / "dnd_pregens.json").read_text()).items() if not k.startswith("_")}
+ASSETS = MAP.load_manifest(HERE / "dnd_assets.json")          # locations and minis (docs/DND-3D-GOAL.md)
+START_LOCATION = "clearing"
 G: dict = {}
 
 
@@ -168,6 +171,84 @@ def new_game() -> None:
         G["sheets"][n] = sheet_from_pregen(n, pregen_order[i % 4])
     for c in COMPANIONS:
         G["sheets"][c["name"]] = sheet_from_pregen(c["name"], c["class"]) | {"companion": True}
+    set_location(START_LOCATION)
+
+
+# ── the battle map (dnd_map.py has the rules; this decides who may do what) ────────────────────
+def set_location(loc_id: str) -> str | None:
+    """A fresh map of a library location, with the party at its player spawns and every monster still in
+    play at its monster spawns. Returns an error for an unknown location."""
+    loc = MAP.location(ASSETS, loc_id)
+    if not loc:
+        return "no such location"
+    G["map"] = MAP.new_map(loc, ASSETS.get("cell_ft", 5))
+    for name, s in G["sheets"].items():
+        MAP.place(G["map"], name, "pc", owner=None if s.get("companion") else name, speed=s.get("speed", 30))
+    sync_monster_tokens()
+    return None
+
+
+def sync_monster_tokens() -> None:
+    """The map follows the DM's monster list: a monster gone from the list leaves the map, a new one appears
+    at a monster spawn."""
+    m = G["map"]
+    names = {x["name"] for x in G["monsters"]}
+    for tid in [tid for tid, t in m["tokens"].items() if t["kind"] == "monster" and t["name"] not in names]:
+        del m["tokens"][tid]
+    for x in G["monsters"]:
+        if not MAP.token_by_name(m, x["name"]):
+            MAP.place(m, x["name"], "monster", size=x.get("size", "medium"), speed=x.get("speed", 30))
+
+
+def turn_name() -> str | None:
+    ini = G["initiative"]
+    return ini["order"][ini["turn"]]["name"] if ini["active"] and ini["order"] and not ini["pending"] else None
+
+
+def map_square(v) -> int | None:
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        return None
+    return n if 0 <= n < MAP.MAX_SIDE else None
+
+
+def apply_map_lines(d: dict) -> None:
+    """The DM's map changes from a TABLE line: location, place and move. Everything is checked here; an
+    unknown location, name or illegal square is dropped. The DM never moves a person's character, and in
+    combat a creature walks at most its speed, along a legal path, on its own turn."""
+    if isinstance(d.get("location"), str) and MAP.location(ASSETS, d["location"]):
+        set_location(d["location"])
+    m = G["map"]
+    places = d.get("place") if isinstance(d.get("place"), list) and not turn_name() else []   # setting up, not mid-fight
+    for x in places[:20]:
+        if isinstance(x, dict) and isinstance(x.get("name"), str):
+            t = MAP.token_by_name(m, x["name"])
+            if t and t["kind"] != "pc":
+                gx, gy = map_square(x.get("x")), map_square(x.get("y"))
+                if gx is not None and gy is not None:
+                    MAP.move(m, t["id"], gx, gy, walk=False)       # placing what's already in the scene
+    for x in (d.get("move") or [])[:20] if isinstance(d.get("move"), list) else []:
+        if not isinstance(x, dict) or not isinstance(x.get("name"), str):
+            continue
+        t = MAP.token_by_name(m, x["name"])
+        gx, gy = map_square(x.get("x")), map_square(x.get("y"))
+        if not t or gx is None or gy is None or t["owner"]:          # a person's character is theirs to move
+            continue
+        now = turn_name()
+        if now and now != t["name"]:
+            continue                                                  # in combat, only on its own turn
+        err, ft = MAP.move(m, t["id"], gx, gy, walk=True, in_turn=bool(now))
+        if not err:
+            EVENTS.emit("dnd", kind="map", text=f"{t['name']} moves {ft} ft" if ft else f"{t['name']} moves")
+
+
+def map_for_dm() -> dict:
+    m = G["map"]
+    return {"location": m["location"], "locations": [x["id"] for x in ASSETS["locations"]],
+            "grid": m["layout"], "legend": "# wall, ~ difficult, D door, P/M spawns; x is the column, y the row, from 0",
+            "tokens": [{"name": t["name"], "x": t["x"], "y": t["y"], "size": t["size"], "speed": t["speed"],
+                        **({"player": True} if t["owner"] else {})} for t in m["tokens"].values()]}
 
 
 def companion(name: str) -> dict | None:
@@ -192,12 +273,16 @@ def apply_table_line(text: str) -> str:
                 try:
                     mx = max(1, int(x.get("max_hp") or x.get("hp") or 1))
                     mons.append({"name": clean_text(x["name"], 40), "ac": int(x.get("ac") or 10),
-                                 "hp": max(0, min(mx, int(x.get("hp", mx)))), "max_hp": mx})
+                                 "hp": max(0, min(mx, int(x.get("hp", mx)))), "max_hp": mx,
+                                 "size": x["size"] if x.get("size") in MAP.SIZES else "medium",
+                                 "speed": max(0, min(120, int(x.get("speed") or 30)))})
                 except (TypeError, ValueError):
                     continue
         G["monsters"] = mons
+        sync_monster_tokens()
     if isinstance(d.get("scene"), str):
         G["scene"] = clean_text(d["scene"], 80)
+    apply_map_lines(d)
     return text[:m.start()].strip()
 
 
@@ -210,7 +295,8 @@ def state_for_dm() -> dict:
             "monsters": G["monsters"],
             "initiative": ({"round": ini["round"], "order": [f"{o['name']} ({o['total']})" for o in ini["order"]],
                             "now": ini["order"][ini["turn"]]["name"] if ini["order"] else None,
-                            "waiting_to_roll": ini["pending"]} if ini["active"] else None)}
+                            "waiting_to_roll": ini["pending"]} if ini["active"] else None),
+            "map": map_for_dm()}
 
 
 def recent_lines(n: int = 30) -> list[str]:
@@ -238,8 +324,11 @@ def build_prompt(reason: str, speak: list[str]) -> str:
     lines += ["", "Narrate the next beat (2-5 sentences), then hand the scene back or ask for rolls by name.",
               "Plain spoken prose only: no markdown, headings, lists, code blocks, diagrams or citation numbers. "
               "Do not speak for the AI companions or the players unless told to above.",
-              'If monsters or the scene title change, end with ONE line: TABLE: {"monsters":[{"name":"Goblin 1","ac":15,'
-              '"hp":7,"max_hp":7}],"scene":"<short title>"} (list every monster still in play; omit the line otherwise).']
+              'If monsters, the scene title or the map change, end with ONE line: TABLE: {"monsters":[{"name":"Goblin 1","ac":15,'
+              '"hp":7,"max_hp":7,"size":"small","speed":30}],"scene":"<short title>","location":"<one of map.locations>",'
+              '"place":[{"name":"Goblin 1","x":9,"y":2}],"move":[{"name":"Goblin 1","x":7,"y":3}]} '
+              '(list every monster still in play; include only the keys that change; omit the line otherwise). '
+              "Only move monsters and companions, never the players' characters, and in combat only the creature whose turn it is."]
     return "\n".join(lines)
 
 
@@ -374,6 +463,7 @@ def initiative_start() -> None:
         ini["order"].append({"name": m["name"], "total": r["total"], "dex": 10, "monster": True})
         EVENTS.emit("roll", by="DM", text=roll_text(m["name"], r, "initiative"), roll=r)
     G["initiative"] = ini
+    G["map"]["used"] = {}
     _sort_initiative()
     EVENTS.emit("dnd", kind="initiative", text="Roll initiative! " + (", ".join(HUMANS) + ": roll d20 + Dex." if HUMANS else ""))
     if not ini["pending"]:
@@ -409,12 +499,14 @@ def public_state(viewer: str | None = None) -> dict:
                 "ai_dm": ai_dm_enabled(), "dm_busy": G["dm_busy"], "dm_calls": G["dm_calls"], "dm_cap": MAX_DM_CALLS,
                 "companions": [{"name": c["name"], "chattiness": c["chattiness"]} for c in COMPANIONS],
                 "sheets": {n: public_sheet(s) for n, s in G["sheets"].items()}, "monsters": G["monsters"],
-                "initiative": G["initiative"], "pregens": sorted(PREGENS), "credit": CREDIT}
+                "initiative": G["initiative"], "pregens": sorted(PREGENS), "credit": CREDIT,
+                "map": MAP.public(G["map"]), "locations": [{"id": x["id"], "name": x["name"]} for x in ASSETS["locations"]]}
 
 
 def dump() -> dict:
     with LOCK:
         g = {k: v for k, v in G.items() if k not in ("dm_busy", "dm_dirty")}
+        g["map"] = MAP.public(G["map"])                    # the parsed grid is a cache, rebuilt on use
         return {"g": g, "spoke": {c["name"]: c["spoke_at"] for c in COMPANIONS},
                 "seats": SEATS.state(), "events": EVENTS.state(), "saved": time.time()}
 
@@ -660,6 +752,8 @@ class H(BaseHTTPRequestHandler):
                 if ini["turn"] >= len(ini["order"]):
                     ini["turn"], ini["round"] = 0, ini["round"] + 1
                 now_name = ini["order"][ini["turn"]]["name"]
+                t = MAP.token_by_name(G["map"], now_name)
+                MAP.new_turn(G["map"], t and t["id"])
                 EVENTS.emit("dnd", kind="turn", text=f"Round {ini['round']}: {now_name}'s turn")
                 if not any(now_name == h for h in HUMANS):
                     return 200, public_state(), (lambda: dm_turn(f"It is {now_name}'s turn. Take it.",
@@ -667,6 +761,47 @@ class H(BaseHTTPRequestHandler):
             elif act == "end":
                 G["initiative"] = {"active": False, "order": [], "turn": 0, "round": 1, "pending": []}
                 EVENTS.emit("dnd", kind="initiative", text="Combat is over.")
+            return 200, public_state(), None
+        if p == "/api/dnd/map/move":                          # people walk their own character; the DM moves anyone
+            m, t = G["map"], G["map"]["tokens"].get(str(b.get("token", "")))
+            x, y = map_square(b.get("x")), map_square(b.get("y"))
+            if not t:
+                return 404, {"error": "no such token"}, None
+            if x is None or y is None:
+                return 400, {"error": "x and y are squares on the map"}, None
+            if not is_dm and t["owner"] != by:
+                return 403, {"error": "you move only your own character"}, None
+            now = turn_name()
+            if not is_dm and now and now != t["name"]:
+                return 409, {"error": f"it's {now}'s turn"}, None
+            err, ft = MAP.move(m, t["id"], x, y, walk=not is_dm, in_turn=bool(now) and not is_dm)
+            if err:
+                return 409, {"error": err}, None
+            EVENTS.emit("dnd", kind="map", by=by, text=f"{t['name']} moves {ft} ft" if ft else f"{t['name']} moves")
+            return 200, public_state(), None
+        if p in ("/api/dnd/map/place", "/api/dnd/map/remove", "/api/dnd/map/location"):
+            if not is_dm:
+                return 403, {"error": "only the DM's seat changes the map"}, None
+            m = G["map"]
+            if p.endswith("/location"):
+                err = set_location(str(b.get("id", "")))
+                if err:
+                    return 404, {"error": err}, None
+                EVENTS.emit("dnd", kind="map", text=f"The scene moves to {G['map']['name']}")
+            elif p.endswith("/remove"):
+                t = m["tokens"].get(str(b.get("token", "")))
+                if not t or t["kind"] == "pc":
+                    return 404, {"error": "no such token (characters stay on the map)"}, None
+                del m["tokens"][t["id"]]
+            else:
+                kind = b.get("kind") if b.get("kind") in ("monster", "npc") else "npc"
+                name = clean_text(b.get("name"), 40)
+                if not name:
+                    return 400, {"error": "name the creature"}, None
+                err, t = MAP.place(m, name, kind, map_square(b.get("x")), map_square(b.get("y")),
+                                   size=str(b.get("size", "medium")))
+                if err:
+                    return 409, {"error": err}, None
             return 200, public_state(), None
         if p == "/api/dnd/narrate":                           # a person behind the screen
             if not is_dm:

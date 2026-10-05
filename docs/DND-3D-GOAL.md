@@ -83,13 +83,13 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
 - [ ] Credits page drafted: SRD 5.1 (CC-BY-4.0), each CC-BY model, "Built on NVIDIA Cosmos".
 
 ## D1 — The battle map (no generation needed)
-- [ ] Map state in `dnd_server.py`, saved and restored with the room; placeholder grid and tokens.
-- [ ] `POST /api/dnd/map/move` (own token only; in bounds, not blocked, not occupied; movement counted
+- [x] Map state in `dnd_server.py`, saved and restored with the room; placeholder grid and tokens.
+- [x] `POST /api/dnd/map/move` (own token only; in bounds, not blocked, not occupied; movement counted
       against speed on your initiative turn), `…/place` and `…/location` (DM only).
-- [ ] `TABLE:` lines from the AI DM can set `location`, `place` and `move`, validated like every other
+- [x] `TABLE:` lines from the AI DM can set `location`, `place` and `move`, validated like every other
       TABLE field (unknown names and illegal squares are dropped, never trusted).
-- [ ] `dnd.html` gets a 2D map (canvas): tokens, tap your token then a square to move, the DM drags any.
-- [ ] **Check:** `table/tests/dnd_test.py` grows map checks: another seat's key can't move your token (403),
+- [x] `dnd.html` gets a 2D map (canvas): tokens, tap your token then a square to move, the DM drags any.
+- [x] **Check:** `table/tests/dnd_test.py` grows map checks: another seat's key can't move your token (403),
       no key can't move anything, blocked and occupied squares are refused, the map survives a snapshot and
       restore, a malformed TABLE line changes nothing. Mutation-check the owner rule.
 
@@ -150,3 +150,15 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
 - [ ] **Check:** results in the ledger; what broke goes into the next goal.
 
 ## Done log
+
+- **2026-10-04 · D1 done.** `table/dnd_map.py` (grid, footprints by size, cheapest legal walk with difficult
+  terrain, allies passable and foes not, no squeezing between wall corners, speed per turn, 60-token cap),
+  `table/dnd_assets.json` (manifest; ASCII layouts; the starter clearing), map state in `dnd_server.py`
+  (saved with the room; monsters follow the DM's list; `/api/dnd/map/move|place|remove|location`; TABLE
+  `location`/`place`/`move` validated), and a 2D canvas map on `dnd.html` (tap or drag; DM location picker;
+  movement left on your turn). Checks: `dnd_test.py` **101 passed, 0 failed**; mutation-checked: removing
+  the owner rule fails "Sam's key can't move Michael's character", removing the TABLE owner rule fails
+  "…not even on that person's own turn" (a gap the first version of the test missed: the turn rule masked
+  it), allowing mid-fight `place` fails "…can't 'place' a monster across the map mid-fight".
+  `dnd_page_e2e.cjs` **7/7** (tap-to-move, the other phone sees it, can't pick up another's token, no
+  horizontal scroll at 390 px, map redraw 0.05 ms). Screenshot checked by eye.

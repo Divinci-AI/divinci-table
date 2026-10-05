@@ -176,13 +176,123 @@ ev = [e for e in D.EVENTS.items if e["type"] == "survey"]
 check("the public log says who answered, never what", ev and set(ev[-1]) <= {"id", "type", "ts", "by"}, str(ev[-1:]))
 check("survey page serves", "How was the game?" in urllib.request.urlopen(BASE + "/survey").read().decode())
 
+print("battle map: the rules")
+M = D.MAP
+
+
+def grid(*rows):
+    return M.new_map({"id": "t", "layout": list(rows)})
+
+
+g = grid("P.#.", "..#.", "###.")
+_, hero = M.place(g, "Hero", "pc", 0, 0)
+check("a walled-off square can't be walked to", M.walk_cost(g, hero["id"], 3, 0) is None)
+check("…but the DM's hand can put a token there", M.move(g, hero["id"], 3, 0, walk=False) == (None, 0))
+g = grid("P~~..")
+_, hero = M.place(g, "Hero", "pc", 0, 0)
+check("difficult terrain costs double (10 + 10 + 5)", M.walk_cost(g, hero["id"], 3, 0) == 25, str(M.walk_cost(g, hero["id"], 3, 0)))
+g = grid("P#", "#.")
+_, hero = M.place(g, "Hero", "pc", 0, 0)
+check("no squeezing diagonally between two walls", M.walk_cost(g, hero["id"], 1, 1) is None)
+g = grid("....", "....", "....")
+_, ogre = M.place(g, "Ogre", "monster", 0, 0, size="large")
+check("a large creature covers four squares", M.fits(g, "medium", 1, 1) == "Ogre is there")
+check("…and can't stand half off the map", M.fits(g, "large", 3, 0, skip=ogre["id"]) == "off the map")
+g = grid(".....")
+_, hero = M.place(g, "Hero", "pc", 0, 0)
+M.place(g, "Ally", "pc", 1, 0)
+M.place(g, "Foe", "monster", 3, 0)
+check("you pass through your own side", M.walk_cost(g, hero["id"], 2, 0) == 10)
+check("…but not through a foe", M.walk_cost(g, hero["id"], 4, 0) is None)
+g = grid("............")
+_, hero = M.place(g, "Hero", "pc", 0, 0)
+check("in your turn you walk up to your speed", M.move(g, hero["id"], 6, 0, in_turn=True) == (None, 30))
+check("…and no further", M.move(g, hero["id"], 7, 0, in_turn=True)[0].startswith("too far"))
+M.new_turn(g, hero["id"])
+check("a new turn gives your speed back", M.move(g, hero["id"], 7, 0, in_turn=True) == (None, 5))
+g = grid("." * 60, *["." * 60] * 59)
+for i in range(M.MAX_TOKENS):
+    M.place(g, f"Rat {i}", "monster")
+check(f"a map holds at most {M.MAX_TOKENS} tokens", M.place(g, "One more rat", "monster")[0] is not None and len(g["tokens"]) == M.MAX_TOKENS)
+
+print("battle map: who may move what")
+st = call("/api/dnd")[1]
+toks = st["map"]["tokens"]
+check("the party starts on the map, each person owning their own token",
+      toks["michael"]["owner"] == "Michael" and toks["sam"]["owner"] == "Sam" and toks["leonardo"]["owner"] is None, str(toks))
+check("the DM's monster is on the map at a monster spawn", "goblin-1" in toks and (toks["goblin-1"]["x"], toks["goblin-1"]["y"]) == (10, 2), str(toks.get("goblin-1")))
+code, _ = call("/api/dnd/map/move", {"by": "Michael", "token": "michael", "x": 3, "y": 3})
+check("no key moves nothing", code == 403)
+code, _ = call("/api/dnd/map/move", {"by": "Sam", "key": sk, "token": "michael", "x": 3, "y": 3})
+check("Sam's key can't move Michael's character", code == 403)
+code, st = call("/api/dnd/map/move", {"by": "Michael", "key": mk, "token": "michael", "x": 3, "y": 3})
+check("Michael walks his own", code == 200 and (st["map"]["tokens"]["michael"]["x"], st["map"]["tokens"]["michael"]["y"]) == (3, 3))
+code, _ = call("/api/dnd/map/move", {"by": "Michael", "key": mk, "token": "michael", "x": 6, "y": 3})
+check("a wall refuses", code == 409)
+code, _ = call("/api/dnd/map/move", {"by": "Michael", "key": mk, "token": "michael", "x": 2, "y": 3})
+check("an occupied square refuses", code == 409)
+for bad in ("a", 99, -1, None):
+    code, _ = call("/api/dnd/map/move", {"by": "Michael", "key": mk, "token": "michael", "x": bad, "y": 3})
+    check(f"a nonsense square ({bad!r}) refuses", code == 400)
+code, _ = call("/api/dnd/map/move", {"by": "Michael", "key": mk, "token": "michael", "x": 40, "y": 3})
+check("off the map refuses", code == 409)
+code, _ = call("/api/dnd/map/place", {"by": "Michael", "key": mk, "name": "Dragon", "kind": "monster"})
+check("a player can't place creatures", code == 403)
+code, _ = call("/api/dnd/map/location", {"by": "Michael", "key": mk, "id": "clearing"})
+check("a player can't change the location", code == 403)
+D.DM_HUMAN = "Sam"                                   # Sam behind the screen for a moment
+code, st = call("/api/dnd/map/move", {"by": "Sam", "key": sk, "token": "goblin-1", "x": 8, "y": 2})
+check("the DM drags any token", code == 200 and st["map"]["tokens"]["goblin-1"]["x"] == 8)
+code, st = call("/api/dnd/map/place", {"by": "Sam", "key": sk, "name": "Wolf", "kind": "monster"})
+check("the DM places a creature at a free monster spawn", code == 200 and "wolf" in st["map"]["tokens"])
+code, _ = call("/api/dnd/map/remove", {"by": "Sam", "key": sk, "token": "michael"})
+check("characters can't be removed from the map", code == 404)
+code, st = call("/api/dnd/map/remove", {"by": "Sam", "key": sk, "token": "wolf"})
+check("the DM removes a creature", code == 200 and "wolf" not in st["map"]["tokens"])
+code, _ = call("/api/dnd/map/location", {"by": "Sam", "key": sk, "id": "../../etc"})
+check("an unknown location refuses", code == 404)
+D.DM_HUMAN = ""
+
+print("battle map: combat and the DM's TABLE line")
+D.G["initiative"] = {"active": True, "turn": 1, "round": 1, "pending": [],
+                     "order": [{"name": "Michael", "total": 20, "dex": 10}, {"name": "Goblin 1", "total": 9, "dex": 10, "monster": True}]}
+D.G["map"]["used"] = {}
+code, _ = call("/api/dnd/map/move", {"by": "Michael", "key": mk, "token": "michael", "x": 3, "y": 4})
+check("in combat you don't move on someone else's turn", code == 409)
+before = json.dumps(D.MAP.public(D.G["map"]), sort_keys=True)
+D.apply_table_line("x\nTABLE: {nope")
+D.apply_table_line('x\nTABLE: {"move": "Goblin 1", "location": 7, "place": {"name": "Goblin 1"}}')
+check("a malformed TABLE line changes nothing on the map", json.dumps(D.MAP.public(D.G["map"]), sort_keys=True) == before)
+D.apply_table_line('x\nTABLE: {"move":[{"name":"Goblin 1","x":6,"y":2}]}')
+gob = D.G["map"]["tokens"]["goblin-1"]
+check("the DM walks the goblin on its turn", (gob["x"], gob["y"]) == (6, 2) and D.G["map"]["used"]["goblin-1"] == 10, str(gob))
+D.apply_table_line('x\nTABLE: {"move":[{"name":"Goblin 1","x":12,"y":6}]}')
+check("…but no further than its speed (no teleporting)", (gob["x"], gob["y"]) == (6, 2), str(gob))
+D.apply_table_line('x\nTABLE: {"move":[{"name":"Michael","x":3,"y":4}]}')
+check("the DM never moves a person's character", (D.G["map"]["tokens"]["michael"]["x"], D.G["map"]["tokens"]["michael"]["y"]) == (3, 3))
+D.apply_table_line('x\nTABLE: {"place":[{"name":"Goblin 1","x":0,"y":2}]}')
+check("…and can't 'place' a monster across the map mid-fight", (gob["x"], gob["y"]) == (6, 2), str(gob))
+D.apply_table_line('x\nTABLE: {"location":"nowhere"}')
+check("an unknown location in a TABLE line is ignored", D.G["map"]["location"] == "clearing")
+D.G["initiative"]["turn"] = 0
+D.MAP.new_turn(D.G["map"], "michael")
+D.apply_table_line('x\nTABLE: {"move":[{"name":"Michael","x":3,"y":4}]}')
+check("…not even on that person's own turn", (D.G["map"]["tokens"]["michael"]["x"], D.G["map"]["tokens"]["michael"]["y"]) == (3, 3))
+code, st = call("/api/dnd/map/move", {"by": "Michael", "key": mk, "token": "michael", "x": 3, "y": 7})
+check("on your turn you walk (20 ft)", code == 200 and st["map"]["used"]["michael"] == 20, str(st["map"].get("used")))
+code, out = call("/api/dnd/map/move", {"by": "Michael", "key": mk, "token": "michael", "x": 9, "y": 7})
+check("…and past your speed is refused", code == 409 and "too far" in out.get("error", ""), str(out))
+D.G["initiative"] = {"active": False, "order": [], "turn": 0, "round": 1, "pending": []}
+
 print("persistence")
 blob = D.ROOM.snapshot()
 hp, scene, nev = D.G["sheets"]["Michael"]["hp"], D.G["scene"], D.EVENTS.next_id
+mp = json.dumps(D.MAP.public(D.G["map"]), sort_keys=True)
 D.new_game()
 D.ROOM.adopted = False
 D.ROOM.restore(blob)
 check("restore brings back sheets, scene and log", D.G["sheets"]["Michael"]["hp"] == hp and D.G["scene"] == scene and D.EVENTS.next_id == nev)
+check("the map survives a snapshot and restore", json.dumps(D.MAP.public(D.G["map"]), sort_keys=True) == mp)
 check("restore refused once adopted", D.ROOM.restore(blob)[0] == 409)
 check("seat keys survive restore", D.SEATS.ok("Michael", mk))
 code, html = 200, urllib.request.urlopen(BASE + "/").read().decode()

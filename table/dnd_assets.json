@@ -1,0 +1,25 @@
+{
+  "_about": "D&D locations and minis (docs/DND-3D-GOAL.md). A location's map is an ASCII layout, one string per row: '.' floor, '#' wall, 'D' door (walkable), '~' difficult terrain (walkable, costs double), 'P' a player spawn, 'M' a monster spawn (both floor). The same layout builds the Blender room. Files (art, shot, room) live in R2 under dnd/locations/<id>/; a location without them still plays on the grid. status: 'draft' until a person has reviewed its art and room in /dnd/review.",
+  "cell_ft": 5,
+  "locations": [
+    {
+      "id": "clearing",
+      "name": "A forest clearing",
+      "tags": ["outdoor", "forest", "starter"],
+      "status": "draft",
+      "layout": [
+        "##..........##",
+        "#....~~.......",
+        "..P.......M...",
+        "..P...##......",
+        "......##...M..",
+        "..P........M..",
+        "..P.~~........",
+        "#.....~.....##"
+      ],
+      "art": null, "shot": null, "room": null,
+      "licence": "Layout: Divinci Table (Apache-2.0)", "credit": ""
+    }
+  ],
+  "minis": []
+}

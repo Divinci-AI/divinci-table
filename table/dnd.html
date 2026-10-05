@@ -42,6 +42,8 @@ textarea{min-height:70px;resize:vertical}
 .att{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:14.5px;padding:4px 0}
 .small{font-size:13.5px;color:var(--dim)}
 footer{max-width:1180px;margin:0 auto;padding:0 16px 30px;font-size:12.5px;color:var(--dim)}
+#map{max-width:100%;display:block;margin:0 auto;border-radius:8px;touch-action:none;cursor:pointer;background:#071820}
+#maphint{min-height:1.3em}
 </style>
 <script src="/assets/seat.js" defer></script>
 <script src="/assets/photo.js" defer></script>
@@ -52,6 +54,11 @@ footer{max-width:1180px;margin:0 auto;padding:0 16px 30px;font-size:12.5px;color
   <section>
     <h1>Divinci Table · Dungeons &amp; Dragons</h1>
     <div id="scene"></div>
+    <div class="panel" id="mapPanel"><h2 id="mapName">The map</h2>
+      <canvas id="map" aria-label="battle map"></canvas>
+      <div class="row small"><span id="maphint">Tap your character, then a square.</span><span style="flex:1"></span>
+        <select id="loc" style="width:auto;display:none" aria-label="location"></select></div>
+    </div>
     <div class="panel">
       <div id="log" aria-live="polite"></div>
       <div id="think"></div>
@@ -157,7 +164,71 @@ function draw() {
     ${(p.conditions || []).length ? `<span class="small"> (${p.conditions.map(esc).join(", ")})</span>` : ""}</span><span>${p.hp}/${p.max_hp} · AC ${p.ac}</span></div>`).join("");
   $("mons").innerHTML = S.monsters.length ? S.monsters.map(m => `<div class="who"><span>${esc(m.name)}</span><span>${m.hp > 0 ? (m.hp <= m.max_hp / 2 ? "bloodied" : "unhurt") : "down"} · AC ${m.ac}</span></div>`).join("") : "None in sight.";
   $("credit").textContent = S.credit;
+  drawMap();
 }
+// ── the battle map (2D): tap your character, then a square; the server decides ─────────────────
+const MAP = { sel: null, cell: 28, down: null };
+const SIDE = { party: "#3fd0c9", foe: "#ff9b6a" };
+function amDM() { return S && S.dm_human && me() === S.dm_human; }
+function canMove(t) { return amDM() || (t.owner && t.owner === me()); }
+function turnName() { const i = S && S.initiative; return i && i.active && i.order.length && !i.pending.length ? i.order[i.turn].name : null; }
+function drawMap() {
+  const m = S && S.map; if (!m) return;
+  const cv = $("map"), rows = m.layout, h = rows.length, w = Math.max(...rows.map(r => r.length));
+  const width = cv.parentElement.clientWidth, cell = Math.max(14, Math.min(40, Math.floor(width / w)));
+  MAP.cell = cell; const dpr = window.devicePixelRatio || 1;
+  cv.style.width = (cell * w) + "px"; cv.style.height = (cell * h) + "px"; cv.width = cell * w * dpr; cv.height = cell * h * dpr;
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const c = rows[y][x] || "#";
+    g.fillStyle = c === "#" ? "#3a4a4f" : c === "~" ? "#12302f" : "#0c2128";
+    g.fillRect(x * cell, y * cell, cell, cell);
+    if (c === "#") { g.strokeStyle = "#5c6f74"; g.strokeRect(x * cell + 2.5, y * cell + 2.5, cell - 5, cell - 5); }
+    if (c === "~") { g.strokeStyle = "#2f6b63"; g.beginPath(); g.moveTo(x * cell + 3, y * cell + cell - 3); g.lineTo(x * cell + cell - 3, y * cell + 3); g.stroke(); }
+    if (c === "D") { g.fillStyle = "#8a6a2e"; g.fillRect(x * cell + cell * .3, y * cell + cell * .1, cell * .4, cell * .8); }
+    g.strokeStyle = "#ffffff10"; g.strokeRect(x * cell + .5, y * cell + .5, cell - 1, cell - 1);
+  }
+  const now = turnName();
+  for (const t of Object.values(m.tokens)) {
+    const n = { tiny: 1, small: 1, medium: 1, large: 2, huge: 3, gargantuan: 4 }[t.size] || 1;
+    const cx = (t.x + n / 2) * cell, cy = (t.y + n / 2) * cell, r = n * cell * .42;
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2);
+    g.fillStyle = SIDE[t.side] || "#ccc"; g.globalAlpha = t.name === now ? 1 : .8; g.fill(); g.globalAlpha = 1;
+    g.lineWidth = MAP.sel === t.id ? 4 : (t.owner === me() ? 3 : 1.5);
+    g.strokeStyle = MAP.sel === t.id ? "#f4dc9b" : t.owner === me() ? "#fff" : "#00000080"; g.stroke();
+    g.fillStyle = "#06121a"; g.font = `700 ${Math.max(10, r * .9)}px system-ui`; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(t.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase(), cx, cy + 1);
+  }
+  $("mapName").textContent = m.name || "The map";
+  const mine = Object.values(m.tokens).find(t => t.owner === me());
+  const left = mine && now === mine.name ? Math.max(0, mine.speed - ((m.used || {})[mine.id] || 0)) : null;
+  $("maphint").textContent = MAP.sel ? "Now tap a square." : left != null ? `Your turn: ${left} ft of movement left.` :
+    now ? `${now}'s turn.` : amDM() ? "You're the DM: tap any token, then a square." : mine ? "Tap your character, then a square." : "Claim your seat (👤) to move your character.";
+  const sel = $("loc");
+  sel.style.display = amDM() ? "" : "none";
+  if (amDM() && sel.options.length !== (S.locations || []).length)
+    sel.innerHTML = S.locations.map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join("");
+  if (amDM()) sel.value = m.location;
+}
+function squareAt(ev) { const r = $("map").getBoundingClientRect(); return [Math.floor((ev.clientX - r.left) / MAP.cell), Math.floor((ev.clientY - r.top) / MAP.cell)]; }
+function tokenAt(x, y) {
+  return Object.values(S.map.tokens).find(t => { const n = { large: 2, huge: 3, gargantuan: 4 }[t.size] || 1; return x >= t.x && x < t.x + n && y >= t.y && y < t.y + n; });
+}
+$("map").addEventListener("pointerdown", ev => {
+  if (!S || !S.map) return;
+  const [x, y] = squareAt(ev), t = tokenAt(x, y);
+  if (t && canMove(t) && MAP.sel !== t.id) { MAP.sel = t.id; MAP.down = t.id; drawMap(); return; }
+  MAP.down = null;
+});
+$("map").addEventListener("pointerup", ev => {
+  if (!S || !S.map || !MAP.sel) return;
+  const [x, y] = squareAt(ev), t = S.map.tokens[MAP.sel];
+  if (!t || (MAP.down === MAP.sel && x === t.x && y === t.y)) { MAP.down = null; return; }   // just selected it
+  const id = MAP.sel; MAP.sel = null; MAP.down = null;
+  post("/api/dnd/map/move", { token: id, x, y }).then(drawMap);
+});
+$("loc").onchange = () => post("/api/dnd/map/location", { id: $("loc").value });
+window.addEventListener("resize", () => drawMap());
 function line(e) {
   if (e.type === "dm") return `<div class="dm">${esc(e.text)}</div>`;
   if (e.type === "roll") return `<div class="e roll ${e.roll && e.roll.crit ? "crit" : ""} ${e.roll && e.roll.fumble ? "fumble" : ""}">🎲 ${esc(e.text)}</div>`;
