@@ -74,6 +74,9 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
       Sketchfab model and a MakeHuman shoe pack). Record where they are and their licences.
 - [ ] Check free balances: build.nvidia.com credits (Cosmos 3), Meshy (`meshy_check_balance`), Tripo,
       Workers AI's daily allowance. Write the numbers here.
+      *2026-10-04:* Meshy **1,062 credits** (≈30 per textured mini, +5 rig, +3 per animation → ~20 rigged
+      minis with idle + walk ≈ 800). **No NVIDIA key** in Infisical (and none for Tripo or Rodin):
+      build.nvidia.com needs Michael to sign in and create an API key, stored as `NVIDIA_API_KEY`.
 - [ ] **Naming:** "Dungeons & Dragons" / "D&D" is a Wizards of the Coast trademark; the SRD's CC-BY covers
       rules content, not the name. Michael decides the product wording (e.g. "fantasy adventures, compatible
       with fifth edition") for the lobby, the page title and divinci.ai/table.
