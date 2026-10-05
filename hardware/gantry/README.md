@@ -94,8 +94,11 @@ Drill a **1/4" hole** about 1" from one end of the 6" piece, centred on one leg.
 
 ![Camera mount](img/camera-mount.svg)
 
-1. Stick the 6" angle's *undrilled* leg to the front face of the **X beam** (the beam that rides up and down in
-   Z) with mounting tape, drilled leg sticking out over the bed. Back it up with two zip ties around the beam.
+1. **First, run the carriage from one end of the X beam to the other by hand** (printer off). On the CR-6 Max the
+   carriage rides on the beam's **front** face, so nothing may be stuck there. Stick the 6" angle's *undrilled* leg to
+   the **top (or back) of the X beam, outboard of the carriage's travel** (the left end), with mounting tape, the
+   drilled leg sticking out over the bed. Back it up with two zip ties around the beam, and run the carriage end to
+   end again: it must not touch the bracket, the ball head, the camera or its cable.
 2. From the top: **bolt** down through the hole → **rubber washer** → screw the bolt into the **ball head's
    base**. Hand-tight.
 3. Screw the ball head's top screw into the camera's tripod socket. Fit the **dummy battery** and plug in its AC
