@@ -26,6 +26,7 @@ CACHE = HERE / ".cache" / "dnd"
 KNOWN = set(".,=~DPM#TROKBSCW")
 THEMES = {"tavern", "road", "forest", "cave", "crypt", "keep", "bridge", "ruins"}
 ROOM_TRIS, MINI_TRIS = 150_000, 20_000
+ROOM_BYTES = 3_000_000          # a headset downloads the room on wifi; compressed rooms are ~0.3–1.6 MB
 LOC_FILES = ("art", "shot", "room", "map_image", "view")
 PASS = FAIL = 0
 
@@ -100,6 +101,8 @@ def main() -> None:
         if room.exists():
             t = glb_triangles(room)
             check(f"{i}: room is {t:,} triangles (≤ {ROOM_TRIS:,})", t <= ROOM_TRIS)
+            n = room.stat().st_size
+            check(f"{i}: room.glb is {n / 1e6:.1f} MB (≤ {ROOM_BYTES / 1e6:.0f} MB)", n <= ROOM_BYTES)
         need = ("room", "map_image", "view") if loc.get("status") == "approved" or built else ()
         need += tuple(k for k in ("art", "shot") if loc.get(k))        # Cosmos files, once generated
         for k in need:

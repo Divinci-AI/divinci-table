@@ -5,13 +5,14 @@
 import * as THREE from "three";
 import { GLTFLoader } from "/vendor/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "/vendor/jsm/utils/SkeletonUtils.js";
+import { MeshoptDecoder } from "/vendor/jsm/libs/meshopt_decoder.module.js";   // rooms are meshopt-compressed
 
 export const SIZES = { tiny: 1, small: 1, medium: 1, large: 2, huge: 3, gargantuan: 4 };
 const SIDE = { party: 0x3fd0c9, foe: 0xff9b6a };
 const HP = { ok: 0x58d68d, hurt: 0xffb347, down: 0x666666 };
 const BLOCK = { "#": [1.2, 0x3d3a36], T: [1.8, 0x2f5a2a], R: [0.5, 0x6d6a64], O: [1.4, 0x8d877d], K: [0.5, 0x7b5634],
                 B: [0.55, 0x6a4426], S: [0.55, 0x7c7a76], C: [0.7, 0x7b5634] };
-const loader = new GLTFLoader();
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const cache = new Map();                                 // url → Promise<gltf>
 
 export const assetURL = p => p ? "/dnd-assets/" + String(p).replace(/^dnd\//, "") : null;

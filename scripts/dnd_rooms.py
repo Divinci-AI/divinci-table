@@ -27,6 +27,19 @@ from dnd_kits import credits as kit_credits, ensure as ensure_kits  # noqa: E402
 KITS: dict[str, str] = {}
 
 
+GLTF_TRANSFORM = "@gltf-transform/cli@4.5.1"     # pinned: weld + meshopt (EXT_meshopt_compression), no simplification
+
+
+def compress(glb: Path) -> None:
+    """Merge duplicate vertices, then quantize + meshopt-compress the geometry: the crypt went 6.5 MB → 1.6 MB.
+    dnd-scene.js registers the MeshoptDecoder (table/vendor/jsm/libs). Deploy that page code BEFORE uploading
+    compressed rooms, or pages still on the old code can't open them."""
+    for cmd in (["weld", str(glb), str(glb)], ["meshopt", str(glb), str(glb)]):
+        r = subprocess.run(["npx", "--yes", GLTF_TRANSFORM, *cmd], capture_output=True, text=True, timeout=300)
+        if r.returncode:
+            raise SystemExit(f"{glb}: gltf-transform {cmd[0]} failed (exit {r.returncode})\n{(r.stdout + r.stderr)[-600:]}")
+
+
 def build(loc: dict) -> dict:
     out = OUT / loc["id"]
     with tempfile.TemporaryDirectory() as td:
@@ -39,6 +52,7 @@ def build(loc: dict) -> dict:
     if r.returncode or not done:
         tail = "\n".join((r.stdout + r.stderr).splitlines()[-25:])
         raise SystemExit(f"{loc['id']}: Blender failed (exit {r.returncode})\n{tail}")
+    compress(out / "room.glb")
     info = json.loads((out / "build.json").read_text())
     print(f"{done[0]}  ({time.time() - t0:.1f}s, room.glb {(out / 'room.glb').stat().st_size // 1024} KB)")
     return info
