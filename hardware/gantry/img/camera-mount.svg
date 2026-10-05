@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" font-family="Helvetica, Arial, sans-serif" font-size="14">
+  <title>Camera mount, exploded: X beam, aluminium angle, ball head, Canon</title>
+  <rect width="960" height="640" fill="#ffffff"/>
+  <text x="24" y="34" font-size="22" font-weight="700" fill="#1a1a1a">2 · Camera mount (exploded side view)</text>
+  <!-- X beam cross-section -->
+  <rect x="80" y="90" width="120" height="70" rx="4" fill="#2f6fb0"/>
+  <text x="140" y="130" text-anchor="middle" fill="#fff" font-weight="700">X beam</text>
+  <text x="24" y="186" fill="#333" font-size="12">VHB tape on the beam's</text>
+  <text x="24" y="202" fill="#333" font-size="12">front face + 2 zip ties</text>
+  <text x="24" y="218" fill="#333" font-size="12">around the beam</text>
+  <!-- tape -->
+  <rect x="200" y="96" width="8" height="58" fill="#e85d75"/>
+  <!-- aluminium angle L -->
+  <path d="M212 92 L232 92 L232 270 L420 270 L420 290 L212 290 Z" fill="#cfcfcf" stroke="#444" stroke-width="2"/>
+  <text x="250" y="120" fill="#1a1a1a">aluminium angle 1" × 1/8"</text>
+  <text x="250" y="138" fill="#555" font-size="12">cut ~6" long; vertical leg on the beam,</text>
+  <text x="250" y="154" fill="#555" font-size="12">horizontal leg sticks out over the bed</text>
+  <circle cx="380" cy="280" r="5" fill="#fff" stroke="#444"/>
+  <text x="430" y="284" fill="#1a1a1a" font-size="12">drill a 1/4" hole ~1" from the end</text>
+  <!-- stack below the hole -->
+  <g transform="translate(330,0)">
+    <text x="120" y="322" fill="#1a1a1a" font-size="13">from the top, through the hole:</text>
+    <rect x="44" y="300" width="12" height="70" fill="#7d7d7d"/>
+    <rect x="34" y="296" width="32" height="8" fill="#7d7d7d"/>
+    <text x="120" y="344" fill="#1a1a1a" font-size="12">① 1/4"-20 × 1" bolt (head on top of the angle)</text>
+    <rect x="30" y="380" width="40" height="8" rx="3" fill="#222"/>
+    <text x="120" y="388" fill="#1a1a1a" font-size="12">② rubber washer (damps vibration)</text>
+    <circle cx="50" cy="430" r="26" fill="#2b2b2b"/>
+    <rect x="34" y="400" width="32" height="12" fill="#2b2b2b"/>
+    <text x="120" y="432" fill="#1a1a1a" font-size="12">③ ball head: its 1/4"-20 base takes the bolt; tighten by hand</text>
+    <rect x="44" y="456" width="12" height="18" fill="#7d7d7d"/>
+    <text x="120" y="470" fill="#1a1a1a" font-size="12">④ ball head's top screw goes into the camera's tripod socket</text>
+  </g>
+  <!-- camera hanging -->
+  <rect x="330" y="478" width="100" height="62" rx="10" fill="#1d1d1d"/>
+  <text x="380" y="514" text-anchor="middle" fill="#fff" font-size="13">Canon T5i</text>
+  <rect x="356" y="540" width="48" height="50" rx="5" fill="#333"/>
+  <text x="380" y="608" text-anchor="middle" fill="#1a1a1a" font-size="12">18 mm, pointing straight down</text>
+  <rect x="610" y="500" width="320" height="120" rx="8" fill="#fff6dc" stroke="#d9a400"/>
+  <text x="624" y="524" font-weight="700" fill="#7a5a00">Why the beam, not the carriage</text>
+  <text x="624" y="546" fill="#5c4400" font-size="12">Camera + lens ≈ 800 g. On the X carriage it would</text>
+  <text x="624" y="564" fill="#5c4400" font-size="12">shake and strain the X motor. On the beam it only rides</text>
+  <text x="624" y="582" fill="#5c4400" font-size="12">up and down with Z, and from the top of Z the 18 mm</text>
+  <text x="624" y="600" fill="#5c4400" font-size="12">lens still sees the whole 400 mm bed in 1–2 shots.</text>
+</svg>

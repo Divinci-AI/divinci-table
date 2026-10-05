@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" font-family="Helvetica, Arial, sans-serif" font-size="14">
+  <title>Suction head on the X carriage: bracket, servo, cup</title>
+  <rect width="960" height="600" fill="#ffffff"/>
+  <text x="24" y="34" font-size="22" font-weight="700" fill="#1a1a1a">3 · Suction head (side view)</text>
+  <!-- carriage -->
+  <rect x="90" y="80" width="200" height="90" rx="6" fill="#e3e3e3" stroke="#333" stroke-width="2"/>
+  <text x="190" y="130" text-anchor="middle" fill="#1a1a1a" font-weight="700">X carriage / hotend cover</text>
+  <text x="300" y="104" fill="#555" font-size="12">hotend stays COLD and unplugged from heat —</text>
+  <text x="300" y="120" fill="#555" font-size="12">gantry.py never sends a heater command</text>
+  <!-- bracket -->
+  <path d="M120 170 L140 170 L140 300 L330 300 L330 318 L120 318 Z" fill="#cfcfcf" stroke="#444" stroke-width="2"/>
+  <text x="350" y="232" fill="#1a1a1a">short aluminium angle (~3"), VHB + zip ties to the carriage</text>
+  <rect x="112" y="176" width="8" height="110" fill="#e85d75"/>
+  <!-- servo under the bracket -->
+  <rect x="230" y="318" width="80" height="44" fill="#4a7bd0" stroke="#223" stroke-width="2"/>
+  <text x="350" y="342" fill="#1a1a1a">MG90S servo, screwed or VHB'd under the bracket, shaft down</text>
+  <circle cx="270" cy="370" r="7" fill="#fff" stroke="#223"/>
+  <!-- horn -->
+  <rect x="230" y="372" width="80" height="10" rx="4" fill="#f0f0f0" stroke="#555"/>
+  <text x="350" y="384" fill="#1a1a1a">servo horn: turns the cup 90° to tap / untap a card</text>
+  <!-- M5 fitting + cup -->
+  <rect x="262" y="382" width="16" height="26" fill="#b88a2e"/>
+  <text x="350" y="404" fill="#1a1a1a">M5 push-to-connect fitting through the horn's end hole (M5 nut above)</text>
+  <path d="M250 408 L290 408 L286 420 L294 432 L286 444 L294 456 L246 456 L254 444 L246 432 L254 420 Z" fill="#d5492f"/>
+  <text x="350" y="440" fill="#d5492f" font-weight="700">15 mm bellows cup — the lowest point of the whole head</text>
+  <text x="350" y="458" fill="#555" font-size="12">the bellows squash a few mm: that's the spring that makes touch-down gentle</text>
+  <!-- tube -->
+  <path d="M270 382 C 200 360, 120 380, 70 330" fill="none" stroke="#2a9d8f" stroke-width="4"/>
+  <text x="24" y="312" fill="#2a9d8f" font-size="12">4 mm tube to the control box</text>
+  <!-- card -->
+  <rect x="200" y="500" width="140" height="8" fill="#f4f4f4" stroke="#777"/>
+  <text x="200" y="530" fill="#1a1a1a" font-size="12">a sleeved card on the bed</text>
+  <rect x="560" y="480" width="370" height="96" rx="8" fill="#eaf6f4" stroke="#2a9d8f"/>
+  <text x="574" y="504" font-weight="700" fill="#145c53">Clearance rule</text>
+  <text x="574" y="526" fill="#145c53" font-size="12">Cup tip must sit at least 5 mm below the nozzle and below</text>
+  <text x="574" y="544" fill="#145c53" font-size="12">anything else on the carriage. Measure it and set min_z in</text>
+  <text x="574" y="562" fill="#145c53" font-size="12">table/.cache/gantry.json before the first move (step 7).</text>
+</svg>

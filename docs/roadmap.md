@@ -61,7 +61,8 @@ two shots cover the whole bed (`gantry.py plan`). Lower Z zooms in on single car
 slowed so the cards don't slide.
 
 Steps:
-1. Mount the Canon on the X carriage, pointing down, with a printed L-bracket or a ball-head clamp.
+1. Mount the Canon pointing down — on the X beam, not the carriage (it weighs ~800 g). Parts, diagrams, wiring and
+   firmware: [hardware/gantry/README.md](../hardware/gantry/README.md), which also adds a suction head that can pick and turn cards.
 2. Measure the rig and write `table/.cache/gantry.json`: `min_z`, `lens_at_z0_mm`,
    `cam_offset_mm`.
 3. `gantry.py scan --area all --post` feeds the stitched frame to `/api/board`.

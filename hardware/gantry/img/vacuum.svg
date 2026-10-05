@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" font-family="Helvetica, Arial, sans-serif" font-size="14">
+  <title>Vacuum line: pump, tee, cup and release valve</title>
+  <rect width="960" height="520" fill="#ffffff"/>
+  <text x="24" y="34" font-size="22" font-weight="700" fill="#1a1a1a">4 · Vacuum line (4 mm push-to-connect tube)</text>
+  <!-- pump -->
+  <rect x="60" y="180" width="170" height="110" rx="10" fill="#3d5a80"/>
+  <text x="145" y="230" text-anchor="middle" fill="#fff" font-weight="700">12 V vacuum pump</text>
+  <text x="145" y="252" text-anchor="middle" fill="#dfe8f5" font-size="12">diaphragm, ~ -80 kPa</text>
+  <text x="145" y="168" text-anchor="middle" fill="#1a1a1a" font-size="12">IN (suction) ↓ marked port</text>
+  <circle cx="200" cy="180" r="9" fill="#2a9d8f"/>
+  <circle cx="90" cy="290" r="9" fill="#bbb"/>
+  <text x="40" y="320" fill="#555" font-size="12">OUT (exhaust) → open air</text>
+  <!-- tube from IN to tee -->
+  <path d="M200 171 L200 110 L420 110" fill="none" stroke="#2a9d8f" stroke-width="6"/>
+  <!-- tee -->
+  <rect x="420" y="96" width="44" height="28" rx="4" fill="#222"/>
+  <rect x="434" y="124" width="16" height="22" fill="#222"/>
+  <text x="442" y="84" text-anchor="middle" fill="#1a1a1a" font-size="12">union tee (from the 24-pc kit)</text>
+  <!-- to cup -->
+  <path d="M464 110 L760 110 L760 170" fill="none" stroke="#2a9d8f" stroke-width="6"/>
+  <rect x="750" y="170" width="20" height="24" fill="#b88a2e"/>
+  <text x="790" y="186" fill="#1a1a1a" font-size="12">M5 fitting</text>
+  <path d="M736 194 L784 194 L778 208 L788 222 L778 236 L788 250 L732 250 L742 236 L732 222 L742 208 Z" fill="#d5492f"/>
+  <text x="790" y="230" fill="#d5492f" font-weight="700">suction cup</text>
+  <!-- to valve -->
+  <path d="M442 146 L442 300" fill="none" stroke="#2a9d8f" stroke-width="6"/>
+  <rect x="372" y="300" width="140" height="70" rx="6" fill="#6c757d"/>
+  <text x="442" y="332" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">valve</text>
+  <text x="442" y="350" text-anchor="middle" fill="#fff" font-size="11">12 V, normally closed</text>
+  <text x="530" y="318" fill="#1a1a1a" font-size="12">1/4" NPT ports: one straight push-to-connect</text>
+  <text x="530" y="334" fill="#1a1a1a" font-size="12">fitting each side (wrap threads in PTFE tape)</text>
+  <path d="M442 370 L442 420" fill="none" stroke="#bbb" stroke-width="6"/>
+  <text x="456" y="414" fill="#555" font-size="12">other port: open to air (release)</text>
+  <!-- legend -->
+  <rect x="24" y="436" width="912" height="66" rx="8" fill="#f7f7f7" stroke="#ccc"/>
+  <text x="40" y="460" fill="#1a1a1a"><tspan font-weight="700">Pick:</tspan> pump ON, valve CLOSED → the cup grips the card.</text>
+  <text x="40" y="484" fill="#1a1a1a"><tspan font-weight="700">Drop:</tspan> pump OFF, valve OPEN for ~0.3 s → air rushes in and the card lets go at once, then the valve closes again.</text>
+</svg>
