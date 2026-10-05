@@ -87,6 +87,11 @@ def problems(bom: dict, docs: dict[str, str]) -> list[str]:
         if st in ("cart", "saved") and i.get("source") == "amazon" and not any(i["asin"] in t for t in docs.values()):
             bad.append(f"{iid}: in the Amazon cart but linked from no doc")
 
+    for i in items:                                   # a printed part has its source and a printable file
+        if i.get("status") == "to-print":
+            for k in ("scad", "stl"):
+                if not i.get(k) or not (ROOT / i[k]).is_file():
+                    bad.append(f"{i['id']}: to-print without a {k} file ({i.get(k)!r}); scripts/build_parts.sh renders STLs")
     prints = {i["name"] for i in items if i.get("status") == "to-print"}
     step3 = section(docs["manual"], "Step 3")
     for name in sorted(set(re.findall(r"\*\*(.+?)\*\*", step3)) - prints):
@@ -132,6 +137,7 @@ def self_test(bom: dict, docs: dict[str, str]) -> list[str]:
     def m_unlisted_print(b, d):
         d["manual"] = re.sub(r"(## Step 3[^\n]*\n)", r"\1- **Printed card tray**: designed, never listed\n", d["manual"], count=1)
     def m_print_dropped(b, d): d["manual"] = d["manual"].replace("**Printed privacy wall**", "**privacy wall**")
+    def m_print_no_file(b, d): item(b, "privacy-wall")["stl"] = "hardware/gantry/parts/stl/nope.stl"
     def m_saved_orphan(b, d):
         b["items"].append({"id": "ghost2", "name": "Ghost saved part", "source": "amazon", "asin": "B0GHOST001",
                            "price": 0, "status": "saved", "used_in": [{"doc": "manual", "step": "Step 1"}]})
@@ -142,7 +148,7 @@ def self_test(bom: dict, docs: dict[str, str]) -> list[str]:
     slipped = []
     for m in (m_status, m_orphan_step, m_no_use, m_renamed, m_unknown_link, m_removed_in_manual,
               m_removed_asin, m_total, m_dup, m_orphan_cart, m_goal_step, m_unlisted_print, m_print_dropped,
-              m_saved_orphan):
+              m_saved_orphan, m_print_no_file):
         b, d = copy.deepcopy(bom), dict(docs)
         m(b, d)
         if not problems(b, d):

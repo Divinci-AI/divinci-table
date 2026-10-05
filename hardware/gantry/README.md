@@ -54,6 +54,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 |---|---|---|
 | Printed magnet swivel | 1 (+1 spare) | holds the magnet and turns in its bracket |
 | Printed deck box with a one-card exit slot | 1 | the AI's shuffled deck, face-up and covered; one card out at a time |
+| Printed deck box follower plate | 1 | rides on four springs, keeping the top card at the exit slot |
 | Printed discard chute | 1 | graveyard and exile go off the bed's edge into a tray |
 | Printed privacy wall | 1 | hides the AI's face-up hand zone from the person |
 
@@ -129,20 +130,24 @@ the beam they only ride up and down with Z.
 
 ## Step 3 — Print the parts (while it's still a printer)
 
-Everything here is PLA+, printed *before* Step 4, because after that the printer is the gantry. Print a spare swivel.
+Everything here is PLA+, printed *before* Step 4, because after that the printer is the gantry. The sources are
+parametric OpenSCAD files in [`parts/`](parts/) with ready STLs in [`parts/stl/`](parts/stl/); measure your cards,
+sleeves and bed edge, change the numbers at the top of a file, and re-render with `scripts/build_parts.sh`.
 
-- **Printed magnet swivel**: a cylinder about 24 mm across and 22 mm tall, 100% infill. In its floor, a 3.2 mm hole
-  in the centre for the M3 screw that holds the magnet underneath. Above the floor, a sideways hex slot that the
-  1/4" bolt's head slides into (11.1 mm across flats plus 0.3 mm clearance), so the bolt turns *with* the swivel.
-  On top, a 6.5 mm hole where the bolt's thread comes out.
-- **Printed deck box with a one-card exit slot**: an open-top box that holds the AI's deck face-up, with a lid over
-  the back two-thirds so the deck can't be read from the side. At the front, a slot just one sleeved card thick
-  (measure a sleeved card with its disc; add 0.2 mm). The magnet presses on the top card's exposed front edge and
-  slides it out through the slot, so the card below, even if it's pulled along, is stopped by the slot's lip.
-- **Printed discard chute**: a ramp that clips to the bed's edge and drops cards into a tray: graveyard and exile
-  need no bed space.
-- **Printed privacy wall**: a low wall along the bed's front edge, in front of the AI's hand zone, so the person
-  can't read the AI's face-up hand.
+- **Printed magnet swivel** ([`magnet_swivel.scad`](parts/magnet_swivel.scad); print a spare): 24 mm across,
+  100% infill, top hole up. The magnet screws on underneath with the M3 screw, dropped in through the top hole;
+  the 1/4" bolt's head slides into the sideways hex slot, so the bolt turns *with* the swivel.
+- **Printed deck box with a one-card exit slot** ([`deck_box.scad`](parts/deck_box.scad)): a card magazine. A lid
+  over the back hides the deck; the front strip is open for the magnet; side lips hold the top card down, and the
+  front wall stops exactly one card below them, so only the top card can slide out. Set `card_t` from ten sleeved
+  cards with their discs, measured together.
+- **Printed deck box follower plate** (the same file, `part = "follower"`): sits on four springs from the
+  assortment in the box's floor sockets and pushes the stack up as cards are drawn. Pick springs that a full deck
+  compresses to about `spring_room` (14 mm).
+- **Printed discard chute** ([`discard_chute.scad`](parts/discard_chute.scad)): hooks over the bed's front edge
+  (set `bed_t`) and drops cards into a tray: graveyard and exile need no bed space.
+- **Printed privacy wall** ([`privacy_wall.scad`](parts/privacy_wall.scad)): a low wall with taped feet along the
+  bed's front edge, in front of the AI's hand zone, so the person can't read the AI's face-up hand.
 
 ## Step 4 — Build the magnet head
 
