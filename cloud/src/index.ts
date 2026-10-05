@@ -22,6 +22,7 @@ interface Env {
 	ADMIN_TOKEN?: string;
 	ROOM_SNAPSHOTS: R2Bucket;
 	ASSETS_BUCKET: R2Bucket;
+	GIT_SHA?: string;               // the commit this Worker was deployed from (scripts/cloud_deploy.sh --var)
 	FUSION_CONFIG?: string;
 	AI: { run(model: string, input: unknown): Promise<unknown> };
 	PUBLIC_ORIGIN?: string;          // this Worker's public address, for the room container's callbacks (the Clef judge)   // Workers AI: speech-to-text and photo reading for /xr
@@ -486,6 +487,7 @@ export default {
 		if (url.pathname.startsWith("/__room") || url.pathname.startsWith("/api/room/")) return new Response("Not found", { status: 404 });
 		if (url.pathname.startsWith("/avatars/") && request.method === "GET") return avatar(url.pathname, env);
 		if (url.pathname.startsWith("/dnd-assets/") && request.method === "GET") return dndAsset(url.pathname, env);
+		if (url.pathname === "/version" && request.method === "GET") return Response.json({ worker: env.GIT_SHA ?? "unknown" }, { headers: { "Cache-Control": "no-store" } });
 
 		const room = (request.headers.get("Cookie") ?? "").match(/(?:^|;\s*)room=([a-z0-9]{8})/)?.[1];
 		if (!room) return Response.redirect(url.origin + "/", 302);

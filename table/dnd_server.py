@@ -639,6 +639,9 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / STATIC[p]).read_bytes(), ctype="text/html; charset=utf-8")
         if p == "/api/dnd":
             return self._send(200, public_state())
+        if p == "/api/version":                            # which commit this room runs (scripts/cloud_smoke.cjs)
+            from build_info import build_sha
+            return self._send(200, {"sha": build_sha(), "game": "dnd"})
         if p == "/manifest.webmanifest":                 # add to the home screen: the table as an app
             return self._send(200, body=json.dumps({
                 "name": "Divinci Table — adventure", "short_name": "Adventure", "start_url": "/", "scope": "/",

@@ -12,3 +12,6 @@ __pycache__/
 cloud/node_modules
 cloud/.wrangler
 cloud/.dev.vars
+
+# written by scripts/cloud_deploy.sh before each image build
+table/BUILD_SHA

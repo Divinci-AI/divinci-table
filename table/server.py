@@ -2007,6 +2007,9 @@ class H(BaseHTTPRequestHandler):
             return
         if self._lan_blocked("GET"):
             return
+        if self.path.split("?")[0] == "/api/version":      # which commit this room runs (scripts/cloud_smoke.cjs)
+            from build_info import build_sha
+            return self._send(200, {"sha": build_sha(), "game": "magic"})
         if self.path.split("?")[0] == "/me":               # a player's phone / glasses view (public info only)
             return self._send(200, body=(HERE / "me.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path.startswith("/api/card"):              # Oracle text for one card, by name (public)
