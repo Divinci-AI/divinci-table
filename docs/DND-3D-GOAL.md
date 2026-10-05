@@ -168,6 +168,16 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
 
 ## Done log
 
+- **2026-10-05 · Hardening after the first cloud check.** (1) A failed room/mini download is retried
+  (1/3/9/20 s); `dnd_room_load_e2e.cjs` reproduced the stuck placeholder first. (2) A map's files and draft mark
+  come from the location's status at publish time (`map_view()`), so approval reaches running games and a
+  location sent back to draft stops going out. (3) The public repo had drifted 152 commits from the live site:
+  history scrubbed of a personal detail and two internal KV namespace IDs, pushed; `scripts/cloud_deploy.sh`
+  now refuses a dirty tree or an unpushed HEAD and stamps the commit (`/version`, `/api/version`);
+  `scripts/cloud_smoke.cjs` checks the live commit, the room files and a fresh browser's 3D room. (4) Rooms
+  meshopt-compressed: 29 MB → 7.3 MB, 3 MB budget per room in `dnd_assets_test`; decoder deployed before the
+  compressed files were uploaded. Live: `66711e2` SMOKE-OK with the compressed rooms. Next: `docs/PLAYTEST-1.md`.
+
 - **2026-10-05 · Cloud deploy.** Michael approved all 8 locations; `scripts/dnd_upload.py --yes` put their 24 files
   (29.3 MB, approved only) in R2 `divinci-table-assets/dnd/`; Worker `d2de80de` serves `/dnd-assets/…`
   (`dndAssetKey`, traversal-tested, both regex anchors mutation-checked) and the room image rolled to
