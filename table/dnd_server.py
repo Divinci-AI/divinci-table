@@ -93,7 +93,9 @@ SEATS = Seats(HUMANS + ([DM_HUMAN] if DM_HUMAN else []))
 EVENTS = Events()
 LOCK = threading.RLock()
 PREGENS = {k: v for k, v in json.loads((HERE / "dnd_pregens.json").read_text()).items() if not k.startswith("_")}
-ASSETS = MAP.load_manifest(HERE / "dnd_assets.json")          # locations and minis (docs/DND-3D-GOAL.md)
+MANIFEST = HERE / "dnd_assets.json"
+ASSETS = MAP.load_manifest(MANIFEST)                            # locations and minis (docs/DND-3D-GOAL.md)
+ASSET_DIR = HERE / ".cache" / "dnd"                             # built rooms and art on the laptop; R2 in the cloud
 START_LOCATION = "clearing"
 G: dict = {}
 
@@ -171,17 +173,30 @@ def new_game() -> None:
         G["sheets"][n] = sheet_from_pregen(n, pregen_order[i % 4])
     for c in COMPANIONS:
         G["sheets"][c["name"]] = sheet_from_pregen(c["name"], c["class"]) | {"companion": True}
-    set_location(START_LOCATION)
+    set_location(START_LOCATION, start=True)
 
 
 # ── the battle map (dnd_map.py has the rules; this decides who may do what) ────────────────────
-def set_location(loc_id: str) -> str | None:
+def playable(loc: dict | None) -> bool:
+    """Players see a location only once a person has approved it (docs/DND-3D-GOAL.md D2). On the laptop,
+    drafts play too (marked as drafts) so they can be tried before approval."""
+    return bool(loc) and (loc.get("status") == "approved" or not CLOUD)
+
+
+def playable_locations() -> list[dict]:
+    return [x for x in ASSETS["locations"] if playable(x)]
+
+
+def set_location(loc_id: str, start: bool = False) -> str | None:
     """A fresh map of a library location, with the party at its player spawns and every monster still in
-    play at its monster spawns. Returns an error for an unknown location."""
+    play at its monster spawns. Returns an error for an unknown (or unapproved) location. A new game may start
+    on any location's grid (layouts are plain data), but its room and pictures go out only once approved."""
     loc = MAP.location(ASSETS, loc_id)
-    if not loc:
+    if not loc or not (start or playable(loc)):
         return "no such location"
     G["map"] = MAP.new_map(loc, ASSETS.get("cell_ft", 5))
+    G["map"]["assets"] = {k: loc.get(k) for k in ("room", "map_image", "view", "art", "shot") if loc.get(k)} if playable(loc) else {}
+    G["map"]["draft"] = loc.get("status") != "approved"
     for name, s in G["sheets"].items():
         MAP.place(G["map"], name, "pc", owner=None if s.get("companion") else name, speed=s.get("speed", 30))
     sync_monster_tokens()
@@ -217,7 +232,7 @@ def apply_map_lines(d: dict) -> None:
     """The DM's map changes from a TABLE line: location, place and move. Everything is checked here; an
     unknown location, name or illegal square is dropped. The DM never moves a person's character, and in
     combat a creature walks at most its speed, along a legal path, on its own turn."""
-    if isinstance(d.get("location"), str) and MAP.location(ASSETS, d["location"]):
+    if isinstance(d.get("location"), str) and playable(MAP.location(ASSETS, d["location"])):
         set_location(d["location"])
     m = G["map"]
     places = d.get("place") if isinstance(d.get("place"), list) and not turn_name() else []   # setting up, not mid-fight
@@ -245,7 +260,7 @@ def apply_map_lines(d: dict) -> None:
 
 def map_for_dm() -> dict:
     m = G["map"]
-    return {"location": m["location"], "locations": [x["id"] for x in ASSETS["locations"]],
+    return {"location": m["location"], "locations": [x["id"] for x in playable_locations()],
             "grid": m["layout"], "legend": "# wall, ~ difficult, D door, P/M spawns; x is the column, y the row, from 0",
             "tokens": [{"name": t["name"], "x": t["x"], "y": t["y"], "size": t["size"], "speed": t["speed"],
                         **({"player": True} if t["owner"] else {})} for t in m["tokens"].values()]}
@@ -500,7 +515,9 @@ def public_state(viewer: str | None = None) -> dict:
                 "companions": [{"name": c["name"], "chattiness": c["chattiness"]} for c in COMPANIONS],
                 "sheets": {n: public_sheet(s) for n, s in G["sheets"].items()}, "monsters": G["monsters"],
                 "initiative": G["initiative"], "pregens": sorted(PREGENS), "credit": CREDIT,
-                "map": MAP.public(G["map"]), "locations": [{"id": x["id"], "name": x["name"]} for x in ASSETS["locations"]]}
+                "map": MAP.public(G["map"]),
+                "locations": [{"id": x["id"], "name": x["name"] + ("" if x.get("status") == "approved" else " (draft)")}
+                              for x in playable_locations()]}
 
 
 def dump() -> dict:
@@ -598,6 +615,20 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / STATIC[p]).read_bytes(), ctype="text/html; charset=utf-8")
         if p == "/api/dnd":
             return self._send(200, public_state())
+        if p in ("/dnd/review", "/api/dnd/review"):
+            if CLOUD or not self._local():
+                return self._send(404, {"error": "not found"})
+            if p == "/dnd/review":
+                return self._send(200, body=(HERE / "dnd_review.html").read_bytes(), ctype="text/html; charset=utf-8")
+            return self._send(200, {"locations": ASSETS["locations"], "cell_ft": ASSETS.get("cell_ft", 5)})
+        if p.startswith("/dnd-assets/"):                   # the laptop's built rooms (the cloud Worker serves R2)
+            rel = unquote(p[len("/dnd-assets/"):])
+            f = (ASSET_DIR / rel).resolve()
+            types = {".glb": "model/gltf-binary", ".jpg": "image/jpeg", ".png": "image/png", ".mp4": "video/mp4"}
+            if re.fullmatch(r"(locations/[a-z0-9-]{1,40}/[a-z_]{1,20}|minis/[a-z0-9-]{1,40})\.(glb|jpg|png|mp4)", rel) \
+                    and f.is_file() and ASSET_DIR.resolve() in f.parents:
+                return self._send(200, body=f.read_bytes(), ctype=types[f.suffix])
+            return self._send(404, {"error": "not found"})
         if p == "/api/dnd/credits":
             return self._send(200, body=CREDIT.encode(), ctype="text/plain; charset=utf-8")
         if p == "/api/seat/claims":
@@ -617,10 +648,31 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, body=f.read_bytes(), ctype=ASSET_TYPES[f.suffix])
         return self._send(404, {"error": "not found"})
 
+    def _local(self) -> bool:
+        """The laptop itself (the review page is the host's, like the Magic referee tools)."""
+        return self.client_address[0] in ("127.0.0.1", "::1") and not any(
+            self.headers.get(h) for h in ("X-Forwarded-For", "Forwarded", "X-Real-IP", "CF-Connecting-IP"))
+
     def do_POST(self):
         p = urlparse(self.path).path
         if self._room("POST", p):
             return
+        if p == "/api/dnd/review":                         # the host approves (or sends back) a location
+            b = self._json()
+            if CLOUD or not self._local():
+                return self._send(404, {"error": "not found"})
+            loc = MAP.location(ASSETS, str(b.get("id", "")))
+            status = b.get("status")
+            if not loc or status not in ("draft", "approved"):
+                return self._send(400, {"error": "id of a location and status draft|approved"})
+            if status == "approved" and not all(loc.get(k) for k in ("room", "map_image", "view")):
+                return self._send(409, {"error": "build its room first (scripts/dnd_rooms.py)"})
+            with LOCK:
+                loc["status"] = status
+                if b.get("note") is not None:
+                    loc["review_note"] = clean_text(b.get("note"), 300)
+                MANIFEST.write_text(json.dumps(ASSETS, indent=2, ensure_ascii=False) + "\n")
+            return self._send(200, {"ok": True, "id": loc["id"], "status": status})
         if p == "/api/seat/claim":
             b = self._json()
             code, out = SEATS.claim(str(b.get("name", "")), str(b.get("key") or ""), device_of(self), CLOUD)

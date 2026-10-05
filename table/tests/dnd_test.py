@@ -21,6 +21,12 @@ sys.path.insert(0, str(HERE))
 os.environ.pop("DIVINCI_FUSION_API_KEY", None)
 sys.argv = ["dnd_server.py", "--players", "Michael,Sam", "--companions", "ai:Leonardo:chatty:wizard", "--port", "0"]
 import dnd_server as D  # noqa: E402
+# The map checks use a fixed layout of their own, so editing the real locations never breaks them.
+D.ASSETS["locations"].append({"id": "fixture", "name": "Test clearing", "theme": "forest", "layout": [
+    "##..........##", "#....~~.......", "..P.......M...", "..P...##......",
+    "......##...M..", "..P........M..", "..P.~~........", "#.....~.....##"]})
+D.START_LOCATION = "fixture"
+D.new_game()
 from http.server import ThreadingHTTPServer  # noqa: E402
 
 PASS = FAIL = 0
@@ -273,7 +279,7 @@ check("the DM never moves a person's character", (D.G["map"]["tokens"]["michael"
 D.apply_table_line('x\nTABLE: {"place":[{"name":"Goblin 1","x":0,"y":2}]}')
 check("…and can't 'place' a monster across the map mid-fight", (gob["x"], gob["y"]) == (6, 2), str(gob))
 D.apply_table_line('x\nTABLE: {"location":"nowhere"}')
-check("an unknown location in a TABLE line is ignored", D.G["map"]["location"] == "clearing")
+check("an unknown location in a TABLE line is ignored", D.G["map"]["location"] == "fixture")
 D.G["initiative"]["turn"] = 0
 D.MAP.new_turn(D.G["map"], "michael")
 D.apply_table_line('x\nTABLE: {"move":[{"name":"Michael","x":3,"y":4}]}')
@@ -283,6 +289,53 @@ check("on your turn you walk (20 ft)", code == 200 and st["map"]["used"]["michae
 code, out = call("/api/dnd/map/move", {"by": "Michael", "key": mk, "token": "michael", "x": 9, "y": 7})
 check("…and past your speed is refused", code == 409 and "too far" in out.get("error", ""), str(out))
 D.G["initiative"] = {"active": False, "order": [], "turn": 0, "round": 1, "pending": []}
+
+print("locations: review and approval")
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+tmp = Path(tempfile.mkdtemp())
+D.MANIFEST = tmp / "dnd_assets.json"                # approvals write here, never to the real manifest
+D.ASSET_DIR = tmp / "dnd"
+(D.ASSET_DIR / "locations" / "fixture").mkdir(parents=True)
+(D.ASSET_DIR / "locations" / "fixture" / "room.glb").write_bytes(b"glTF-test")
+(tmp / "secret.txt").write_text("no")
+code, _ = call("/api/dnd/review")
+check("the review list answers on the laptop itself", code == 200)
+req = urllib.request.Request(BASE + "/api/dnd/review", headers={"X-Forwarded-For": "203.0.113.5"})
+try:
+    urllib.request.urlopen(req, timeout=5); fwd = 200
+except urllib.error.HTTPError as e:
+    fwd = e.code
+check("…but not through a proxy (another device)", fwd == 404)
+code, _ = call("/api/dnd/review", {"id": "fixture", "status": "approved"})
+check("a location can't be approved before its room is built", code == 409)
+fx = D.MAP.location(D.ASSETS, "fixture")
+fx.update(room="dnd/locations/fixture/room.glb", map_image="dnd/locations/fixture/map.jpg", view="dnd/locations/fixture/view.jpg")
+code, out = call("/api/dnd/review", {"id": "fixture", "status": "approved", "note": "looks good"})
+check("…and once built, the host approves it (saved to the manifest)", code == 200 and json.loads(D.MANIFEST.read_text())
+      and D.MAP.location(json.loads(D.MANIFEST.read_text()), "fixture")["status"] == "approved", str(out))
+code, _ = call("/api/dnd/review", {"id": "fixture", "status": "published!"})
+check("only draft or approved", code == 400)
+r = urllib.request.urlopen(BASE + "/dnd-assets/locations/fixture/room.glb")
+check("built files are served", r.status == 200 and r.read() == b"glTF-test" and r.headers["Content-Type"] == "model/gltf-binary")
+for bad in ("/dnd-assets/../secret.txt", "/dnd-assets/locations/fixture/../../secret.txt", "/dnd-assets/locations/fixture/room.txt",
+            "/dnd-assets/%2e%2e/secret.txt", "/dnd-assets/locations/FIXTURE/room.glb"):
+    try:
+        code = urllib.request.urlopen(BASE + bad).status
+    except urllib.error.HTTPError as e:
+        code = e.code
+    check(f"no reaching outside the assets ({bad})", code == 404)
+D.CLOUD = True                                      # a public room
+fx["status"] = "draft"
+check("in a cloud room, drafts aren't offered", "fixture" not in [x["id"] for x in D.public_state()["locations"]])
+check("…can't be switched to", D.set_location("fixture") is not None)
+D.set_location("fixture", start=True)
+check("…and a game that starts on a draft's grid gets none of its files", D.G["map"]["assets"] == {})
+fx["status"] = "approved"
+D.set_location("fixture")
+check("once approved, its files go out", D.G["map"]["assets"].get("room") == "dnd/locations/fixture/room.glb")
+D.CLOUD = False
+shutil.rmtree(tmp, ignore_errors=True)
 
 print("persistence")
 blob = D.ROOM.snapshot()

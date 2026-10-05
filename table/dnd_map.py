@@ -17,7 +17,7 @@ import re
 from pathlib import Path
 
 SIZES = {"tiny": 1, "small": 1, "medium": 1, "large": 2, "huge": 3, "gargantuan": 4}
-WALKABLE = set(".DPM~")
+WALKABLE = set(".DPM~,=")                       # floor, door, spawns, difficult, road, bridge deck; anything else blocks
 MAX_SIDE = 60                                    # squares; a 300-ft room is plenty, and keeps paths cheap
 MAX_TOKENS = 60                                  # a big battle; also bounds what a DM (or a bad TABLE line) can add
 
@@ -31,7 +31,10 @@ def location(manifest: dict, loc_id: str) -> dict | None:
 
 
 def parse_layout(rows: list[str]) -> dict:
-    """ASCII rows → {w, h, walls, difficult, doors, spawn: {pcs, monsters}}. Ragged rows are padded with walls."""
+    """ASCII rows → {w, h, walls, difficult, doors, spawn: {pcs, monsters}}. Ragged rows are padded with walls.
+    Walkable: . floor, , road, = bridge deck, ~ difficult, D door, P / M spawns. Every other character blocks
+    (# wall, T tree, R rock, O pillar, K table, B barrel, S sarcophagus, C cart, W deep water: the room
+    builder draws each one; the rules only need to know it blocks)."""
     rows = [str(r) for r in rows][:MAX_SIDE]
     w = min(MAX_SIDE, max((len(r) for r in rows), default=0))
     out = {"w": w, "h": len(rows), "walls": set(), "difficult": set(), "doors": [], "spawn": {"pcs": [], "monsters": []}}

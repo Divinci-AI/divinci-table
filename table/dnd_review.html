@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>D&amp;D locations — review</title>
+<style>
+:root{--bg:#040d12;--panel:#0d1d25;--line:#d9b46a33;--ink:#ece4cf;--dim:#9fb0b0;--gold:#d9b46a;--teal:#3fd0c9;--red:#ff9b6a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,sans-serif}
+main{max-width:1200px;margin:0 auto;padding:16px}
+h1{font:800 20px Georgia,serif;color:var(--gold);margin:4px 0}
+.loc{background:var(--panel);border-radius:12px;padding:14px;margin:14px 0;box-shadow:inset 0 0 0 1px var(--line)}
+.top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.top b{font:700 18px Georgia,serif}
+.status{padding:2px 8px;border-radius:999px;font-size:12.5px;background:#2a2e37}
+.status.approved{background:#1f4d33}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:10px}
+.grid img,.grid video{width:100%;border-radius:8px;background:#071820;display:block}
+.missing{display:flex;align-items:center;justify-content:center;aspect-ratio:16/9;border-radius:8px;border:1px dashed #ffffff22;color:var(--dim);font-size:13px;text-align:center;padding:8px}
+pre{margin:0;font:12px/1.2 ui-monospace,Menlo,monospace;color:#cfe;background:#071820;padding:8px;border-radius:8px;overflow:auto}
+.cap{font-size:12.5px;color:var(--dim);margin-top:3px}
+button{font:600 14px system-ui;border-radius:8px;border:1px solid #d9b46a55;background:#10242d;color:var(--ink);padding:7px 12px;cursor:pointer}
+button.ok{background:#1f4d33}
+input{background:#071820;color:var(--ink);border:1px solid #d9b46a55;border-radius:8px;padding:7px;font:14px system-ui;flex:1;min-width:200px}
+.row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.err{color:var(--red)}
+</style>
+</head>
+<body>
+<main>
+  <h1>D&amp;D locations — review</h1>
+  <div class="cap">The host's page (this laptop only). A location reaches players in public rooms only once approved here.
+    Look at the room, the top-down map and the layout; Cosmos key art and the establishing shot appear when generated.
+    Build rooms with <code>python3 scripts/dnd_rooms.py</code>.</div>
+  <div id="list"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const url = p => p ? "/dnd-assets/" + p.replace(/^dnd\//, "") + "?v=" + Date.now() : "";
+function media(label, p, kind) {
+  if (!p) return `<div><div class="missing">${label}: not yet</div><div class="cap">${label}</div></div>`;
+  return `<div>${kind === "video" ? `<video src="${url(p)}" controls muted loop playsinline></video>` : `<img src="${url(p)}" alt="${label}" loading="lazy">`}<div class="cap">${label}</div></div>`;
+}
+async function load() {
+  const d = await (await fetch("/api/dnd/review")).json();
+  $("list").innerHTML = d.locations.map(l => `<div class="loc" data-id="${esc(l.id)}">
+    <div class="top"><b>${esc(l.name)}</b><span class="status ${l.status === "approved" ? "approved" : ""}">${esc(l.status)}</span>
+      <span class="cap">${esc(l.id)} · ${esc(l.theme)} · ${l.layout[0].length}×${l.layout.length} squares${l.triangles ? " · " + l.triangles.toLocaleString() + " triangles" : ""} · ${esc((l.tags || []).join(", "))}</span></div>
+    <div class="grid">
+      ${media("Room (view)", l.view)}${media("Top-down map", l.map_image)}${media("Key art (Cosmos)", l.art)}${media("Establishing shot (Cosmos)", l.shot, "video")}
+      <div><pre>${l.layout.map(esc).join("\n")}</pre><div class="cap">Layout · # wall · T tree · R rock · O pillar · K table · B barrel · S sarcophagus · C cart · W deep water · ~ difficult · , road · = bridge · D door · P / M spawns</div></div>
+    </div>
+    <div class="row"><input placeholder="Note (optional): what to change" value="${esc(l.review_note || "")}">
+      <button class="ok" data-s="approved">Approve</button><button data-s="draft">Back to draft</button><span class="err"></span></div>
+  </div>`).join("");
+}
+$("list").onclick = async e => {
+  const s = e.target.dataset.s; if (!s) return;
+  const box = e.target.closest(".loc");
+  const r = await fetch("/api/dnd/review", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: box.dataset.id, status: s, note: box.querySelector("input").value }) });
+  const out = await r.json().catch(() => ({}));
+  if (!r.ok) { box.querySelector(".err").textContent = out.error || "failed"; return; }
+  load();
+};
+load();
+</script>
+</body>
+</html>

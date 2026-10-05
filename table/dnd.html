@@ -179,15 +179,18 @@ function drawMap() {
   MAP.cell = cell; const dpr = window.devicePixelRatio || 1;
   cv.style.width = (cell * w) + "px"; cv.style.height = (cell * h) + "px"; cv.width = cell * w * dpr; cv.height = cell * h * dpr;
   const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+  const bg = m.assets && m.assets.map_image ? mapImage("/dnd-assets/" + m.assets.map_image.replace(/^dnd\//, "")) : null;
+  if (bg && bg.complete && bg.naturalWidth) g.drawImage(bg, 0, 0, cell * w, cell * h);
+  else for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const c = rows[y][x] || "#";
     g.fillStyle = c === "#" ? "#3a4a4f" : c === "~" ? "#12302f" : "#0c2128";
     g.fillRect(x * cell, y * cell, cell, cell);
     if (c === "#") { g.strokeStyle = "#5c6f74"; g.strokeRect(x * cell + 2.5, y * cell + 2.5, cell - 5, cell - 5); }
     if (c === "~") { g.strokeStyle = "#2f6b63"; g.beginPath(); g.moveTo(x * cell + 3, y * cell + cell - 3); g.lineTo(x * cell + cell - 3, y * cell + 3); g.stroke(); }
     if (c === "D") { g.fillStyle = "#8a6a2e"; g.fillRect(x * cell + cell * .3, y * cell + cell * .1, cell * .4, cell * .8); }
-    g.strokeStyle = "#ffffff10"; g.strokeRect(x * cell + .5, y * cell + .5, cell - 1, cell - 1);
   }
+  g.strokeStyle = bg ? "#00000030" : "#ffffff10";
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) g.strokeRect(x * cell + .5, y * cell + .5, cell - 1, cell - 1);
   const now = turnName();
   for (const t of Object.values(m.tokens)) {
     const n = { tiny: 1, small: 1, medium: 1, large: 2, huge: 3, gargantuan: 4 }[t.size] || 1;
@@ -199,7 +202,7 @@ function drawMap() {
     g.fillStyle = "#06121a"; g.font = `700 ${Math.max(10, r * .9)}px system-ui`; g.textAlign = "center"; g.textBaseline = "middle";
     g.fillText(t.name.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase(), cx, cy + 1);
   }
-  $("mapName").textContent = m.name || "The map";
+  $("mapName").textContent = (m.name || "The map") + (m.draft ? " · draft" : "");
   const mine = Object.values(m.tokens).find(t => t.owner === me());
   const left = mine && now === mine.name ? Math.max(0, mine.speed - ((m.used || {})[mine.id] || 0)) : null;
   $("maphint").textContent = MAP.sel ? "Now tap a square." : left != null ? `Your turn: ${left} ft of movement left.` :
@@ -209,6 +212,11 @@ function drawMap() {
   if (amDM() && sel.options.length !== (S.locations || []).length)
     sel.innerHTML = S.locations.map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join("");
   if (amDM()) sel.value = m.location;
+}
+const IMG = {};
+function mapImage(src) {                       // the room's top-down render, aligned to the grid
+  if (!IMG[src]) { IMG[src] = new Image(); IMG[src].onload = () => drawMap(); IMG[src].src = src; }
+  return IMG[src];
 }
 function squareAt(ev) { const r = $("map").getBoundingClientRect(); return [Math.floor((ev.clientX - r.left) / MAP.cell), Math.floor((ev.clientY - r.top) / MAP.cell)]; }
 function tokenAt(x, y) {

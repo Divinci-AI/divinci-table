@@ -1,24 +1,257 @@
 {
-  "_about": "D&D locations and minis (docs/DND-3D-GOAL.md). A location's map is an ASCII layout, one string per row: '.' floor, '#' wall, 'D' door (walkable), '~' difficult terrain (walkable, costs double), 'P' a player spawn, 'M' a monster spawn (both floor). The same layout builds the Blender room. Files (art, shot, room) live in R2 under dnd/locations/<id>/; a location without them still plays on the grid. status: 'draft' until a person has reviewed its art and room in /dnd/review.",
+  "_about": "D&D locations and minis (docs/DND-3D-GOAL.md). A location's map is an ASCII layout, one string per row. Walkable: '.' floor, ',' road, '=' bridge deck, '~' difficult terrain (costs double), 'D' door, 'P' a player spawn, 'M' a monster spawn. Blocking: '#' wall, 'T' tree, 'R' rock, 'O' pillar, 'K' table, 'B' barrel, 'S' sarcophagus, 'C' cart, 'W' deep water. The theme says how scripts/dnd_room_blender.py draws them. Files live in R2 under dnd/locations/<id>/ (room.glb, map.jpg, view.jpg; art.jpg and shot.mp4 from Cosmos 3) and locally in table/.cache/dnd/; a location without them still plays on the grid. status: 'draft' until a person approves it in /dnd/review.",
   "cell_ft": 5,
   "locations": [
     {
-      "id": "clearing",
-      "name": "A forest clearing",
-      "tags": ["outdoor", "forest", "starter"],
+      "id": "tavern",
+      "name": "The Sleeping Griffin tavern",
+      "theme": "tavern",
+      "tags": [
+        "indoor",
+        "town",
+        "starter"
+      ],
       "status": "draft",
       "layout": [
-        "##..........##",
-        "#....~~.......",
-        "..P.......M...",
-        "..P...##......",
-        "......##...M..",
-        "..P........M..",
-        "..P.~~........",
-        "#.....~.....##"
+        "################",
+        "#K..K..#B.....B#",
+        "#......#.......#",
+        "#K..K..D...K...#",
+        "#......#.......#",
+        "#..PP..#..M....#",
+        "##D#####.......#",
+        "#.......M...K..#",
+        "#..PP..........#",
+        "#..........M..B#",
+        "#BB....OO......#",
+        "################"
       ],
-      "art": null, "shot": null, "room": null,
-      "licence": "Layout: Divinci Table (Apache-2.0)", "credit": ""
+      "art": null,
+      "shot": null,
+      "room": "dnd/locations/tavern/room.glb",
+      "map_image": "dnd/locations/tavern/map.jpg",
+      "view": "dnd/locations/tavern/view.jpg",
+      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "credit": "",
+      "triangles": 1822
+    },
+    {
+      "id": "road",
+      "name": "The king's road",
+      "theme": "road",
+      "tags": [
+        "outdoor",
+        "travel",
+        "ambush"
+      ],
+      "status": "draft",
+      "layout": [
+        "TT..T....TT....T..TT",
+        "T.......R.......T..T",
+        "..P,,,,,,,,,,,,,,,..",
+        "..P,,,,,,CC,,,,,,M..",
+        "..P,,,,,,CC,,,,,,M..",
+        "..P,,,,,,,,,,,,,,,..",
+        "T~~.......R....M..TT",
+        "TT~~..T.......T...TT"
+      ],
+      "art": null,
+      "shot": null,
+      "room": "dnd/locations/road/room.glb",
+      "map_image": "dnd/locations/road/map.jpg",
+      "view": "dnd/locations/road/view.jpg",
+      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "credit": "",
+      "triangles": 1424
+    },
+    {
+      "id": "clearing",
+      "name": "A forest clearing",
+      "theme": "forest",
+      "tags": [
+        "outdoor",
+        "forest",
+        "starter"
+      ],
+      "status": "draft",
+      "layout": [
+        "TTTT..TTTTT..TTT",
+        "TT....~~.....TTT",
+        "T..P.........M.T",
+        "...P...TT......T",
+        "...P...TT....M..",
+        "T..P.........M.T",
+        "T....~~~.......T",
+        "TTT..~..TTT..TTT"
+      ],
+      "art": null,
+      "shot": null,
+      "room": "dnd/locations/clearing/room.glb",
+      "map_image": "dnd/locations/clearing/map.jpg",
+      "view": "dnd/locations/clearing/view.jpg",
+      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "credit": "",
+      "triangles": 1874
+    },
+    {
+      "id": "cave",
+      "name": "The goblin cave",
+      "theme": "cave",
+      "tags": [
+        "underground",
+        "cave"
+      ],
+      "status": "draft",
+      "layout": [
+        "################",
+        "###....######..#",
+        "##..P...####...#",
+        "#...P.R...~~...#",
+        "#..P.....~~~.M.#",
+        "##.P..##..~..M##",
+        "###..####......#",
+        "#.....##..RR...#",
+        "#.R.........M..#",
+        "#....~~..###...#",
+        "##..~~~..#####.#",
+        "################"
+      ],
+      "art": null,
+      "shot": null,
+      "room": "dnd/locations/cave/room.glb",
+      "map_image": "dnd/locations/cave/map.jpg",
+      "view": "dnd/locations/cave/view.jpg",
+      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "credit": "",
+      "triangles": 2206
+    },
+    {
+      "id": "crypt",
+      "name": "The drowned crypt",
+      "theme": "crypt",
+      "tags": [
+        "underground",
+        "undead"
+      ],
+      "status": "draft",
+      "layout": [
+        "###############",
+        "#O..O..#..O..O#",
+        "#.S..S.D......#",
+        "#O..O..#.S..S.#",
+        "#......#......#",
+        "####D######D###",
+        "#P...........M#",
+        "#P..O..O..O..M#",
+        "#P...........M#",
+        "#P.....S......#",
+        "###############"
+      ],
+      "art": null,
+      "shot": null,
+      "room": "dnd/locations/crypt/room.glb",
+      "map_image": "dnd/locations/crypt/map.jpg",
+      "view": "dnd/locations/crypt/view.jpg",
+      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "credit": "",
+      "triangles": 1432
+    },
+    {
+      "id": "keep",
+      "name": "The hall of the keep",
+      "theme": "keep",
+      "tags": [
+        "indoor",
+        "castle"
+      ],
+      "status": "draft",
+      "layout": [
+        "##################",
+        "#O..O..O..O..O..O#",
+        "#................#",
+        "#..KKKKKKKKKKK...#",
+        "#................#",
+        "#O..O..O..O..O..O#",
+        "#................#",
+        "D..P..........M..D",
+        "#..P..........M..#",
+        "#..P..........M..#",
+        "#..P.....##......#",
+        "##################"
+      ],
+      "art": null,
+      "shot": null,
+      "room": "dnd/locations/keep/room.glb",
+      "map_image": "dnd/locations/keep/map.jpg",
+      "view": "dnd/locations/keep/view.jpg",
+      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "credit": "",
+      "triangles": 2110
+    },
+    {
+      "id": "bridge",
+      "name": "The old stone bridge",
+      "theme": "bridge",
+      "tags": [
+        "outdoor",
+        "river",
+        "ambush"
+      ],
+      "status": "draft",
+      "layout": [
+        "TT..T......T....TTTT",
+        "T..PP...........T.TT",
+        "...P......R.......TT",
+        "T..P..............T.",
+        "~~~~~~~=====~~~~~~~~",
+        "WWWWWWW=====WWWWWWWW",
+        "WWWWWWW=====WWWWWWWW",
+        "~~~~~~~=====~~~~~~~~",
+        "T.....R......M....TT",
+        "TT.........M......TT",
+        "T......T.....M...TTT",
+        "TTTT..TTTTT..TTTTTTT"
+      ],
+      "art": null,
+      "shot": null,
+      "room": "dnd/locations/bridge/room.glb",
+      "map_image": "dnd/locations/bridge/map.jpg",
+      "view": "dnd/locations/bridge/view.jpg",
+      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "credit": "",
+      "triangles": 2076
+    },
+    {
+      "id": "ruins",
+      "name": "The ruined watchtower",
+      "theme": "ruins",
+      "tags": [
+        "outdoor",
+        "ruins"
+      ],
+      "status": "draft",
+      "layout": [
+        "#.##..#####..##.##",
+        "#...O....O.....R.#",
+        "..P....~~~......#.",
+        "..P..O.~R~.O..M...",
+        "..P....~~~.....M..",
+        "#.P..............#",
+        "##..O....O....R..#",
+        "...R......###.....",
+        ".....M....#...O...",
+        "#.......~~#.......",
+        "##..R...~~....R..#",
+        "###.##########.###"
+      ],
+      "art": null,
+      "shot": null,
+      "room": "dnd/locations/ruins/room.glb",
+      "map_image": "dnd/locations/ruins/map.jpg",
+      "view": "dnd/locations/ruins/view.jpg",
+      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "credit": "",
+      "triangles": 2064
     }
   ],
   "minis": []

@@ -96,11 +96,17 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
 ## D2 — Location library v1 (8 places, free credits)
 - [ ] `scripts/dnd_location.py`: prompt → Cosmos 3 key art → 5 s establishing shot; top-down map image;
       grid, blocked squares and spawn points marked in a small review page (`/dnd/review`, laptop only).
-- [ ] Rooms in Blender from a JSON layout (port Zombay's content-neutral `build_scene.py` / `render_views.py`
+      *Written; review page and top-down maps done. The Cosmos calls are NOT yet run (no NVIDIA key):
+      `--dry-run` prints the requests; the shot is image2video from the room's Blender view so it shows the same room.*
+- [x] Rooms in Blender from a JSON layout (port Zombay's content-neutral `build_scene.py` / `render_views.py`
       idea), exported to glTF within the room budget.
-- [ ] Eight starter locations: tavern, road, forest clearing, cave, crypt, keep hall, bridge, ruins.
+- [x] Eight starter locations: tavern, road, forest clearing, cave, crypt, keep hall, bridge, ruins.
+      *Layouts and rooms built (1,424–2,206 triangles each, 1–2 s each in Blender); Cosmos art and shots pending the key.*
 - [ ] Manifest validator (`table/tests/dnd_assets_test.py`): every location has art, shot, room, map,
       licence and credit; every file exists in R2; every room is under budget.
+      *Built and passing (97 checks, `--built`): layouts, reachability, licences, local files, triangle budget.
+      Not yet: checking R2 — the rooms aren't uploaded (that and the Worker's `/dnd-assets/` route ship with
+      the next cloud deploy, which waits for Michael).*
 - [ ] **Check:** a person (Michael) reviews all eight in the review page before any player sees them.
 
 ## D3 — Minis v1
@@ -150,6 +156,15 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
 - [ ] **Check:** results in the ledger; what broke goes into the next goal.
 
 ## Done log
+
+- **2026-10-04 · D2 (all but Cosmos and the review).** Eight layouts with theme characters; `scripts/dnd_room_blender.py`
+  + `scripts/dnd_rooms.py` build room.glb / map.jpg (flat Workbench, aligned to the grid) / view.jpg for all eight in
+  ~11 s; fixes found by looking: shadows hid squares on the map (now lit from above, no shadows), hex colours
+  were treated as linear (washed out; now sRGB→linear), wall tops read as floor (darker walls). Laptop serves
+  `/dnd-assets/…`; the 2D map draws the room's render under the grid; `/dnd/review` + `/api/dnd/review`
+  (laptop only, not through a proxy) approve a location once its room is built; public rooms offer only approved
+  locations and never send a draft's files. `dnd_test` **116 passed**, `dnd_assets_test --built` **97 passed**,
+  `dnd_page_e2e` **7/7**. `scripts/dnd_location.py` (Cosmos 3) written from NVIDIA's model card; not run (no key).
 
 - **2026-10-04 · D1 done.** `table/dnd_map.py` (grid, footprints by size, cheapest legal walk with difficult
   terrain, allies passable and foes not, no squeezing between wall corners, speed per turn, 60-token cap),
