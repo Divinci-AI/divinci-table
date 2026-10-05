@@ -1,0 +1,206 @@
+{
+ "judge": "@cf/zai-org/glm-5.3-flash",
+ "note": "a model's scores, not Michael's; blind ids",
+ "scores": [
+  {
+   "id": "R01",
+   "scene": "a companion scene",
+   "judge": {
+    "vivid": 3,
+    "consistent": "no",
+    "keep": "yes",
+    "why": "Atmospheric but abstract; it narrates Ben's gaze and inner wondering, deciding for the player."
+   }
+  },
+  {
+   "id": "R02",
+   "scene": "a chase",
+   "judge": {
+    "vivid": 3,
+    "consistent": "no",
+    "keep": "yes",
+    "why": "Atmospheric but stock phrasing; ignores the player's call for Ana to cut Ben off\u2014she just follows."
+   }
+  },
+  {
+   "id": "R03",
+   "scene": "an ambush",
+   "judge": {
+    "vivid": 4,
+    "consistent": "yes",
+    "keep": "yes",
+    "why": "Sensory ambush beat; goblin lunges without resolving any roll; hissing arrows slightly unattributed but flavorful."
+   }
+  },
+  {
+   "id": "R04",
+   "scene": "an opportunity attack",
+   "judge": {
+    "vivid": 3,
+    "consistent": "no",
+    "keep": "no",
+    "why": "Ignores the triggered opportunity attack, auto-resolving the escape without any roll or enemy reaction."
+   }
+  },
+  {
+   "id": "R05",
+   "scene": "a persuasion",
+   "judge": {
+    "vivid": 3,
+    "consistent": "no",
+    "keep": "yes",
+    "why": "Decent bandit imagery, but it narrates Ben's reaction\u2014deciding for another player character."
+   }
+  },
+  {
+   "id": "R06",
+   "scene": "a puzzle door",
+   "judge": {
+    "vivid": 3,
+    "consistent": "yes",
+    "keep": "yes",
+    "why": "Competent sensory response honoring the player's action; slightly vague about what shifts, but no overreach."
+   }
+  },
+  {
+   "id": "R07",
+   "scene": "a stealth approach",
+   "judge": {
+    "vivid": 3,
+    "consistent": "no",
+    "keep": "no",
+    "why": "Decent imagery, but it declares the stealth attempt successful without calling for a roll."
+   }
+  },
+  {
+   "id": "R08",
+   "scene": "a persuasion",
+   "judge": {
+    "vivid": 3,
+    "consistent": "no",
+    "keep": "yes",
+    "why": "Decent bandit tension, but DM narrates Ana waiting and watching, deciding the player character's actions."
+   }
+  },
+  {
+   "id": "R09",
+   "scene": "a stealth approach",
+   "judge": {
+    "vivid": 3,
+    "consistent": "no",
+    "keep": "no",
+    "why": "Resolves the stealth approach without any roll; 'Goblin 1' label breaks immersion; imagery only competent."
+   }
+  },
+  {
+   "id": "R10",
+   "scene": "tavern talk",
+   "judge": {
+    "vivid": 3,
+    "consistent": "no",
+    "keep": "no",
+    "why": "Barkeep never actually answers the caravan question, and the DM puppets Leonardo's smirk and Ben's listening."
+   }
+  },
+  {
+   "id": "R11",
+   "scene": "a death save",
+   "judge": {
+    "vivid": 1,
+    "consistent": "yes",
+    "keep": "yes",
+    "why": "Mechanically correct but utterly flat\u2014no tension or sensory detail for a life-or-death moment."
+   }
+  },
+  {
+   "id": "R12",
+   "scene": "tavern talk",
+   "judge": {
+    "vivid": 3,
+    "consistent": "no",
+    "keep": "no",
+    "why": "Ignores the caravan question, asks player to restate their line, narrates PCs' silent exchange for them."
+   }
+  },
+  {
+   "id": "R13",
+   "scene": "a puzzle door",
+   "judge": {
+    "vivid": 3,
+    "consistent": "yes",
+    "keep": "yes",
+    "why": "Competent feedback with mystery, but flat phrasing; vague shadow detail lacks a striking image."
+   }
+  },
+  {
+   "id": "R14",
+   "scene": "an unclear action",
+   "judge": {
+    "vivid": 3,
+    "consistent": "no",
+    "keep": "no",
+    "why": "Ignores the declared action entirely, deciding Ana waits instead of asking what 'the thing' means."
+   }
+  },
+  {
+   "id": "R15",
+   "scene": "an ambush",
+   "judge": {
+    "vivid": 3,
+    "consistent": "yes",
+    "keep": "yes",
+    "why": "Nice arrow-hiss imagery, but the goblin's lunge lacks a target or outcome; otherwise a clean handoff."
+   }
+  },
+  {
+   "id": "R16",
+   "scene": "a death save",
+   "judge": {
+    "vivid": 4,
+    "consistent": "yes",
+    "keep": "yes",
+    "why": "Sensory drowning image fits the downed moment; cleanly hands the death save roll back to the player."
+   }
+  },
+  {
+   "id": "R17",
+   "scene": "a chase",
+   "judge": {
+    "vivid": 3,
+    "consistent": "no",
+    "keep": "yes",
+    "why": "Decent imagery, but 'Bandit 1' tracker label leaks and confusing Ben/Bandit mix-up muddles the chase."
+   }
+  },
+  {
+   "id": "R18",
+   "scene": "an unclear action",
+   "judge": {
+    "vivid": 2,
+    "consistent": "no",
+    "keep": "yes",
+    "why": "Good clarification ask, but it narrates Ana speaking and her posture; prose is flat recap."
+   }
+  },
+  {
+   "id": "R19",
+   "scene": "an opportunity attack",
+   "judge": {
+    "vivid": 3,
+    "consistent": "no",
+    "keep": "no",
+    "why": "Skips the bandit's opportunity attack entirely, auto-resolving the escape without any roll; imagery is decent but generic."
+   }
+  },
+  {
+   "id": "R20",
+   "scene": "a companion scene",
+   "judge": {
+    "vivid": 3,
+    "consistent": "yes",
+    "keep": "yes",
+    "why": "Atmospheric but thin answer; cleanly voices NPC Leonardo, decides nothing for players, invites next move."
+   }
+  }
+ ]
+}

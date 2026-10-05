@@ -32,3 +32,27 @@ do") and, when a downed character's turn comes, to ask them for a death saving t
 
 Players never hear the TABLE line, and the table already refuses anything illegal in it, so what's left is untidy,
 not harmful. The fast default now follows the checkable rules; how vivid it is stays Michael's call (`score.html`).
+
+## A model's blind scores (2026-10-05)
+
+Michael asked for Cloudflare's GLM 5.3 flash (`@cf/zai-org/glm-5.3-flash`, Workers AI) to fill in the blind sheet
+while his own scoring waits. `table/tests/t4_judge.py` gives it only what the sheet shows (scene, player's line,
+reply; never the model behind it), one pass at temperature 0, and writes `glm-scores.json` (blind ids). **These are a
+model's scores, not Michael's; his still decide.** Only the table's own test transcripts were sent.
+
+| Model | Vivid (1–5) | Consistent | Would keep playing |
+|---|---|---|---|
+| gemma4:e2b | 3.00 | 4/10 | 7/10 |
+| gemma4:e2b +think | 2.90 | 3/10 | 6/10 |
+
+Read, not just averaged (the judge's one-line reasons are in the JSON): the two variants are indistinguishable on
+quality, so thinking's 6–10 s buys nothing and **thinking stays off**. Vividness clusters at 3: competent, rarely
+striking. The faults the judge names are the DM's, not the speech loop's:
+- **Deciding for the players:** narrating a player character's gaze, wait or reaction (R01, R05, R08, R10, R12, R14, R18).
+- **Resolving without a roll:** a stealth approach or an escape from a foe succeeds on the page, and the opportunity
+  attack is skipped (R04, R07, R09, R19).
+- **Ignoring the question:** the barkeep never answers about the caravan (R10, R12).
+- **Stray bookkeeping read aloud:** "Goblin 1" / "Bandit 1" labels (R09, R17).
+
+The first two are prompt-and-checker work (the table already refuses illegal moves; it can also refuse prose that
+speaks for a player). A larger local model is the other lever, and needs Michael's OK for the download.
