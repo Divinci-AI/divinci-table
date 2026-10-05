@@ -185,6 +185,7 @@ Design notes for the printer-as-hand version:
       **Pass: at least 19 of 20.** Compare a staple or paperclip in the sleeve (less steel, less coupling), tape on
       the magnet's face, and a straight lift from an open box.
 - [ ] 10 swivel-arc taps: within ±5° and ±3 mm?
+- [ ] Hand rack: slots 6, 0 and 3 out and back five times each; no card drags a neighbour, every card seats fully?
 - [ ] **Decision, with the numbers:** printer as the hand, arm + magnet, or keep suction. Only then change the carts.
       M1 uses the table's fixed camera; the Canon mount parts wait in Save for later too.
 

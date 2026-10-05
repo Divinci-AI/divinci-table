@@ -273,7 +273,10 @@ M1 uses the table's existing fixed camera; the Canon on the beam waits until the
    its disc, lower so the corner presses on the washer, then move the magnet a quarter circle around that corner
    (G2/G3). The card turns 90°. Ten tries: within ±5° and ±3 mm? If the disc slips against the magnet instead of the
    card turning, the MG90S servo fallback is in the Amazon list.
-4. Record the numbers in the goal doc's section M. Nothing else gets ordered until the doubles test passes.
+4. **The hand rack:** fill all seven slots, then take out and put back slots 6, 0 and 3 five times each
+   (`pick(**p.rack_slot(k))`, `place(**p.rack_slot(k))`). Pass: no card drags the one above or below it along, and
+   every card goes back fully into its slot.
+5. Record the numbers in the goal doc's section M. Nothing else gets ordered until the doubles test passes.
 
 ## Game rules on the magnet route
 
