@@ -55,7 +55,7 @@ The AI player gets a body at the table: **eyes overhead and a hand at its own se
       ([B0CNCSFQC1](https://www.amazon.com/dp/B0CNCSFQC1), $18.99); RSHTECH 7-port powered USB hub
       ([B0CGX8LNMC](https://www.amazon.com/dp/B0CGX8LNMC), $31.99 — Canon, printer, Nano, arm board and wrist camera
       outnumber the Mac's ports); KarlKers 20 A inline 12–24 V switch as the arm's kill switch
-      ([B0CD4Q36LW](https://www.amazon.com/dp/B0CD4Q36LW), $9.99). Amazon cart total with the gantry parts: $428.46.
+      ([B0CD4Q36LW](https://www.amazon.com/dp/B0CD4Q36LW), $9.99). Amazon cart total with the gantry parts: $410.59 (MG90S servos and 5 V buck pack removed 2026-10-04 — not needed with suction on the arm; still in the list).
       Buying the frame printed frees the CR-6 Max to become the gantry at once; PLA+ (in hand) is for the suction
       wrist adapter and camera mount only.
 - [ ] **Print our suction wrist adapter** (G4) **and the wrist-camera mount** while the CR-6 Max is still a printer
