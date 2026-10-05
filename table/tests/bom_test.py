@@ -129,7 +129,7 @@ def self_test(bom: dict, docs: dict[str, str]) -> list[str]:
     def m_unknown_link(b, d): d["manual"] += "\n[x](https://www.amazon.com/dp/B000000000)\n"
     def m_removed_in_manual(b, d): d["manual"] += "\nMG90S micro servos (2-pack)\n"
     def m_removed_asin(b, d): d["manual"] += "\n(https://www.amazon.com/dp/B071GL3XXQ)\n"
-    def m_total(b, d): item(b, "steel-discs")["price"] = 21.79
+    def m_total(b, d): item(b, "electromagnet")["price"] = 8.19
     def m_dup(b, d): b["items"].append(copy.deepcopy(item(b, "zip-ties")))
     def m_orphan_cart(b, d):
         b["items"].append({"id": "ghost", "name": "Ghost part", "source": "amazon", "asin": "B0GHOST000",
