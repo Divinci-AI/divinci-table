@@ -46,6 +46,7 @@ run openmic       /usr/bin/python3 table/tests/openmic_test.py
 run dnd           /usr/bin/python3 table/tests/dnd_test.py
 run dnd-zones     /usr/bin/python3 table/tests/dnd_zones_test.py
 run dnd-voice-srv /usr/bin/python3 table/tests/dnd_voice_test.py
+run events-longpoll /usr/bin/python3 table/tests/events_longpoll_test.py
 run dnd-assets    /usr/bin/python3 table/tests/dnd_assets_test.py
 run dnd-dm-sim    /usr/bin/python3 table/tests/dnd_dm_sim_test.py
 run ledger        /usr/bin/python3 table/tests/ledger_test.py
