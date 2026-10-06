@@ -48,17 +48,17 @@ function free(st, tok, far = 1) {                          // an open square `fa
 (async () => {
   const srv = spawn(PY, ["table/dnd_server.py", "--players", "Ana,Ben,Cy", "--dm", "Michael", "--port", String(PORT)],
                     { cwd: ROOT, env: { ...process.env, DIVINCI_FUSION_API_KEY: "", HF_HUB_OFFLINE: "1", TABLE_RESEARCH_DIR: TMP }, stdio: "ignore" });
-  let browser;
+  const browsers = [];                                   // one browser per device, as in real life: a phone is its own browser
   const errors = [];
   try {
     for (let i = 0; i < 80; i++) { try { await state(); break; } catch { await sleep(250); } }
-    browser = await chromium.launch({ headless: true, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+    const launch = async () => { const b = await chromium.launch({ headless: true, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] }); browsers.push(b); return b; };
 
     // ── setup: everyone opens the room ─────────────────────────────────────────────────────────
     const devices = {};
     const open = async (key, who, kind) => {
       const viewport = kind === "phone" ? { width: 390, height: 844 } : { width: 1280, height: 900 };
-      const ctx = await browser.newContext({ viewport, isMobile: kind === "phone" });
+      const ctx = await (await launch()).newContext({ viewport, isMobile: kind === "phone" });
       const page = await ctx.newPage();
       page.on("pageerror", e => errors.push(`${key}: ${e.message}`));
       page.on("console", m => {                       // the refusals the rehearsal provokes on purpose are not errors
@@ -226,7 +226,7 @@ function free(st, tok, far = 1) {                          // an open square `fa
   } catch (e) {
     check(false, "the rehearsal crashed: " + e.message);
   } finally {
-    if (browser) await browser.close();
+    for (const b of browsers) await b.close();
     srv.kill();
     fs.rmSync(TMP, { recursive: true, force: true });
   }

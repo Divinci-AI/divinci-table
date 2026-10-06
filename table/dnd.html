@@ -395,10 +395,15 @@ function line(e) {
   if (e.type === "seat") return `<div class="e note">${esc(e.name)} ${e.kind === "claimed" ? "sat down" : "left the table"}</div>`;
   return "";
 }
-async function tick() {
+// Long poll: ask for events with ?wait=20 and the server answers the moment one exists (a move on another phone
+// shows in a few ms, not after the next 1.5 s tick). A server that ignores ?wait answers at once, so the loop
+// below sleeps instead of spinning: it degrades to the old polling.
+async function tick(wait = 0) {
   try {
+    let e = null;
+    if (wait) e = await (await fetch(`/api/events?since=${since}&wait=${wait}`)).json();   // held until something happens
     S = await (await fetch("/api/dnd")).json();
-    const e = await (await fetch("/api/events?since=" + since)).json();
+    if (!e) e = await (await fetch("/api/events?since=" + since)).json();
     if (e.restarted) { since = 0; $("log").innerHTML = ""; }
     else if (e.events.length) {
       if (!VOICE.firstBatch) e.events.forEach(speakEvent);    // never read the history out when a page opens
@@ -413,6 +418,20 @@ async function tick() {
     renderTheater();
     draw();
     establishing();
+    return e.events.length > 0 || !!e.restarted;
+  } catch { return null; }
+}
+async function pollLoop() {
+  for (;;) {
+    const t0 = performance.now();
+    const got = await tick(document.hidden ? 0 : 20);        // a hidden tab holds no connection (HTTP/1.1 allows only six per host)
+    if (!got && performance.now() - t0 < 800) await new Promise(r => setTimeout(r, 1500));   // error, hidden, or no long-poll support
+  }
+}
+async function refreshState() {                           // state that changes without an event still shows within 4 s
+  try {
+    S = await (await fetch("/api/dnd")).json();
+    voiceButton(); soundButton(); soundSync(false); renderTheater(); draw(); establishing();
   } catch {}
 }
 // ── hold to talk: 16 kHz WAV → /api/xr/stt (the room's Worker in the cloud, Whisper on the laptop) → your action ──
@@ -472,7 +491,7 @@ function establishing() {                       // a new location plays its esta
   }
   lastLoc = m.location;
 }
-tick(); setInterval(tick, 1500);
+tick().then(pollLoop); setInterval(refreshState, 4000);
 </script>
 <script type="importmap">{ "imports": { "three": "/vendor/three.module.min.js" } }</script>
 <script type="module">

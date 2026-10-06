@@ -221,7 +221,20 @@ async function talkOff() {
 async function poll() {
   try { S = await (await fetch("/api/dnd")).json(); dnd.update(S); fit(); drawPanel(); } catch {}
 }
-await poll(); setInterval(poll, 1000);
+await poll(); setInterval(poll, 3000);               // the safety net; events below make it feel instant
+(async function eventsLoop() {                       // long poll: re-read the state the moment anything happens
+  let since = null;
+  for (;;) {
+    const t0 = performance.now(); let got = false;
+    try {
+      if (since === null) since = (await (await fetch("/api/events?since=latest")).json()).last;
+      const e = await (await fetch(`/api/events?since=${since}&wait=${document.hidden ? 0 : 20}`)).json();
+      since = e.restarted ? null : e.last; got = e.events.length > 0;
+      if (got) await poll();
+    } catch {}
+    if (!got && performance.now() - t0 < 800) await new Promise((r) => setTimeout(r, 1500));   // error or no long-poll support
+  }
+})();
 if (CLOUD_ROOM) installPresence({ THREE, renderer, scene, table, mySeat: me, seatKey: () => (window.TableSeat ? TableSeat.body().key : ""),
   accentOf: () => "#d9b46a", label: (t, col) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ color: col })); s.scale.set(0.3, 0.08, 1); return s; } });
 $("hint").textContent ||= "";

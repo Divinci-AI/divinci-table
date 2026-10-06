@@ -176,13 +176,13 @@ for: confusion, comfort, the Quest itself, the cloud's latency. Those need the r
 
 | # | Finding | Status |
 |---|---|---|
-| 1 | **Moves reach the other devices too slowly:** median 1.08 s, worst 1.50 s; 16 of 24 over the 1 s target, on phones, 3D desktop and headset alike. Cause: the pages poll (`dnd.html` every 1.5 s, `/xr` every 1 s). | **Open, needs a decision.** Long-poll `/api/events` (the server answers as soon as anything happens, ≤ 25 s): near-instant, and fewer requests than polling faster. Or poll every 0.5 s: simple, but ~3× the requests through the Worker in the cloud. Recommended: long-poll. |
+| 1 | **Moves reach the other devices too slowly:** median 1.08 s, worst 1.50 s; 16 of 24 over the 1 s target, on phones, 3D desktop and headset alike. Cause: the pages poll (`dnd.html` every 1.5 s, `/xr` every 1 s). | **Fixed 2026-10-05 (Michael chose long-polling).** `/api/events?since=N&wait=20` is held until something newer exists (`core.Events.wait_since`, woken by `emit`); `dnd.html` and the headset page loop on it, with a 4 s / 3 s state refresh as a safety net, and hidden tabs don't hold a connection. Same rehearsal, same machine, back to back: median **1170–1450 ms → 126–184 ms**, worst 1490 → 191–641 ms, 16–26 of 45 measurements over target → 2. `events_longpoll_test.py` (12 checks; the wake-up is mutation-checked). Also: the server's accept backlog went from 5 to 128, and the rehearsal now gives each device its own browser, as real phones are (one browser's six-connections-per-host limit starves held requests). |
 | 2 | **`dnd_server.py` ignored `TABLE_RESEARCH_DIR`**, so every D&D browser test wrote its games and surveys among real games' research data (`table/.cache/research/dnd/`, 52 dated entries from test runs). | **Fixed.** Tests now leave that folder untouched (54 entries before and after a full D&D test pass). The 52 older entries are left for Michael to clear: some could be real local games. |
 | 3 | Location switches: median 1.15 s, worst 1.65 s to every device, headset included (target 5 s). Rolls (phone and real), damage and conditions owned by their players, a 45-ft move on a 30-ft turn refused, someone going down, surveys private: all as designed. | Fine. |
 | 4 | The first desktop's 3D room took 7.1 s with five browsers starting at once on one laptop; a desktop alone takes 2.7–3.6 s. | Not a bug: an artefact of simulating everyone on one machine with software graphics. Re-measure on real devices. |
 | 5 | Headset page frame time 59 ms under headless software GL. | Says nothing about the Quest (72 fps there in D6's check). Measure on the headset. |
 
-- [ ] Decide #1 (long-poll recommended) and fix it; the rehearsal's move metric is the check (< 1 s on every device).
+- [x] Decide #1 (long-poll) and fix it; the rehearsal's move metric is the check (< 1 s on every device): done, see the table above.
 - [ ] The real Playtest 1 with people: confusion, comfort, the Quest, cloud load and switch times, the cost.
 
 ## Done log
