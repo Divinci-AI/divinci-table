@@ -89,7 +89,7 @@ class Events:
         self.items: list[dict] = []
         self.next_id = 1
         self.keep = keep
-        self.lock = threading.Lock()
+        self.lock = threading.Condition()          # re-entrant; wait_since sleeps on it until emit() wakes it
 
     def emit(self, etype: str, **kw) -> dict:
         with self.lock:
@@ -97,6 +97,7 @@ class Events:
             self.next_id += 1
             self.items.append(e)
             del self.items[:-self.keep]
+            self.lock.notify_all()
             return e
 
     def since(self, n: int) -> dict:
@@ -105,6 +106,16 @@ class Events:
             if n > last:
                 return {"events": [], "last": last, "restarted": True}
             return {"events": [e for e in self.items if e["id"] > n][-200:], "last": last, "restarted": False}
+
+    MAX_WAIT = 25.0
+
+    def wait_since(self, n: int, timeout: float) -> dict:
+        """Long poll: like since(), but holds the request until there is something newer than n (or the timeout, at
+        most MAX_WAIT seconds). A page that is ahead of the server is answered at once so it can start over."""
+        timeout = min(max(float(timeout), 0.0), self.MAX_WAIT)
+        with self.lock:
+            self.lock.wait_for(lambda: n > self.next_id - 1 or self.next_id - 1 > n, timeout)
+            return self.since(n)
 
     def state(self) -> dict:
         return {"items": self.items[-500:], "next_id": self.next_id}

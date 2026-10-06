@@ -961,8 +961,16 @@ class H(BaseHTTPRequestHandler):
         if p == "/api/seat/claims":
             return self._send(200, SEATS.public(device_of(self)))
         if p == "/api/events":
-            q = parse_qs(u.query).get("since", ["0"])[0]
-            return self._send(200, EVENTS.since(EVENTS.next_id - 1 if q == "latest" else int(q or 0)))
+            qs = parse_qs(u.query)
+            q = qs.get("since", ["0"])[0]
+            n = EVENTS.next_id - 1 if q == "latest" else int(q or 0)
+            try:
+                wait = float(qs.get("wait", ["0"])[0])
+            except ValueError:
+                wait = 0.0
+            # ?wait=20 long-polls: answered the moment something is newer than `since`, or after the wait. Pages that
+            # don't send it get the old instant answer.
+            return self._send(200, EVENTS.wait_since(n, wait) if wait > 0 and q != "latest" else EVENTS.since(n))
         if p == "/api/voice-config":
             return self._send(200, {"humans": [{"name": n} for n in HUMANS], "ai_players": [{"name": c["name"]} for c in COMPANIONS]})
         for pre, root in (("/assets/", HERE / "assets"), ("/vendor/", HERE / "vendor")):   # page code; three.js
@@ -1283,7 +1291,9 @@ class H(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    srv = ThreadingHTTPServer((args.host, args.port), H)
+    class Server(ThreadingHTTPServer):
+        request_queue_size = 128                  # the default of 5 drops connections when several phones open at once
+    srv = Server((args.host, args.port), H)
     srv.daemon_threads = True
     dm = DM_HUMAN or ("AI DM (release)" if ai_dm_enabled() else "nobody yet — set DND_DM_RELEASE_ID or --dm")
     print(f"dnd: {', '.join(HUMANS)}" + (f" + {', '.join(c['name'] for c in COMPANIONS)}" if COMPANIONS else "") +

@@ -151,7 +151,7 @@ grid, and nothing has been measured for a conversation's pace.
   spoken word **median 2.65 s** (target ≤ 3 s; STT ~0.3 s, the DM's first sentence 0.65–1.07 s, the page's poll
   0.7–1.9 s). With gemma4's thinking on it was **6.4 s**: it thinks 4.5–5.3 s before its first word, so thinking is
   off by default (`+think` turns it on; T4 judges whether it writes better). The poll is now the largest piece:
-  long-polling (DND-3D-GOAL D10 #1) would take the median to about 1.6 s.
+  long-polling (DND-3D-GOAL D10 #1, done 2026-10-05 on the `longpoll` branch) takes the delay behind it from ~1 s to ~0.15 s, so the median should drop to about 1.6 s; re-measure with `measure_voice_loop.cjs`.
 
 - **2026-10-05 · T1 done.** `table/dnd_zones.py` (zones, range bands, move/Dash, engagement, "where am I?");
   `dnd_server.py --mode theater`: the scene card in the state and the DM's prompt (theater instructions instead of
