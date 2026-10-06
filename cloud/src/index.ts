@@ -683,6 +683,7 @@ label{display:block;margin:14px 0 6px;font:600 13px Cinzel,serif;letter-spacing:
 input[type=text]{width:100%;padding:12px 14px;border-radius:4px;border:1px solid rgba(217,180,106,.5);background:#071820;color:var(--parch);
   font:500 19px "Cormorant Garamond",Georgia,serif;box-shadow:inset 0 2px 8px rgba(0,0,0,.6)}
 input[type=text]:focus{outline:2px solid var(--teal);outline-offset:2px}
+[hidden]{display:none!important}
 .opps{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
 .opp{position:relative;display:block;margin:0;padding:12px 12px 12px 40px;border-radius:6px;cursor:pointer;text-transform:none;letter-spacing:0;
   font:400 17px "Cormorant Garamond",Georgia,serif;color:var(--parch);background:rgba(4,13,18,.6);box-shadow:inset 0 0 0 1px rgba(217,180,106,.3)}
@@ -714,9 +715,9 @@ ${error ? `<div class="err">${esc(error)}</div>` : ""}
 <label class="opp"><input type=radio name=game value=chess><b>Chess</b>One or two people; alone, you face Leonardo</label>
 <label class="opp"><input type=radio name=game value=dnd><b>D&amp;D one-shot</b>Real dice or fair ones; the first name is the Dungeon Master</label>
 <label class="opp"><input type=radio name=game value=dnd-theater><b>D&amp;D, theater of the mind</b>No board: the table speaks, you talk, the story lives in your heads</label></div>
-<label for=title>Table name</label><input type=text id=title name=title maxlength=40 placeholder="Friday Commander">
-<label for=humans>Human seats (comma-separated names; chess: White first)</label><input type=text id=humans name=humans required placeholder="Michael, Sam">
-<label>AI opponents · played by Divinci Fusion · up to two</label>
+<label for=title>Table name</label><input type=text id=title name=title maxlength=40 placeholder="Friday Commander" data-ph-magic="Friday Commander" data-ph-chess="Sunday chess" data-ph-dnd="The Sunken Vault" data-ph-dnd-theater="The Sunken Vault">
+<label for=humans id=humanslabel data-l-magic="Human seats (comma-separated names)" data-l-chess="Players (comma-separated names; White first)" data-l-dnd="Players (comma-separated names; the first is the Dungeon Master)" data-l-dnd-theater="Players (comma-separated names; the first is the Dungeon Master)">Human seats (comma-separated names; chess: White first)</label><input type=text id=humans name=humans required placeholder="Michael, Sam">
+<div data-games="magic"><label>AI opponents · played by Divinci Fusion · up to two</label>
 <div class="opps">
 <label class="opp"><input type=checkbox name=ai value=tuvasa><b>Tuvasa the Sunlit</b>Enchantments that grow</label>
 <label class="opp"><input type=checkbox name=ai value=kaust><b>Kaust, Eyes of the Glade</b>Face-down surprises</label>
@@ -730,14 +731,20 @@ ${error ? `<div class="err">${esc(error)}</div>` : ""}
 <option value="">Not listed / don't say</option><option value=inspirit>Inspirit, Flagship Vessel</option><option value=aminatou>Aminatou, the Fateshifter</option>
 <option value=nghathrod>Captain N'ghathrod</option><option value=elsha>Elsha of the Infinite</option><option value=tuvasa>Tuvasa the Sunlit</option>
 <option value=kaust>Kaust, Eyes of the Glade</option><option value=ellivere>Ellivere of the Wild Court</option></select>
-<label for=aicode>Invitation code for AI players</label><input type=text id=aicode name=aicode maxlength=60 autocomplete=off placeholder="Only needed with an AI seat">
-<details class="chessopts"><summary style="cursor:pointer;color:var(--gold-hi);margin-top:12px">Chess options</summary>
+<label for=aicode>Invitation code for AI players</label><input type=text id=aicode name=aicode maxlength=60 autocomplete=off placeholder="Only needed with an AI seat"></div>
+<div data-games="chess"><details class="chessopts" open><summary style="cursor:pointer;color:var(--gold-hi);margin-top:12px">Chess options</summary>
 <label for=minutes>Time per player</label><select id=minutes name=minutes style="padding:8px;border-radius:4px;background:#071820;color:var(--parch);border:1px solid rgba(217,180,106,.5)">
 <option value=5>5 minutes</option><option value=10>10 minutes</option><option value=15 selected>15 minutes</option><option value=30>30 minutes</option></select>
 <label for=level>Leonardo's strength (1–20)</label><input type=text id=level name=level value=6 inputmode=numeric style="max-width:90px">
-</details>
+</details></div>
 <button>Start table</button><small>Tables are public and listed here for six hours. Anyone with the link can claim an open seat and watch the game. Photos you share are visible to everyone in the room.</small>
 </form></section>
+<script>(function(){var f=document.querySelector('form[action="/lobby/rooms"]');if(!f)return;
+function sync(){var g=(f.querySelector('input[name=game]:checked')||{}).value||'magic';
+f.querySelectorAll('[data-games]').forEach(function(e){var on=e.getAttribute('data-games').split(' ').indexOf(g)>-1;e.hidden=!on;
+e.querySelectorAll('input,select').forEach(function(i){i.disabled=!on;});});
+var t=f.querySelector('#title'),h=f.querySelector('#humanslabel');t.placeholder=t.getAttribute('data-ph-'+g)||'';h.textContent=h.getAttribute('data-l-'+g)||h.textContent;}
+f.querySelectorAll('input[name=game]').forEach(function(r){r.addEventListener('change',sync);});sync();})();</script>
 <div class="how">
 <figure><img src="/brand/your-cards.jpg" alt="Painted cards on a candlelit table under a brass camera arm." loading=lazy><figcaption><b>Your cards, your table</b>Play your own deck; a phone over your play area shows it.</figcaption></figure>
 <figure><img src="/brand/ai-opponent.jpg" alt="A brass automaton holding a hand of cards." loading=lazy><figcaption><b>Opponents with a soul</b>AI players with personalities and voices.</figcaption></figure>
