@@ -403,7 +403,7 @@ check("the map survives a snapshot and restore", json.dumps(D.MAP.public(D.G["ma
 check("restore refused once adopted", D.ROOM.restore(blob)[0] == 409)
 check("seat keys survive restore", D.SEATS.ok("Michael", mk))
 code, html = 200, urllib.request.urlopen(BASE + "/").read().decode()
-check("page serves", "Dungeons &amp; Dragons" in html)
+check("page serves", "Fantasy one-shot" in html)
 code, cred = 200, urllib.request.urlopen(BASE + "/api/dnd/credits").read().decode()
 check("SRD credit served", "CC" in cred or "Creative Commons" in cred)
 

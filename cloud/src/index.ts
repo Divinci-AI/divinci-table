@@ -608,7 +608,7 @@ async function createDnd(request: Request, env: Env, lobby: DurableObjectStub<Lo
 	back: (msg: string) => Response, mode: "map" | "theater" = "map"): Promise<Response> {
 	const ai = aiDm(env);
 	if (humans.length < (ai ? 1 : 2) || humans.length > 6) {
-		return back(ai ? "D&D seats one to six players." : "D&D seats two to seven people: the first name is the Dungeon Master.");
+		return back(ai ? "The fantasy one-shot seats one to six players." : "The fantasy one-shot seats two to seven people: the first name is the Dungeon Master.");
 	}
 	if (!humans.every((h) => NAME_RE.test(h) && !h.includes(":") && !h.includes(","))) return back("Seat names: letters, numbers and spaces, up to 24 characters.");
 	const dm = ai ? undefined : humans[0];
@@ -641,7 +641,7 @@ function lobbyPage(rooms: RoomInfo[], error: string): string {
 			const open = r.humans.filter((h) => !(r.claimed ?? []).includes(h));
 			const seats = open.length ? `${open.length} seat${open.length > 1 ? "s" : ""} open: ${esc(open.join(", "))}` : "Full";
 			return `<li><a href="/r/${r.id}"><img src="/brand/${r.game === "chess" ? "game-chess" : r.game === "dnd" ? "quantum-dice" : "game-magic"}.jpg" alt=""><span class="t">${esc(r.title)}</span>
-			<span class="m">${r.game === "chess" ? "Chess" : r.game === "dnd" ? "D&amp;D one-shot" : "Commander"} · ${seats}${r.ai.length ? " · AI: " + esc(r.ai.join(", ")) : ""} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span>
+			<span class="m">${r.game === "chess" ? "Chess" : r.game === "dnd" ? "Fantasy one-shot" : "Commander"} · ${seats}${r.ai.length ? " · AI: " + esc(r.ai.join(", ")) : ""} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span>
 			<span class="go">${open.length ? "Take a seat →" : "Watch →"}</span></a></li>`; }).join("")
 		: `<li class="empty">No open tables yet. Start the first one.</li>`;
 	return `<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
@@ -713,8 +713,8 @@ ${error ? `<div class="err">${esc(error)}</div>` : ""}
 <label>Game</label><div class="opps">
 <label class="opp"><input type=radio name=game value=magic checked><b>Magic: Commander</b>Two to four seats, people and AI</label>
 <label class="opp"><input type=radio name=game value=chess><b>Chess</b>One or two people; alone, you face Leonardo</label>
-<label class="opp"><input type=radio name=game value=dnd><b>D&amp;D one-shot</b>Real dice or fair ones; the first name is the Dungeon Master</label>
-<label class="opp"><input type=radio name=game value=dnd-theater><b>D&amp;D, theater of the mind</b>No board: the table speaks, you talk, the story lives in your heads</label></div>
+<label class="opp"><input type=radio name=game value=dnd><b>Fantasy one-shot</b>Real dice or fair ones; the first name is the Dungeon Master</label>
+<label class="opp"><input type=radio name=game value=dnd-theater><b>Fantasy, theater of the mind</b>No board: the table speaks, you talk, the story lives in your heads</label></div>
 <label for=title>Table name</label><input type=text id=title name=title maxlength=40 placeholder="Friday Commander" data-ph-magic="Friday Commander" data-ph-chess="Sunday chess" data-ph-dnd="The Sunken Vault" data-ph-dnd-theater="The Sunken Vault">
 <label for=humans id=humanslabel data-l-magic="Human seats (comma-separated names)" data-l-chess="Players (comma-separated names; White first)" data-l-dnd="Players (comma-separated names; the first is the Dungeon Master)" data-l-dnd-theater="Players (comma-separated names; the first is the Dungeon Master)">Human seats (comma-separated names; chess: White first)</label><input type=text id=humans name=humans required placeholder="Michael, Sam">
 <div data-games="magic"><label>AI opponents · played by Divinci Fusion · up to two</label>
@@ -750,6 +750,6 @@ f.querySelectorAll('input[name=game]').forEach(function(r){r.addEventListener('c
 <figure><img src="/brand/ai-opponent.jpg" alt="A brass automaton holding a hand of cards." loading=lazy><figcaption><b>Opponents with a soul</b>AI players with personalities and voices.</figcaption></figure>
 <figure><img src="/brand/quantum-dice.jpg" alt="A crystal d20 rising from a sunken city." loading=lazy><figcaption><b>Dice from the deep</b>Shuffles and rolls anyone can verify.</figcaption></figure>
 </div>
-<footer>Part of <a href="https://divinci.ai/">Divinci</a>. Not affiliated with Wizards of the Coast.</footer>
+<footer>Part of <a href="https://divinci.ai/">Divinci</a>. Not affiliated with Wizards of the Coast.<br><small>The fantasy games use material from the System Reference Document 5.1 (&ldquo;SRD 5.1&rdquo;) by Wizards of the Coast LLC, available at <a href="https://dnd.wizards.com/resources/systems-reference-document">dnd.wizards.com/resources/systems-reference-document</a>, licensed under the <a href="https://creativecommons.org/licenses/by/4.0/legalcode">Creative Commons Attribution 4.0 International License</a>.</small></footer>
 </main></body></html>`;
 }
