@@ -84,7 +84,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Everbilt 1/4" rubber flat washers (10-pack) | 1 | damping under the ball head; the tap station's grippy foot |
 | Everbilt spring assortment kit (84-pack) | 1 | one compression spring for the swivel's drag |
 | Scotch Extreme double-sided mounting tape 1" × 48" | 1 | brackets to the beam and the carriage (no drilling into the printer) |
-| Everbilt M3 × 6 mm zinc pan head machine screws (4-pack) | 1 | magnet to the printed swivel (the magnet has an M3 thread in its back) |
+| Everbilt M3 × 6 mm zinc flat head machine screws (4-pack) | 1 | magnet to the printed swivel (the magnet has an M3 thread in its back) |
 | Commercial Electric 4" heat-shrink tubing assortment (8-pack) | 1 | insulating the diode and the lead splices |
 | Everbilt #10 zinc flat washers (100-pack) | 1 | one per AI card, inside the sleeve (zinc-plated steel is magnetic; stainless mostly isn't) |
 
@@ -169,8 +169,8 @@ sleeves and bed edge, change the numbers at the top of a file, and re-render wit
 
 1. Stick the 3" angle to the side of the **X carriage** with mounting tape plus zip ties, the drilled leg
    horizontal and sticking out under the carriage.
-2. Screw the **magnet** to the swivel's floor from inside with an **M3 × 6 mm screw** (snug, not tight: PLA
-   cracks), then slide a **1/4" bolt**'s head into the hex slot, thread up.
+2. Screw the **magnet** to the swivel's floor from inside with an **M3 × 6 mm flat-head screw** (the head seats in the
+   countersink; snug, not tight: PLA cracks), then slide a **1/4" bolt**'s head into the hex slot, thread up.
 3. Cut ~6 mm off a **nylon spacer** with the hacksaw: it's a low-friction washer. The stack, from the bottom: swivel →
    nylon washer → up through the bracket's hole → a short **spring** from the assortment → **wing nut**. The bolt
    turns in the bracket's hole. The wing nut sets the drag: tight enough that a card doesn't spin while moving, loose
