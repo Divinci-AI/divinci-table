@@ -14,7 +14,7 @@ disagree. **Status (2026-10-05): designed from the parts' specs, not yet assembl
 decides whether the printer is the hand or the SO-101 arm is ([docs/ARM-GANTRY-GOAL.md](../../docs/ARM-GANTRY-GOAL.md),
 section M). The suction design this replaced is in git history.
 
-**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head.
+**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head and a 13-step animated build (Step by step, or the arrow keys).
 
 ![The whole rig](img/overview.svg)
 
