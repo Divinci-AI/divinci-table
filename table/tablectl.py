@@ -29,6 +29,13 @@ Magic decisions. Everything an action does is announced at the table in the AI's
   tablectl life PLAYER DELTA              e.g. life Michael -5 · life me +3
   tablectl new-game                      new game: reshuffles, sealing players' secret words in
   tablectl fair · fair-reveal · fair-verify FILE   the AI decks' fingerprints; publish; check
+  tablectl journal-due                   journal requests waiting for you (fixed moments: end of your turn, attacked,
+                                         eliminated, game end), each with its rating order
+  tablectl journal MOMENT "one line" --engaged 3 --frustrated 1 --in-control 2 --winner Sam --turns-left 4
+                                         answer one (any value may be "decline"); sealed until the game is over
+  tablectl journal-read                  your entries, once the game is over
+  tablectl game-over --order A,B,C       (host) the game is over: finish order first to last; unseals journals
+  tablectl identity --model ID --provider P [--prompt-version V]   say which model you are, so the research bundle can pin it
   tablectl --seat Fusion state           two AI players: act for one seat (or export TABLE_SEAT=Fusion)
 
 REF is a permanent's name or '#id' from `state`. Add --quiet to act without announcing.
@@ -100,6 +107,10 @@ def fmt_event(e):
     if k == "heard":
         extra = f" → {e['kind']}" + (f" to {e['addressee']}" if e.get("for_ai") else "") + (f" · board {e['cards']}" if e.get("cards") else "")
         return f"[{t}] #{e['id']} HEARD \"{e['text']}\"{extra}"
+    if k == "journal-due":
+        return f"[{t}] #{e['id']} 📓 journal due for {e.get('seat')} ({e.get('moment')}): tablectl journal-due"
+    if k == "game-over":
+        return f"[{t}] #{e['id']} GAME OVER — winner {e.get('winner')}; order {', '.join(e.get('order') or [])}"
     if k == "attention":
         extra = ""
         if e.get("kind") == "attacked":
@@ -275,6 +286,20 @@ def main():
     se.add_argument("--tapped", action="store_true")
     l = sub.add_parser("life"); l.add_argument("player"); l.add_argument("delta", type=int)
     sub.add_parser("new-game")
+    sub.add_parser("journal-due", help="journal requests waiting for this seat")
+    jn = sub.add_parser("journal", help="answer a journal request at a fixed moment (sealed until the game is over)")
+    jn.add_argument("moment", choices=["end_of_turn", "attacked", "eliminated", "game_end"])
+    jn.add_argument("text", help='one line, or "decline"')
+    for r in ("engaged", "frustrated", "in-control"):
+        jn.add_argument("--" + r, required=True, help='0-4, or "decline"')
+    jn.add_argument("--winner", help='who you think wins; "decline" to skip')
+    jn.add_argument("--turns-left", dest="turns_left", help='how many more turns; "decline" to skip')
+    sub.add_parser("journal-read", help="your journal entries, once the game is over")
+    idn = sub.add_parser("identity", help="declare this seat's exact model, provider and prompt version")
+    idn.add_argument("--model", required=True); idn.add_argument("--provider"); idn.add_argument("--prompt-version", dest="prompt_version")
+    idn.add_argument("--notes")
+    go = sub.add_parser("game-over", help="(host) the game is over: --order A,B,C (first to last), unseals journals")
+    go.add_argument("--order", required=True); go.add_argument("--winner")
     sub.add_parser("fair", help="the AI decks' published fingerprints (and the full proof once revealed)")
     sub.add_parser("fair-reveal", help="after the game: publish the seeds and orders")
     fv = sub.add_parser("fair-verify", help="check a revealed record yourself, offline"); fv.add_argument("file")
@@ -316,6 +341,23 @@ def main():
         return act("damage", hits=hits, no_life=a.no_life)
     if a.cmd == "role":
         return act("role", ref=a.ref, kind=a.kind)
+    if a.cmd == "journal-due":
+        print(json.dumps(req("GET", "/api/journal/due?seat=" + urllib.parse.quote(SEAT or ""), None), indent=1)); return
+    if a.cmd == "journal":
+        def num(v):
+            return v if v is None or v == "decline" else int(v)
+        body = {"seat": SEAT, "moment": a.moment, "text": a.text,
+                "ratings": {"engaged": num(a.engaged), "frustrated": num(a.frustrated), "in_control": num(a.in_control)},
+                "prediction": {"winner": a.winner, "turns_left": num(a.turns_left)}}
+        print(json.dumps(req("POST", "/api/journal", body), indent=1)); return
+    if a.cmd == "identity":
+        print(json.dumps(req("POST", "/api/identity", {"seat": SEAT, "model": a.model, "provider": a.provider,
+                                                      "prompt_version": a.prompt_version, "notes": a.notes}), indent=1)); return
+    if a.cmd == "journal-read":
+        print(json.dumps(req("GET", "/api/journal?seat=" + urllib.parse.quote(SEAT or ""), None), indent=1)); return
+    if a.cmd == "game-over":
+        print(json.dumps(req("POST", "/api/game-over", {"order": [x.strip() for x in a.order.split(",") if x.strip()],
+                                                        "winner": a.winner}), indent=1)); return
     if a.cmd == "end":
         return act("end", text=a.text)
     if a.cmd == "pass":

@@ -915,9 +915,16 @@ def research_dir() -> Path:
     return d
 
 
+_BRAIN_MARKED: set = set()
+
+
 def _append(name: str, rec: dict):
     try:
-        with open(research_dir() / name, "a") as fh:
+        d = research_dir()
+        with open(d / name, "a") as fh:
+            if name == "brain.jsonl" and d not in _BRAIN_MARKED:
+                _BRAIN_MARKED.add(d)                  # tells table/audit.py this log records refusals too, so zero
+                fh.write(json.dumps({"ts": round(time.time(), 2), "meta": "refusals-logged"}) + "\n")   # means zero
             fh.write(json.dumps(rec, default=str) + "\n")
     except OSError as e:                              # logging must never stop the table
         print(f"research log failed: {e}", flush=True)
@@ -932,7 +939,67 @@ def emit(event_type: str, **fields) -> dict:
         EVENTS.append(e)
         del EVENTS[:-3000]
         _append("events.jsonl", e)                    # the public stream, persisted
+    if event_type == "attention" and fields.get("kind") == "attacked":
+        journal_due(fields.get("addressee"), "attacked")
+    elif event_type == "life" and isinstance(fields.get("delta"), int) and fields["delta"] < 0 \
+            and isinstance(fields.get("life"), int) and fields["life"] <= 0:
+        journal_due(fields.get("player"), "eliminated")
     return e
+
+
+def _read_research(name: str) -> list[dict]:
+    try:
+        return [json.loads(l) for l in open(research_dir() / name) if l.strip()]
+    except OSError:
+        return []
+
+
+import journal as journal_mod                         # in-game journals (docs/RESEARCH-ENGINE-GOAL.md R1)
+GAME_OVER: dict = {"over": False, "order": [], "winner": None}
+JOURNALS = journal_mod.Journal(lambda: globals().get("FAIR", {}).get("game") or "", _append, _read_research)
+
+
+def journal_due(seat_name, moment: str):
+    """Ask an AI seat for a journal entry at a fixed moment. Its own event type (not "attention"), so no page
+    pops an alert for it; the brain finds it with `tablectl journal-due`."""
+    if seat_name in VPS and JOURNALS.fire(seat_name, moment):
+        emit("journal-due", seat=seat_name, moment=moment)
+
+
+IDENTITY: dict = {}                                    # seat -> what the seat declared about itself (docs/RESEARCH-ENGINE-GOAL.md R3)
+ID_FIELDS = ("model", "provider", "prompt_version", "notes")
+
+
+def identity_set(seat_name: str, b: dict) -> tuple[int, dict]:
+    """A seat declares which model it is, so every record can pin it. The server cannot know what an external brain
+    is, and 'Grok' alone is useless six months later (docs/arena-vision.md). Written whole to identity.json."""
+    rec = {}
+    for k in ID_FIELDS:
+        v = b.get(k)
+        if v is not None:
+            if not isinstance(v, str) or len(v) > 120:
+                return 400, {"error": f"{k} is a string of at most 120 characters"}
+            rec[k] = v.strip()
+    if not rec.get("model"):
+        return 400, {"error": "model is required: the exact model string, e.g. the API id"}
+    try:
+        from build_info import build_sha
+        harness = build_sha()
+    except Exception:                                    # noqa: BLE001
+        harness = "dev"
+    IDENTITY[seat_name] = {**rec, "declared_ts": round(time.time(), 2)}
+    try:
+        with open(research_dir() / "identity.json", "w") as fh:
+            json.dump({"harness": harness, "seats": IDENTITY}, fh, indent=1)
+    except OSError as e:
+        print(f"identity log failed: {e}", flush=True)
+    return 200, {"seat": seat_name, **IDENTITY[seat_name], "harness": harness}
+
+
+def journal_reset():
+    IDENTITY.clear()
+    JOURNALS.reset()
+    GAME_OVER.update(over=False, order=[], winner=None)
 
 
 LIFE: dict[str, int] = {}             # filled once the human players are parsed, below
@@ -2149,6 +2216,18 @@ class H(BaseHTTPRequestHandler):
                     return self._send(409, {"error": "not revealed yet: the proof is published after the game"})
                 res = {n: dict(zip(("ok", "message"), fair.verify(v.fair))) for n, v in VPS.items() if v.fair}
             return self._send(200, {"game": FAIR["game"], "results": res})
+        if self.path.split("?")[0] in ("/api/journal", "/api/journal/due"):
+            sn = self._seat_q()
+            if not (self._brain_ok() or self._pilot_ok(sn)):
+                return self._send(403, {"error": "brain token required"})
+            if sn is None:
+                return self._send(404, {"error": f"no AI seat by that name (seats: {list(VPS)})"})
+            if self.path.split("?")[0].endswith("/due"):
+                return self._send(200, {"seat": sn, "due": JOURNALS.due(sn)})
+            try:
+                return self._send(200, {"seat": sn, "entries": JOURNALS.entries(sn, GAME_OVER["over"])})
+            except journal_mod.Sealed as e:
+                return self._send(409, {"error": str(e)})
         if self.path.split("?")[0] == "/api/brain/state":
             sn = self._seat_q()
             if not (self._brain_ok() or self._pilot_ok(sn)):
@@ -2693,6 +2772,40 @@ class H(BaseHTTPRequestHandler):
             if self.path == "/api/life":                   # anyone at the table: {"player": name, "delta": -3}
                 b = self._json()
                 return self._send(200, self._change_life(str(b.get("player", "")), b.get("delta"), b.get("by", "table")))
+            if self.path == "/api/journal":                # an AI seat's journal entry at a fixed moment
+                b = self._json()
+                sn = seat(b.get("seat"))
+                if not (self._brain_ok() or self._pilot_ok(sn)):
+                    return self._send(403, {"error": "brain token required"})
+                if sn is None:
+                    return self._send(404, {"error": f"no AI seat '{b.get('seat')}' (seats: {list(VPS)})"})
+                rec, why = JOURNALS.add(sn, b)
+                return self._send(200 if rec else 400, {"entry": rec} if rec else {"error": why})
+            if self.path == "/api/identity":               # an AI seat declares its model, provider and prompt version
+                b = self._json()
+                sn = seat(b.get("seat"))
+                if not (self._brain_ok() or self._pilot_ok(sn)):
+                    return self._send(403, {"error": "brain token required"})
+                if sn is None:
+                    return self._send(404, {"error": f"no AI seat '{b.get('seat')}' (seats: {list(VPS)})"})
+                code, out = identity_set(sn, b)
+                return self._send(code, out)
+            if self.path == "/api/game-over":              # the host says the game is over: unseals the journals
+                b = self._json()
+                if not self._brain_ok():
+                    return self._send(403, {"error": "only the table's host can do that"})
+                order = [str(x)[:40] for x in (b.get("order") or [])][:8]
+                winner = str(b.get("winner") or (order[0] if order else ""))[:40]
+                names = list(life_table())
+                if set(order) != set(names) or len(order) != len(names) or winner not in order:
+                    return self._send(400, {"error": f"order is the finish order, first to last, of every player {names}; winner is in it"})
+                if GAME_OVER["over"]:
+                    return self._send(409, {"error": "the game is already over"})
+                GAME_OVER.update(over=True, order=order, winner=winner)
+                emit("game-over", order=order, winner=winner, by="table")
+                for n in VPS:
+                    journal_due(n, "game_end")
+                return self._send(200, {"over": True, "order": order, "winner": winner})
             if self.path.startswith("/api/brain/"):
                 b = self._json()
                 sn = seat(b.get("seat"))
@@ -2732,6 +2845,7 @@ class H(BaseHTTPRequestHandler):
                     SHOW.update(armed=True, pending=None, n=0, last_seen=0.0, misses=0, vision_tried=False)
                 for k in LIFE:
                     LIFE[k] = 40
+                journal_reset()
                 emit("new-game")
                 SPOKEN.clear()
                 with BOARD_LOCK:
@@ -2853,6 +2967,12 @@ class H(BaseHTTPRequestHandler):
     def _change_life(self, player, delta, by):
         return change_life(player, delta, by)
 
+    def _refused(self, action, kind, why):
+        """An action the table refused, for the integrity audit (table/audit.py): the rate of refusals is the
+        nearest thing we log to 'tried something it should not'. `why` is the engine's message, cut short."""
+        _append("brain.jsonl", {"ts": round(time.time(), 2), "seat": getattr(VP, "name", None), "action": action,
+                                "refused": kind, "why": str(why)[:160]})
+
     def _brain(self, action, b):
         """The external brain's actions. Engine-checked; each announcement is spoken as the AI."""
         from player import IllegalAction
@@ -2869,6 +2989,7 @@ class H(BaseHTTPRequestHandler):
                     hidden = VP.private_hand()
                     leak = voice_leak(text, hidden)
                     if leak and not b.get("force"):
+                        self._refused(action, "hand-leak", "")       # never the card's name: that is the secret
                         return self._send(400, {"error": f"that names '{leak}', which is still in your hand "
                                                          f"(pass force to say it anyway)"})
                     said = [text]
@@ -2991,6 +3112,7 @@ class H(BaseHTTPRequestHandler):
                     reshuffle_all()
                     for k in LIFE:
                         LIFE[k] = 40
+                    journal_reset()
                     emit("new-game")
                     emit("fair", kind="sealed", **fair_public())
                     SPOKEN.clear()
@@ -3001,15 +3123,19 @@ class H(BaseHTTPRequestHandler):
                     said = ["The fairness proof is published. Anyone can check that the deck order was fixed "
                             "before the first draw."]
                 else:
+                    self._refused(action, "unknown-action", "")
                     return self._send(400, {"error": f"unknown action '{action}'"})
         except IllegalAction as e:
+            self._refused(action, "illegal", str(e))
             return self._send(400, {"error": str(e)})
         except KeyError as e:
+            self._refused(action, "missing-field", str(e))
             return self._send(400, {"error": f"missing field {e}"})
         BRAIN_LAST[0] = time.time()
         if action in ("pass", "cast", "turn-up") and VP.name in PRIORITY["waiting"]:
             priority_done(VP.name)                    # answered (cast or pass): the window can close
         if action == "end" and PHASE["player"] == VP.name:   # an AI ends its turn: on to the next seat
+            journal_due(VP.name, "end_of_turn")
             order = turn_order()
             with PHASE_LOCK:
                 PHASE["step"] = len(STEPS) - 1
