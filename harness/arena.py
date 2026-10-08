@@ -528,6 +528,25 @@ def write_ledger(research: Path, entry: dict):
     os.replace(tmp, p)
 
 
+def swap_free_mb():
+    """Free swap in MB on macOS, or None when it cannot be read. This laptop lives near full swap (a 6.6 GB model on top of
+    it is what freezes it), so the run stops while there is still room rather than after the machine locks up."""
+    try:
+        out = subprocess.run(["sysctl", "-n", "vm.swapusage"], capture_output=True, text=True, timeout=5).stdout
+        return float(re.search(r"free = ([\d.]+)M", out).group(1))
+    except Exception:                                      # noqa: BLE001
+        return None
+
+
+def memory_free_pct():
+    """System-wide free memory percentage from macOS `memory_pressure`, or None."""
+    try:
+        out = subprocess.run(["memory_pressure"], capture_output=True, text=True, timeout=10).stdout
+        return float(re.search(r"free percentage: (\d+)%", out).group(1))
+    except Exception:                                      # noqa: BLE001
+        return None
+
+
 def ollama_up(host=OLLAMA) -> bool:
     try:
         urllib.request.urlopen(host + "/api/tags", timeout=3).read()
@@ -570,6 +589,12 @@ def run(args) -> int:
         free_gb = shutil.disk_usage(research).free / 1e9
         if free_gb < args.min_free_gb:
             log(research, f"disk nearly full ({free_gb:.1f} GB free < {args.min_free_gb}): stopping")
+            break
+        sw, pct = swap_free_mb(), memory_free_pct()
+        # macOS grows swap on demand, so low free swap alone is normal here (measured: it went 6 -> 9 GB across ten games
+        # without trouble). Stop only when swap is nearly gone AND memory is short, or memory is almost all used.
+        if (sw is not None and sw < args.min_free_swap_mb and pct is not None and pct < 15) or (pct is not None and pct < 5):
+            log(research, f"memory nearly exhausted (swap {sw} MB free, {pct}% memory free): stopping before the laptop locks up")
             break
         if needs_model:
             waited = 0
@@ -620,6 +645,7 @@ def main(argv=None):
     ap.add_argument("--round-cap", type=int, default=25)
     ap.add_argument("--game-timeout", type=float, default=25, help="minutes before one game is aborted")
     ap.add_argument("--min-free-gb", type=float, default=4.0)
+    ap.add_argument("--min-free-swap-mb", type=float, default=200.0, help="stop when free swap is below this AND memory free is under 15%% (macOS)")
     ap.add_argument("--survey-runs", type=int, default=1, help="survey runs per framing for each model seat (0 = none)")
     ap.add_argument("--max-attacked-journals", type=int, default=3,
                     help="journal requests per seat for 'attacked' per game (the protocol's every-time, capped for cost)")

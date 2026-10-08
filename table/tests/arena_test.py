@@ -146,6 +146,23 @@ def suite(mod, tmp: Path) -> list[str]:
     rc, out = run(r6, "--games", "2", "--min-free-gb", "1e9")
     check("a nearly full disk stops the run", games(r6) == [] and "disk nearly full" in out)
 
+    r9 = tmp / "r9"
+    saved_sw, saved_pct = mod.swap_free_mb, mod.memory_free_pct
+    mod.swap_free_mb, mod.memory_free_pct = (lambda: 10.0), (lambda: 8.0)
+    try:
+        rc, out = run(r9, "--games", "2")
+    finally:
+        mod.swap_free_mb, mod.memory_free_pct = saved_sw, saved_pct
+    check("little swap AND little memory stops the run before any game", games(r9) == [] and "memory nearly exhausted" in out)
+    r10 = tmp / "r10"
+    mod.swap_free_mb, mod.memory_free_pct = (lambda: 10.0), (lambda: 40.0)
+    try:
+        run(r10, "--games", "1", "--seed", "2")
+    finally:
+        mod.swap_free_mb, mod.memory_free_pct = saved_sw, saved_pct
+    check("little swap alone does not stop it (macOS grows swap on demand)", len(games(r10)) == 1)
+    check("free swap can be read on this machine (or the guard stays out of the way)", saved_sw() is None or saved_sw() >= 0)
+
     r7 = tmp / "r7"
     run(r7, "--games", "1", "--seed", "3", "--round-cap", "2")
     gs7 = games(r7)
