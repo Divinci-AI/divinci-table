@@ -15,3 +15,4 @@ cloud/.dev.vars
 
 # written by scripts/cloud_deploy.sh before each image build
 table/BUILD_SHA
+scripts/printer/watch/
