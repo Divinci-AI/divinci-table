@@ -60,6 +60,7 @@ run arena         /usr/bin/python3 table/tests/arena_test.py
 run pilot-ctl     $PY table/tests/pilot_ctl_test.py
 run pass-timer    $PY table/tests/pass_timer_test.py
 run playtest2     $PY table/tests/playtest2_server_test.py
+command -v openscad >/dev/null && run fit-check   python3 hardware/gantry/fit_check.py
 run photo-privacy $PY table/tests/photo_privacy_test.py
 run fusion-cap    /usr/bin/python3 table/tests/fusion_cap_test.py
 run remote-guard  $PY table/tests/remote_guard_test.py

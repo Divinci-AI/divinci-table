@@ -144,7 +144,7 @@ sleeves and bed edge, change the numbers at the top of a file, and re-render wit
   100% infill, top hole up. The magnet screws on underneath with the M3 screw, dropped in through the top hole;
   the 1/4" bolt slides in from the side, head first and thread up (the hex slot takes the head, a keyhole slot in the ceiling takes the thread), so the bolt turns *with* the swivel.
 - **Printed deck box with a one-card exit slot** ([`deck_box.scad`](parts/deck_box.scad)): a card magazine. A lid
-  over the back hides the deck; the front strip is open for the magnet; side lips hold the top card down, and the
+  over the rear covers only what is behind the washer's reach (the open front strip must extend past the top card's centre by the magnet's radius, or the magnet cannot land on the washer: fixed 2026-10-08); stack the deck backs up; side lips hold the top card down, and the
   front wall stops exactly one card below them, so only the top card can slide out. Set `card_t` from ten sleeved
   cards with their discs, measured together.
 - **Printed deck box follower plate** (the same file, `part = "follower"`): sits on four springs from the

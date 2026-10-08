@@ -15,7 +15,11 @@ clear       = 1.0;     // around the stack
 wall        = 2.4;
 floor_t     = 2.4;
 lip_w       = 6;       // side lips holding the top card down at the front
-lid_frac    = 0.62;    // the lid covers the rear 62 % (hides the deck from the side; the front strip is the magnet's)
+magnet_r    = 10;      // the 20 mm magnet
+// The open front strip must reach the washer at the card's CENTRE plus the magnet's radius and 2 mm of play, or the magnet cannot sit on it
+// (the first version covered the rear 62 % with the lid, so the strip ended 38 mm from the front and the washer is 49.6 mm back:
+// found by hardware/gantry/fit_check.py on 2026-10-08). The lid now covers only what is behind that.
+lid_frac    = 1 - (clear + card_l / 2 + magnet_r + 2) / (card_l + 2 * clear);
 spring_d    = 6.5;     // post holes for the springs
 follower_t  = 3;
 spring_room = 14;      // springs fully compressed under a full deck, plus the follower
