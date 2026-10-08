@@ -26,3 +26,10 @@ Note: the process and filament files inherit from OrcaSlicer's own system profil
 
 The G-code is not committed (plate B is 16 MB); regenerate it with the command above and the STLs in
 `hardware/gantry/parts/stl/`. Plate B is the long one: look at layer height and infill before committing the printer to it overnight.
+
+## Start routine v2 (`cr6max-machine-v2-purge.json`, written 2026-10-08, sliced but not yet printed)
+
+The first plate drooled at 205 C while it waited for the bed and the drool landed on the part. v2: home, wait for the bed, then
+travel to a purge strip at the plate edge (X80-300, Y8) and wait for the nozzle temperature *there*, so drool lands on the
+strip; purge a slow 220 mm line (16 mm of filament), wipe sideways (Y13), lift, and start. Check on the first use that the strip is
+clear of the bed clips and that the line sticks. Use it in place of `cr6max-machine.json`.
