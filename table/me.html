@@ -138,7 +138,7 @@ async function phase(){ const p=await j("/api/phase"); if(p.error) return;
   $("blocked").style.cursor=p.open_questions?"pointer":""; $("blocked").style.textDecoration=p.open_questions?"underline":"";
   $("blocked").onclick=p.open_questions?()=>window.openQuestions&&window.openQuestions():null;
   winOn=p.windows!==false; $("win").textContent=winOn?`⏱ step timeouts: ${p.window_secs||""}s (tap for off)`:"⏱ step timeouts: off (tap for on)";
-  autoMode=(p.autopass||{})[(window.TableSeat&&window.TableSeat.name())||me]||"off";
+  autoMode=(p.autopass||{})[(window.TableSeat&&window.TableSeat.name())||me]||p.autopass_default||"off";
   $("auto").textContent={off:"🤖 auto-pass: off (tap to skip others' turns)",others:"🤖 auto-pass: others' turns (tap: stop for combat)","others-no-combat":"🤖 auto-pass: others' turns, stops for combat (tap for off)"}[autoMode]; }
 let autoMode="off";
 async function cycleAuto(){ const next={off:"others",others:"others-no-combat","others-no-combat":"off"}[autoMode];

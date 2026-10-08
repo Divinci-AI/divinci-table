@@ -19,6 +19,7 @@ import pickle
 import secrets
 import threading
 import time
+import zlib
 from pathlib import Path
 
 
@@ -153,19 +154,135 @@ def device_of(handler) -> str:
     return hashlib.sha256(f"{ip}|{handler.headers.get('User-Agent', '')}".encode()).hexdigest()[:24]
 
 
+_JPEG_STANDALONE = {0x01, *range(0xD0, 0xD8)}                               # markers with no length field (SOI/EOI handled apart)
+
+
+def _jpeg_orientation(payload: bytes) -> int:
+    """The EXIF orientation (1-8) in an APP1 payload, or 1 if absent or unreadable. Reads one tag; keeps nothing else."""
+    try:
+        if payload[:6] != b"Exif\0\0":
+            return 1
+        t = payload[6:]
+        end = {b"II": "little", b"MM": "big"}[t[:2]]
+        off = int.from_bytes(t[4:8], end)
+        n = int.from_bytes(t[off:off + 2], end)
+        for i in range(min(n, 512)):
+            e = t[off + 2 + 12 * i: off + 14 + 12 * i]
+            if len(e) == 12 and int.from_bytes(e[:2], end) == 0x0112:
+                v = int.from_bytes(e[8:10], end)
+                return v if 1 <= v <= 8 else 1
+    except (KeyError, ValueError, IndexError):
+        pass
+    return 1
+
+
+def _orientation_segment(o: int) -> bytes:
+    """A minimal APP1/EXIF segment holding only the orientation tag."""
+    tiff = b"MM\0*\0\0\0\x08" + b"\0\x01" + b"\x01\x12\0\x03\0\0\0\x01" + o.to_bytes(2, "big") + b"\0\0" + b"\0\0\0\0"
+    body = b"Exif\0\0" + tiff
+    return b"\xff\xe1" + (len(body) + 2).to_bytes(2, "big") + body
+
+
+def strip_jpeg(data: bytes) -> bytes | None:
+    """The JPEG with all metadata removed (EXIF/GPS, XMP, IPTC, comments, thumbnails, MakerNotes, trailing data),
+    keeping JFIF, the ICC profile, the Adobe colour flag, and a one-tag EXIF carrying only the orientation.
+    Image segments are copied byte for byte. None if the file is not a complete, well-formed JPEG."""
+    n = len(data)
+    if data[:2] != b"\xff\xd8":
+        return None
+    out = [b"\xff\xd8"]
+    orient, pos, seen_sos, scan = 1, 2, False, None   # scan: where the current entropy-coded run began
+    while True:
+        i = data.find(b"\xff", pos)
+        if i < 0 or i + 1 >= n:
+            return None
+        m = data[i + 1]
+        if m == 0xFF:                                   # fill byte
+            pos = i + 1
+            continue
+        if m == 0x00 or (seen_sos and 0xD0 <= m <= 0xD7):   # stuffed byte / restart inside entropy-coded data
+            if not seen_sos:
+                return None
+            pos = i + 2
+            continue
+        if not seen_sos and i != pos:
+            return None                                 # junk between header segments
+        if scan is not None:                            # a real marker ends the entropy-coded run: keep it verbatim
+            out.append(data[scan:i])
+            scan = None
+        if m == 0xD9:
+            if not seen_sos:
+                return None
+            if orient != 1:                             # after JFIF if there is one (it must come first), else first
+                at = 2 if len(out) > 1 and out[1][:2] == b"\xff\xe0" else 1
+                out.insert(at, _orientation_segment(orient))
+            return b"".join(out) + b"\xff\xd9"
+        if m == 0xD8:
+            return None
+        if m in _JPEG_STANDALONE:
+            out.append(data[i:i + 2])
+            pos = i + 2
+            continue
+        if i + 4 > n:
+            return None
+        ln = int.from_bytes(data[i + 2:i + 4], "big")
+        if ln < 2 or i + 2 + ln > n:
+            return None
+        seg, payload = data[i:i + 2 + ln], data[i + 4:i + 2 + ln]
+        if m == 0xDA:
+            seen_sos = True
+            scan = i + 2 + ln
+        if m == 0xE1 and orient == 1:
+            orient = _jpeg_orientation(payload)
+        keep = (m == 0xE0 and payload[:5] == b"JFIF\0") \
+            or (m == 0xE2 and payload[:12] == b"ICC_PROFILE\0") \
+            or (m == 0xEE and payload[:5] == b"Adobe") \
+            or not (0xE0 <= m <= 0xEF or m == 0xFE)
+        if keep:
+            out.append(seg)
+        pos = i + 2 + ln
+
+
+def strip_png(data: bytes) -> bytes | None:
+    """The PNG without text, EXIF, time or any other non-rendering chunks. None if malformed."""
+    keep = {b"IHDR", b"PLTE", b"IDAT", b"IEND", b"tRNS", b"gAMA", b"cHRM", b"sRGB", b"iCCP", b"bKGD", b"sBIT",
+            b"pHYs", b"hIST", b"acTL", b"fcTL", b"fdAT"}
+    out, pos, n, first = [data[:8]], 8, len(data), True
+    while pos + 12 <= n:
+        ln = int.from_bytes(data[pos:pos + 4], "big")
+        typ = data[pos + 4:pos + 8]
+        end = pos + 12 + ln
+        if end > n or not typ.isalpha() or (first and typ != b"IHDR"):
+            return None
+        if zlib.crc32(data[pos + 4:pos + 8 + ln]) != int.from_bytes(data[end - 4:end], "big"):
+            return None
+        first = False
+        if typ in keep or typ[0:1].isupper():           # unknown critical chunks are needed to render; ancillary ones go
+            out.append(data[pos:end])
+        pos = end
+        if typ == b"IEND":
+            return b"".join(out)
+    return None
+
+
 def save_photo(data: bytes, folder: Path, cap: int = 300) -> tuple[int, dict]:
-    """A JPEG or PNG from a phone, under 8 MB, at most `cap` per table."""
+    """A JPEG or PNG from a phone, under 8 MB, at most `cap` per table. Stored with its metadata removed
+    (location, device, time, thumbnails): only the orientation survives, so the picture stays upright."""
     if not 0 < len(data) <= 8_000_000:
         return 413, {"error": "a photo must be under 8 MB"}
-    if not (data[:3] == b"\xff\xd8\xff" or data[:8] == b"\x89PNG\r\n\x1a\n"):
+    jpeg = data[:3] == b"\xff\xd8\xff"
+    if not (jpeg or data[:8] == b"\x89PNG\r\n\x1a\n"):
         return 400, {"error": "send a JPEG or PNG"}
+    clean = strip_jpeg(data) if jpeg else strip_png(data)
+    if clean is None:
+        return 400, {"error": "that isn't a readable " + ("JPEG" if jpeg else "PNG")}
     folder.mkdir(parents=True, exist_ok=True)
     os.chmod(folder, 0o700)
     if sum(1 for _ in folder.iterdir()) >= cap:
         return 429, {"error": f"this table has reached its photo limit ({cap})"}
-    ext = ".jpg" if data[:3] == b"\xff\xd8\xff" else ".png"
+    ext = ".jpg" if jpeg else ".png"
     name = f"{time.strftime('%H%M%S')}-{secrets.token_hex(4)}{ext}"
-    (folder / name).write_bytes(data)
+    (folder / name).write_bytes(clean)
     os.chmod(folder / name, 0o600)
     return 200, {"ok": True, "photo": "/photos/" + name}
 

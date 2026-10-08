@@ -42,7 +42,8 @@ if cfg.get("game") == "dnd":                        # D&D: one process; the AI D
 args = [sys.executable, "-u", "table/server.py", "--any-card", "--brain", "external",
         "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8800"), "--fair-seed", "online",
         "--priority-window", "3",
-        "--human-pass-secs", os.environ.get("HUMAN_PASS_SECS", "30")]    # a person who hasn't passed in 30 s is passed for
+        "--human-pass-secs", os.environ.get("HUMAN_PASS_SECS", "30"),
+        "--autopass-default", os.environ.get("AUTOPASS_DEFAULT", "others-no-combat")]   # quiet steps pass for people; they can switch it off    # a person who hasn't passed in 30 s is passed for
 for a in cfg.get("ai", []):
     args += ["--ai", f"{a['name']}|{a['commander']}|", "--ai-deck", a["deck"]]
 for p in cfg.get("pilots", []):                     # a person playing a virtual deck from /hand (no brain process)

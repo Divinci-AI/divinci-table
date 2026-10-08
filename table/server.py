@@ -71,6 +71,10 @@ ap.add_argument("--priority-beat", default="1.5,3.5",
                      "anyone could respond — so an open window never tells the table who holds an instant")
 ap.add_argument("--priority-secs", type=float, default=45.0,
                 help="how long NEXT waits for an AI seat that holds an instant before passing for it")
+ap.add_argument("--autopass-default", choices=["off", "others", "others-no-combat"], default="off",
+                help="what a person's auto-pass is set to until they change it: 'others-no-combat' passes for them on the "
+                     "non-combat steps of someone else's turn (the cloud rooms use it: an AI's turn used to need ~11 passes "
+                     "from each person). Each person can switch it off on their /me page, and that choice is kept")
 ap.add_argument("--human-pass-secs", type=float, default=0.0,
                 help="how long a PERSON has to pass priority in someone else's turn before the table passes for them "
                      "(logged as a timeout, never silent). 0 = never, the default for a table around one laptop; the cloud "
@@ -234,6 +238,7 @@ BRAIN_EXTERNAL = args.brain == "external"
 # ── public event stream: what the table has seen and heard (never the AI's hand) ─────────────
 EVENTS: list[dict] = []
 EV_LOCK = threading.Lock()
+EV_COND = threading.Condition(EV_LOCK)               # /api/events?wait=N holds a request until emit() wakes it (like core.Events)
 _ev_id = [0]
 
 # ── turn structure: NEXT walks a human's turn step by step; each step opens a priority window ──
@@ -366,7 +371,7 @@ def snapshot():
     try:
         with VP_LOCK, PHASE_LOCK:
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
-                                 "ORDER": turn_order(), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
+                                 "ORDER": turn_order(), "EVENTS": list(EVENTS[-1500:]), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
                                  "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "SEAT_PROXY": SEAT_PROXY, "SEAT_INVITES": SEAT_INVITES, "ev_id": _ev_id[0], "saved": time.time()})
         p = research_dir() / "snapshot.pkl"
         tmp = p.with_suffix(".tmp")
@@ -392,7 +397,8 @@ def restore(path: str):
     SEAT_INVITES.update(d.get("SEAT_INVITES") or {})
     if d.get("ORDER") and (not ORDER or HIGHROLL.get("winner")):
         ORDER[:] = d["ORDER"]                         # a high roll's order beats the --order the table was started with
-    _ev_id[0] = d.get("ev_id", 0)                     # pages keep their cursors across the restart
+    EVENTS.extend(d.get("EVENTS") or [])              # the visible log survives a restart or a sleep (it did not until 2026-10-07)
+    _ev_id[0] = max(d.get("ev_id", 0), max((e["id"] for e in EVENTS), default=0))   # pages keep their cursors across the restart
     top = max([p.id for v in VPS.values() for p in v.battlefield] + [0])
     import itertools
     player._ids = itertools.count(top + 1)            # new permanents never reuse a restored id
@@ -533,7 +539,8 @@ def ai_passed(seat_name: str):
             finish_step(seat_name)
 
 
-AUTOPASS: dict = {}   # person → "off" | "others" | "others-no-combat"
+AUTOPASS: dict = {}   # person → "off" | "others" | "others-no-combat" (only what they chose; --autopass-default covers the rest)
+AUTOPASS_DEFAULT = args.autopass_default
 COMBAT_STEPS = ("beginning of combat", "declare attackers", "declare blockers", "combat damage")
 
 
@@ -543,9 +550,10 @@ def autopass_round() -> list[str]:
     done = []
     ps = passes_state()
     while ps["next"]:
-        n, mode = ps["next"], AUTOPASS.get(ps["next"], "off")
-        if mode == "off" or n == PHASE["player"] or (mode == "others-no-combat" and STEPS[PHASE["step"]] in COMBAT_STEPS):
-            break
+        n = ps["next"]
+        mode = AUTOPASS.get(n, AUTOPASS_DEFAULT)
+        if n in VPS or mode == "off" or n == PHASE["player"] or (mode == "others-no-combat" and STEPS[PHASE["step"]] in COMBAT_STEPS):
+            break                                       # (an AI seat answers its own window; never auto-pass for one here)
         PASS["passed"].append(n)
         done.append(n)
         ps = passes_state()
@@ -786,7 +794,7 @@ def phase_public() -> dict:
                 "seconds_left": round(max(0.0, left), 1), "ai": list(VPS),
                 "windows": WINDOWS["on"], "window_secs": args.priority_window, "hold": HOLD["on"],
                 "open_questions": sum(1 for t in TODOS if t.get("kind") == "question" and not t["done"]),
-                "passes": passes_state(), "autopass": dict(AUTOPASS)}
+                "passes": passes_state(), "autopass": dict(AUTOPASS), "autopass_default": AUTOPASS_DEFAULT}
 
 
 def start_turn(name: str):
@@ -960,6 +968,7 @@ def emit(event_type: str, **fields) -> dict:
         # overwrite the event's own id/ts/type (a todo's "id" once did: every page's cursor jumped back)
         EVENTS.append(e)
         del EVENTS[:-3000]
+        EV_COND.notify_all()
         _append("events.jsonl", e)                    # the public stream, persisted
     if event_type == "attention" and fields.get("kind") == "attacked":
         journal_due(fields.get("addressee"), "attacked")
@@ -1763,6 +1772,17 @@ BRAIN_LAST = [0.0]
 FILLERS = ["One moment.", "Hmm, let me think.", "Give me a second.", "Thinking.", "Hold on."]
 
 
+def filler_is_pointless(name: str) -> bool:
+    """No "Hold on." for a pilot seat (a person or agent driving it over the API: it is not thinking aloud), and none while the
+    table is waiting on a PERSON's pass: the AI is not the slow one, and the line read as "Claude is doing something"
+    (2026-10-07: two fillers in a game while two people had not yet passed)."""
+    if name in PILOTS:
+        return True
+    with PHASE_LOCK:
+        nxt = passes_state()["next"]
+    return bool(nxt and nxt not in VPS)
+
+
 def hold_the_floor(attention_id: int, speaker: str | None = None, after: float = 3.0):
     """External brain: if nothing has come back a few seconds after the table spoke to the AI,
     say so — silence at a table reads as not having heard."""
@@ -1770,7 +1790,7 @@ def hold_the_floor(attention_id: int, speaker: str | None = None, after: float =
 
     def later():
         time.sleep(after)
-        if BRAIN_LAST[0] < asked:
+        if BRAIN_LAST[0] < asked and not filler_is_pointless(speaker or (VP.name if VP else "")):
             line = FILLERS[attention_id % len(FILLERS)]
             emit("say", speaker=speaker or VP.name, text=line, action="filler", speech=spoken(line))
     threading.Thread(target=later, daemon=True).start()
@@ -2202,13 +2222,23 @@ class H(BaseHTTPRequestHandler):
         if self.path.startswith("/api/events"):
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)
-            with EV_LOCK:
-                last = EVENTS[-1]["id"] if EVENTS else 0
-                since = last if q.get("since", ["0"])[0] == "latest" else int(q.get("since", ["0"])[0] or 0)
-                # A page left open across a server restart holds a cursor from the OLD server, ahead
-                # of every new id, and would wait for ever (seen 2026-09-30: the page went silent).
-                restarted = since > last
-                out = [e for e in EVENTS if e["id"] > (0 if restarted else since)][:300]
+            try:
+                wait = min(25.0, max(0.0, float((q.get("wait") or ["0"])[0] or 0)))    # a held request: 1 request per 20 s idle, not per second
+            except ValueError:
+                wait = 0.0
+            deadline = time.time() + wait
+            with EV_COND:
+                while True:
+                    last = EVENTS[-1]["id"] if EVENTS else 0
+                    since = last if q.get("since", ["0"])[0] == "latest" else int(q.get("since", ["0"])[0] or 0)
+                    # A page left open across a server restart holds a cursor from the OLD server, ahead
+                    # of every new id, and would wait for ever (seen 2026-09-30: the page went silent).
+                    restarted = since > last
+                    out = [e for e in EVENTS if e["id"] > (0 if restarted else since)][:300]
+                    left = deadline - time.time()
+                    if out or restarted or left <= 0 or q.get("since", ["0"])[0] == "latest":
+                        break
+                    EV_COND.wait(left)
             return self._send(200, {"last": last, "events": out, "restarted": restarted})
         if self.path == "/api/life":
             return self._send(200, self._life_table())
