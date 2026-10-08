@@ -60,6 +60,8 @@ def digest(game: str, limit: int = 9000) -> str:
             lines.append(f"{e.get('speaker')}: {e.get('text')}")
         elif k == "chat":
             lines.append(f"{e.get('by')} (typed): {e.get('text')}")
+        elif k == "log":                              # an arena game's engine events (harness/arena.py)
+            lines.append(f"[game] {e.get('text')}")
         elif k == "life":
             lines.append(f"[life] {e.get('player')} {e.get('delta'):+d} → {e.get('life')}")
         elif k == "declare":

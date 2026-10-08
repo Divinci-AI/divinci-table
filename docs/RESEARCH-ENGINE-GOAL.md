@@ -128,14 +128,23 @@ Phase B is **gated**: each item names the decision it waits for, and nothing in 
 - [ ] **Check:** a local model plays a full game with zero invalid-move crashes; the run is replayable from its seed.
 
 ## R9: Scheduler, budgets and kill switch (waits for: where it runs, and spend caps)
+
+*2026-10-07, partly: the arena already enforces an hour cap, a per-game timeout, a disk floor, a stop file, a stop after
+three failed games in a row, one game at a time, and refuses every paid seat. It spends nothing, so a spend cap is moot
+until a non-local model is allowed. Still missing: per-model budgets, choosing among models, and the offer to sit out.*
 - [ ] A scheduler that picks game and seats, pins identities, enforces a per-model daily budget and a global cap, and
       stops on a kill switch; before each game it offers every model a real choice including sitting out (honoured).
 - [ ] **Check:** a dry run with fake models hits the cap and stops; the kill switch stops it within one game; the
       opt-out is honoured and logged.
 
 ## R10: Simulated Commander and fantasy DM scoring (waits for: R8, R9)
-- [ ] The harness engine behind the same adapters; a harness that scores the AI Dungeon Master on its own (rules
-      faults, agency, consistency).
+- [x] The harness engine behind the same adapters: **`harness/arena.py`** (2026-10-07). Four seats: `human-sim` (a
+      scripted stand-in for a person, with a recorded persona; **not** a person), `heuristic`, `random`, and a local
+      model (`gemma4:e2b` through Ollama). Table talk, journals, a post-game survey, declared identities, the public
+      log, a bundle and a ledger entry per game, so audit, bundle and ratings read arena games like real ones.
+      Tested (`table/tests/arena_test.py`, three mutations caught); a real game with the local model takes about 55 s.
+      Not done: a chess runner, a Dungeon Master scoring harness, and any non-local model.
+- [ ] A harness that scores the AI Dungeon Master on its own (rules faults, agency, consistency).
 
 ## R11: Stream overlay, delay and highlight markers (waits for: consent forms and Michael's go-ahead)
 - [ ] An overlay fed by the public event stream, a 30-60 s delay, no hidden hands on screen, highlight markers from
@@ -157,6 +166,11 @@ Phase B is **gated**: each item names the decision it waits for, and nothing in 
 
 ## Log
 
+- **2026-10-07, later.** `harness/arena.py` (R10's runner for simulated Commander, local seats only), `arena_report.py`
+  and `scripts/arena_night.sh` built and tested. First real finding from reading a game rather than its counts: the
+  local model's first decisions fell back to the heuristic 17 times in 22 because it copied an option's description and
+  used the wrong question key; numbered options fixed it (0 of 21 now). Its table talk repeats stock phrases and its
+  journal ratings barely move: both are things the judge and the audit should measure, not hide.
 - **2026-10-07.** Phase A built in one session: R1-R7. Verified by tests that each catch deliberate breakage; R1's
   `end_of_turn` and R6's human calibration remain open and are marked above. Nothing was deployed or pushed: the
   server changes (journals, game-over, identity, refusal logging) and the human survey page are local until Michael
