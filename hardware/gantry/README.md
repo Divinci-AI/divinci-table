@@ -14,7 +14,7 @@ disagree. **Status (2026-10-05): designed from the parts' specs, not yet assembl
 decides whether the printer is the hand or the SO-101 arm is ([docs/ARM-GANTRY-GOAL.md](../../docs/ARM-GANTRY-GOAL.md),
 section M). The suction design this replaced is in git history.
 
-**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head and a 13-step animated build (Step by step, or the arrow keys).
+**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head, and two animated step-by-step guides (the magnet head, 13 steps; sleeving a card with its washer, 8 steps) with a scrubbable timeline. Your place is saved in the browser, and every view has a link you can share or bookmark: `?view=steps&guide=sleeve&step=5` (also `view=head&explode=0.6`, `view=all&part=swivel`, `labels=all|current|off`, `follow=0`).
 
 ![The whole rig](img/overview.svg)
 
@@ -144,7 +144,7 @@ sleeves and bed edge, change the numbers at the top of a file, and re-render wit
   100% infill, top hole up. The magnet screws on underneath with the M3 screw, dropped in through the top hole;
   the 1/4" bolt slides in from the side, head first and thread up (the hex slot takes the head, a keyhole slot in the ceiling takes the thread), so the bolt turns *with* the swivel.
 - **Printed deck box with a one-card exit slot** ([`deck_box.scad`](parts/deck_box.scad)): a card magazine. A lid
-  over the rear covers only what is behind the washer's reach (the open front strip must extend past the top card's centre by the magnet's radius, or the magnet cannot land on the washer: fixed 2026-10-08); stack the deck backs up; side lips hold the top card down, and the
+  over the rear covers only what is behind the washer's reach (the open front strip must extend past the top card's centre by the magnet's radius, or the magnet cannot land on the washer: fixed 2026-10-08); see the open question in `hardware/DESIGN-REVIEW-2026-10-08.md` about the deck's orientation; side lips hold the top card down, and the
   front wall stops exactly one card below them, so only the top card can slide out. Set `card_t` from ten sleeved
   cards with their discs, measured together.
 - **Printed deck box follower plate** (the same file, `part = "follower"`): sits on four springs from the
