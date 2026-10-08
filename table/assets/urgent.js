@@ -22,7 +22,7 @@
   .u-urgent .u-glow{opacity:1;animation:u-pulse 1s ease-in-out infinite}
   @keyframes u-pulse{0%,100%{opacity:.4}50%{opacity:1}}
   @media (prefers-reduced-motion:reduce){.u-urgent .u-glow{animation:none;opacity:1}}
-  .u-bar{position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:9999;display:none;align-items:center;gap:10px;
+  .u-bar{position:fixed;left:50%;top:calc(var(--tb-h,0px) + 8px);transform:translateX(-50%);z-index:9999;display:none;align-items:center;gap:10px;
     padding:8px 12px;border-radius:14px;background:#2a0f0f;color:#fff;border:2px solid #ff3b30;
     font:600 15px system-ui,-apple-system,sans-serif;box-shadow:0 4px 18px rgba(0,0,0,.5);max-width:calc(100vw - 16px)}
   .u-on .u-bar{display:flex}

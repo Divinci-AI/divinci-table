@@ -64,7 +64,12 @@ const j = async (m, p, b, h = {}) => { const r = await fetch(BASE + p, { method:
     const s2 = await page.evaluate(() => __urgent.state().remaining);
     check("the countdown runs in the server's clock", s1 > 0 && s2 < s1 - 1.5 && s1 <= 14.5, `${s1} -> ${s2}`);
     const nav = await page.evaluate(() => [...document.querySelectorAll(".tb a")].map(a => [a.getAttribute("href"), a.className, a.innerText]));
-    check("the nav bar links Me, Stage, Board and Log, and marks this page", nav.length === 4 && nav.find(n => n[0] === "/stage")[1].includes("tb-here"), JSON.stringify(nav));
+    check("the tabs along the top link Me, Stage, Round table (/xr), the 2D Cards board and Log, and mark this page",
+          ["/me", "/stage", "/xr", "/board", "/log"].every(h => nav.some(n => n[0] === h)) && nav.find(n => n[0] === "/stage")[1].includes("tb-here"), JSON.stringify(nav));
+    const top = await page.evaluate(() => { const r = document.querySelector(".tb").getBoundingClientRect(); return [r.top, r.left, r.width, innerWidth]; });
+    check("the tabs sit at the very top and span the page", top[0] === 0 && top[1] === 0 && Math.abs(top[2] - top[3]) < 2, JSON.stringify(top));
+    const fits = await page.evaluate(() => { const b = document.querySelector(".tb"); return b.scrollWidth <= b.clientWidth + 1; });
+    check("on a 390 px phone every tab and toggle fits without scrolling", fits);
     check("'My page' pulses and says why while Michael has to pass", nav.find(n => n[0] === "/me")[1].includes("tb-need") && /Pass/.test(nav.find(n => n[0] === "/me")[2]), JSON.stringify(nav[0]));
     check("a bell rang when the turn to pass arrived", await page.evaluate(() => window.__beeps) >= 2);   // the two-tone ding
 
