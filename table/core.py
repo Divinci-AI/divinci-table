@@ -170,8 +170,7 @@ def save_photo(data: bytes, folder: Path, cap: int = 300) -> tuple[int, dict]:
     return 200, {"ok": True, "photo": "/photos/" + name}
 
 
-SURVEY_SCALE = ["I felt content", "I felt skilful", "I felt bad", "I found it tiresome", "I felt satisfied",
-                "I felt regret", "I felt energised", "I felt proud"]          # GEQ post-game subset, 0 not at all … 4 extremely
+import survey_items                                                         # the item bank: ids, wording, domains (adapted items)
 SURVEY_TEXT = ["best", "worst", "ai", "again"]                              # free text, short
 
 
@@ -179,13 +178,18 @@ def save_survey(folder: Path, by: str, body: dict) -> tuple[int, dict]:
     """A person's optional post-game survey: the fixed questions only, kept in the room's research folder
     (never in the public log). One file per person; answering again replaces it."""
     scale = body.get("scale") or {}
-    out = {"version": "0.1", "by": by, "ts": round(time.time(), 2), "scale": {}, "text": {}}
-    for q in SURVEY_SCALE:
-        v = scale.get(q)
-        if v is not None:
-            if not isinstance(v, int) or not 0 <= v <= 4:
-                return 400, {"error": "ratings are whole numbers from 0 to 4"}
-            out["scale"][q] = v
+    out = {"version": "1.0", "bank": survey_items.BANK_VERSION, "by": by, "ts": round(time.time(), 2), "scale": {},
+           "text": {}}
+    for k, v in scale.items() if isinstance(scale, dict) else []:
+        iid = survey_items.item_id(str(k))                 # an item id, or a v0.1 wording; anything else is ignored
+        if iid is None or v is None:
+            continue
+        if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 4:
+            return 400, {"error": "ratings are whole numbers from 0 to 4"}
+        out["scale"][iid] = v
+    order = body.get("order")                              # the order this person was shown the items in
+    if isinstance(order, list):
+        out["order"] = [survey_items.item_id(str(x)) for x in order[:60] if survey_items.item_id(str(x))]
     for k in SURVEY_TEXT:
         if body.get(k):
             out["text"][k] = clean_text(body[k], 600)

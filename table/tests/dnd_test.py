@@ -176,8 +176,9 @@ check("an empty survey is refused", code == 400)
 code, _ = call("/api/survey", {"by": "Sam", "key": sk, "scale": {"I felt content": 3, "made up": 4}, "best": "the bridge fight", "evil": "x"})
 files = list((D.RESEARCH / D.G["game_id"]).glob("survey-human-*.json"))
 saved = json.loads(files[0].read_text()) if files else {}
-check("saved with only the fixed questions", code == 200 and saved.get("scale") == {"I felt content": 3}
-      and saved.get("text") == {"best": "the bridge fight"}, str(saved))
+check("saved with only the fixed questions (a v0.1 wording is stored under its item id)",
+      code == 200 and saved.get("scale") == {"geq-1": 3} and saved.get("text") == {"best": "the bridge fight"}
+      and saved.get("bank") == "1.0", str(saved))
 ev = [e for e in D.EVENTS.items if e["type"] == "survey"]
 check("the public log says who answered, never what", ev and set(ev[-1]) <= {"id", "type", "ts", "by"}, str(ev[-1:]))
 check("survey page serves", "How was the game?" in urllib.request.urlopen(BASE + "/survey").read().decode())
