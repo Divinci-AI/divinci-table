@@ -38,6 +38,11 @@ Magic decisions. Everything an action does is announced at the table in the AI's
   tablectl identity --model ID --provider P [--prompt-version V]   say which model you are, so the research bundle can pin it
   tablectl --seat Fusion state           two AI players: act for one seat (or export TABLE_SEAT=Fusion)
 
+A pilot seat in the cloud (a virtual deck played over the API, no host token):
+  export TABLE_URL=https://table.divinci.ai TABLE_ROOM=<room id> TABLE_SEAT=Claude TABLE_SEAT_KEY_FILE=~/.claude-seat-key
+  tablectl claim --name Claude            claims the seat, saves its key (0600) to TABLE_SEAT_KEY_FILE; never printed
+  then state / say / begin / cast … work as usual; only your own seat and your own life total
+
 REF is a permanent's name or '#id' from `state`. Add --quiet to act without announcing.
 """
 from __future__ import annotations
@@ -58,10 +63,19 @@ SEAT = os.environ.get("TABLE_SEAT")        # with two AI players: which seat thi
 TOKEN_FILE = Path(os.environ.get("TABLE_TOKEN_FILE") or Path(__file__).parent / ".brain-token")
 
 
+ROOM = os.environ.get("TABLE_ROOM")                  # a cloud room's id (https://table.divinci.ai/r/<id>): sent as the room cookie
+SEAT_KEY_FILE = os.path.expanduser(os.environ.get("TABLE_SEAT_KEY_FILE") or "") or None  # a pilot seat's key (see `claim`): used instead of the host's brain token
+
+
 def req(method, path, body=None, brain=True):
     headers = {"Content-Type": "application/json"}
+    if ROOM:
+        headers["Cookie"] = f"room={ROOM}"
     if brain:
-        headers["X-Brain-Token"] = TOKEN_FILE.read_text().strip()
+        if SEAT_KEY_FILE:                              # a pilot seat in a cloud room: its own key, never the host's token
+            headers["X-Seat-Key"] = Path(SEAT_KEY_FILE).read_text().strip()
+        else:
+            headers["X-Brain-Token"] = TOKEN_FILE.read_text().strip()
     r = urllib.request.Request(BASE + path, method=method, headers=headers,
                                data=json.dumps(body).encode() if body is not None else None)
     try:
@@ -286,6 +300,8 @@ def main():
     se.add_argument("--tapped", action="store_true")
     l = sub.add_parser("life"); l.add_argument("player"); l.add_argument("delta", type=int)
     sub.add_parser("new-game")
+    cl = sub.add_parser("claim", help="claim a pilot/human seat and save its key to TABLE_SEAT_KEY_FILE (0600, never printed)")
+    cl.add_argument("--name", required=True)
     sub.add_parser("journal-due", help="journal requests waiting for this seat")
     jn = sub.add_parser("journal", help="answer a journal request at a fixed moment (sealed until the game is over)")
     jn.add_argument("moment", choices=["end_of_turn", "attacked", "eliminated", "game_end"])
@@ -341,6 +357,18 @@ def main():
         return act("damage", hits=hits, no_life=a.no_life)
     if a.cmd == "role":
         return act("role", ref=a.ref, kind=a.kind)
+    if a.cmd == "claim":
+        if not SEAT_KEY_FILE:
+            sys.exit("set TABLE_SEAT_KEY_FILE to the file the key should be saved in")
+        r = req("POST", "/api/seat/claim", {"name": a.name}, brain=False)
+        key = r.get("key")
+        if not key:
+            sys.exit(f"no key came back: {r}")
+        fd = os.open(os.path.expanduser(SEAT_KEY_FILE), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as fh:
+            fh.write(key)
+        print(f"claimed {r.get('name')}: key saved to {SEAT_KEY_FILE}")
+        return
     if a.cmd == "journal-due":
         print(json.dumps(req("GET", "/api/journal/due?seat=" + urllib.parse.quote(SEAT or ""), None), indent=1)); return
     if a.cmd == "journal":

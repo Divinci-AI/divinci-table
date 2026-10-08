@@ -57,6 +57,7 @@ run survey        /usr/bin/python3 table/tests/survey_test.py
 run bundle        /usr/bin/python3 table/tests/bundle_test.py
 run journal       $PY table/tests/journal_test.py
 run arena         /usr/bin/python3 table/tests/arena_test.py
+run pilot-ctl     $PY table/tests/pilot_ctl_test.py
 run fusion-cap    /usr/bin/python3 table/tests/fusion_cap_test.py
 run remote-guard  $PY table/tests/remote_guard_test.py
 run openmic-room  $PY table/tests/openmic_room_test.py
