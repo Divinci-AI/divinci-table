@@ -58,6 +58,7 @@ run bundle        /usr/bin/python3 table/tests/bundle_test.py
 run journal       $PY table/tests/journal_test.py
 run arena         /usr/bin/python3 table/tests/arena_test.py
 run pilot-ctl     $PY table/tests/pilot_ctl_test.py
+run pass-timer    $PY table/tests/pass_timer_test.py
 run fusion-cap    /usr/bin/python3 table/tests/fusion_cap_test.py
 run remote-guard  $PY table/tests/remote_guard_test.py
 run openmic-room  $PY table/tests/openmic_room_test.py
@@ -87,6 +88,8 @@ else
   run dnd-voice   env PW=$PW node table/tests/dnd_voice_e2e.cjs
   run dnd-theater env PW=$PW node table/tests/dnd_theater_e2e.cjs
   run net-rehearse env PW=$PW node table/tests/network_rehearsal.cjs
+  run pass-ui     env PW=$PW node table/tests/pass_ui_e2e.cjs
+  run photo-up    env PW=$PW node table/tests/photo_upload_e2e.cjs
   run dnd-sound   env PW=$PW node table/tests/dnd_sound_e2e.cjs
   run router      $PY table/tests/route_eval.py
   pid=$(lsof -ti tcp:8800 -sTCP:LISTEN); [ -n "$pid" ] && kill -TERM $pid

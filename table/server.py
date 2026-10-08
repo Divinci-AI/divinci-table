@@ -71,6 +71,10 @@ ap.add_argument("--priority-beat", default="1.5,3.5",
                      "anyone could respond — so an open window never tells the table who holds an instant")
 ap.add_argument("--priority-secs", type=float, default=45.0,
                 help="how long NEXT waits for an AI seat that holds an instant before passing for it")
+ap.add_argument("--human-pass-secs", type=float, default=0.0,
+                help="how long a PERSON has to pass priority in someone else's turn before the table passes for them "
+                     "(logged as a timeout, never silent). 0 = never, the default for a table around one laptop; the cloud "
+                     "rooms set it. The active player is never timed out, and a hold or an open question pauses it")
 ap.add_argument("--fair-seed", choices=["local", "online", "off"], default="local",
                 help="provably fair AI decks (fair.py): commit each AI seat's shuffle before the first draw. "
                      "local: OS entropy + players' secret words (offline); online: also ANU quantum + drand")
@@ -474,6 +478,7 @@ def passes_needed() -> list[str]:
     return [n for n in order[i:] + order[:i] if not is_out(n)]   # people AND AI seats, in turn order
 
 
+HUMAN_PASS_SECS = max(0.0, float(args.human_pass_secs))   # see --human-pass-secs
 AI_PASS_TIMEOUT = 30.0                             # an AI that never answers is passed for (logged), never a freeze
 
 
@@ -491,7 +496,24 @@ def passes_state() -> dict:
         emit("pass", by=nxt, ai=True, timeout=True, player=PHASE["player"], step=STEPS[PHASE["step"]])
         _append("brain.jsonl", {"ts": round(time.time(), 2), "ai_pass_timeout": nxt, "step": STEPS[PHASE["step"]]})
         return passes_state()
-    return {"need": need, "passed": passed, "next": nxt}
+    if HUMAN_PASS_SECS and nxt and nxt not in VPS and (HOLD["on"] or any(t.get("kind") == "question" and not t["done"] for t in TODOS)):
+        PASS["since"] = time.time()               # a hold or an open question pauses the timer: the full time again afterwards
+    if _human_timer_applies(nxt) and time.time() - PASS.get("since", time.time()) > HUMAN_PASS_SECS:
+        PASS["passed"].append(nxt)                # a person who didn't pass in time: pass for them, and say so in the log
+        emit("pass", by=nxt, human=True, timeout=True, player=PHASE["player"], step=STEPS[PHASE["step"]])
+        return passes_state()
+    out = {"need": need, "passed": passed, "next": nxt}
+    if _human_timer_applies(nxt):                 # the page shows a countdown and goes red as it runs out
+        out.update(deadline=round(PASS["since"] + HUMAN_PASS_SECS, 2), secs=HUMAN_PASS_SECS, now=round(time.time(), 2))
+    return out
+
+
+def _human_timer_applies(name) -> bool:
+    """The pass timer runs for a PERSON whose turn it is to pass in someone else's turn. Never for the active player
+    (their own turn is theirs to take), never while the table is on hold or has an open question, never before the
+    game starts. PHASE_LOCK is held by the callers (or this is a read of a few plain values)."""
+    return bool(HUMAN_PASS_SECS and name and name not in VPS and PHASE["player"] is not None and name != PHASE["player"]
+                and not HOLD["on"] and not any(t.get("kind") == "question" and not t["done"] for t in TODOS))
 
 
 def ai_passed(seat_name: str):

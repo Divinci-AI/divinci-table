@@ -68,7 +68,8 @@ SEAT_KEY_FILE = os.path.expanduser(os.environ.get("TABLE_SEAT_KEY_FILE") or "") 
 
 
 def req(method, path, body=None, brain=True):
-    headers = {"Content-Type": "application/json"}
+    # Cloudflare answers urllib's default agent with a 403 (error 1010) on the cloud site, so say who is asking
+    headers = {"Content-Type": "application/json", "User-Agent": "tablectl/1.0 (divinci-table pilot client)"}
     if ROOM:
         headers["Cookie"] = f"room={ROOM}"
     if brain:
