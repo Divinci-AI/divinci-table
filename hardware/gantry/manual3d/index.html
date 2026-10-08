@@ -65,6 +65,7 @@
     <div class="hud">
       <label id="explode-wrap" style="display:none">Explode <input id="explode" type="range" min="0" max="1" step="0.01" value="0.6" aria-label="explode the magnet head"></label>
       <span id="step-ctl" style="display:none;gap:8px;align-items:center"><button id="prev" aria-label="previous step">&larr; Back</button><span id="step-no" style="min-width:92px;text-align:center">Step 1 of 13</span><button id="next" aria-label="next step">Next &rarr;</button><button id="play" aria-pressed="false">&#9654; Play</button></span>
+      <label id="scrub-wrap" style="display:none;flex:1 1 100%;gap:12px;align-items:center;color:var(--dim)"><span>Timeline</span><input id="scrub" type="range" min="0" max="12" step="0.002" value="0" style="flex:1;width:auto" aria-label="scrub through the assembly steps" list="ticks"><datalist id="ticks"></datalist><span style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" id="follow" checked> follow camera</span></label>
       <button id="reset">Reset view</button>
       <span style="color:var(--dim)">All sizes in mm</span>
     </div>
@@ -247,6 +248,7 @@ function setMode(m) {
   for (const [id, key] of [["m-all", "all"], ["m-head", "head"], ["m-steps", "steps"]]) document.getElementById(id).setAttribute("aria-pressed", m === key);
   document.getElementById("explode-wrap").style.display = m === "head" ? "flex" : "none";
   document.getElementById("step-ctl").style.display = m === "steps" ? "flex" : "none";
+  document.getElementById("scrub-wrap").style.display = m === "steps" ? "flex" : "none";
   document.getElementById("steps").style.display = m === "steps" ? "block" : "none";
   document.getElementById("lists").style.display = m === "steps" ? "none" : "block";
   const headIds = new Set(["magnet", "swivel", "m3", "bolt", "nylon", "angle", "spring", "wing"]);
@@ -382,43 +384,63 @@ function enterSteps() {
   PARTS.__init = true; goStep(step, true);
 }
 function leaveSteps() { for (const e of Object.values(PARTS || {})) { e.obj?.traverse?.(o => { if (o.isMesh) { o.material.opacity = 1; o.material.emissiveIntensity = 0; } }); } }
-function goStep(k, instant = false) {
-  step = Math.max(0, Math.min(STEPS.length - 1, k)); const st = STEPS[step];
-  document.getElementById("step-no").textContent = `Step ${step + 1} of ${STEPS.length}`;
-  document.querySelectorAll("#steps li").forEach((li, i) => { li.classList.toggle("done", i < step); const b = li.firstChild; if (i === step) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current"); });
+
+// The whole animation is one number, u: u = k means "the end of step k + 1 is done"; in between, every piece is interpolated.
+let u = 0, uTween = null, shownStep = -1;
+const ease = (x) => x * x * (3 - 2 * x);
+function stateAt(id, k) {                       // pose of one piece once step k (0-based) is complete
+  const e = PARTS[id], placed = e.intro <= k;
+  return { p: placed || !e.stage ? finalPose(id, k) : e.stage, op: id === "carriage" ? 0.35 : (e.intro === -1 || placed ? 1 : 0.3), vis: !(e.extra && !e.stage && e.intro > k) };
+}
+function applyU(uu, driveCamera) {
+  const n = STEPS.length, k = Math.min(n - 1, Math.floor(uu + 1e-9)), k2 = Math.min(n - 1, k + 1), f = k === k2 ? 0 : ease(Math.min(1, Math.max(0, uu - k)));
+  const nextSt = STEPS[k2];
+  for (const [id, e] of Object.entries(PARTS)) {
+    if (id === "__init") continue; const A = stateAt(id, k), B = stateAt(id, k2);
+    e.obj.position.set(...A.p.map((v, i) => v + (B.p[i] - v) * f));
+    e.obj.rotation.z = id === "wing" && e.intro === k2 && f < 1 ? (1 - f) * Math.PI * 6 : 0;
+    e.obj.visible = f === 0 ? A.vis : (A.vis || B.vis);
+    const op = A.op + (B.op - A.op) * f, hi = (f === 0 ? STEPS[k] : nextSt);
+    const glow = hi.focus.includes(id) || hi.intro.includes(id) ? 0.4 : 0;
+    e.obj.traverse(o => { if (o.isMesh && o.material) { o.material.transparent = true; o.material.opacity = op; if (o.material.emissive) { o.material.emissive.set(0x0b4f8a); o.material.emissiveIntensity = glow; } } });
+  }
+  if (driveCamera && document.getElementById("follow").checked) {
+    const c1 = STEPS[k].cam, c2 = nextSt.cam, L3 = (a, b) => a.map((v, i) => v + (b[i] - v) * f);
+    const tgt = new THREE.Vector3(...L3(c1[0], c2[0])), dist = c1[1] + (c2[1] - c1[1]) * f, dir = new THREE.Vector3(...L3(c1[2], c2[2])).normalize();
+    controls.target.copy(tgt); camera.position.copy(tgt).addScaledVector(dir, dist);
+  }
+  const near = Math.round(uu); if (near !== shownStep) showStepText(near);
+  const sc = document.getElementById("scrub"); if (sc && Math.abs(parseFloat(sc.value) - uu) > 1e-3) sc.value = uu;
+}
+function showStepText(i) {
+  shownStep = i; const st = STEPS[i];
+  document.getElementById("step-no").textContent = `Step ${i + 1} of ${STEPS.length}`;
+  document.querySelectorAll("#steps li").forEach((li, j) => { li.classList.toggle("done", j < i); const b = li.firstChild; if (j === i) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current"); });
   const pane = document.getElementById("detail"); pane.innerHTML = "";
-  const h = document.createElement("h3"); h.textContent = `${step + 1}. ${st.title}`; pane.append(h);
+  const h = document.createElement("h3"); h.textContent = `${i + 1}. ${st.title}`; pane.append(h);
   const r = document.createElement("p"); r.className = "step"; r.textContent = st.ref + " of the assembly manual"; pane.append(r);
   const t = document.createElement("p"); t.textContent = st.text; pane.append(t);
-  if (st.focus.length) { const c = document.createElement("div"); c.className = "chips"; for (const id of st.focus) { const nm = entries[id]?.def.name || ({ tape: "Mounting tape", nozzle: "Nozzle", wire: "22 AWG leads", clipA: "Lead clip", clipB: "Lead clip", clipC: "Lead clip", clipD: "Lead clip", carriage: "X carriage" })[id]; if (!nm) continue; const x = document.createElement("span"); x.className = "chip"; x.textContent = nm; c.append(x); } pane.append(c); }
-  const from = {}, to = {};
-  for (const [id, e] of Object.entries(PARTS)) {
-    if (id === "__init") continue;
-    const placed = e.intro <= step; const target = placed ? finalPose(id, step) : e.stage;
-    from[id] = { p: e.obj.position.toArray(), rz: e.obj.rotation.z };
-    to[id] = { p: placed || !e.stage ? finalPose(id, step) : e.stage, op: id === "carriage" ? 0.35 : (e.intro === -1 ? 1 : (placed ? 1 : 0.3)), hi: st.focus.includes(id) || st.intro.includes(id) ? 1 : 0, vis: e.extra ? placed || e.intro === -1 || e.intro <= step || !!e.stage : true, spin: id === "wing" && step === e.intro };
-  }
-  // extras that only exist once placed (no stage position) are hidden before their step
-  for (const [id, e] of Object.entries(PARTS)) { if (id !== "__init" && e.extra && !e.stage && e.intro > step) to[id].vis = false; }
-  stepTween = { t: reduce || instant ? 1 : 0, from, to };
-  frame(new THREE.Vector3(...st.cam[0]), st.cam[1], st.cam[2]);
-  if (reduce || instant) tickStep(0);
+  const names = { tape: "Mounting tape", nozzle: "Nozzle", wire: "22 AWG leads", clipA: "Lead clip", clipB: "Lead clip", clipC: "Lead clip", clipD: "Lead clip", carriage: "X carriage" };
+  const ids = st.focus.filter(id => entries[id]?.def.name || names[id]);
+  if (ids.length) { const c = document.createElement("div"); c.className = "chips"; for (const id of ids) { const x = document.createElement("span"); x.className = "chip"; x.textContent = entries[id]?.def.name || names[id]; c.append(x); } pane.append(c); }
+}
+function goStep(k, instant = false) {
+  step = Math.max(0, Math.min(STEPS.length - 1, k));
+  const sc = document.getElementById("scrub"); sc.max = STEPS.length - 1;
+  const tk = document.getElementById("ticks"); if (!tk.children.length) STEPS.forEach((_, i) => { const o = document.createElement("option"); o.value = i; tk.append(o); });
+  if (reduce || instant) { uTween = null; u = step; applyU(u, true); return; }
+  uTween = { from: u, to: step, t: 0 };
 }
 function tickStep(dt) {
-  if (!stepTween) return; stepTween.t = Math.min(1, stepTween.t + dt / 1.0); const k = stepTween.t < 1 ? 1 - Math.pow(1 - stepTween.t, 3) : 1;
-  for (const [id, e] of Object.entries(PARTS)) {
-    if (id === "__init") continue; const a = stepTween.from[id], b = stepTween.to[id];
-    e.obj.position.set(a.p[0] + (b.p[0] - a.p[0]) * k, a.p[1] + (b.p[1] - a.p[1]) * k, a.p[2] + (b.p[2] - a.p[2]) * k);
-    e.obj.rotation.z = b.spin ? (1 - k) * Math.PI * 6 : a.rz * (1 - k);
-    e.obj.visible = b.vis;
-    e.obj.traverse(o => { if (o.isMesh && o.material) { o.material.transparent = true; o.material.opacity = THREE.MathUtils.lerp(o.material.opacity, b.op, 0.25); if (o.material.emissive) { o.material.emissive.set(0x0b4f8a); o.material.emissiveIntensity = THREE.MathUtils.lerp(o.material.emissiveIntensity || 0, b.hi * 0.4, 0.2); } } });
-  }
-  if (stepTween.t >= 1) stepTween.settled = true;
+  if (!uTween) return; uTween.t = Math.min(1, uTween.t + dt / Math.max(0.9, Math.abs(uTween.to - uTween.from) * 0.6));
+  u = uTween.from + (uTween.to - uTween.from) * (uTween.t < 1 ? ease(uTween.t) : 1); applyU(u, true);
+  if (uTween.t >= 1) { u = uTween.to; uTween = null; }
 }
 function stopPlay() { clearInterval(playTimer); playTimer = null; const b = document.getElementById("play"); if (b) { b.setAttribute("aria-pressed", "false"); b.innerHTML = "&#9654; Play"; } }
 document.getElementById("m-steps").onclick = () => setMode("steps");
-document.getElementById("next").onclick = () => { stopPlay(); goStep(step + 1); };
-document.getElementById("prev").onclick = () => { stopPlay(); goStep(step - 1); };
+document.getElementById("scrub").addEventListener("input", ev => { stopPlay(); uTween = null; u = parseFloat(ev.target.value); step = Math.round(u); applyU(u, true); });
+document.getElementById("next").onclick = () => { stopPlay(); goStep(Math.floor(u + 1e-6) + 1); };
+document.getElementById("prev").onclick = () => { stopPlay(); goStep(Math.ceil(u - 1e-6) - 1); };
 document.getElementById("play").onclick = () => { if (playTimer) return stopPlay(); const b = document.getElementById("play"); b.setAttribute("aria-pressed", "true"); b.innerHTML = "&#10074;&#10074; Pause"; if (step >= STEPS.length - 1) goStep(0); playTimer = setInterval(() => { if (step >= STEPS.length - 1) return stopPlay(); goStep(step + 1); }, 4500); };
 addEventListener("keydown", ev => { if (mode !== "steps") return; if (ev.key === "ArrowRight") { stopPlay(); goStep(step + 1); } if (ev.key === "ArrowLeft") { stopPlay(); goStep(step - 1); } });
 
