@@ -96,7 +96,7 @@ import { toCreasedNormals } from "three/addons/utils/BufferGeometryUtils.js";
 // ---------- the parts: text is taken from hardware/gantry/README.md (Steps 3-5, 8) ----------
 const PRINTED = [
   { id: "swivel", file: "../parts/stl/magnet_swivel.stl", name: "Magnet swivel", qty: "1 (+1 spare)", step: "Step 3 / Step 4",
-    text: "24 mm across, 100% infill, top hole up. The magnet screws to its floor from inside with the M3 flat-head screw, dropped in through the top hole. The 1/4\" bolt's head slides into the sideways hex slot, so the bolt turns with the swivel." },
+    text: "24 mm across, 100% infill, top hole up. The magnet screws to its floor from inside with the M3 flat-head screw, dropped in through the top hole. The 1/4\" bolt's head slides into the sideways hex slot (thread up), and the thread slides in through the keyhole slot in the ceiling, so the bolt turns with the swivel." },
   { id: "clip", file: "../parts/stl/lead_clip.stl", name: "Lead clip", qty: "4", step: "Step 3 / Step 5",
     text: "Tape-on clips for the magnet's leads: two on the bracket and two along the carriage, with a loop of slack so the swivel can turn a quarter for a tap." },
   { id: "deck", file: "../parts/stl/deck_box.stl", name: "Deck box", qty: "1", step: "Step 3",
@@ -366,7 +366,7 @@ const STEPS = [
   { title: "Screw the magnet to the swivel", ref: "Step 4, item 2", intro: ["m3"], focus: ["m3"], cam: [[0, 0, 20], 140, [0.7, -1, 0.9]],
     text: "Drop the M3 x 6 mm flat-head screw in through the swivel's top hole and screw it down into the magnet with a screwdriver through the same hole. The head seats flush in the countersink. Snug, not tight: PLA cracks." },
   { title: "Slide the bolt into the hex slot", ref: "Step 4, item 2", intro: ["bolt"], focus: ["bolt"], cam: [[8, 0, 30], 170, [0.9, -0.9, 0.4]],
-    text: "Slide the 1/4\" bolt's head sideways into the hex slot, thread up. The bolt now turns with the swivel." },
+    text: "Slide the 1/4\" bolt in from the side, head first and thread up: the hex channel takes the head and the slot in the ceiling takes the thread. The bolt now turns with the swivel." },
   { title: "Put the nylon washer on the bolt", ref: "Step 4, item 3", intro: ["nylon"], focus: ["nylon"], cam: [[0, 0, 34], 170, [0.8, -1, 0.5]],
     text: "Cut about 6 mm off a nylon spacer with the hacksaw. It's a low-friction washer that goes on the bolt above the swivel." },
   { title: "Push the bolt up through the bracket's hole", ref: "Step 4, item 3", intro: [], focus: ["angle", "bolt"], cam: [[0, 0, 40], 230, [0.9, -1, 0.35]],

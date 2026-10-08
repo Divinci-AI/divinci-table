@@ -142,7 +142,7 @@ sleeves and bed edge, change the numbers at the top of a file, and re-render wit
 
 - **Printed magnet swivel** ([`magnet_swivel.scad`](parts/magnet_swivel.scad); print a spare): 24 mm across,
   100% infill, top hole up. The magnet screws on underneath with the M3 screw, dropped in through the top hole;
-  the 1/4" bolt's head slides into the sideways hex slot, so the bolt turns *with* the swivel.
+  the 1/4" bolt slides in from the side, head first and thread up (the hex slot takes the head, a keyhole slot in the ceiling takes the thread), so the bolt turns *with* the swivel.
 - **Printed deck box with a one-card exit slot** ([`deck_box.scad`](parts/deck_box.scad)): a card magazine. A lid
   over the back hides the deck; the front strip is open for the magnet; side lips hold the top card down, and the
   front wall stops exactly one card below them, so only the top card can slide out. Set `card_t` from ten sleeved
@@ -172,7 +172,7 @@ sleeves and bed edge, change the numbers at the top of a file, and re-render wit
 1. Stick the 3" angle to the side of the **X carriage** with mounting tape plus zip ties, the drilled leg
    horizontal and sticking out under the carriage.
 2. Screw the **magnet** to the swivel's floor from inside with an **M3 × 6 mm flat-head screw** (the head seats in the
-   countersink; snug, not tight: PLA cracks), then slide a **1/4" bolt**'s head into the hex slot, thread up.
+   countersink; snug, not tight: PLA cracks), then slide a **1/4" bolt** in from the side, head first, thread up: its head into the hex slot, its thread through the keyhole slot in the ceiling.
 3. Cut ~6 mm off a **nylon spacer** with the hacksaw: it's a low-friction washer. The stack, from the bottom: swivel →
    nylon washer → up through the bracket's hole → a short **spring** from the assortment → **wing nut**. The bolt
    turns in the bracket's hole. The wing nut sets the drag: tight enough that a card doesn't spin while moving, loose

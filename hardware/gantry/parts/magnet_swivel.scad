@@ -4,7 +4,8 @@
 // countersunk 90 degrees and the head seats flush in it. A flat head's 6 mm is the overall length, so with the
 // head flush the tip still stands 3 mm below the floor: the same 3 mm of thread in the magnet as before.
 // Assembly: drop the M3 x 6 screw in through the top hole, screw it down into the magnet's M3 thread
-// (screwdriver through the top hole), then slide the bolt head into the hex slot, thread up.
+// (screwdriver through the top hole), then slide the bolt, head first and thread up, in from the side: the hex channel takes the
+// head and the keyhole slot in the ceiling takes the thread.
 // Print: 100% infill, upright (top hole up), PLA+. Units: mm.
 
 body_d      = 24;      // a little over the magnet's 20 mm
@@ -33,4 +34,9 @@ difference() {
             translate([body_d, 0, 0]) cylinder(d = hex_af / cos(30), h = hex_h, $fn = 6);
         }
     translate([0, 0, floor_t]) cylinder(d = top_hole, h = h);                           // top hole, all the way down
+    // The top hole is a KEYHOLE: a slot of the same width runs from it out to the +X side, through the ceiling over the hex
+    // channel. Without it the bolt (thread up) cannot be slid in from the side: its thread would have to pass through solid
+    // ceiling to reach the round hole (found 2026-10-08 on the first printed swivel). The head (12.8 mm across the corners)
+    // is still wider than the slot, so the ceiling holds it down.
+    translate([0, -top_hole / 2, floor_t + m3_head_h]) cube([body_d, top_hole, h]);
 }
