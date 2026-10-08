@@ -50,6 +50,12 @@ run events-longpoll /usr/bin/python3 table/tests/events_longpoll_test.py
 run dnd-assets    /usr/bin/python3 table/tests/dnd_assets_test.py
 run dnd-dm-sim    /usr/bin/python3 table/tests/dnd_dm_sim_test.py
 run ledger        /usr/bin/python3 table/tests/ledger_test.py
+run ratings       $PY table/tests/ratings_test.py
+run audit         $PY table/tests/audit_test.py
+run judge         $PY table/tests/judge_test.py
+run survey        /usr/bin/python3 table/tests/survey_test.py
+run bundle        /usr/bin/python3 table/tests/bundle_test.py
+run journal       $PY table/tests/journal_test.py
 run fusion-cap    /usr/bin/python3 table/tests/fusion_cap_test.py
 run remote-guard  $PY table/tests/remote_guard_test.py
 run openmic-room  $PY table/tests/openmic_room_test.py
@@ -78,6 +84,7 @@ else
   run dnd-rehearse env PW=$PW node table/tests/dnd_playtest_rehearsal.cjs
   run dnd-voice   env PW=$PW node table/tests/dnd_voice_e2e.cjs
   run dnd-theater env PW=$PW node table/tests/dnd_theater_e2e.cjs
+  run net-rehearse env PW=$PW node table/tests/network_rehearsal.cjs
   run dnd-sound   env PW=$PW node table/tests/dnd_sound_e2e.cjs
   run router      $PY table/tests/route_eval.py
   pid=$(lsof -ti tcp:8800 -sTCP:LISTEN); [ -n "$pid" ] && kill -TERM $pid
