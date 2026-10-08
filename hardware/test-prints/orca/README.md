@@ -16,3 +16,13 @@ Slice from the command line (the files must be passed in this order; the process
 
 Note: the process and filament files inherit from OrcaSlicer's own system profiles; they were derived from copies in
 `OrcaSlicer.app/Contents/Resources/profiles/Creality`. Check the printer's real bed/Z-offset on the first print.
+
+## Gantry parts (sliced 2026-10-08, PLA+ at 210/215 C, bed 55/60 C)
+
+| Plate | Contents | Time | Filament |
+|---|---|---|---|
+| A | 2 magnet swivels + 4 lead clips (`--clone-objects "2,4"`) | 1 h 07 min | 10 g |
+| B | hand rack, standing on its fence, 6 mm brim (use `cr6max-process-0.20-gentle-brim.json`) | 20 h 07 min | 234 g |
+
+The G-code is not committed (plate B is 16 MB); regenerate it with the command above and the STLs in
+`hardware/gantry/parts/stl/`. Plate B is the long one: look at layer height and infill before committing the printer to it overnight.
