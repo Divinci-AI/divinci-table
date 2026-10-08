@@ -14,9 +14,9 @@ m3_hole     = 3.2;
 m3_head_d   = 6.2;     // pocket for the M3 head, reached through the top hole
 m3_head_h   = 3.5;
 cs_depth    = (m3_head_d - m3_hole) / 2;   // 90-degree countersink: 1.5 mm deep
-hex_af      = 11.11 + 0.3;   // 7/16" across flats + clearance
+hex_af      = 11.11 + 0.5;   // 7/16" across flats + clearance (printed holes come out small: 0.3 was tight)
 hex_h       = 4.2 + 0.4;     // 1/4"-20 hex head height (5/32") + clearance
-top_hole    = 6.6;     // the bolt's thread out; also the screwdriver's way in
+top_hole    = 7.0;     // the bolt's thread (6.35) out and the keyhole slot's width; also the screwdriver's way in
 top_t       = 4;
 $fn = 64;
 

@@ -161,7 +161,7 @@ sleeves and bed edge, change the numbers at the top of a file, and re-render wit
   the same number as the deck box.
 - **Printed sleeving jig tray** ([`sleeve_jig.scad`](parts/sleeve_jig.scad)) and **Printed sleeving jig bridge**
   (the same file, `part = "bridge"`): put every washer at the centre of the card's back (Step 8), which the deck box
-  and the rack both rely on.
+  and the rack both rely on. (Revised 2026-10-08: the tray is one piece, with thumb notches in its end walls only, and has stops so the bridge centres on the card. See [`hardware/DESIGN-REVIEW-2026-10-08.md`](../DESIGN-REVIEW-2026-10-08.md).)
 - **Printed lead clip** ([`lead_clip.scad`](parts/lead_clip.scad), print four): tape-on clips for the magnet's leads
   (Step 5).
 

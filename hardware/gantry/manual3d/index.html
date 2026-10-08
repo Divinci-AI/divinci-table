@@ -108,9 +108,9 @@ const PRINTED = [
   { id: "rack", file: "../parts/stl/hand_rack.stl", name: "Hand rack", qty: "1", step: "Step 3",
     text: "The AI's hand on the bed's back edge: seven slots in a staircase, each card on its own shelf, 46 mm right of and 3.6 mm above the one before, so every card's left strip (with the washer) stays open to the magnet and camera. A 40 mm fence hides the faces. Printed standing on the fence, so the slots need no supports." },
   { id: "jig", file: "../parts/stl/sleeve_jig_tray.stl", name: "Sleeving jig tray", qty: "1", step: "Step 3 / Step 8",
-    text: "Holds a card while its washer goes on. Together with the bridge it puts every washer at the centre of the card's back, which the deck box and the rack both rely on." },
+    text: "Holds a card while its washer goes on. One piece, with thumb notches in its end walls and stops on the long walls so the bridge centres on the card. Together with the bridge it puts every washer at the centre of the card's back, which the deck box and the rack both rely on." },
   { id: "bridge", file: "../parts/stl/sleeve_jig_bridge.stl", name: "Sleeving jig bridge", qty: "1", step: "Step 3 / Step 8",
-    text: "Drops every washer at the card's centre. It sits across the tray." },
+    text: "Drops every washer at the card's centre. It sits across the tray's long walls, between the stops." },
 ];
 const HARDWARE = [
   { id: "magnet", name: "24 V electromagnet", qty: "1", step: "Step 4 / Step 5", size: "20 x 15 mm",
@@ -376,7 +376,7 @@ const STEPS = [
   { title: "Thread on the wing nut and set the drag", ref: "Step 4, item 3", intro: ["wing"], focus: ["wing"], cam: [[0, 0, 46], 140, [0.8, -1, 0.4]],
     text: "The wing nut sets the swivel's drag: tight enough that a card doesn't spin while moving, loose enough that it turns when its corner is held (you test this in Step 9)." },
   { title: "Check the clearance", ref: "Step 4, item 4", intro: ["nozzle"], focus: ["magnet", "nozzle"], cam: [[-10, 0, 25], 300, [0, -1, 0.15]],
-    text: "The magnet's face must be the lowest point of the carriage: at least 5 mm below the nozzle and everything else. Measure it, and set min_z in table/.cache/gantry.json before the first move." },
+    text: "The magnet's face must be the lowest point of the carriage: at least 5 mm below the nozzle and everything else. Measure it, and set min_z in table/.cache/gantry.json before the first move. Also check the bolt: its thread must reach the wing nut with the spring on (a 1\" bolt is marginal; 1-1/2\" is safe)." },
   { title: "Clip the leads to the bracket", ref: "Step 5, item 5", intro: ["wire", "clipA", "clipB"], focus: ["clipA", "clipB", "wire"], cam: [[0, 0, 36], 250, [0.9, -1, 0.7]],
     text: "Extend the magnet's leads with 22 AWG two-core wire, and clip them to the bracket with two printed lead clips. Leave a loop of slack between the clip and the magnet so the swivel can turn a quarter for a tap." },
   { title: "Two more clips along the carriage", ref: "Step 5, item 5", intro: ["clipC", "clipD"], focus: ["clipC", "clipD"], cam: [[-35, 25, 52], 260, [0.2, 1, 0.5]],

@@ -18,11 +18,16 @@ iw = card_w + 2 * clear;
 il = card_l + 2 * clear;
 
 if (part == "tray") {
+    union() {
     difference() {
         cube([iw + 2 * wall, il + 2 * wall, floor_t + wall_h]);
         translate([wall, wall, floor_t]) cube([iw, il, wall_h + 1]);
-        translate([(iw + 2 * wall) / 2, -1, floor_t + 2]) rotate([-90, 0, 0])    // thumb notches to lift the card
-            cylinder(d = 16, h = il + 2 * wall + 2);
+        for (y = [-1, il + wall - 0.01])                                                              // thumb notches in the two END
+            translate([(iw + 2 * wall) / 2, y, floor_t + wall_h]) rotate([-90, 0, 0])                 // walls only: the old cylinder ran
+                cylinder(d = 16, h = wall + 1.02);                                                    // the whole length and cut the floor in two
+    }
+    for (x = [0, iw + wall], y = [-bridge_w / 2 - 2.4, bridge_w / 2 + 0.4])                           // stops: the bridge sits between them,
+        translate([x, (il + 2 * wall) / 2 + y, floor_t + wall_h]) cube([wall, 2, 3]);                  // so its hole is on the card's centre
     }
 } else {
     // across the tray's long walls, centred; two keys drop inside the walls so it can't slide
