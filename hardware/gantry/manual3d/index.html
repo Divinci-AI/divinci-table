@@ -40,6 +40,15 @@
   #steps li button{width:100%;display:flex;gap:9px;align-items:center;text-align:left;margin:0 0 5px;padding:7px 9px}
   #steps .num{background:var(--accent)} #steps li.done .num{background:#4caf7d} #steps li button[aria-current=step]{background:#14344d;border-color:var(--accent)}
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);background:#14171c;cursor:pointer;color:var(--text)}
+  .slabel{position:absolute;pointer-events:auto;cursor:pointer;display:flex;gap:6px;align-items:flex-start;white-space:nowrap;transform:translate(16px,-50%);transition:opacity .2s}
+  .slabel .dot{width:11px;height:11px;border-radius:50%;border:2px solid #10141a;margin:4px 0 0 -22px;background:var(--hw)}
+  .slabel.printed .dot{background:var(--print)}
+  .slabel .box{background:rgba(20,23,28,.9);border:1px solid var(--line);border-radius:7px;padding:3px 9px;line-height:1.25}
+  .slabel .nm{font-size:13px;font-weight:600} .slabel .rl{font-size:11.5px;color:var(--dim)}
+  .slabel.cur .box{border-color:var(--accent);background:#14344d} .slabel.rest{opacity:.62} .slabel.rest .rl{display:none}
+  .slabel.hide{display:none} .slabel.compact .rl{display:none}
+  #part-card{background:#14171c;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-top:10px}
+  #part-card b{display:block;margin-bottom:2px}
   @media (max-width:760px){#app{grid-template-columns:1fr;grid-template-rows:42% 58%}aside{order:2;border-right:0;border-top:1px solid var(--line)}main{order:1}}
   @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>
@@ -66,6 +75,7 @@
       <label id="explode-wrap" style="display:none">Explode <input id="explode" type="range" min="0" max="1" step="0.01" value="0.6" aria-label="explode the magnet head"></label>
       <span id="step-ctl" style="display:none;gap:8px;align-items:center"><button id="prev" aria-label="previous step">&larr; Back</button><span id="step-no" style="min-width:92px;text-align:center">Step 1 of 13</span><button id="next" aria-label="next step">Next &rarr;</button><button id="play" aria-pressed="false">&#9654; Play</button></span>
       <label id="scrub-wrap" style="display:none;flex:1 1 100%;gap:12px;align-items:center;color:var(--dim)"><span>Timeline</span><input id="scrub" type="range" min="0" max="12" step="0.002" value="0" style="flex:1;width:auto" aria-label="scrub through the assembly steps" list="ticks"><datalist id="ticks"></datalist><span style="display:flex;gap:6px;align-items:center;white-space:nowrap"><input type="checkbox" id="follow" checked> follow camera</span></label>
+      <button id="labels" style="display:none" aria-label="label mode">Labels: current</button>
       <button id="reset">Reset view</button>
       <span style="color:var(--dim)">All sizes in mm</span>
     </div>
@@ -249,6 +259,7 @@ function setMode(m) {
   document.getElementById("explode-wrap").style.display = m === "head" ? "flex" : "none";
   document.getElementById("step-ctl").style.display = m === "steps" ? "flex" : "none";
   document.getElementById("scrub-wrap").style.display = m === "steps" ? "flex" : "none";
+  document.getElementById("labels").style.display = m === "steps" ? "" : "none";
   document.getElementById("steps").style.display = m === "steps" ? "block" : "none";
   document.getElementById("lists").style.display = m === "steps" ? "none" : "block";
   const headIds = new Set(["magnet", "swivel", "m3", "bolt", "nylon", "angle", "spring", "wing"]);
@@ -272,6 +283,7 @@ function frame(target, dist, dir) {
   tween = { t: 0, fromPos: camera.position.clone(), fromTgt: controls.target.clone(), toTgt: target.clone(), toPos: target.clone().add(d) };
 }
 function select(id) {
+  if (mode === "steps") return partCard(id);
   focusId = id; const e = entries[id]; if (!e) return;
   for (const o of Object.values(entries)) o.el.classList.toggle("on", o === e);
   document.querySelectorAll("li button.item").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === id));
@@ -283,6 +295,15 @@ function select(id) {
   const m = document.createElement("p"); m.className = "meta"; m.textContent = `Qty ${d.qty}   ${d.size ? "Size " + d.size : "Bounding box " + dims}`; pane.append(m);
   const st = document.createElement("p"); st.className = "step"; st.textContent = d.step + " of the assembly manual"; pane.append(st);
   const t = document.createElement("p"); t.textContent = d.text; pane.append(t);
+}
+function partCard(id) {
+  const d = entries[id]?.def, nm = d?.name || NAME[id]; if (!nm) return;
+  const pane = document.getElementById("detail"); pane.querySelector("#part-card")?.remove();
+  const c = document.createElement("div"); c.id = "part-card"; const b = document.createElement("b"); b.textContent = nm; c.append(b);
+  const t = document.createElement("div"); t.style.color = "var(--dim)"; t.textContent = [d?.qty && "Qty " + d.qty, d?.size && "Size " + d.size, ROLE[id]].filter(Boolean).join("   "); c.append(t);
+  if (d?.text) { const x = document.createElement("p"); x.style.margin = "6px 0 0"; x.textContent = d.text; c.append(x); }
+  pane.append(c);
+  for (const [k, sl] of Object.entries(stepLabels)) sl.el.classList.toggle("cur", k === id || STEPS[shownStep].focus.includes(k));
 }
 const click = new THREE.Raycaster(), ptr = new THREE.Vector2();
 renderer.domElement.addEventListener("pointerup", ev => {
@@ -312,17 +333,31 @@ document.getElementById("reset").onclick = () => setMode(mode);
 
 
 // ---------- step-by-step assembly (hardware/gantry/README.md, Steps 4 and 5) ----------
+const ROLE = { swivel: "printed: holds the magnet and bolt", magnet: "24 V, 20 x 15 mm", m3: "flat-head, M3 x 6", bolt: "1/4\"-20 x 1\"", nylon: "6 mm low-friction washer", angle: "drilled leg sticks out under the carriage", spring: "short compression spring", wing: "wing nut: sets the drag",
+  carriage: "the printer's X carriage", tape: "holds the bracket to the carriage", nozzle: "magnet face stays 5 mm or more below it", wire: "22 AWG two-core leads (+ / -)", clipA: "printed lead clip", clipB: "printed lead clip", clipC: "printed lead clip", clipD: "printed lead clip" };
+const NAME = { carriage: "X carriage", tape: "Mounting tape", nozzle: "Nozzle", wire: "Magnet leads", clipA: "Lead clip", clipB: "Lead clip", clipC: "Lead clip", clipD: "Lead clip" };
+let labelMode = "current";   // all | current | off
+const stepLabels = {};
+function makeStepLabel(id, obj, local) {
+  const printed = !!PRINTED.find(d => d.id === id) || id.startsWith("clip");
+  const el = document.createElement("div"); el.className = "slabel " + (printed ? "printed" : "hw");
+  el.innerHTML = '<span class="dot"></span><span class="box"><div class="nm"></div><div class="rl"></div></span>';
+  el.querySelector(".nm").textContent = entries[id]?.def.name || NAME[id] || id; el.querySelector(".rl").textContent = ROLE[id] || "";
+  el.addEventListener("click", () => select(id));
+  const l = new CSS2DObject(el); obj.add(l); l.position.copy(local); stepLabels[id] = { el, l };
+}
+function labelPoint(obj) { const b = bboxOf(obj), c = b.getCenter(new THREE.Vector3()); const top = new THREE.Vector3(c.x, c.y, b.max.z); obj.worldToLocal(top); return top; }
 const asmGroup = new THREE.Group(); asmGroup.visible = false; world.add(asmGroup);
 const L = 34;                     // the frame (carriage, bracket) hangs this far up until step 7 lowers it onto the bolt
 const STEP_LOWER = 6;
 const SUBIDS = new Set(["magnet", "swivel", "m3", "bolt", "nylon"]);
 const FRAME = new Set(["carriage", "tape", "angle", "nozzle"]);
 const ghostMat = (m) => { const c = m.clone(); c.transparent = true; return c; };
-function addExtra(id, obj, intro, stageAbs, home) { obj.traverse(o => { if (o.isMesh) o.material = ghostMat(o.material); }); asmGroup.add(obj);
+function addExtra(id, obj, intro, stageAbs, home) { obj.traverse(o => { if (o.isMesh) { o.material = ghostMat(o.material); } o.userData.id = id; }); asmGroup.add(obj); obj.updateMatrixWorld(true);
   asm[id] = { obj, intro, stage: stageAbs ? stageAbs.map((v, i) => v - home[i]) : null, extra: true }; }   // an extra's position is an offset from where its geometry was built
 const asm = {};
 const STEPS = [
-  { title: "Before you start", ref: "Step 3", intro: [], focus: [], cam: [[30, 0, 55], 560, [0.5, -1, 0.75]],
+  { title: "Before you start", ref: "Step 3", intro: [], focus: ["magnet", "swivel", "m3", "bolt", "nylon", "spring", "wing", "angle", "carriage"], cam: [[120, 0, 10], 340, [0.1, -0.55, 1.2]],
     text: "Print the swivel (and a spare) and four lead clips first, while the printer is still a printer. On the table: the 24 V magnet, M3 x 6 flat-head screw, 1/4\"-20 bolt, nylon spacer, spring, wing nut and the 3\" aluminium angle. The grey block is the printer's X carriage." },
   { title: "Tape the bracket to the X carriage", ref: "Step 4, item 1", intro: ["angle", "tape"], focus: ["angle"], cam: [[-30, 0, 45 + L], 300, [0.7, -1, 0.5]],
     text: "Stick the 3\" angle to the side of the X carriage with mounting tape plus zip ties. The drilled leg stays horizontal and sticks out under the carriage." },
@@ -346,7 +381,7 @@ const STEPS = [
     text: "Extend the magnet's leads with 22 AWG two-core wire, and clip them to the bracket with two printed lead clips. Leave a loop of slack between the clip and the magnet so the swivel can turn a quarter for a tap." },
   { title: "Two more clips along the carriage", ref: "Step 5, item 5", intro: ["clipC", "clipD"], focus: ["clipC", "clipD"], cam: [[-35, 25, 52], 260, [0.2, 1, 0.5]],
     text: "Two more printed lead clips go along the carriage, so the wire follows the head without snagging." },
-  { title: "Done: wire it up", ref: "Steps 5-6", intro: [], focus: [], cam: [[-10, 0, 50], 420, [0.9, -1.2, 0.5]],
+  { title: "Done: wire it up", ref: "Steps 5-6", intro: [], focus: ["magnet", "swivel", "angle", "wing", "wire", "carriage"], cam: [[-10, 0, 50], 420, [0.9, -1.2, 0.5]],
     text: "Next: connect the leads to the part-fan output (the leads end here, headed for the fan connector), put a 1N4007 diode across them (striped end to +), and do the USB safety checks in Step 6 before the printer's cable touches the Mac." },
 ];
 function buildExtras() {
@@ -359,12 +394,15 @@ function buildExtras() {
   const tube = (dz, m) => mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(v => v.clone().add(new THREE.Vector3(0, 0, dz)))), 160, 0.9, 8), m);
   addExtra("wire", group(tube(0, red), tube(1.9, blk)), 10, null, null);
   const clipGeo = entries.clip.obj.children[0].geometry;
+  const pt = { carriage: [-48.7, 0, 104], tape: [-13.1, -30, 61], nozzle: [-50, 0, 27], wire: [-28, 40, 58] };
+  for (const [id, v] of Object.entries(pt)) makeStepLabel(id, asm[id].obj, new THREE.Vector3(...v));
   const mk = () => new THREE.Mesh(clipGeo, mat.print);
   const place = (id, intro, pos, rx, stage, home) => { const c = mk(); c.castShadow = c.receiveShadow = true; c.rotation.x = rx; c.position.set(...pos); addExtra(id, group(c), intro, stage, home); };
   place("clipA", 10, [2, -32, 39.3], 0, [90, -80, 0], [9, -24, 43]); place("clipB", 10, [2, 16, 39.3], 0, [112, -80, 0], [9, 24, 43]);
   place("clipC", 11, [-60, 36, 62], -Math.PI / 2, [134, -80, 0], [-53, 40, 54]); place("clipD", 11, [-35, 36, 62], -Math.PI / 2, [156, -80, 0], [-28, 40, 54]);
+  for (const [id, v] of Object.entries({ clipA: [9, -24, 50], clipB: [9, 24, 50], clipC: [-53, 44, 54], clipD: [-28, 44, 54] })) makeStepLabel(id, asm[id].obj, new THREE.Vector3(...v));
 }
-const TRAY = { magnet: [80, 60, 0], swivel: [80, 25, 0], m3: [80, -5, 3], bolt: [80, -30, 0], nylon: [115, 60, 0], spring: [115, 30, 0], wing: [115, 0, 0], angle: [150, 40, 0] };
+const TRAY = { magnet: [70, 70, 0], swivel: [70, 25, 0], m3: [70, -20, 3], bolt: [70, -65, 0], nylon: [140, 70, 0], spring: [140, 25, 0], wing: [140, -20, 0], angle: [215, 20, 0] };
 function partsFor() { return { ...Object.fromEntries(Object.keys(TRAY).map(id => [id, { obj: entries[id].obj, stage: TRAY[id], intro: STEPS.findIndex(st => st.intro.includes(id)) }])), ...asm }; }
 let PARTS = null, step = 0, stepTween = null, playTimer = null;
 function finalPose(id, k) {
@@ -375,6 +413,7 @@ function finalPose(id, k) {
 function enterSteps() {
   if (!asm.carriage) buildExtras();
   PARTS = partsFor();
+  for (const id of Object.keys(TRAY)) if (!stepLabels[id]) makeStepLabel(id, entries[id].obj, labelPoint(entries[id].obj));
   for (const [id, e] of Object.entries(entries)) e.obj.visible = !!TRAY[id];
   for (const e of Object.values(entries)) e.anchor.visible = false;
   if (!document.getElementById("steps").children.length) STEPS.forEach((st, i) => {
@@ -383,7 +422,7 @@ function enterSteps() {
   });
   PARTS.__init = true; goStep(step, true);
 }
-function leaveSteps() { for (const e of Object.values(PARTS || {})) { e.obj?.traverse?.(o => { if (o.isMesh) { o.material.opacity = 1; o.material.emissiveIntensity = 0; } }); } }
+function leaveSteps() { for (const sl of Object.values(stepLabels)) sl.el.classList.add("hide"); for (const e of Object.values(PARTS || {})) { e.obj?.traverse?.(o => { if (o.isMesh) { o.material.opacity = 1; o.material.emissiveIntensity = 0; } }); } }
 
 // The whole animation is one number, u: u = k means "the end of step k + 1 is done"; in between, every piece is interpolated.
 let u = 0, uTween = null, shownStep = -1;
@@ -409,7 +448,15 @@ function applyU(uu, driveCamera) {
     const tgt = new THREE.Vector3(...L3(c1[0], c2[0])), dist = c1[1] + (c2[1] - c1[1]) * f, dir = new THREE.Vector3(...L3(c1[2], c2[2])).normalize();
     controls.target.copy(tgt); camera.position.copy(tgt).addScaledVector(dir, dist);
   }
-  const near = Math.round(uu); if (near !== shownStep) showStepText(near);
+  const near = Math.round(uu), cs = STEPS[near];
+  for (const [id, sl] of Object.entries(stepLabels)) {
+    const e = PARTS[id], cur = cs.focus.includes(id) || cs.intro.includes(id);
+    const show = labelMode !== "off" && e.obj.visible && (labelMode === "all" || cur);
+    sl.el.classList.toggle("hide", !show); sl.el.classList.toggle("cur", cur); sl.el.classList.toggle("rest", !cur);
+  }
+  const shownCount = Object.values(stepLabels).filter(sl => !sl.el.classList.contains("hide")).length;   // a crowded step shows names only
+  for (const sl of Object.values(stepLabels)) sl.el.classList.toggle("compact", shownCount > 4);
+  if (near !== shownStep) showStepText(near);
   const sc = document.getElementById("scrub"); if (sc && Math.abs(parseFloat(sc.value) - uu) > 1e-3) sc.value = uu;
 }
 function showStepText(i) {
@@ -425,6 +472,7 @@ function showStepText(i) {
   if (ids.length) { const c = document.createElement("div"); c.className = "chips"; for (const id of ids) { const x = document.createElement("span"); x.className = "chip"; x.textContent = entries[id]?.def.name || names[id]; c.append(x); } pane.append(c); }
 }
 function goStep(k, instant = false) {
+  tween = null;                                   // a view change from the other modes must not fight the step camera
   step = Math.max(0, Math.min(STEPS.length - 1, k));
   const sc = document.getElementById("scrub"); sc.max = STEPS.length - 1;
   const tk = document.getElementById("ticks"); if (!tk.children.length) STEPS.forEach((_, i) => { const o = document.createElement("option"); o.value = i; tk.append(o); });
@@ -432,15 +480,16 @@ function goStep(k, instant = false) {
   uTween = { from: u, to: step, t: 0 };
 }
 function tickStep(dt) {
-  if (!uTween) return; uTween.t = Math.min(1, uTween.t + dt / Math.max(0.9, Math.abs(uTween.to - uTween.from) * 0.6));
+  if (!uTween) return; uTween.t = Math.min(1, uTween.t + dt / Math.min(2.2, Math.max(0.9, Math.abs(uTween.to - uTween.from) * 0.6)));
   u = uTween.from + (uTween.to - uTween.from) * (uTween.t < 1 ? ease(uTween.t) : 1); applyU(u, true);
   if (uTween.t >= 1) { u = uTween.to; uTween = null; }
 }
 function stopPlay() { clearInterval(playTimer); playTimer = null; const b = document.getElementById("play"); if (b) { b.setAttribute("aria-pressed", "false"); b.innerHTML = "&#9654; Play"; } }
 document.getElementById("m-steps").onclick = () => setMode("steps");
+document.getElementById("labels").onclick = () => { labelMode = { all: "current", current: "off", off: "all" }[labelMode]; document.getElementById("labels").textContent = "Labels: " + labelMode; applyU(u, false); };
 document.getElementById("scrub").addEventListener("input", ev => { stopPlay(); uTween = null; u = parseFloat(ev.target.value); step = Math.round(u); applyU(u, true); });
-document.getElementById("next").onclick = () => { stopPlay(); goStep(Math.floor(u + 1e-6) + 1); };
-document.getElementById("prev").onclick = () => { stopPlay(); goStep(Math.ceil(u - 1e-6) - 1); };
+document.getElementById("next").onclick = () => { stopPlay(); goStep(step + 1); };
+document.getElementById("prev").onclick = () => { stopPlay(); goStep(step - 1); };
 document.getElementById("play").onclick = () => { if (playTimer) return stopPlay(); const b = document.getElementById("play"); b.setAttribute("aria-pressed", "true"); b.innerHTML = "&#10074;&#10074; Pause"; if (step >= STEPS.length - 1) goStep(0); playTimer = setInterval(() => { if (step >= STEPS.length - 1) return stopPlay(); goStep(step + 1); }, 4500); };
 addEventListener("keydown", ev => { if (mode !== "steps") return; if (ev.key === "ArrowRight") { stopPlay(); goStep(step + 1); } if (ev.key === "ArrowLeft") { stopPlay(); goStep(step - 1); } });
 
