@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Divinci Table gantry: 3D assembly manual</title>
+<style>
+  :root{--bg:#14171c;--panel:#1c2027;--panel2:#242933;--line:#363d4a;--text:#e9edf3;--dim:#9aa4b2;--accent:#59b6ff;--print:#ffd166;--hw:#ef6f6c}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+  #app{display:grid;grid-template-columns:340px 1fr;height:100%}
+  aside{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:14px 14px 40px}
+  h1{font-size:17px;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:12.5px;margin-bottom:12px}
+  .modes{display:flex;gap:6px;margin:10px 0 12px;flex-wrap:wrap}
+  button,.tab{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 11px;cursor:pointer}
+  button:hover{border-color:var(--accent)} button[aria-pressed=true]{background:#14344d;border-color:var(--accent)}
+  h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:16px 0 6px}
+  ul{list-style:none;margin:0;padding:0}
+  li button.item{width:100%;display:flex;gap:9px;align-items:center;text-align:left;margin:0 0 5px;padding:8px 9px}
+  .num{flex:0 0 24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:12px;color:#10141a}
+  .num.print{background:var(--print)} .num.hw{background:var(--hw)}
+  .qty{margin-left:auto;color:var(--dim);font-size:12px}
+  #detail{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;margin:6px 0 4px}
+  #detail h3{margin:0 0 4px;font-size:15px} #detail p{margin:6px 0} #detail .meta{color:var(--dim);font-size:12.5px}
+  #detail .step{color:var(--accent);font-size:12.5px}
+  main{position:relative;min-width:0}
+  #view{position:absolute;inset:0}
+  #view canvas{display:block}
+  .label{position:absolute;pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;transform:translate(14px,-50%)}
+  .label .dot{width:11px;height:11px;border-radius:50%;border:2px solid #10141a;margin-left:-20px}
+  .label .txt{background:rgba(20,23,28,.88);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:12.5px}
+  .label.on .txt{border-color:var(--accent);background:#14344d}
+  .label.print .dot{background:var(--print)} .label.hw .dot{background:var(--hw)}
+  .hud{position:absolute;left:14px;bottom:12px;right:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;pointer-events:none}
+  .hud>*{pointer-events:auto;background:rgba(28,32,39,.92);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+  .hud label{display:flex;gap:10px;align-items:center;color:var(--dim)}
+  input[type=range]{width:200px;accent-color:var(--accent)}
+  #err{position:absolute;inset:0;display:none;place-items:center;text-align:center;padding:30px;color:#ffb4b4}
+  @media (max-width:760px){#app{grid-template-columns:1fr;grid-template-rows:42% 58%}aside{order:2;border-right:0;border-top:1px solid var(--line)}main{order:1}}
+  @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside>
+    <h1>Divinci Table gantry</h1>
+    <div class="sub">3D assembly manual. The printed parts are the real STL files from <code>parts/stl/</code>; hardware is drawn to the sizes in the bill of materials. Drag to turn, scroll to zoom, click a part or a label.</div>
+    <div class="modes" role="group" aria-label="view">
+      <button id="m-all" aria-pressed="true">All parts</button>
+      <button id="m-head" aria-pressed="false">Magnet head</button>
+    </div>
+    <div id="detail" aria-live="polite"><h3>Pick a part</h3><p class="meta">Click anything in the list or in the 3D view to see where it goes, how many, and how big it is.</p></div>
+    <h2>Printed parts</h2><ul id="list-print"></ul>
+    <h2>Hardware</h2><ul id="list-hw"></ul>
+  </aside>
+  <main>
+    <div id="view"></div>
+    <div id="err"></div>
+    <div class="hud">
+      <label id="explode-wrap" style="display:none">Explode <input id="explode" type="range" min="0" max="1" step="0.01" value="0.6" aria-label="explode the magnet head"></label>
+      <button id="reset">Reset view</button>
+      <span style="color:var(--dim)">All sizes in mm</span>
+    </div>
+  </main>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { STLLoader } from "three/addons/loaders/STLLoader.js";
+import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { toCreasedNormals } from "three/addons/utils/BufferGeometryUtils.js";
+
+// ---------- the parts: text is taken from hardware/gantry/README.md (Steps 3-5, 8) ----------
+const PRINTED = [
+  { id: "swivel", file: "../parts/stl/magnet_swivel.stl", name: "Magnet swivel", qty: "1 (+1 spare)", step: "Step 3 / Step 4",
+    text: "24 mm across, 100% infill, top hole up. The magnet screws to its floor from inside with the M3 flat-head screw, dropped in through the top hole. The 1/4\" bolt's head slides into the sideways hex slot, so the bolt turns with the swivel." },
+  { id: "clip", file: "../parts/stl/lead_clip.stl", name: "Lead clip", qty: "4", step: "Step 3 / Step 5",
+    text: "Tape-on clips for the magnet's leads: two on the bracket and two along the carriage, with a loop of slack so the swivel can turn a quarter for a tap." },
+  { id: "deck", file: "../parts/stl/deck_box.stl", name: "Deck box", qty: "1", step: "Step 3",
+    text: "The AI's shuffled deck, face-up and covered. A lid over the back hides the deck; the front strip is open for the magnet; side lips hold the top card down, and the front wall stops one card below them, so only the top card can slide out. Set card_t from ten sleeved cards with their washers." },
+  { id: "follower", file: "../parts/stl/deck_box_follower.stl", name: "Deck box follower plate", qty: "1", step: "Step 3",
+    text: "Rides on four springs in the deck box's floor sockets and pushes the stack up as cards are drawn. Pick springs that a full deck compresses to about 14 mm." },
+  { id: "chute", file: "../parts/stl/discard_chute.stl", name: "Discard chute", qty: "1", step: "Step 3",
+    text: "Hooks over the bed's front edge (set bed_t) and drops cards into a tray: graveyard and exile need no bed space." },
+  { id: "rack", file: "../parts/stl/hand_rack.stl", name: "Hand rack", qty: "1", step: "Step 3",
+    text: "The AI's hand on the bed's back edge: seven slots in a staircase, each card on its own shelf, 46 mm right of and 3.6 mm above the one before, so every card's left strip (with the washer) stays open to the magnet and camera. A 40 mm fence hides the faces. Printed standing on the fence, so the slots need no supports." },
+  { id: "jig", file: "../parts/stl/sleeve_jig_tray.stl", name: "Sleeving jig tray", qty: "1", step: "Step 3 / Step 8",
+    text: "Holds a card while its washer goes on. Together with the bridge it puts every washer at the centre of the card's back, which the deck box and the rack both rely on." },
+  { id: "bridge", file: "../parts/stl/sleeve_jig_bridge.stl", name: "Sleeving jig bridge", qty: "1", step: "Step 3 / Step 8",
+    text: "Drops every washer at the card's centre. It sits across the tray." },
+];
+const HARDWARE = [
+  { id: "magnet", name: "24 V electromagnet", qty: "1", step: "Step 4 / Step 5", size: "20 x 15 mm",
+    text: "Heschen HS-P20x15. Screws to the swivel's floor and must be the lowest point of the head, at least 5 mm below the nozzle. Switched by the part-fan output (M106 S255 on, M107 off). Only the AI's cards carry steel, so it cannot lift a person's card." },
+  { id: "m3", name: "M3 x 6 mm flat-head screw", qty: "1", step: "Step 4", size: "M3 x 6",
+    text: "Drops in through the swivel's top hole; its head seats flush in the countersink. Snug, not tight: PLA cracks." },
+  { id: "bolt", name: "1/4\"-20 x 1\" hex bolt", qty: "1", step: "Step 4", size: "1/4\"-20 x 25.4",
+    text: "Its head slides into the swivel's hex slot, thread up, so it turns with the swivel. Turns in the bracket's hole." },
+  { id: "nylon", name: "Nylon spacer, cut to 6 mm", qty: "1", step: "Step 4", size: "0.257\" bore x 1/2\"",
+    text: "A low-friction washer between the swivel and the bracket." },
+  { id: "angle", name: "Aluminium angle bracket (3\")", qty: "1", step: "Step 1 / Step 4", size: "1\" x 3\" x 1/8\"",
+    text: "Stuck to the side of the X carriage with mounting tape plus zip ties; the drilled leg sticks out horizontally under the carriage." },
+  { id: "spring", name: "Short compression spring", qty: "1", step: "Step 4", size: "about 8 mm",
+    text: "From the assortment. Sits between the bracket and the wing nut." },
+  { id: "wing", name: "1/4\"-20 wing nut", qty: "1", step: "Step 4", size: "1/4\"-20",
+    text: "Sets the swivel's drag: tight enough that a card doesn't spin while moving, loose enough that it turns when its corner is held." },
+];
+
+// ---------- renderer, camera, light ----------
+const view = document.getElementById("view");
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+view.appendChild(renderer.domElement);
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.domElement.style.cssText = "position:absolute;inset:0;pointer-events:none";
+view.appendChild(labelRenderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14171c);
+scene.fog = new THREE.Fog(0x14171c, 900, 2200);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(35, 1, 1, 6000);
+camera.up.set(0, 0, 1);                       // Z is up, like the printer
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08; controls.maxPolarAngle = Math.PI * 0.495;
+const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+sun.position.set(300, -400, 600); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -450, right: 450, top: 450, bottom: -450, near: 10, far: 2000 });
+scene.add(sun, new THREE.HemisphereLight(0xbfd8ff, 0x20242b, 0.5));
+const ground = new THREE.Mesh(new THREE.CircleGeometry(1500, 64), new THREE.ShadowMaterial({ opacity: 0.35 }));
+ground.receiveShadow = true; scene.add(ground);
+const grid = new THREE.GridHelper(1400, 28, 0x3a4352, 0x262c36); grid.rotation.x = Math.PI / 2; grid.position.z = -0.05; scene.add(grid);
+
+const mat = {
+  print: new THREE.MeshPhysicalMaterial({ color: 0xf3efe6, roughness: 0.55, metalness: 0, clearcoat: 0.15 }),
+  steel: new THREE.MeshStandardMaterial({ color: 0xc9ced6, roughness: 0.28, metalness: 1 }),
+  alu: new THREE.MeshStandardMaterial({ color: 0xaab2bd, roughness: 0.42, metalness: 0.95 }),
+  magnet: new THREE.MeshStandardMaterial({ color: 0xb23a48, roughness: 0.45, metalness: 0.35 }),
+  nylon: new THREE.MeshStandardMaterial({ color: 0xf5f1e3, roughness: 0.7, metalness: 0 }),
+  spring: new THREE.MeshStandardMaterial({ color: 0xc88a2d, roughness: 0.35, metalness: 0.9 }),
+};
+
+// ---------- hardware geometry, built to the real sizes ----------
+function hexPrism(af, h) { const r = af / Math.sqrt(3); const g = new THREE.CylinderGeometry(r, r, h, 6); g.rotateX(Math.PI / 2); return g; }
+function cyl(rt, rb, h, seg = 48) { const g = new THREE.CylinderGeometry(rt, rb, h, seg); g.rotateX(Math.PI / 2); return g; }
+function helix(radius, pitch, turns, tube) {
+  const pts = []; for (let i = 0; i <= turns * 48; i++) { const a = i / 48 * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, i / 48 * pitch)); }
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 2, tube, 10, false);
+}
+function mesh(geo, m, x = 0, y = 0, z = 0) { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; return o; }
+function group(...kids) { const g = new THREE.Group(); kids.forEach(k => g.add(k)); return g; }
+
+const hw = {};
+hw.magnet = group(mesh(cyl(10, 10, 15), mat.magnet, 0, 0, 7.5), mesh(cyl(8, 8, 0.4), mat.steel, 0, 0, 0.2), mesh(cyl(1.6, 1.6, 4), mat.steel, 0, 0, 16.2));
+{ const shaft = mesh(cyl(1.5, 1.5, 4.5), mat.steel, 0, 0, -2.25), head = mesh(cyl(3.1, 1.5, 1.5), mat.steel, 0, 0, 0.75);
+  head.add(mesh(new THREE.BoxGeometry(4, 0.7, 0.3), new THREE.MeshStandardMaterial({ color: 0x20242b }), 0, 0, 0.75));
+  hw.m3 = group(shaft, head); }                                               // origin: top of the head
+{ const th = mesh(helix(3.05, 1.27, 20, 0.28), mat.steel, 0, 0, 4.2);
+  hw.bolt = group(mesh(hexPrism(11.11, 4.2), mat.steel, 0, 0, 2.1), mesh(cyl(3.1, 3.1, 25.4, 32), mat.steel, 0, 0, 4.2 + 12.7), th); }   // origin: underside of the head
+{ const o = new THREE.Shape(); o.absarc(0, 0, 6.35, 0, Math.PI * 2, false); const h = new THREE.Path(); h.absarc(0, 0, 3.3, 0, Math.PI * 2, true); o.holes.push(h);
+  hw.nylon = mesh(new THREE.ExtrudeGeometry(o, { depth: 6, curveSegments: 40, bevelEnabled: false }), mat.nylon); }
+{ const leg = 25.4, t = 3.2, len = 76.2;
+  const hs = new THREE.Shape(); hs.moveTo(-leg / 2, -len / 2); hs.lineTo(leg / 2, -len / 2); hs.lineTo(leg / 2, len / 2); hs.lineTo(-leg / 2, len / 2); hs.closePath();
+  const hole = new THREE.Path(); hole.absarc(0, 0, 3.4, 0, Math.PI * 2, true); hs.holes.push(hole);
+  const horiz = mesh(new THREE.ExtrudeGeometry(hs, { depth: t, bevelEnabled: false, curveSegments: 32 }), mat.alu);
+  const vert = mesh(new THREE.BoxGeometry(t, len, leg), mat.alu, -leg / 2 + t / 2, 0, t + leg / 2 - t / 2);
+  hw.angle = group(horiz, vert); }
+hw.spring = mesh(helix(5.2, 1.7, 4, 0.45), mat.spring);
+{ const nut = mesh(hexPrism(11.11, 5.6), mat.steel, 0, 0, 2.8);
+  const wing = (s) => mesh(new THREE.BoxGeometry(9, 1.8, 12), mat.steel, s * 12, 0, 8.6);
+  hw.wing = group(nut, wing(1), wing(-1)); }
+
+// ---------- scene content ----------
+const world = new THREE.Group(); scene.add(world);
+const entries = {};   // id -> {obj, def, label, home, anchor}
+const printedMesh = (geo) => { geo = toCreasedNormals(geo.index ? geo.toNonIndexed() : geo, THREE.MathUtils.degToRad(35)); const m = new THREE.Mesh(geo, mat.print); m.castShadow = m.receiveShadow = true; return m; };
+const err = document.getElementById("err");
+const loader = new STLLoader();
+async function loadStl(url) { return new Promise((res, rej) => loader.load(url, res, undefined, rej)); }
+
+function bboxOf(o) { return new THREE.Box3().setFromObject(o); }
+function register(def, obj, kind, home) {
+  obj.userData.id = def.id; world.add(obj); obj.traverse(c => c.userData.id = def.id);
+  const box = bboxOf(obj); const size = box.getSize(new THREE.Vector3());
+  const el = document.createElement("div"); el.className = "label " + kind;
+  el.innerHTML = '<span class="dot"></span><span class="txt"></span>'; el.querySelector(".txt").textContent = def.name;
+  el.addEventListener("click", () => select(def.id));
+  const anchor = new CSS2DObject(el); obj.add(anchor);
+  entries[def.id] = { obj, def, kind, el, anchor, home: home.clone(), size, anchorLocal: null };
+}
+function placeAnchor(e) { const b = bboxOf(e.obj); const c = b.getCenter(new THREE.Vector3()); const top = new THREE.Vector3(c.x, c.y, b.max.z); e.obj.worldToLocal(top); e.anchor.position.copy(top); }
+
+async function build() {
+  // printed parts laid out on the table, in their printing orientation
+  const layout = { rack: [-175, 250, 0], deck: [-235, 70, 0], follower: [-135, 70, 0], chute: [-35, 70, 43.5], jig: [60, 70, 0], bridge: [160, 110, 3], swivel: [-220, -60, 0], clip: [-150, -60, 0] };
+  const clipSlots = [[-160, -50], [-125, -50], [-160, -80], [-125, -80]];
+  for (const def of PRINTED) {
+    const geo = await loadStl(def.file); const [x, y, z] = layout[def.id];
+    const obj = new THREE.Group(); obj.add(printedMesh(geo)); obj.position.set(x, y, z);
+    register(def, obj, "print", obj.position);
+    if (def.id === "clip") { clipSlots.slice(1).forEach(([cx, cy]) => { const c = new THREE.Mesh(obj.children[0].geometry, mat.print); c.castShadow = c.receiveShadow = true; c.position.set(cx - x, cy - y, 0); obj.add(c); }); obj.position.set(clipSlots[0][0], clipSlots[0][1], 0); entries.clip.home.copy(obj.position); }
+  }
+  // hardware: loose pieces beside the printed ones
+  const order = ["magnet", "m3", "bolt", "nylon", "angle", "spring", "wing"];
+  const loose = Object.fromEntries(order.map((id, i) => [id, [-70 + i * 55, -60 - (i % 2) * 38]]));
+  for (const def of HARDWARE) { const o = hw[def.id]; const [x, y] = loose[def.id]; o.position.set(x, y, def.id === "m3" ? 1.5 : 0); register(def, o, "hw", o.position); }
+  Object.values(entries).forEach(placeAnchor);
+  updateLabelsVisibility();
+}
+
+// ---------- the exploded magnet head: bottom to top, the way Step 4 builds it ----------
+// z is the assembled position (mm); lift/slide is how far each piece travels when exploded.
+function headPose(f) {
+  const swivelZ = 15, floor = 3, m3h = 3.5, hexH = 4.6;
+  const hexBase = swivelZ + floor + m3h;                 // underside of the bolt head sits in the hex slot
+  const pose = {
+    magnet:  { p: [0, 0, 0] },
+    swivel:  { p: [0, 0, swivelZ + 40 * f] },
+    m3:      { p: [0, 0, swivelZ + floor + 1.5 + 80 * f] },
+    bolt:    { p: [60 * f, 0, hexBase + 40 * f] },
+    nylon:   { p: [0, 0, swivelZ + 15.1 + 70 * f] },
+    angle:   { p: [0, 0, swivelZ + 15.1 + 6 + 105 * f] },
+    spring:  { p: [0, 0, swivelZ + 15.1 + 6 + 3.2 + 140 * f] },
+    wing:    { p: [0, 0, swivelZ + 15.1 + 6 + 3.2 + 6 + 175 * f] },
+  };
+  return pose;
+}
+let mode = "all", anim = { t: 1, from: null }, focusId = null;
+function setMode(m) {
+  mode = m; document.getElementById("m-all").setAttribute("aria-pressed", m === "all"); document.getElementById("m-head").setAttribute("aria-pressed", m === "head");
+  document.getElementById("explode-wrap").style.display = m === "head" ? "flex" : "none";
+  const headIds = new Set(["magnet", "swivel", "m3", "bolt", "nylon", "angle", "spring", "wing"]);
+  for (const [id, e] of Object.entries(entries)) e.obj.visible = m === "all" || headIds.has(id);
+  applyPose(); updateLabelsVisibility(); frame(m === "head" ? new THREE.Vector3(10, 0, 75) : new THREE.Vector3(-20, 90, 30), m === "head" ? 330 : 900, m === "head" ? [210, -260, 170] : [200, -700, 520]);
+}
+function applyPose() {
+  if (mode === "all") { for (const e of Object.values(entries)) { e.obj.position.copy(e.home); e.obj.rotation.set(0, 0, 0); } return; }
+  const f = parseFloat(document.getElementById("explode").value), pose = headPose(f);
+  for (const [id, v] of Object.entries(pose)) { const e = entries[id]; e.obj.rotation.set(0, 0, 0); e.obj.position.set(...v.p); }
+  entries.nylon.obj.position.z = pose.nylon.p[2];
+}
+function updateLabelsVisibility() { for (const e of Object.values(entries)) e.anchor.visible = e.obj.visible; }
+
+// ---------- camera moves ----------
+let tween = null;
+function frame(target, dist, dir) {
+  const d = new THREE.Vector3(...dir).normalize().multiplyScalar(dist);
+  tween = { t: 0, fromPos: camera.position.clone(), fromTgt: controls.target.clone(), toTgt: target.clone(), toPos: target.clone().add(d) };
+}
+function select(id) {
+  focusId = id; const e = entries[id]; if (!e) return;
+  for (const o of Object.values(entries)) o.el.classList.toggle("on", o === e);
+  document.querySelectorAll("li button.item").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === id));
+  const box = bboxOf(e.obj); const c = box.getCenter(new THREE.Vector3()); const r = Math.max(60, box.getSize(new THREE.Vector3()).length());
+  frame(c, r * 1.9, [0.9, -1.1, 0.7]);
+  const s = e.size; const dims = `${s.x.toFixed(1)} x ${s.y.toFixed(1)} x ${s.z.toFixed(1)} mm`;
+  const d = e.def, pane = document.getElementById("detail");
+  pane.innerHTML = ""; const h = document.createElement("h3"); h.textContent = d.name; pane.append(h);
+  const m = document.createElement("p"); m.className = "meta"; m.textContent = `Qty ${d.qty}   ${d.size ? "Size " + d.size : "Bounding box " + dims}`; pane.append(m);
+  const st = document.createElement("p"); st.className = "step"; st.textContent = d.step + " of the assembly manual"; pane.append(st);
+  const t = document.createElement("p"); t.textContent = d.text; pane.append(t);
+}
+const click = new THREE.Raycaster(), ptr = new THREE.Vector2();
+renderer.domElement.addEventListener("pointerup", ev => {
+  if (ev.movedFromDown) return;
+  const r = renderer.domElement.getBoundingClientRect(); ptr.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  click.setFromCamera(ptr, camera); const hit = click.intersectObjects(world.children.filter(o => o.visible), true)[0];
+  if (hit) select(hit.object.userData.id);
+});
+renderer.domElement.addEventListener("pointerdown", ev => { ev.target._down = [ev.clientX, ev.clientY]; });
+renderer.domElement.addEventListener("pointermove", ev => { const d = ev.target._down; ev.movedFromDown = d && Math.hypot(ev.clientX - d[0], ev.clientY - d[1]) > 4; });
+renderer.domElement.addEventListener("pointerup", ev => { ev.target._down = null; }, true);
+
+// ---------- side list ----------
+for (const [list, defs, kind] of [["list-print", PRINTED, "print"], ["list-hw", HARDWARE, "hw"]]) {
+  const ul = document.getElementById(list); let n = list === "list-print" ? 1 : PRINTED.length + 1;
+  for (const d of defs) {
+    const li = document.createElement("li"); const b = document.createElement("button"); b.className = "item"; b.dataset.id = d.id; b.setAttribute("aria-pressed", "false");
+    b.innerHTML = `<span class="num ${kind}">${n++}</span><span></span><span class="qty"></span>`; b.children[1].textContent = d.name; b.children[2].textContent = "x" + d.qty.replace(/ \(.*\)/, "");
+    b.addEventListener("click", () => { if (mode === "head" && !["swivel", "magnet", "m3", "bolt", "nylon", "angle", "spring", "wing"].includes(d.id)) setMode("all"); select(d.id); });
+    li.append(b); ul.append(li);
+  }
+}
+document.getElementById("m-all").onclick = () => setMode("all");
+document.getElementById("m-head").onclick = () => setMode("head");
+document.getElementById("explode").oninput = applyPose;
+document.getElementById("reset").onclick = () => setMode(mode);
+
+// ---------- loop ----------
+function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); labelRenderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+addEventListener("resize", resize); resize();
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function tick() {
+  if (tween) { tween.t = reduce ? 1 : Math.min(1, tween.t + 0.045); const k = 1 - Math.pow(1 - tween.t, 3);
+    camera.position.lerpVectors(tween.fromPos, tween.toPos, k); controls.target.lerpVectors(tween.fromTgt, tween.toTgt, k); if (tween.t >= 1) tween = null; }
+  controls.update(); renderer.render(scene, camera); labelRenderer.render(scene, camera); requestAnimationFrame(tick);
+}
+try { await build(); setMode("all"); window.__manual = { select, setMode, entries, camera, renderer }; tick(); }
+catch (e) { err.style.display = "grid"; err.textContent = "Could not load the part files (" + (e.message || e) + "). Serve this folder over http: scripts/serve-manual3d.sh"; console.error(e); }
+</script>
+</body>
+</html>
