@@ -215,7 +215,12 @@ class VirtualPlayer:
                         k = self.count_each(each, a, p) if each else 1
                         pw, tg = pw + k * bp, tg + k * bt
         # its own text: Kor Spiritdancer, Aura Gnarlid, Eidolon of Countless Battles (a face-down card has none)
-        for who, bp, bt, each in ([] if p.face_down else pt_bonuses(p.card.get("text") or "")):
+        own = "" if p.face_down else (p.card.get("text") or "")
+        nm = p.card.get("name") or ""
+        if nm:                                           # "Tuvasa gets +1/+1 for each enchantment you control": its own name is "This creature"
+            short = re.split(r",| the ", nm)[0]
+            own = re.sub(rf"(?m)^(?:{re.escape(nm)}|{re.escape(short)}) gets", "This creature gets", own)
+        for who, bp, bt, each in pt_bonuses(own):
             if "self" in who:
                 k = self.count_each(each, p, p) if each else 1
                 pw, tg = pw + k * bp, tg + k * bt
@@ -252,6 +257,8 @@ class VirtualPlayer:
             return len(auras) + len(hostile)
         if e.startswith("creature you control"):
             return len(self.creatures())
+        if e.startswith("card in its controller's hand") or e.startswith("card in your hand"):
+            return len(self.hand)
         if e.startswith("land you control"):
             return len([x for x in self.battlefield if x.is_("Land")])
         msg = f"unmodelled count 'for each {each}' on {src.name}: work its size out by hand"
@@ -720,10 +727,15 @@ def _manual(cls):
         said = [f"{self.name}, turn {self.turn}."]          # not "Claude's turn": Moira's possessive comes out "Clouds turn"
         said += self.upkeep()
         before = len(self.hand)
+        extra = len([a for a in self.battlefield if a.attached_to is not None
+                     and re.search(r"draws an additional card", a.card.get("text") or "")])   # Righteous Authority on its own creature
         if skip_draw:                                       # the player who goes first in a two-player game does not draw
             said.append("I'm on the play: no draw this turn.")
         else:
             self.draw()
+        if extra:
+            self.draw(extra)
+            said.append(f"I draw {extra} additional card{'s' if extra != 1 else ''}.")
         drew = self.hand[-1]["name"] if len(self.hand) > before else None
         return said, drew
 
@@ -859,7 +871,16 @@ def _manual(cls):
         """'Whenever this creature attacks' on the attacker and on the Auras and Roles it carries."""
         said = []
         text = "" if c.face_down else (c.card.get("text") or "")
+        enchanted_c = any(a.attached_to == c.id for a in self.battlefield) or "Enchantment" in (c.card.get("types") or [])
+        for src in self.battlefield:                         # Kestia: "Whenever an enchanted creature or enchantment creature you control attacks, draw a card."
+            if src.face_down:
+                continue
+            if enchanted_c and "Whenever an enchanted creature or enchantment creature you control attacks, draw a card" in (src.card.get("text") or ""):
+                self.draw()
+                said.append(f"{src.name}: I draw a card.")
         m = re.search(r"Whenever [^.]*?attacks[^,]*, ([^.]+)\.", text)
+        if m and "an enchanted creature or enchantment creature you control attacks" in text:
+            m = None                                         # handled above, for every enchanted attacker, not only this card
         if m:
             eff = m.group(1)
             if "Role token" in eff:                                       # Ellivere
