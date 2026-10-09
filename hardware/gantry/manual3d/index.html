@@ -109,6 +109,8 @@ const PRINTED = [
     text: "24 mm across, 100% infill, top hole up. The magnet screws to its floor from inside with the M3 flat-head screw, dropped in through the top hole. The 1/4\" bolt's head slides into the sideways hex slot (thread up), and the thread slides in through the keyhole slot in the ceiling, so the bolt turns with the swivel." },
   { id: "clip", file: "../parts/stl/lead_clip.stl", name: "Lead clip", qty: "4", step: "Step 3 / Step 5",
     text: "Tape-on clips for the magnet's leads: two on the bracket and two along the carriage, with a loop of slack so the swivel can turn a quarter for a tap." },
+  { id: "plug", file: "../parts/stl/swivel_plug.stl", name: "Swivel plug", qty: "1 per swivel (6 printed, 3 fits)", step: "Step 3 / Step 4",
+    text: "A small T-shaped plug that closes the swivel's open side after the bolt is in. Its wide base fills the hex channel behind the bolt's head and its narrow neck fills the slot behind the thread, so the bolt cannot slide back out sideways. Printed in three fits (loose, snug, tight; two of each): keep the one that goes in with a firm push and stays put." },
   { id: "deck", file: "../parts/stl/deck_box.stl", name: "Deck box", qty: "1", step: "Step 3",
     text: "The AI's shuffled deck, face-up and covered. A lid over the rear covers only what is behind the washer's reach; the open front strip reaches 62 mm so the magnet can sit on the washer at the card's centre; side lips hold the top card down, and the front wall stops one card below them, so only the top card can slide out. Set card_t from ten sleeved cards with their washers." },
   { id: "follower", file: "../parts/stl/deck_box_follower.stl", name: "Deck box follower plate", qty: "1", step: "Step 3",
@@ -271,7 +273,7 @@ function placeAnchor(e) { const b = bboxOf(e.obj); const c = b.getCenter(new THR
 
 async function build() {
   // printed parts laid out on the table, in their printing orientation
-  const layout = { rack: [-175, 250, 0], deck: [-235, 70, 0], follower: [-135, 70, 0], chute: [-35, 70, 43.5], jig: [60, 70, 0], bridge: [160, 110, 3], swivel: [-220, -60, 0], clip: [-150, -60, 0] };
+  const layout = { rack: [-175, 250, 0], deck: [-235, 70, 0], follower: [-135, 70, 0], chute: [-35, 70, 43.5], jig: [60, 70, 0], bridge: [160, 110, 3], swivel: [-220, -60, 0], clip: [-150, -60, 0], plug: [-190, -100, 0] };
   const clipSlots = [[-160, -50], [-125, -50], [-160, -80], [-125, -80]];
   for (const def of PRINTED) {
     const geo = await loadStl(def.file); const [x, y, z] = layout[def.id];
@@ -298,6 +300,7 @@ function headPose(f) {
     swivel:  { p: [0, 0, swivelZ + 40 * f] },
     m3:      { p: [0, 0, swivelZ + floor + 80 * f] },
     bolt:    { p: [60 * f, 0, hexBase + 40 * f] },
+    plug:    { p: [7.01 + 90 * f, 0, swivelZ + 6.65] },          // slides in from +X along the channel, after the bolt
     nylon:   { p: [0, 0, swivelZ + 15.1 + 70 * f] },
     angle:   { p: [0, 0, swivelZ + 15.1 + 6 + 105 * f] },
     spring:  { p: [0, 0, swivelZ + 15.1 + 6 + 3.2 + 140 * f] },
@@ -316,7 +319,7 @@ function setMode(m) {
   document.getElementById("labels").style.display = m === "steps" ? "" : "none";
   document.getElementById("steps").style.display = m === "steps" ? "block" : "none";
   document.getElementById("lists").style.display = m === "steps" ? "none" : "block";
-  const headIds = new Set(["magnet", "swivel", "m3", "bolt", "nylon", "angle", "spring", "wing"]);
+  const headIds = new Set(["magnet", "swivel", "m3", "bolt", "plug", "nylon", "angle", "spring", "wing"]);
   for (const [id, e] of Object.entries(entries)) e.obj.visible = m === "all" || (m !== "all" && headIds.has(id) && !(m === "steps" && false));
   if (m !== "steps") leaveSteps();
   if (m === "steps") { enterSteps(); return; }
@@ -378,7 +381,7 @@ for (const [list, defs, kind] of [["list-print", PRINTED, "print"], ["list-hw", 
   for (const d of defs) {
     const li = document.createElement("li"); const b = document.createElement("button"); b.className = "item"; b.dataset.id = d.id; b.setAttribute("aria-pressed", "false");
     b.innerHTML = `<span class="num ${kind}">${n++}</span><span></span><span class="qty"></span>`; b.children[1].textContent = d.name; b.children[2].textContent = "x" + d.qty.replace(/ \(.*\)/, "");
-    b.addEventListener("click", () => { if (mode === "head" && !["swivel", "magnet", "m3", "bolt", "nylon", "angle", "spring", "wing"].includes(d.id)) setMode("all"); select(d.id); });
+    b.addEventListener("click", () => { if (mode === "head" && !["swivel", "magnet", "m3", "bolt", "plug", "nylon", "angle", "spring", "wing"].includes(d.id)) setMode("all"); select(d.id); });
     li.append(b); ul.append(li);
   }
 }
@@ -423,7 +426,7 @@ const DIMDEFS = {                // local coordinates of each part; values are t
   flipCard: [[[-46.25, 0, 0], [46.25, 0, 0], [0, -1, 0], "92.5 mm (long edge)", 8], [[-46.25, 0, 0], [-46.25, 66.5, 0], [-1, 0, 0], "66.5 mm", 8]],
 };
 const BOXDIMS = {                // printed parts and the card: overall size from the STL bounds / the .scad, drawn along the bounding box
-  swivel: [["x", "24 mm"], ["z", "15.1 mm"]], clip: [["x", "14 mm"], ["y", "16 mm"], ["z", "7.8 mm"]], jig: [["x", "72.9 mm"], ["y", "98.9 mm"], ["z", "9.6 mm"]], bridge: [["x", "72.9 mm"], ["y", "24 mm"], ["z", "5 mm"]],
+  plug: [["x", "7.2 mm"], ["y", "11.3 mm"], ["z", "8.5 mm"]], swivel: [["x", "24 mm"], ["z", "15.1 mm"]], clip: [["x", "14 mm"], ["y", "16 mm"], ["z", "7.8 mm"]], jig: [["x", "72.9 mm"], ["y", "98.9 mm"], ["z", "9.6 mm"]], bridge: [["x", "72.9 mm"], ["y", "24 mm"], ["z", "5 mm"]],
   deck: [["x", "73.3 mm"], ["y", "99.3 mm"], ["z", "117.8 mm"]], follower: [["x", "67.5 mm"], ["y", "93.5 mm"]], chute: [["x", "74.5 mm"], ["y", "90.1 mm"], ["z", "52.4 mm"]],
   rack: [["x", "349.3 mm"], ["y", "40 mm"], ["z", "111.3 mm"]], card: [["x", "63 mm"], ["y", "88 mm"]],
 };
@@ -448,7 +451,7 @@ const NAME = { fence: "Flip fence", grip: "Grip strip", zone: "Station area", fl
 // Dimensions, taken from the models and the README (printed parts: STL bounding boxes + the .scad parameters). "TBD" = not measured yet.
 const DIMS = {
   fence: "123.3 x 51.5 x 3.5 mm; rails 94.5 mm apart (card 92.5 + 2); face leans 8 deg; groove 1.5 mm for a grip strip", flipCard: "92.5 x 66.5 mm; card_t 1.6 mm TBD; washer 33.25 mm from the pivot edge",
-  swivel: "24 x 24 x 15.1 mm; hex slot 11.6 mm AF; top hole 7 mm; M3 hole 3.2 mm", clip: "14 x 16 x 7.8 mm; holds 5 mm wire",
+  plug: "7.2 x 11.3 x 8.5 mm; base 11.3 wide in the 11.6 hex channel, neck 6.7 wide in the 7 slot; three fits (0.25 / 0.15 / 0.05 mm per side)", swivel: "24 x 24 x 15.1 mm; hex slot 11.6 mm AF; top hole 7 mm; M3 hole 3.2 mm", clip: "14 x 16 x 7.8 mm; holds 5 mm wire",
   deck: "73.3 x 99.3 x 117.8 mm; for 66.5 x 92.5 mm sleeved cards; card_t 1.6 mm TBD (measure 10 cards)", follower: "67.5 x 93.5 x 3.0 mm",
   chute: "74.5 x 90.1 x 52.4 mm; 35 deg ramp; bed_t 6 mm TBD (measure your bed)", rack: "349.3 x 40.0 x 111.3 mm; 7 slots, 46 mm pitch; card_t 1.6 mm TBD",
   jig: "72.9 x 98.9 x 9.6 mm; card pocket 68.1 x 94.1 mm", bridge: "72.9 x 24.0 x 5.0 mm; washer hole for 11.1 mm OD",
@@ -463,7 +466,7 @@ const DIMS = {
   washer: "#10: 0.438 in (11.1 mm) OD; bore and thickness drawn, TBD", tape2: "about 18 mm square patch (drawn)",
 };
 const SHORT = { fence: "123 x 52 x 3.5 mm", flipCard: "92.5 x 66.5 mm", flipHead: "hinge 20 mm above the face",  angle: "76 x 25.4 x 3.2 mm", angleBlank: "76 x 25.4 x 3.2 mm", offcut: "about 74 mm", magnet: "20 dia x 15 mm", swivel: "24 x 24 x 15 mm", bolt: "1/4-20 x 25.4 mm", nylon: "12.7 OD x 6 mm", saw: "300 mm blade", drill: "6.35 mm bit",
-  jig: "73 x 99 x 9.6 mm", bridge: "73 x 24 x 5 mm", card: "63 x 88 mm", washer: "11.1 mm OD", m3: "M3 x 6 mm", wing: "1/4-20", clipA: "14 x 16 x 8 mm", clipB: "14 x 16 x 8 mm", clipC: "14 x 16 x 8 mm", clipD: "14 x 16 x 8 mm" };
+  plug: "7 x 11 x 8 mm", jig: "73 x 99 x 9.6 mm", bridge: "73 x 24 x 5 mm", card: "63 x 88 mm", washer: "11.1 mm OD", m3: "M3 x 6 mm", wing: "1/4-20", clipA: "14 x 16 x 8 mm", clipB: "14 x 16 x 8 mm", clipC: "14 x 16 x 8 mm", clipD: "14 x 16 x 8 mm" };
 let labelMode = "current";   // all | current | off
 const stepLabels = {};
 function makeStepLabel(id, obj, local) {
@@ -478,8 +481,7 @@ function labelPoint(obj) { const b = bboxOf(obj), c = b.getCenter(new THREE.Vect
 const groups = { magnet: new THREE.Group(), sleeve: new THREE.Group(), flip: new THREE.Group() }; for (const g of Object.values(groups)) { g.visible = false; world.add(g); }
 let G = "magnet";                // the active guide
 const L = 34;                     // the frame (carriage, bracket) hangs this far up until step 7 lowers it onto the bolt
-const STEP_LOWER = 8;
-const SUBIDS = new Set(["magnet", "swivel", "m3", "bolt", "nylon"]);
+const SUBIDS = new Set(["magnet", "swivel", "m3", "bolt", "plug", "nylon"]);
 const FRAME = new Set(["carriage", "tape", "angle", "nozzle"]);
 const ghostMat = (m) => { const c = m.clone(); c.transparent = true; return c; };
 function addExtra(id, obj, intro, stageAbs, home, guide = "magnet") { obj.traverse(o => { if (o.isMesh) { o.material = ghostMat(o.material); } o.userData.id = id; }); groups[guide].add(obj); obj.updateMatrixWorld(true);
@@ -487,7 +489,7 @@ function addExtra(id, obj, intro, stageAbs, home, guide = "magnet") { obj.traver
 const asms = { magnet: {}, sleeve: {}, flip: {} }, asm = asms.magnet;
 const MAGNET_STEPS = [
   { title: "Before you start", ref: "Step 3", intro: [], focus: ["magnet", "swivel", "m3", "bolt", "nylon", "spring", "wing", "angleBlank", "carriage"], cam: [[120, 0, 10], 340, [0.1, -0.55, 1.2]],
-    text: "Print the swivel (and a spare) and four lead clips first, while the printer is still a printer. On the table: the 24 V magnet, M3 x 6 flat-head screw, 1/4\"-20 bolt, nylon spacer, spring, wing nut and the 3\" aluminium angle. The grey block is the printer's X carriage." },
+    text: "Print the swivel (and a spare), four lead clips and the swivel plugs (a small plate of six in three fits) first, while the printer is still a printer. On the table: the 24 V magnet, M3 x 6 flat-head screw, 1/4\"-20 bolt, nylon spacer, spring, wing nut and the 3\" aluminium angle. The grey block is the printer's X carriage." },
   { title: "Saw the bracket to length", ref: "Step 1", intro: ["saw"], only: ["saw", "angleBlank", "offcut"], focus: ["saw", "angleBlank"], cam: [[232, 50, 14], 640, [0.8, -1, 0.55]],
     text: "Cut the aluminium angle to a 3 in (76 mm) magnet piece: the longer piece (about 6 in) is for the camera. Clamp the angle in a vice or to the bench, mark the cut line, and saw straight across with the hacksaw. The teeth point away from you, so it cuts on the push stroke: use light pressure and long, steady strokes. Then file the cut edges smooth and deburr them. Wear eye protection." },
   { title: "Drill the hole", ref: "Step 1", intro: ["drill"], only: ["drill", "angle", "angleBlank"], focus: ["drill", "angle"], cam: [[215, 20, 6], 150, [0.7, -1, 0.6]],
@@ -500,6 +502,8 @@ const MAGNET_STEPS = [
     text: "Drop the M3 x 6 mm flat-head screw in through the swivel's top hole and screw it down into the magnet with a screwdriver through the same hole. The head seats flush in the countersink. Snug, not tight: PLA cracks." },
   { title: "Slide the bolt into the hex slot", ref: "Step 4, item 2", intro: ["bolt"], focus: ["bolt"], cam: [[8, 0, 30], 170, [0.9, -0.9, 0.4]],
     text: "Slide the 1/4\" bolt in from the side, head first and thread up: the hex channel takes the head and the slot in the ceiling takes the thread. The bolt now turns with the swivel." },
+  { title: "Close the slot with the plug", ref: "Step 4, item 2", intro: ["plug"], focus: ["plug", "bolt", "swivel"], cam: [[10, 0, 22], 150, [0.9, -0.9, 0.5]],
+    text: "Slide the swivel plug in from the open side, ear up, the way the bolt went in: its wide base fills the hex channel behind the bolt's head and its narrow neck fills the slot behind the thread. It should go in with a firm push and stay put when you tilt the swivel. Too loose, take the next tighter one; will not go in, the next looser (the plate has two of each fit). This step is not optional: without the plug the bolt can slide back out of the swivel sideways." },
   { title: "Put the nylon washer on the bolt", ref: "Step 4, item 3", tapeMm: 6, intro: ["nylon"], focus: ["nylon"], cam: [[0, 0, 34], 170, [0.8, -1, 0.5]],
     text: "Cut about 6 mm off a nylon spacer with the hacksaw. It's a low-friction washer that goes on the bolt above the swivel." },
   { title: "Push the bolt up through the bracket's hole", ref: "Step 4, item 3", intro: [], focus: ["angle", "bolt"], cam: [[0, 0, 40], 230, [0.9, -1, 0.35]],
@@ -517,16 +521,17 @@ const MAGNET_STEPS = [
   { title: "Done: wire it up", ref: "Steps 5-6", intro: [], noDims: true, focus: ["magnet", "swivel", "angle", "wing", "wire", "carriage"], cam: [[-10, 0, 50], 420, [0.9, -1.2, 0.5]],
     text: "Next: connect the leads to the part-fan output (the leads end here, headed for the fan connector), put a 1N4007 diode across them (striped end to +), and do the USB safety checks in Step 6 before the printer's cable touches the Mac." },
 ];
+const stepIdx = prefix => { const i = MAGNET_STEPS.findIndex(st => st.title.startsWith(prefix)); if (i < 0) console.error("manual: no step starts with", prefix); return i; };   // the animation is tied to a step by its title, so adding a step cannot shift it
 let STEPS = MAGNET_STEPS;
 function buildExtras() {
   const grey = new THREE.MeshStandardMaterial({ color: 0x6d7683, roughness: 0.6, metalness: 0.4 });
   addExtra("carriage", group(mesh(new THREE.BoxGeometry(72, 72, 62), grey, -48.7, YB, 71.7)), -1, null, null);
-  addExtra("tape", group(mesh(new THREE.BoxGeometry(0.8, 60, 22), new THREE.MeshStandardMaterial({ color: 0xe0527a, roughness: 0.5 }), -13.1, YB, 49.7)), 3, [118, -50, 6], [-13.1, YB, 49.7]);
-  addExtra("nozzle", group(mesh(new THREE.CylinderGeometry(4, 0.4, 14, 24).rotateX(Math.PI / 2), mat.spring, -50, YB, 33), mesh(new THREE.CylinderGeometry(7, 7, 6, 6).rotateX(Math.PI / 2), mat.steel, -50, YB, 43)), 11, [160, 20, 6], [-50, YB, 38]);
+  addExtra("tape", group(mesh(new THREE.BoxGeometry(0.8, 60, 22), new THREE.MeshStandardMaterial({ color: 0xe0527a, roughness: 0.5 }), -13.1, YB, 49.7)), stepIdx("Tape the bracket"), [118, -50, 6], [-13.1, YB, 49.7]);
+  addExtra("nozzle", group(mesh(new THREE.CylinderGeometry(4, 0.4, 14, 24).rotateX(Math.PI / 2), mat.spring, -50, YB, 33), mesh(new THREE.CylinderGeometry(7, 7, 6, 6).rotateX(Math.PI / 2), mat.steel, -50, YB, 43)), stepIdx("Check the clearance"), [160, 20, 6], [-50, YB, 38]);
   const red = new THREE.MeshStandardMaterial({ color: 0xd63a3a, roughness: 0.5 }), blk = new THREE.MeshStandardMaterial({ color: 0x20242b, roughness: 0.5 });
   const pts = [[10, 0, 7.5], [34, -6, 24], [24, -24 + YB, 40], [9, -24 + YB, 43.8], [9, 24 + YB, 43.8], [-5, 34 + YB, 48], [-28, 39.9 + YB, 54], [-53, 39.9 + YB, 54], [-82, 48 + YB, 60]].map(a => new THREE.Vector3(...a));
   const tube = (dz, m) => mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(v => v.clone().add(new THREE.Vector3(0, 0, dz)))), 160, 0.9, 8), m);
-  addExtra("wire", group(tube(0, red), tube(1.9, blk)), 12, null, null);
+  addExtra("wire", group(tube(0, red), tube(1.9, blk)), stepIdx("Clip the leads"), null, null);
   const hov = [TRAY.angle[0], TRAY.angle[1], 46], sawAt = z => [TRAY.angle[0], TRAY.angle[1] + CUT_Y, z];
   addExtra("angleBlank", hw.angleBlank, 0, null, null); asm.angleBlank.pose = k => ({ p: TRAY.angle, r: [0, 0, 0], op: k <= 1 ? 1 : 0, vis: k <= 1 });
   addExtra("offcut", hw.offcut, 0, null, null); asm.offcut.pose = k => k === 0 ? { p: TRAY.angle, r: [0, 0, 0], op: 1, vis: true } : { p: [TRAY.angle[0], TRAY.angle[1] + 45, 0], r: [0, 0, 0], op: 0, vis: false };
@@ -538,22 +543,30 @@ function buildExtras() {
   for (const [id, v] of Object.entries(pt)) makeStepLabel(id, asm[id].obj, new THREE.Vector3(...v));
   const mk = () => new THREE.Mesh(clipGeo, mat.print);
   const place = (id, intro, pos, rx, stage, home) => { const c = mk(); c.castShadow = c.receiveShadow = true; c.rotation.x = rx; c.position.set(...pos); addExtra(id, group(c), intro, stage, home); };
-  place("clipA", 12, [2, -32 + YB, 39.3], 0, [90, -80, 0], [9, -24 + YB, 43]); place("clipB", 12, [2, 16 + YB, 39.3], 0, [112, -80, 0], [9, 24 + YB, 43]);
-  place("clipC", 13, [-60, 36 + YB, 62], -Math.PI / 2, [134, -80, 0], [-53, 40 + YB, 54]); place("clipD", 13, [-35, 36 + YB, 62], -Math.PI / 2, [156, -80, 0], [-28, 40 + YB, 54]);
+  place("clipA", stepIdx("Clip the leads"), [2, -32 + YB, 39.3], 0, [90, -80, 0], [9, -24 + YB, 43]); place("clipB", stepIdx("Clip the leads"), [2, 16 + YB, 39.3], 0, [112, -80, 0], [9, 24 + YB, 43]);
+  place("clipC", stepIdx("Two more clips"), [-60, 36 + YB, 62], -Math.PI / 2, [134, -80, 0], [-53, 40 + YB, 54]); place("clipD", stepIdx("Two more clips"), [-35, 36 + YB, 62], -Math.PI / 2, [156, -80, 0], [-28, 40 + YB, 54]);
   for (const [id, v] of Object.entries({ clipA: [9, -24 + YB, 50], clipB: [9, 24 + YB, 50], clipC: [-53, 44 + YB, 54], clipD: [-28, 44 + YB, 54] })) makeStepLabel(id, asm[id].obj, new THREE.Vector3(...v));
 }
-const TRAY = { magnet: [70, 70, 0], swivel: [70, 25, 0], m3: [70, -20, 3], bolt: [70, -65, 0], nylon: [140, 70, 0], spring: [140, 25, 0], wing: [140, -20, 0], angle: [215, 20, 0] };
+const TRAY = { magnet: [70, 70, 0], swivel: [70, 25, 0], m3: [70, -20, 3], bolt: [70, -65, 0], nylon: [140, 70, 0], spring: [140, 25, 0], wing: [140, -20, 0], plug: [140, -65, 0], angle: [215, 20, 0] };
 function magnetParts() {
   const parts = Object.fromEntries(Object.keys(TRAY).map(id => [id, { obj: entries[id].obj, stage: TRAY[id], intro: STEPS.findIndex(st => st.intro.includes(id)) }]));
   // the drilled bracket appears on the tray the moment the drill goes through the blank (step 3), then travels to the carriage as before
   parts.angle.pose = k => k <= 1 ? { p: TRAY.angle, r: [0, 0, 0], op: 0, vis: false } : k === 2 ? { p: TRAY.angle, r: [0, 0, 0], op: 1, vis: true } : { p: finalPose("angle", k), r: [0, 0, 0], op: 1, vis: true };
+  // the plug comes in from the open side, the way the bolt did: tray -> beside the swivel's +X side -> slide in along the channel
+  const iPlug = stepIdx("Close the slot"), fin = headPose(0).plug.p, near = [fin[0] + 40, fin[1], fin[2]], lerp = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+  parts.plug.dyn = u => {
+    if (u >= iPlug) return { p: fin, r: [0, 0, 0], vis: true, op: 1 };
+    if (u <= iPlug - 1) return { p: TRAY.plug, r: [0, 0, 0], vis: true, op: 0.3 };
+    const t = u - (iPlug - 1);
+    return { p: t < 0.6 ? lerp(TRAY.plug, near, ease(t / 0.6)) : lerp(near, fin, ease((t - 0.6) / 0.4)), r: [0, 0, 0], vis: true, op: 0.3 + 0.7 * t };
+  };
   return { ...parts, ...asm };
 }
 function partsFor() { return G === "sleeve" ? sleeveParts() : G === "flip" ? { ...asms.flip } : magnetParts(); }
 let PARTS = null, step = 0, stepTween = null, playTimer = null;
 function finalPose(id, k) {
   const fin = headPose(0), p = (fin[id]?.p || [0, 0, 0]).slice();
-  if (FRAME.has(id) && k < STEP_LOWER) p[2] += L;                  // the angle's headPose is its final height; the others are built in place
+  if (FRAME.has(id) && k < stepIdx("Push the bolt up")) p[2] += L;                  // the angle's headPose is its final height; the others are built in place
   return p;
 }
 const GUIDE_INFO = { magnet: { title: "Magnet head", entryIds: () => Object.keys(TRAY) }, sleeve: { title: "Sleeve a card", entryIds: () => ["jig", "bridge"] }, flip: { title: "Flip a card (design)", entryIds: () => [] } };
