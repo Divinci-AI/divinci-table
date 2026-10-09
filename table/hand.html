@@ -49,6 +49,7 @@ select{padding:7px;border-radius:8px;background:#071820;color:var(--ink);border:
   <div class="panel"><h2>Hand</h2><div id="hand"></div></div>
   <div class="panel"><h2>Battlefield</h2><div id="field"></div>
     <div id="atk" style="margin-top:8px"></div></div>
+  <div class="panel"><h2>The other players</h2><div id="opps"><div class="sub">Nobody else yet.</div></div></div>
   <div class="panel"><h2>What happened</h2><div id="log"></div></div>
 </main>
 <script>
@@ -106,10 +107,22 @@ function draw() {
       ${ready ? `<label><input type=checkbox data-atk="${p.id}" ${attackers.has(p.id) ? "checked" : ""}> attack</label>` : ""}
       ${p.face_down && p.turn_up_cost ? `<button data-up="${p.id}">Turn face up (${esc(p.turn_up_cost)})</button>` : ""}
       ${p.tapped && !canUntap() ? "" : `<button data-tap="${p.id}">${p.tapped ? "Untap" : "Tap"}</button>`}</div></div>`; }).join("") : `<div class="sub">Nothing on the battlefield yet.</div>`;
+  const inc = S.incoming || [];
+  $("alert").innerHTML = ($("alert").innerHTML || "") + (inc.length && !alert ? `<div class="alert">${inc.map(i => `${esc(i.attacker)} attacks you with ${esc(i.creature)} for ${i.power}${i.trample ? " (trample)" : ""}`).join("<br>")}<br>
+      <button class="gold" data-take>Take it</button>${(S.permanents || []).filter(p => p.pt && !p.tapped).map(p => `<button data-blk="${p.id}">Block with ${esc(p.name)} ${esc(p.pt)}</button>`).join("")}</div>` : "");
+  const o = S.opponents || {}, pb = S.public_boards || {};
+  $("opps").innerHTML = Object.keys(o).length || Object.keys(pb).length ? Object.entries(o).map(([n, v]) => `<div class="card"><b>${esc(n)}</b>
+      <span class="tag">${v.life} life</span><span class="tag">${v.hand} in hand</span><span class="tag">${v.library} in library</span>
+      <div class="x">Lands: ${v.lands} (${v.tapped_lands || 0} tapped)${(v.lands_list || []).length ? " — " + esc([...new Set(v.lands_list)].join(", ")) : ""}</div>
+      <div class="x">${(v.creatures || []).length ? (v.creatures || []).map(c => `${esc(c.name)} ${esc(c.pt)}${c.tapped ? " (tapped)" : ""}`).join("; ") : "No creatures."}</div>
+      ${(v.battlefield || []).length ? `<div class="t">Also: ${esc((v.battlefield || []).join("; "))}</div>` : ""}
+      ${(v.graveyard || []).length ? `<div class="t">Graveyard: ${esc(v.graveyard.join(", "))}</div>` : ""}</div>`).join("") +
+    Object.entries(pb).map(([n, v]) => `<div class="card"><b>${esc(n)}</b> <span class="t">(a real deck, from photos and what they said)</span>
+      <div class="x">${esc((v.permanents || []).map(p => p.name || p).join("; ") || "nothing recorded yet")}</div></div>`).join("") : `<div class="sub">Nobody else yet.</div>`;
   const opps = Object.entries(S.life_table || {}).filter(([n, l]) => n !== S.seat && l > 0).map(([n]) => n);
   $("atk").innerHTML = (attackers.size ? `<select id="target">${opps.map(o => `<option>${esc(o)}</option>`).join("")}</select>
       <button class="gold" id="attack">Attack with ${attackers.size}</button>` : "") +
-    (lastAttack.length ? `<button id="dmg">They didn't block: deal the damage</button>` : "");
+    (lastAttack.length ? `<button id="dmg">Finish combat damage</button>` : "");
 }
 document.body.addEventListener("click", async e => {
   const t = e.target, d = t.dataset || {}, h = S?.hand || [];
@@ -124,9 +137,9 @@ document.body.addEventListener("click", async e => {
   if (t.id === "attack") { const who = $("target").value, ids = [...attackers];
     const r = await act("attack", { assign: Object.fromEntries(ids.map(i => ["#" + i, who])) });
     if (r) { lastAttack = ids.map(i => ["#" + i, who]); attackers.clear(); draw(); } return; }
-  if (t.id === "dmg") { await act("damage", { hits: Object.fromEntries(lastAttack.map(([r, w]) => [r, [w, null]])), no_life: true }); lastAttack = []; return draw(); }
-  if (d.take !== undefined) { await act("block", { amount: alert.amount, attacker: alert.attacker, trample: alert.trample }); alert = null; return draw(); }
-  if (d.blk !== undefined) { await act("block", { blocker: "#" + d.blk, amount: alert.amount, attacker: alert.attacker, trample: alert.trample }); alert = null; return draw(); }
+  if (t.id === "dmg") { await act("damage", { hits: {} }); lastAttack = []; return draw(); }
+  if (d.take !== undefined) { await act("block", { attacker: alert ? alert.attacker : undefined }); alert = null; return draw(); }
+  if (d.blk !== undefined) { await act("block", { blocker: "#" + d.blk, attacker: alert ? alert.attacker : undefined }); alert = null; return draw(); }
   if (d.pass !== undefined) { alert = null; draw(); return passNow(); }
   if (d.dismiss !== undefined) { alert = null; return draw(); }
 });

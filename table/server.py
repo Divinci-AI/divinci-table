@@ -597,7 +597,7 @@ def pilot_pass_refusal(seat_name: str, b: dict) -> str | None:
     already obey in next_step: you pass once, in turn order, in a step you are in the round for, and never in your own turn.
     PHASE_LOCK is the caller's."""
     if PHASE["player"] is None:
-        return "the game hasn't started"
+        return START_HINT
     here = STEPS[PHASE["step"]]
     said_p, said_s = b.get("player"), b.get("step")
     if (said_p is not None and said_p != PHASE["player"]) or (said_s is not None and said_s != here):
@@ -623,7 +623,7 @@ def begin_refusal(seat_name: str, host: bool = False) -> str | None:
     are the caller's. Before the game starts only the host's brain may begin (a solo engine game with no turn order, as
     brain_e2e plays); a pilot doing so would make itself the first player and skip the high roll."""
     if PHASE["player"] is None:
-        return None if host else "the game hasn't started"
+        return None if host else START_HINT
     if PHASE["player"] != seat_name:
         return f"it's {PHASE['player']}'s turn, not {seat_name}'s: begin is for the start of your own turn"
     if PHASE.get("begun"):
@@ -665,6 +665,8 @@ def ai_advance(seat_name: str, action: str) -> str | None:
             if waiting or priority_open():
                 return ", ".join(waiting + (list(PRIORITY["seats"]) if priority_open() else []))
         PRIORITY.update(waiting=[], seats=[])
+        if STEPS[PHASE["step"]] == "combat damage":
+            combat_flush(PHASE["player"])
         PHASE["step"] += 1
         emit("phase", player=PHASE["player"], step=STEPS[PHASE["step"]], index=PHASE["step"])
     if PHASE["step"] == goal and target in ("end step", "declare attackers") and STEPS[goal] not in NO_PRIORITY:
@@ -687,6 +689,42 @@ def ai_advance(seat_name: str, action: str) -> str | None:
 # token keeps all of it. Checked BEFORE ai_advance: a refused action must not walk the turn on as a side effect.
 PILOT_ACTIONS = frozenset({"say", "begin", "land", "cast", "turn-up", "tap", "untap", "attack", "damage", "block",
                            "pass", "end", "life"})
+
+# Combat the SERVER computes. A pilot says which creatures attack whom; the engine knows their power. The defender never types
+# an amount: `block` takes the number from here, and whatever nobody blocked is dealt when the turn moves on. (Before this, the
+# defender typed how much it took, so the table was trusting whoever was being hit.)
+PRESTART_ACTIONS = AI_MAIN_ACTIONS | {"attack", "damage", "block"}
+START_HINT = ("the game hasn't started: start it with `highroll quantum` (tablectl) or POST /api/highroll/start "
+              "{\"mode\": \"quantum\"}; the winner of the roll goes first")
+COMBAT: dict = {"pending": [], "hits": [], "human": [], "used": set()}
+
+
+def combat_reset():
+    COMBAT.update(pending=[], hits=[], human=[], used=set())
+
+
+def combat_flush(attacker_seat: str | None = None):
+    """Whatever is still attacking a pilot seat and was not blocked is dealt now, unblocked. PHASE_LOCK/VP_LOCK are the caller's."""
+    from ai_turn import resolve_block
+    for e in [e for e in COMBAT["pending"] if attacker_seat is None or e["attacker"] == attacker_seat]:
+        COMBAT["pending"].remove(e)
+        d = VPS.get(e["defender"])
+        if d is None:
+            continue
+        with VP_LOCK:
+            life0 = d.life
+            res = resolve_block(d, None, e["power"], e["trample"], e["name"])
+            if d.life != life0:
+                emit("life", player=d.name, delta=d.life - life0, by="combat", life=d.life)
+        for line in res["said"]:
+            emit("say", speaker=d.name, text=line, action="block", auto=True, speech=line)
+        if life0 - d.life > 0 and e.get("ref"):
+            COMBAT["hits"].append({"attacker": e["attacker"], "ref": e["ref"], "defender": d.name, "amount": life0 - d.life})
+
+
+def combat_incoming(seat_name: str) -> list:
+    return [{"attacker": e["attacker"], "creature": e["name"], "ref": e.get("ref"), "power": e["power"], "trample": e["trample"]}
+            for e in COMBAT["pending"] if e["defender"] == seat_name]
 
 
 SEAT_KEYS: dict = {}   # person → [sha256 of each key a device of theirs was given]
@@ -861,11 +899,15 @@ def phase_public() -> dict:
                 "seconds_left": round(max(0.0, left), 1), "ai": list(VPS),
                 "windows": WINDOWS["on"], "window_secs": args.priority_window, "hold": HOLD["on"],
                 "open_questions": sum(1 for t in TODOS if t.get("kind") == "question" and not t["done"]),
-                "passes": passes_state(), "autopass": dict(AUTOPASS), "autopass_default": AUTOPASS_DEFAULT}
+                "passes": passes_state(), "autopass": dict(AUTOPASS), "autopass_default": AUTOPASS_DEFAULT,
+                **({"start": START_HINT} if PHASE["player"] is None else {})}
 
 
 def start_turn(name: str):
     """Hand the turn to a seat: an AI seat plays its whole turn; a human starts at untap."""
+    with VP_LOCK:
+        combat_flush(None)                             # an unblocked attacker whose turn ended without a `damage` still hits
+        combat_reset()
     PHASE.update(player=name, step=0, begun=False)
     PRIORITY.update(step=None, waiting=[], seats=[], deadline=0.0, beat_until=0.0)
     emit("phase", player=name, step=STEPS[0], index=0)
@@ -2404,6 +2446,14 @@ class H(BaseHTTPRequestHandler):
                 v = brain_view(VPS[sn])
             v["seat"] = sn
             v["seats"] = list(VPS)
+            with VP_LOCK:
+                v["incoming"] = combat_incoming(sn)        # who is attacking this seat, with the table's own power numbers
+                v["opponents"] = {n: {**o.public(), "lands_list": [p.name for p in o.battlefield if p.is_("Land")],
+                                      "tapped_lands": sum(1 for p in o.battlefield if p.is_("Land") and p.tapped),
+                                      "creatures": [{"name": o.shown(p), "pt": "%d/%d" % o.stats(p), "tapped": p.tapped,
+                                                     "sick": p.sick} for p in o.battlefield if p.is_("Creature")]}
+                                  for n, o in VPS.items() if n != sn}
+            v["public_boards"] = {k: x for k, x in PUBLIC_BOARD.items() if k != sn}
             with CONVO_LOCK:
                 v["announced_by_others"] = list(CONVO["announced"][-30:])
             v["life_table"] = self._life_table()
@@ -2650,6 +2700,8 @@ class H(BaseHTTPRequestHandler):
                 seats = [h["name"] for h in HUMANS] + list(VPS)
                 if by not in seats:
                     return self._send(400, {"error": "who is attacking?"})
+                if by in VPS:                              # a seat with a deck attacks with the engine (`attack`): it knows the power
+                    return self._send(409, {"error": f"{by} plays a deck: attack with the Attack action, the table reads the creatures' power itself"})
                 out = []
                 for a in (b.get("attacks") or [])[:20]:
                     attacker, target = str(a.get("attacker", ""))[:80], str(a.get("target", ""))[:30]
@@ -2665,6 +2717,10 @@ class H(BaseHTTPRequestHandler):
                     if target in VPS:                     # an AI seat decides its blocks, as when the attack is said aloud
                         emit("attention", kind="attacked", text=text, addressee=target, attacker=attacker, amount=power,
                              trample=trample, by=by)
+                        if power is not None:             # the defender will block against THIS number, not one it types
+                            with VP_LOCK:
+                                COMBAT["pending"].append({"attacker": by, "defender": target, "ref": None, "name": attacker,
+                                                          "power": power, "trample": trample})
                 if not out:
                     return self._send(400, {"error": "no attack: pick an attacker and someone to attack"})
                 emit("declare", kind="attack", by=by, attacks=out)
@@ -3006,6 +3062,12 @@ class H(BaseHTTPRequestHandler):
                     b["no_life"] = True                     # the players hit say their own life; only my lifelink counts
                 if pilot and act == "fair-reveal":           # it publishes every deck's seed and shuffled order
                     return self._send(403, {"error": "only the table's host can publish the fairness proof: it shows every deck's order"})
+                b.pop("_pilot", None)
+                if pilot:
+                    b["_pilot"] = True
+                if pilot and act in PRESTART_ACTIONS and PHASE["player"] is None:
+                    self._refused(act, "game-not-started", "")
+                    return self._send(409, {**phase_public(), "error": START_HINT})
                 if pilot and act not in PILOT_ACTIONS:
                     self._refused(act, "pilot-not-allowed", "")
                     return self._send(403, {"error": f"'{act}' isn't available to a pilot seat: it has no card behind it "
@@ -3241,15 +3303,61 @@ class H(BaseHTTPRequestHandler):
                 elif action == "block":                  # someone attacked the AI; the brain blocks (or not)
                     from ai_turn import resolve_block
                     blk = VP.perm(b["blocker"]) if b.get("blocker") else None
+                    entry = None
+                    if b.get("_pilot"):                  # a pilot says only WHICH creature blocks WHICH attacker: the number is ours
+                        mine = [e for e in COMBAT["pending"] if e["defender"] == VP.name]
+                        if not mine:
+                            raise IllegalAction("nothing is attacking you right now (or it has already been dealt with)")
+                        want = str(b.get("attacker") or "").strip().lower()
+                        entry = next((e for e in mine if want and want in (str(e.get("ref") or "").lower(), e["name"].lower())), None)
+                        if entry is None and want:
+                            raise IllegalAction("no attacker '" + str(b.get("attacker")) + "' is attacking you: "
+                                                + ", ".join(f"{e['name']} {e.get('ref') or ''} ({e['power']})" for e in mine))
+                        entry = entry or mine[0]
+                        if blk is not None:
+                            if not blk.is_("Creature") or blk.tapped:
+                                raise IllegalAction(f"{blk.name} can't block: it must be an untapped creature")
+                            if blk.id in COMBAT["used"]:
+                                raise IllegalAction(f"{blk.name} already blocked this combat")
+                            COMBAT["used"].add(blk.id)
+                        b["amount"], b["trample"], b["attacker"] = entry["power"], entry["trample"], entry["name"]
+                        COMBAT["pending"].remove(entry)
                     life0 = VP.life
                     res = resolve_block(VP, blk, int(b["amount"]), bool(b.get("trample")), b.get("attacker"))
                     said = res["said"]
                     if VP.life != life0:
                         emit("life", player=VP.name, delta=VP.life - life0, by="combat", life=VP.life)
+                    if entry is not None and entry.get("ref") and life0 - VP.life > 0:
+                        COMBAT["hits"].append({"attacker": entry["attacker"], "ref": entry["ref"], "defender": VP.name,
+                                               "amount": life0 - VP.life})
                     forget_dead(res)
                 elif action == "attack":
                     said = VP.manual_attack(b["assign"], role_on=b.get("role_on"))
+                    for ref, who in b["assign"].items():
+                        c = VP.perm(ref)
+                        defender = seat(who) or next((h["name"] for h in HUMANS if h["name"].lower() == str(who).lower()), str(who))
+                        entry = {"attacker": VP.name, "defender": defender, "ref": f"#{c.id}", "name": VP.shown(c),
+                                 "power": VP.stats(c)[0], "trample": "Trample" in ([] if c.face_down else c.card.get("keywords") or [])}
+                        if defender in VPS and defender != VP.name:
+                            COMBAT["pending"].append(entry)
+                            emit("attention", kind="attacked", addressee=defender, attacker=entry["name"], amount=entry["power"],
+                                 trample=entry["trample"], text=f"{VP.name} attacks you with {entry['name']} ({entry['power']}). "
+                                                                f"Block it, or `block` with no blocker to take it.")
+                        else:
+                            COMBAT["human"].append(entry)
                 elif action == "damage":                 # its attackers that hit a player: triggers + life
+                    if b.get("_pilot"):                  # the table dealt it: unblocked damage now, blocked damage already
+                        combat_flush(VP.name)
+                        said_hits = {}
+                        for h in [h for h in COMBAT["hits"] if h["attacker"] == VP.name]:
+                            COMBAT["hits"].remove(h)
+                            said_hits[h["ref"]] = [h["defender"], h["amount"]]
+                        for e in [e for e in COMBAT["human"] if e["attacker"] == VP.name]:   # a person's own life, a person's own blocks:
+                            COMBAT["human"].remove(e)                                      # the most it can be is the creature's power
+                            claim = (b.get("hits") or {}).get(e["ref"]) or (b.get("hits") or {}).get(e["name"])
+                            if claim:
+                                said_hits[e["ref"]] = [e["defender"], min(int(claim[1] if claim[1] is not None else e["power"]), e["power"])]
+                        b["hits"] = said_hits
                     hits = {ref: (v[0], v[1]) for ref, v in b["hits"].items()}
                     said, deltas = VP.combat_damage(hits)
                     if b.get("no_life"):                   # the players state their own life: triggers only

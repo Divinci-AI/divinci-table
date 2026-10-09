@@ -149,9 +149,10 @@ try:
           call("POST", "/api/brain/life", {"seat": "Michael", "player": "Sam", "delta": -10}, key=mk)[0] == 403)
     lands = [h["name"] for h in st.get("hand", []) if h.get("land")]
     if lands:
-        c, _ = call("POST", "/api/brain/land", {"seat": "Michael", "name": lands[0]}, key=mk)
+        c, r = call("POST", "/api/brain/land", {"seat": "Michael", "name": lands[0]}, key=mk)
         _, st2 = call("GET", "/api/brain/state?seat=Michael", key=mk)
-        check(f"Michael plays a land ({lands[0]})", c == 200 and any(p["name"] == lands[0] for p in st2.get("permanents", [])))
+        check(f"before the game starts Michael can't play a land ({lands[0]}), and is told how to start",
+              c == 409 and "highroll" in str(r.get("error")) and not any(p["name"] == lands[0] for p in st2.get("permanents", [])), (c, r))
     check("/hand is reachable from another device", call("GET", "/hand")[0] == 200)
     c, ph = call("POST", "/api/phase/next", {"by": "Michael", "key": mk})
     check("a virtual-deck seat can START the game", c == 200 and ph.get("player"), (c, ph.get("error"), ph.get("player")))
