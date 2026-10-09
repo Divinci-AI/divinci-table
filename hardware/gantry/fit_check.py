@@ -306,6 +306,18 @@ if PLUG_LIB.exists():
     report("FAIL" if out_free else "ok", "with the plug in, the bolt cannot slide out along the keyhole slot",
            f"the bolt still passes at x={out_free}" if out_free else "blocked from 2 mm on: the head meets the base, the thread meets the neck", id="plug-retains")
     retained = not out_free
+    # the assembled head: nylon washer (12.7 OD, 6.5 bore, NYLON thick) on top of the swivel and the bracket's leg (BRACKET thick, 1" wide) on that. The plug is flush on top and its ear stands out
+    # past the body, and it TURNS with the swivel (the bolt does) under the bracket: sweep a full turn in 15 degree steps (nominal, and grown 0.3).
+    top = SWIVEL_TOP; nyl_z, brk_z = top, top + NYLON
+    stack = (f'translate([0,0,{nyl_z}]) difference(){{ cylinder(d=12.7, h={NYLON}, $fn=48); translate([0,0,-1]) cylinder(d=6.5, h={NYLON + 2}, $fn=32); }}'
+             f' translate([-12.7,-38,{brk_z}]) difference(){{ cube([25.4, 76, {BRACKET}]); translate([12.7, 25.4, -1]) cylinder(d=6.6, h={BRACKET + 2}, $fn=32); }}')
+    turned = [a for a in range(0, 360, 15) for g in (0, GROW)
+              if collides(f'include <{PLUG_LIB}>\nintersection(){{ rotate([0,0,{a}]) offset_plug(); {{ {stack} }} }}'.replace("offset_plug();", f'translate([0,0,{g/2}]) plug({mid - g/2}, false);'))]
+    low_stack = stack.replace(f"translate([-12.7,-38,{brk_z}])", f"translate([-12.7,-38,{top - 2}])")             # control: the bracket 2 mm INTO the plug's top
+    ctl = collides(f'include <{PLUG_LIB}>\nintersection(){{ translate([0,0,0]) plug({mid}, false); {{ {low_stack} }} }}')
+    report("ok" if ctl else "FAIL", "negative control: a bracket sunk 2 mm into the plug's top DOES collide (the stack check can fail)")
+    report("FAIL" if turned else "ok", "swivel plug in the assembled head clears the nylon washer and the bracket, turning a full circle",
+           f"touches at {sorted(set(turned))[:6]} degrees" if turned else f"clear all the way round; the plug's top is flush with the swivel, the bracket's underside is {NYLON:g} mm above it", id="plug-vs-stack")
 else:
     retained = False
     report("WARN", "swivel: nothing but friction keeps it from sliding off the bolt along the keyhole slot", "no plug part yet (parts/swivel_plug_lib.scad)", id="swivel-retention")
