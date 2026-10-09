@@ -268,6 +268,58 @@ def main():
               and any(p["id"] == forest["id"] for p in st["permanents"])
               and [h["name"] for h in st["hand"]].count("Mountain") == mountains0 + 1, (c, r))
 
+    print("the step the phase reports through a pilot's combat (dogfood run 2, Opus finding 11)")
+    with Server(order="Claude,Fusion", humans=False) as S6:
+        S6.claim_all()
+        S6.start_game()
+        for name, p_, t_ in (("Bear", 3, 3), ("Wolf", 2, 2), ("Imp", 1, 1)):
+            S6.host_brain("Claude", "token", name=name, power=p_, toughness=t_)
+        S6.host_brain("Fusion", "token", name="Guard", power=1, toughness=4)
+        step = lambda: S6.phase()["step"]                                    # noqa: E731
+        c, r = go(S6, "Claude", "begin")
+        check("after begin: main 1", c == 200 and step() == "main 1", (c, step()))
+        bear, wolf, imp = (perm(S6, "Claude", n) for n in ("Bear", "Wolf", "Imp"))
+        life0 = S6.state("Fusion")["life"]
+        c, r = go(S6, "Claude", "attack", assign={f"#{bear['id']}": "Fusion"})
+        check("after attack: declare attackers", c == 200 and step() == "declare attackers", (c, step()))
+        c, r = S6.brain("Fusion", "block")
+        life1 = S6.state("Fusion")["life"]
+        check("Fusion takes it: the 3 is dealt now…", c == 200 and life1 == life0 - 3, (c, life0, life1))
+        check("…so the phase no longer says 'declare attackers': it is at combat damage", step() == "combat damage", step())
+        c, r = go(S6, "Claude", "damage")
+        check("after Claude's damage: still combat damage, nothing dealt twice", c == 200 and step() == "combat damage"
+              and S6.state("Fusion")["life"] == life1, (c, step(), S6.state("Fusion")["life"]))
+        c, r = go(S6, "Claude", "end")
+        evs = S6.call("GET", "/api/events?since=0")[1].get("events", [])
+        walked = [e.get("step") for e in evs if e.get("type") == "phase" and e.get("player") == "Claude"]
+        check("after end: the turn is over (cleanup, then the next seat)", c == 200 and (step() == "cleanup" or S6.phase()["player"] == "Fusion"),
+              (c, step()))
+        order_ = ["main 1", "beginning of combat", "declare attackers", "declare blockers", "combat damage", "main 2", "end step"]
+        check("…and `end` did not skip: the log has each of Claude's steps once, in order, through main 2 and the end step",
+              [s for s in walked if s in order_] == order_, walked)
+
+    with Server(order="Claude,Fusion", humans=False) as S7:                                     # two attackers: blocks come one at a time
+        S7.claim_all()
+        S7.start_game()
+        for name, p_, t_ in (("Bear", 3, 3), ("Wolf", 2, 2)):
+            S7.host_brain("Claude", "token", name=name, power=p_, toughness=t_)
+        S7.host_brain("Fusion", "token", name="Guard", power=1, toughness=4)
+        step = lambda: S7.phase()["step"]                                    # noqa: E731
+        go(S7, "Claude", "begin")
+        bear, wolf = (perm(S7, "Claude", n) for n in ("Bear", "Wolf"))
+        guard = perm(S7, "Fusion", "Guard")
+        c, r = go(S7, "Claude", "attack", assign={f"#{bear['id']}": "Fusion", f"#{wolf['id']}": "Fusion"})
+        check("two attackers: declare attackers", c == 200 and step() == "declare attackers", (c, step()))
+        c, r = S7.brain("Fusion", "block", blocker=f"#{guard['id']}", attacker=f"#{bear['id']}")
+        check("one blocked, one still unanswered: declare blockers", c == 200 and step() == "declare blockers", (c, r.get("error"), step()))
+        c, r = S7.brain("Fusion", "block", attacker=f"#{wolf['id']}")
+        check("both answered (damage dealt): combat damage", c == 200 and step() == "combat damage", (c, r.get("error"), step()))
+        life_a = S7.state("Fusion")["life"]
+        c, r = go(S7, "Claude", "end")
+        time.sleep(1.5)
+        check("Claude ends without its own damage: nothing more is dealt, the turn passes to Fusion",
+              S7.state("Fusion")["life"] == life_a and S7.phase()["player"] == "Fusion", (S7.state("Fusion")["life"], life_a, S7.phase()["player"]))
+
     os.environ["TABLE_AI_PASS_SECS"] = "3"                                         # a silent seat: the clock is short here
     with Server(order="Claude,Fusion", humans=False) as S3:
         S3.claim_all()
