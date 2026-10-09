@@ -298,5 +298,18 @@ except RuntimeError:
 p.send = orig_send
 ok &= check("F: an error mid-flip still turns the magnet off", fake.sent[-1] == "M107" and not p.magnet)
 
+# ── a streaming print owns the serial port ────────────────────────────────────────────────────
+real = gantry.print_running
+gantry.print_running = lambda: True
+try:
+    gantry.Printer(log=lambda *_: None)
+    refused_open = False
+except SystemExit as e:
+    refused_open = "print is streaming" in str(e)
+ok &= check("Printer() refuses to open the serial port while a print is streaming (and says why)", refused_open)
+gantry.print_running = lambda: False
+ok &= check("a fake serial line is unaffected by that guard (tests and the sender itself)", gantry.Printer(ser=FakeMarlin(), log=lambda *_: None).travel is not None)
+gantry.print_running = real
+
 print("ALL PASS" if ok else "SOME FAILED")
 sys.exit(0 if ok else 1)

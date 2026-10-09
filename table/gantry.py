@@ -170,6 +170,14 @@ def safe(line: str, internal: bool = False) -> str:
     return line
 
 
+def print_running() -> bool:
+    """True while scripts/printer/sender.py is streaming a print. The serial port is the sender's then: a second reader steals its 'ok' lines, and opening the port can reset the board."""
+    try:
+        return subprocess.run(["pgrep", "-f", "scripts/printer/sender.py|printer/sender.py /"], capture_output=True).returncode == 0
+    except OSError:
+        return False
+
+
 def find_ports() -> list[str]:
     pats = ["/dev/cu.usbserial*", "/dev/cu.wchusbserial*", "/dev/cu.usbmodem*", "/dev/cu.SLAB_USBtoUART*"]
     return sorted(p for pat in pats for p in glob.glob(pat))
@@ -184,6 +192,9 @@ class Printer:
         self.magnet_fault = False                      # the timer could not turn the magnet off: refuse everything but M107/M84
         self.z_known = False                           # Z is only known after zero_z() / an explicit home(z=True, clear=True); never across a reconnect
         if ser is None:
+            if print_running():
+                raise SystemExit("a print is streaming (scripts/printer/sender.py is running): the serial port is the sender's. Do not open it until the print ends "
+                                 "(opening it can reset the board and steals the sender's 'ok' lines). Stop the print first with `touch /tmp/printer-stop`.")
             import serial
             ports = [port] if port else find_ports()
             if not ports:
