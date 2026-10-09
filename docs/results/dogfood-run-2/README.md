@@ -20,4 +20,4 @@ Fixed by run 1's changes and confirmed working: the table read the attackers' po
 11. The phase never left "declare attackers" while damage was applied; `end` jumped to cleanup.
 
 ## Fixed after this run (commit following 49529a6)
-Findings 1 (message), 4, 5, 6, 7 (partial names). Open: 2, 3, 8, 9, 10, 11.
+Findings 1 (message), 4, 5, 6, 7 (partial names); 2 (aura pumps, own-name P/T); 3 in part (Righteous Authority draw, Kestia draw, and an `effect` action for draw/surveil/scry/manifest/destroy/exile/bounce that the source card must say); 9 (the pass clock is shown and auto-passes are marked). Still open: activated abilities (Mirror Entity, Wolf Run), 8 (choosing which land to tap/bounce), 10 (remote journal), 11 (phase stays at declare attackers).

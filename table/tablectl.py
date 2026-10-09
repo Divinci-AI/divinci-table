@@ -285,6 +285,10 @@ def main():
     dm = sub.add_parser("damage", help='attackers that hit a player: "Ellivere=Michael" "#14=Sam:5"')
     dm.add_argument("hits", nargs="*", help="optional for a remote seat: the table deals blocked and unblocked damage itself")
     dm.add_argument("--no-life", action="store_true", help="triggers only: the players already said their life")
+    ef = sub.add_parser("effect", help="a trigger/ability the table does not model, allowed only when the SOURCE card's text says it: "
+                                       "effect SOURCE draw|surveil|scry|manifest|destroy|exile|bounce [--n N] [--put top|bottom|graveyard] [--target REF --at SEAT]")
+    ef.add_argument("source"); ef.add_argument("kind"); ef.add_argument("--n", type=int, default=1); ef.add_argument("--put")
+    ef.add_argument("--target"); ef.add_argument("--at")
     ro = sub.add_parser("role"); ro.add_argument("ref"); ro.add_argument("kind")
     en = sub.add_parser("end"); en.add_argument("text", nargs="?")
     sub.add_parser("pass", help="answer a priority window: no instant this time")
@@ -381,6 +385,8 @@ def main():
             who, _, n = rest.partition(":")
             hits[ref] = [who, int(n) if n else None]
         return act("damage", hits=hits, no_life=a.no_life)
+    if a.cmd == "effect":
+        return act("effect", source=a.source, kind=a.kind, n=a.n, put=a.put, target=a.target, at=a.at)
     if a.cmd == "role":
         return act("role", ref=a.ref, kind=a.kind)
     if a.cmd == "claim":

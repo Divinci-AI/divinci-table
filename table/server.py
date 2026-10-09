@@ -693,7 +693,7 @@ def ai_advance(seat_name: str, action: str) -> str | None:
 # peek, topdeck, put, token, counter, animate, ...) or is the table host's (new-game, take, fair-reveal). The host's brain
 # token keeps all of it. Checked BEFORE ai_advance: a refused action must not walk the turn on as a side effect.
 PILOT_ACTIONS = frozenset({"say", "begin", "land", "cast", "turn-up", "tap", "untap", "attack", "damage", "block",
-                           "pass", "end", "life"})
+                           "pass", "end", "life", "effect"})
 
 # Combat the SERVER computes. A pilot says which creatures attack whom; the engine knows their power. The defender never types
 # an amount: `block` takes the number from here, and whatever nobody blocked is dealt when the turn moves on. (Before this, the
@@ -702,6 +702,9 @@ PRESTART_ACTIONS = AI_MAIN_ACTIONS | {"attack", "damage", "block"}
 START_HINT = ("the game hasn't started: start it with `highroll quantum` (tablectl) or POST /api/highroll/start "
               "{\"mode\": \"quantum\"}; the winner of the roll goes first")
 COMBAT: dict = {"pending": [], "hits": [], "human": [], "used": set()}
+EFFECT_WORDS = {"draw": r"\bdraws? ", "surveil": r"\bsurveil\b", "scry": r"\bscry\b", "manifest": r"\bmanifest",
+                "destroy": r"\bdestroy", "exile": r"\bexile", "bounce": r"(owner's hand|return target|return it to)"}
+EFFECT_USES: dict = {}                               # (seat, turn, source, kind) -> times used this turn
 GAME_FIRST: dict = {"seat": None}                    # who took the first turn: in a two-player game that seat skips its first draw
 
 
@@ -3387,6 +3390,50 @@ class H(BaseHTTPRequestHandler):
                             raise IllegalAction(r["error"])
                     lt = life_table()
                     said += [f"{who} is at {lt[who]}." for who in deltas if who != VP.name and who in lt]
+                elif action == "effect":                  # a trigger or ability the engine does not model: allowed only when the SOURCE card says so
+                    kind = str(b.get("kind", "")).lower()
+                    if kind not in EFFECT_WORDS:
+                        raise IllegalAction(f"effect kinds: {', '.join(EFFECT_WORDS)}")
+                    src = VP.perm(str(b.get("source", "")))
+                    if src.face_down:
+                        raise IllegalAction("a face-down permanent has no effects: turn it face up first")
+                    text = (src.card.get("text") or "").lower()
+                    if not re.search(EFFECT_WORDS[kind], text):
+                        raise IllegalAction(f"{src.name} doesn't say anything that {kind}s: it reads: {(src.card.get('text') or '')[:160]}")
+                    use = (VP.name, VP.turn, src.id, kind)
+                    EFFECT_USES[use] = EFFECT_USES.get(use, 0) + 1
+                    if EFFECT_USES[use] > (1 if kind in ("destroy", "exile", "bounce") else 3):
+                        raise IllegalAction(f"{src.name} has already done that as often as it can this turn")
+                    n = max(1, min(int(b.get("n") or 1), 3))
+                    if kind == "draw":
+                        before = len(VP.hand)
+                        VP.draw(n)
+                        private["drew"] = [c["name"] for c in VP.hand[before:]]
+                        said = [f"{src.name}: I draw {len(private['drew'])} card{'s' if len(private['drew']) != 1 else ''}."]
+                    elif kind in ("surveil", "scry"):
+                        top = VP.peek(1)
+                        private["top"] = top
+                        put = str(b.get("put") or "top")
+                        if top and put == "graveyard" and kind == "surveil":
+                            VP.mill(1)
+                        elif top and put == "bottom" and kind == "scry":
+                            VP.bottom(top[0], from_top=True)
+                        elif put not in ("top", "graveyard", "bottom"):
+                            raise IllegalAction("put: top | bottom (scry) | graveyard (surveil)")
+                        said = [f"{src.name}: I {kind} 1" + (f" and put it on the {put}." if put != "top" else " and leave it on top.")]
+                    elif kind == "manifest":
+                        said = VP.manifest(n)
+                    else:
+                        owner = seat(b.get("at") or VP.name)
+                        if owner is None:
+                            raise IllegalAction(f"no seat '{b.get('at')}'")
+                        tv = VPS[owner]
+                        tp = tv.perm(str(b.get("target", "")))
+                        if kind == "destroy" and "Indestructible" in ([] if tp.face_down else tp.card.get("keywords") or []):
+                            raise IllegalAction(f"{tp.name} is indestructible")
+                        said = [f"{src.name}: " + tv.move(f"#{tp.id}", {"destroy": "graveyard", "exile": "exile", "bounce": "hand"}[kind])[0]]
+                        if owner != VP.name:
+                            emit("attention", kind="effect", addressee=owner, text=f"{VP.name}'s {src.name} {kind}s your {tp.name}.")
                 elif action == "role":
                     said = VP.add_role(VP.perm(b["ref"]), b["kind"].strip().title())
                 elif action == "end":

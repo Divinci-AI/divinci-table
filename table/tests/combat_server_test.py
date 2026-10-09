@@ -132,6 +132,23 @@ def main():
         c, r = S.brain("Claude", "pass")
         check("a pass in your own turn names who moves it on, not 'waiting on None'", c == 409 and "None" not in str(r.get("error")), (c, r))
 
+        print("effects the engine does not model: only when the source card says so")
+        c, r = S.host_brain("Claude", "search", name="Ransom Note", to="battlefield")
+        note = perm(S, "Claude", "Ransom Note")
+        lib0, gy0 = S.state("Claude")["library"], len(S.state("Claude")["graveyard"])
+        c, r = S.brain("Claude", "effect", source=f"#{note['id']}", kind="surveil", put="graveyard")
+        st = S.state("Claude")
+        check("Ransom Note says surveil: Claude surveils 1 and bins the top card (library -1, graveyard +1)",
+              c == 200 and st["library"] == lib0 - 1 and len(st["graveyard"]) == gy0 + 1 and r["private"].get("top"), (c, r.get("error")))
+        c, r = S.brain("Claude", "effect", source=f"#{note['id']}", kind="destroy", target="#1", at="Fusion")
+        check("…but Ransom Note says nothing about destroying: refused, with its text", c == 400 and "doesn't say" in str(r.get("error")), (c, r))
+        for _ in range(2):
+            S.brain("Claude", "effect", source=f"#{note['id']}", kind="surveil")
+        c, r = S.brain("Claude", "effect", source=f"#{note['id']}", kind="surveil")
+        check("…and not more often than a card can do it in a turn", c == 400 and "as often" in str(r.get("error")), (c, r))
+        c, r = S.brain("Claude", "effect", source="#99999", kind="draw")
+        check("a source that is not on your battlefield is refused", c == 400, (c, r))
+
         print("a seat with a deck cannot hand the table its own attack numbers")
         c, r = S.call("POST", "/api/declare/attack", {"by": "Claude", "key": S.claim("Claude"),
                                                       "attacks": [{"attacker": "X", "target": "Fusion", "power": 40}]}, key=S.claim("Claude"))
