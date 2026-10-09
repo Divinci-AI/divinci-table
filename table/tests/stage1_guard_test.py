@@ -297,7 +297,72 @@ def item3():
         check("…and still honours a discount (Jukai Naturalist and friends)", c == 200, (c, str(d)[:120]))
 
 
-SECTIONS = {"1": item1, "2": item2, "3": item3}
+# ───────────────────────────────── item 4 ─────────────────────────────────
+def perm_of(S, seat, name):
+    return next((p for p in S.state(seat)["permanents"] if p["name"] == name), None)
+
+
+def item4():
+    print("item 4: untap by hand only in your own untap step, on both paths")
+    with Server() as S:                                        # Claude (a pilot) goes first
+        S.claim_all()
+        S.start_game()
+        lands = [h["name"] for h in S.state("Claude")["hand"] if h.get("land")]
+        flands = [h["name"] for h in S.state("Fusion")["hand"] if h.get("land")]
+        check("(both pilots hold a land to work with)", bool(lands) and bool(flands), (lands, flands))
+        S.brain("Claude", "land", name=lands[0])
+        S.brain("Fusion", "land", name=flands[0])
+        cl, fl = perm_of(S, "Claude", lands[0]), perm_of(S, "Fusion", flands[0])
+        c, d = S.brain("Claude", "tap", ref="#%d" % cl["id"])
+        check("tap is legal (Claude taps its land at its own untap step)", c == 200 and perm_of(S, "Claude", lands[0])["tapped"], (c, d))
+        c, d = S.brain("Claude", "untap", ref="#%d" % cl["id"])
+        check("the active pilot may untap in its own untap step", c == 200 and not perm_of(S, "Claude", lands[0])["tapped"], (c, str(d)[:140]))
+        S.brain("Fusion", "tap", ref="#%d" % fl["id"])
+        c, d = S.brain("Fusion", "untap", ref="#%d" % fl["id"])
+        check("a pilot who is NOT the active player cannot untap", c in (403, 409) and perm_of(S, "Fusion", flands[0])["tapped"], (c, str(d)[:140]))
+        check("…and the refusal says why", "untap" in str(d.get("error", "")) and "Claude" in str(d.get("error", "")), d)
+        c, d = S.host_brain("Fusion", "untap", ref="#%d" % fl["id"])
+        check("the host's brain token keeps untap (effects the engine does not model)", c == 200 and not perm_of(S, "Fusion", flands[0])["tapped"], (c, str(d)[:140]))
+        S.brain("Claude", "tap", ref="#%d" % cl["id"])
+        c, d = S.act_walk("Claude", "begin")
+        check("begin still untaps everything at the start of the turn", c == 200 and not perm_of(S, "Claude", lands[0])["tapped"], (c, str(d)[:120]))
+        S.brain("Claude", "tap", ref="#%d" % cl["id"])
+        c, d = S.brain("Claude", "untap", ref="#%d" % cl["id"])
+        check("after begin (main 1) a manual untap is refused, the land stays tapped", c in (403, 409) and perm_of(S, "Claude", lands[0])["tapped"], (c, str(d)[:140]))
+        check("…naming the step", "untap step" in str(d.get("error", "")), d)
+    with Server(order="Michael,Claude,Fusion,Sam") as S:       # a person with a real deck goes first
+        S.claim_all()
+        k = S.claim("Michael")
+
+        def board(perms):
+            return S.call("POST", "/api/my-board", {"by": "Michael", "key": k, "permanents": perms})
+
+        def act(action, i=0, name="Forest"):
+            return S.call("POST", "/api/card-action", {"seat": "Michael", "key": k, "index": i, "name": name, "action": action}, key=k)
+
+        def tapped(i=0):
+            b3 = S.call("GET", "/api/board3d")[1]
+            m = next(x for x in b3["seats"] if x["name"] == "Michael")
+            return m["permanents"][i].get("tapped")
+        board([{"name": "Forest", "tapped": True}, {"name": "Island"}])
+        c, d = act("untap")
+        check("before the game starts a card-action untap is refused", c in (403, 409) and tapped(), (c, d))
+        S.start_game()                                         # Michael is active, at his untap step
+        c, d = act("untap")
+        check("the active person may untap in their own untap step (card-action)", c == 200 and not tapped(), (c, d))
+        c, d = act("tap")
+        check("tap is legal at any time", c == 200 and tapped(), (c, d))
+        c, d = S.next("Michael")                               # his untap step is passed: now upkeep
+        c, d = act("untap")
+        check("after the untap step a card-action untap is refused, the card stays tapped", c in (403, 409) and tapped(), (c, d))
+        check("…and says why", "untap step" in str(d.get("error", "")), d)
+        board([{"name": "Forest", "tapped": True}])
+        k2 = S.claim("Sam")
+        c, d = S.call("POST", "/api/card-action", {"seat": "Michael", "key": k2, "index": 0, "name": "Forest", "action": "untap"}, key=k2)
+        check("(Sam's key cannot act on Michael's cards at all)", c == 403, (c, d))
+
+
+SECTIONS = {"1": item1, "2": item2, "3": item3, "4": item4}
 
 
 def main():

@@ -141,7 +141,7 @@ function openMenu(c, ev) {
         <input list="tgts" data-target placeholder="(none, or pick / type)" style="flex:1;min-width:0;background:#1b1e25;color:#eee;border:1px solid #3a3f4a;border-radius:6px;padding:4px 6px;font:inherit;font-size:12.5px">
         <datalist id="tgts">${targets.map(t => `<option value="${esc(t)}">`).join("")}</datalist></div>` : ""}
     <div style="margin-top:9px;display:flex;flex-wrap:wrap;gap:5px">
-      ${btn(c.tapped ? "untap" : "tap", c.tapped ? "Untap" : "Tap")} ${btn("counter+", "+1 counter")} ${btn("counter-", "−1 counter")}
+      ${c.tapped && !(lastData && lastData.turn === c._seat && lastData.step === "untap") ? `<span style="opacity:.6;font-size:12px;align-self:center">untaps in ${esc(c._seat)}'s untap step</span>` : btn(c.tapped ? "untap" : "tap", c.tapped ? "Untap" : "Tap")} ${btn("counter+", "+1 counter")} ${btn("counter-", "−1 counter")}
       ${btn("graveyard", "To graveyard")} ${btn("exile", "Exile")} ${btn("hand", "To hand")}
     </div>
     <div data-msg style="margin-top:6px;min-height:1em;color:#ffb3b3;font-size:12px"></div>`;

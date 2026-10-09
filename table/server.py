@@ -575,6 +575,19 @@ def priority_reset(why: str):
                          text=f"{active}: {step}. Something new happened — you may respond, or pass.", step=step, active=active)
 
 
+def untap_refusal(owner: str) -> str | None:
+    """Why `owner` may not untap a permanent by hand right now, or None: only the ACTIVE player, in their own untap step (the
+    start of the turn untaps everything; this is the manual one). Tapping is not checked: tap is legal whenever you hold
+    priority. Used by /api/brain/untap (a pilot's key) and /api/card-action (a person's real deck)."""
+    if PHASE["player"] is None:
+        return "the game hasn't started: nothing untaps yet"
+    if PHASE["player"] != owner:
+        return f"you can only untap in your own untap step: it's {PHASE['player']}'s turn, not {owner}'s"
+    if STEPS[PHASE["step"]] != "untap":
+        return f"you can only untap in your untap step: {owner}'s turn is at {STEPS[PHASE['step']]} now"
+    return None
+
+
 BEGIN_LOCK = threading.Lock()                        # one begin at a time: a double tap must not untap and draw twice
 
 
@@ -2491,6 +2504,11 @@ class H(BaseHTTPRequestHandler):
                         p["tapped"] = True
                     text = f"{owner} activates {nm}: {ability}" + (f" — targeting {target}" if target else "")
                 elif action in ("tap", "untap"):
+                    if action == "untap":
+                        with PHASE_LOCK:
+                            why = untap_refusal(owner)
+                        if why:
+                            return self._send(409, {"error": why})
                     p["tapped"] = action == "tap"
                     text = f"{owner} {action}s {nm}."
                 elif action in ("counter+", "counter-"):
@@ -2912,6 +2930,12 @@ class H(BaseHTTPRequestHandler):
                     self._refused(act, "pilot-not-allowed", "")
                     return self._send(403, {"error": f"'{act}' isn't available to a pilot seat: it has no card behind it "
                                                      f"(a pilot plays: {', '.join(sorted(PILOT_ACTIONS))}); the table's host can do it"})
+                if pilot and act == "untap":
+                    with PHASE_LOCK:
+                        why = untap_refusal(sn)
+                    if why:
+                        self._refused(act, "untap-not-now", why)
+                        return self._send(409, {**phase_public(), "error": why})
                 if pilot and act == "cast":
                     b.pop("discount", None)                 # a client-named cost reduction is not checked by the engine: host only
                 with (BEGIN_LOCK if act == "begin" else nullcontext()):

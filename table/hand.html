@@ -104,7 +104,7 @@ function draw() {
       ${p.face_down ? `<span class="tag">really ${esc(p.name)}</span>` : ""}<div>
       ${ready ? `<label><input type=checkbox data-atk="${p.id}" ${attackers.has(p.id) ? "checked" : ""}> attack</label>` : ""}
       ${p.face_down && p.turn_up_cost ? `<button data-up="${p.id}">Turn face up (${esc(p.turn_up_cost)})</button>` : ""}
-      <button data-tap="${p.id}">${p.tapped ? "Untap" : "Tap"}</button></div></div>`; }).join("") : `<div class="sub">Nothing on the battlefield yet.</div>`;
+      ${p.tapped && !canUntap() ? "" : `<button data-tap="${p.id}">${p.tapped ? "Untap" : "Tap"}</button>`}</div></div>`; }).join("") : `<div class="sub">Nothing on the battlefield yet.</div>`;
   const opps = Object.entries(S.life_table || {}).filter(([n, l]) => n !== S.seat && l > 0).map(([n]) => n);
   $("atk").innerHTML = (attackers.size ? `<select id="target">${opps.map(o => `<option>${esc(o)}</option>`).join("")}</select>
       <button class="gold" id="attack">Attack with ${attackers.size}</button>` : "") +
@@ -160,6 +160,9 @@ async function poll() {
   setTimeout(poll, 1200);
 }
 // What the server will accept, mirrored here only to grey buttons out: the server refuses the rest (and says why).
+// Untap by hand is the active player's, in their own untap step, and nowhere else (the server refuses it; so no button).
+function canUntap() { return !!PH && !!S && PH.player === S.seat && PH.step === "untap"; }
+let uiUntap = false;
 function canBegin() { return !!PH && !!me() && PH.player === me() && !PH.begun && PH.index < (PH.steps || []).indexOf("main 1"); }
 function buttons() {
   const b = canBegin(); $("begin").disabled = !b;
@@ -169,6 +172,7 @@ async function refreshPhase() {
   try { const p = await (await fetch("/api/phase")).json(); PH = p; $("phase").textContent = p.player ? `${p.player} · ${p.step}` : "game not started";
     $("startrow").style.display = p.player || !me() ? "none" : ""; } catch {}
   buttons();
+  if (canUntap() !== uiUntap) { uiUntap = canUntap(); if (S) draw(); }   // Untap appears / goes away with the step
 }
 async function phase() {
   await refreshPhase();
