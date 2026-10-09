@@ -55,7 +55,8 @@
   const beep = () => { tone(1000, 110, .3); try { navigator.vibrate && navigator.vibrate(120); } catch {} };
 
   // ── what the table says ──
-  const st = { turn: false, mine: false, deadline: null, secs: 0, offset: 0, wasMine: false, lastBeep: 0, err: "", errUntil: 0 };
+  const st = { turn: false, mine: false, deadline: null, secs: 0, offset: 0, wasMine: false, lastBeep: 0, err: "", errUntil: 0,
+    pilot: false, player: null, step: null };
   const me = () => ((window.TableSeat && window.TableSeat.name && window.TableSeat.name()) || "").toLowerCase();
   async function poll() {
     try {
@@ -64,6 +65,8 @@
       const ps = p.passes || {};
       st.mine = !!ps.next && ps.next.toLowerCase() === me() && p.player !== null && p.player.toLowerCase() !== me();
       st.turn = !!p.player && p.player.toLowerCase() === me();       // my own turn: the page I act from is /me
+      st.pilot = (p.ai || []).some(n => n.toLowerCase() === me());   // a virtual-deck seat: it passes with its own call, NEXT refuses it
+      st.player = p.player; st.step = p.step;
       st.deadline = ps.deadline || null;
       st.secs = ps.secs || 0;
       if (ps.now) st.offset = ps.now * 1000 - Date.now();   // the server's clock, not this phone's
@@ -95,8 +98,12 @@
   $(".u-pass").onclick = async () => {
     unlock();
     try {
-      const r = await fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(window.TableSeat ? window.TableSeat.body() : { by: me() }) });
+      const seat = window.TableSeat && window.TableSeat.name && window.TableSeat.name();
+      const r = st.pilot   // a pilot's pass is the same call /hand makes, for the step this bar was showing (a late press is refused as stale)
+        ? await fetch("/api/brain/pass", { method: "POST", headers: { "Content-Type": "application/json", "X-Seat-Key": window.TableSeat.body().key || "" },
+            body: JSON.stringify({ seat, player: st.player, step: st.step }) })
+        : await fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(window.TableSeat ? window.TableSeat.body() : { by: me() }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { st.err = d.error || "couldn't pass"; st.errUntil = Date.now() + 4000; }
       await poll();

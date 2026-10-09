@@ -362,7 +362,53 @@ def item4():
         check("(Sam's key cannot act on Michael's cards at all)", c == 403, (c, d))
 
 
-SECTIONS = {"1": item1, "2": item2, "3": item3, "4": item4}
+# ───────────────────────────────── item 5 ─────────────────────────────────
+def item5():
+    print("item 5: a pilot's pass reaches the server, counts once, in order, for the right step")
+    with Server() as S:                                        # order Claude, Fusion, Michael, Sam
+        S.claim_all()
+        c, d = S.brain("Fusion", "pass")
+        check("before the game starts a pilot's pass is refused", c in (403, 409), (c, str(d)[:120]))
+        S.start_game()
+        c, d = S.brain("Claude", "begin")                      # Claude's turn walks to upkeep and waits for the others
+        check("(Claude's begin waits at upkeep for the others to pass)", c == 409 and d.get("waiting") and d["step"] == "upkeep", (c, str(d)[:160]))
+        c, d = S.brain("Claude", "pass")
+        check("the active pilot cannot pass in its own turn", c in (403, 409) and "own turn" in str(d.get("error", "")), (c, str(d)[:140]))
+        c, d = S.brain("Fusion", "pass", player="Claude", step="main 1")
+        ps = S.phase()["passes"]
+        check("a STALE pass (for a step the table is not at) is refused", c in (403, 409) and "stale" in str(d.get("error", "")), (c, str(d)[:140]))
+        check("…and counted for nobody", "Fusion" not in ps["passed"] and ps["next"] == "Fusion", ps)
+        c, d = S.brain("Fusion", "pass", player="Claude", step="upkeep")
+        ps = S.phase()["passes"]
+        ev = S.call("GET", "/api/events?since=0")[1]["events"]
+        check("Fusion's pass for the current step reaches the server", c == 200, (c, str(d)[:140]))
+        check("…the round moved on: Fusion passed, Michael is next", ps["passed"] == ["Fusion"] and ps["next"] == "Michael", ps)
+        check("…and the table log shows the pass", any(e.get("type") == "pass" and e.get("by") == "Fusion" for e in ev), ev[-3:])
+        c, d = S.brain("Fusion", "pass", player="Claude", step="upkeep")
+        ps = S.phase()["passes"]
+        check("a DUPLICATE pass is refused", c in (403, 409) and "already passed" in str(d.get("error", "")), (c, str(d)[:140]))
+        check("…and does not count twice or skip Michael", ps["passed"] == ["Fusion"] and ps["next"] == "Michael", ps)
+        S.next("Michael")
+        S.next("Sam")
+        time.sleep(0.4)                                        # the window
+        c, d = S.brain("Claude", "begin")
+        check("once everyone has passed, the step moves on (Claude's begin now waits at draw)", c == 409 and d.get("step") == "draw", (c, d.get("step"), str(d)[:120]))
+    with Server(order="Claude,Michael,Fusion,Sam") as S:       # Michael must pass before Fusion
+        S.claim_all()
+        S.start_game()
+        S.brain("Claude", "begin")
+        c, d = S.brain("Fusion", "pass", player="Claude", step="upkeep")
+        ps = S.phase()["passes"]
+        check("a pilot cannot pass before the seat ahead of it (turn order)", c in (403, 409) and "Michael passes first" in str(d.get("error", "")), (c, str(d)[:140]))
+        check("…and the round is unchanged", ps["passed"] == [] and ps["next"] == "Michael", ps)
+        S.next("Michael")
+        c, d = S.brain("Fusion", "pass", player="Claude", step="upkeep")
+        check("after Michael it is Fusion's turn to pass, and the pass counts", c == 200 and S.phase()["passes"]["next"] == "Sam", (c, str(d)[:120], S.phase()["passes"]))
+        c, d = S.host_brain("Fusion", "pass")
+        check("(the host brain's pass is not held to the pilot rules)", c == 200, (c, str(d)[:100]))
+
+
+SECTIONS = {"1": item1, "2": item2, "3": item3, "4": item4, "5": item5}
 
 
 def main():

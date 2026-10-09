@@ -588,6 +588,32 @@ def untap_refusal(owner: str) -> str | None:
     return None
 
 
+PASS_LOCK = threading.Lock()                         # one pilot pass at a time, for the same reason
+
+
+def pilot_pass_refusal(seat_name: str, b: dict) -> str | None:
+    """Why a pilot's pass does not count right now, or None. The page names the step it was looking at (`player`, `step`): a
+    pass for a step that has already moved on is stale and must not pass the NEXT one. Then the round's own rules, which people
+    already obey in next_step: you pass once, in turn order, in a step you are in the round for, and never in your own turn.
+    PHASE_LOCK is the caller's."""
+    if PHASE["player"] is None:
+        return "the game hasn't started"
+    here = STEPS[PHASE["step"]]
+    said_p, said_s = b.get("player"), b.get("step")
+    if (said_p is not None and said_p != PHASE["player"]) or (said_s is not None and said_s != here):
+        return f"stale pass: it was for {said_p or PHASE['player']}'s {said_s or here}, the table is at {PHASE['player']}'s {here}"
+    if PHASE["player"] == seat_name:
+        return "it's your own turn: there is nothing to pass; end it with End my turn"
+    ps = passes_state()
+    if seat_name not in ps["need"]:
+        return f"you aren't in {here}'s priority round"
+    if seat_name in ps["passed"]:
+        return f"you already passed {here}: waiting on {ps['next']}"
+    if ps["next"] != seat_name:
+        return f"{ps['next']} passes first (turn order), then you"
+    return None
+
+
 BEGIN_LOCK = threading.Lock()                        # one begin at a time: a double tap must not untap and draw twice
 
 
@@ -2938,12 +2964,21 @@ class H(BaseHTTPRequestHandler):
                         return self._send(409, {**phase_public(), "error": why})
                 if pilot and act == "cast":
                     b.pop("discount", None)                 # a client-named cost reduction is not checked by the engine: host only
-                with (BEGIN_LOCK if act == "begin" else nullcontext()):
+                lock = BEGIN_LOCK if act == "begin" else PASS_LOCK if (pilot and act == "pass") else nullcontext()
+                with lock:                                  # a double tap queues behind the first press and sees its effect
                     if act == "begin":
                         with PHASE_LOCK:
                             why = begin_refusal(sn, host=not pilot)
                         if why:
                             self._refused(act, "not-your-begin", why)
+                            return self._send(409, {**phase_public(), "error": why})
+                    if pilot and act == "pass":
+                        with PHASE_LOCK:
+                            why = pilot_pass_refusal(sn, b)
+                            if why is None:
+                                ai_passed(sn)               # counted BEFORE the answer goes out: the page reads the round next
+                        if why:
+                            self._refused(act, "pass-not-now", why)
                             return self._send(409, {**phase_public(), "error": why})
                     with PHASE_LOCK:
                         blocked = ai_advance(sn, act)
@@ -2952,11 +2987,11 @@ class H(BaseHTTPRequestHandler):
                                                 "error": f"waiting on passes: {blocked} (retry)"})
                     with acting(sn):
                         out = self._brain(act, b)
-                if act in ("cast", "turn-up", "manifest") and PHASE["player"] != sn:
-                    priority_reset(f"{sn} responded ({act})")   # an AI answered in a person's step: round again
-                    ai_passed(sn)                               # …and it has had its say in the new round
-                elif act == "pass" and PHASE["player"] != sn:
-                    ai_passed(sn)
+                    if act in ("cast", "turn-up", "manifest") and PHASE["player"] != sn:
+                        priority_reset(f"{sn} responded ({act})")   # an AI answered in a person's step: round again
+                        ai_passed(sn)                               # …and it has had its say in the new round
+                    elif act == "pass" and PHASE["player"] != sn:
+                        ai_passed(sn)                               # (a no-op after the pilot's own, counted above)
                 return out
             if self.path == "/api/reset":                  # new game: empty hand, full library, no history
                 with T.lock:

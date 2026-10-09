@@ -67,7 +67,8 @@ async function act(action, body = {}) {
   $("err").textContent = "";
   for (let i = 0; i < 20; i++) {                        // my turn walks its steps: wait while the others pass
     const { ok, code, d } = await call("POST", "/api/brain/" + action, { seat: me(), ...body });
-    if (code === 409 && d.waiting) { $("err").textContent = `waiting on ${d.waiting.join(", ")}…`; await new Promise(r => setTimeout(r, 2000)); continue; }
+    const w = Array.isArray(d.waiting) ? d.waiting.join(", ") : (d.waiting || "");   // the server sends a string ("Ben, Ann"); a refusal carries [] and no wait
+    if (code === 409 && w) { $("err").textContent = `waiting on ${w}…`; await new Promise(r => setTimeout(r, 2000)); continue; }
     if (!ok) { $("err").textContent = d.error || "refused"; return null; }
     (d.said || []).forEach(x => logLine(x)); $("err").textContent = "";
     await load(); refreshPhase(); return d;
@@ -126,6 +127,7 @@ document.body.addEventListener("click", async e => {
   if (t.id === "dmg") { await act("damage", { hits: Object.fromEntries(lastAttack.map(([r, w]) => [r, [w, null]])), no_life: true }); lastAttack = []; return draw(); }
   if (d.take !== undefined) { await act("block", { amount: alert.amount, attacker: alert.attacker, trample: alert.trample }); alert = null; return draw(); }
   if (d.blk !== undefined) { await act("block", { blocker: "#" + d.blk, amount: alert.amount, attacker: alert.attacker, trample: alert.trample }); alert = null; return draw(); }
+  if (d.pass !== undefined) { alert = null; draw(); return passNow(); }
   if (d.dismiss !== undefined) { alert = null; return draw(); }
 });
 $("begin").onclick = () => { alert = null; act("begin"); };
@@ -134,7 +136,9 @@ $("start").onclick = async () => {
   const d = await r.json().catch(() => ({})); $("err").textContent = r.ok ? "" : (d.error || "couldn't start");
   if (r.ok) logLine(`The game starts: ${d.player} goes first.`);
 };
-$("pass").onclick = () => { alert = null; act("pass"); };
+// A real pass: it names the step it was looking at, so a press that arrives after the table moved on is refused, not applied to the next step.
+const passNow = async () => { await refreshPhase(); return act("pass", PH && PH.player ? { player: PH.player, step: PH.step } : {}); };
+$("pass").onclick = () => { alert = null; passNow(); };
 $("end").onclick = () => { lastAttack = []; act("end", { text: "That's my turn." }); };
 async function poll() {
   try {
@@ -143,7 +147,7 @@ async function poll() {
       if (e.type === "say" && e.speaker === me()) continue;
       if (e.type === "attention" && (e.addressee || "").toLowerCase() === me().toLowerCase()) {
         if (e.kind === "turn") alert = { html: "It's your turn. <button class='gold' data-dismiss>OK</button> Press <b>Begin my turn</b>." };
-        else if (e.kind === "priority") alert = { html: `${esc(e.text || "Priority")}: cast an instant, or <button data-dismiss>Pass</button>` };
+        else if (e.kind === "priority") alert = { html: `${esc(e.text || "Priority")}: cast an instant, or <button data-pass>Pass</button> <button data-dismiss>Not now</button>` };
         else if (e.kind === "attacked") {
           const blockers = (S?.permanents || []).filter(p => p.pt && !p.tapped);
           alert = { amount: e.amount || 0, attacker: e.attacker, trample: !!e.trample,
