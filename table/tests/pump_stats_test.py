@@ -82,5 +82,13 @@ h = len(p5.hand)
 p5.manual_attack({f"#{bear.id}": "Opus"})
 check(len(p5.hand) == h, "a plain Bear nothing enchants does not draw Kestia's card when it attacks")
 
+p6 = fresh()
+for n_ in ("Azorius Chancery", "Island", "Forest", "Meandering River"):
+    put(p6, n_)
+pay = p6.plan_payment("{2}{W}")
+names = sorted(x.name for x in pay)
+check(pay is not None and names.count("Azorius Chancery") <= 2 and "Island" not in names and len(set(names)) == 2,
+      f"Unquestioned Authority {{2}}{{W}} with Chancery, Island, Forest, River: a 2-mana land and a 1-mana land, nothing wasted (tapped {names})")
+
 print(f"\n{sum(results)}/{len(results)} pump checks passed")
 sys.exit(0 if all(results) else 1)

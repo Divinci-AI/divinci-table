@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import random
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from itertools import count
 
@@ -344,7 +345,9 @@ class VirtualPlayer:
         make the FEWEST colours (keep flexible lands for later), then generic from the rest."""
         generic, pips = parse_cost(mana_cost)
         generic = max(0, generic + extra_generic)
-        pool = sorted(self.sources(), key=lambda s: len(s[1]))
+        srcs = self.sources()
+        yields = Counter(e[0].id for e in srcs)                  # how much mana one tap of each permanent makes
+        pool = sorted(srcs, key=lambda s: (len(s[1]), yields[s[0].id]))   # coloured pips from single-colour, then single-mana, sources first
         used = []
         # A land with a mana Aura is ONE tap for TWO mana: once it is tapped for one, its other mana
         # comes free and must be spent before anything else is tapped. Measured 2026-09-30: Fertile
@@ -369,9 +372,19 @@ class VirtualPlayer:
                     one_colour[s[0].id] = color
                 pool.remove(s)
                 used.append(s[0])
-        for _ in range(generic):
-            s = (free() or pool or [None])[0]
-            if s is None:
+        for paid in range(generic):
+            fr = free()
+            if fr:
+                s = fr[0]
+            elif pool:                                   # a fresh tap: the one whose mana fits what is still owed (a 2-mana land for a
+                owed = generic - paid                    # 3-mana spell, not a 2-mana land AND another land where one would do)
+                by_perm: dict[int, list] = {}
+                for e in pool:
+                    by_perm.setdefault(e[0].id, []).append(e)
+                fits_ = [g for g in by_perm.values() if len(g) <= owed]
+                grp = max(fits_, key=lambda g: (len(g), -len(g[0][1]))) if fits_ else min(by_perm.values(), key=len)
+                s = grp[0]
+            else:
                 return None
             pool.remove(s)
             used.append(s[0])
