@@ -16,7 +16,7 @@ const FWD = "203.0.113.7";
     const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, extraHTTPHeaders: { "X-Forwarded-For": FWD } });
     await ctx.addInitScript(([n, k]) => { try { localStorage.setItem("table.seat", JSON.stringify({ name: n, key: k })); } catch {} }, [seat, key]);
     const pg = await ctx.newPage(); const errs = []; pg.on("pageerror", e => errs.push(String(e).slice(0, 140)));
-    await pg.goto(`${BASE}/hand`, { waitUntil: "load" }); await pg.waitForTimeout(2500);
+    await pg.goto(`${BASE}/hand?mute=1`, { waitUntil: "load" }); await pg.waitForTimeout(2500);
     out[seat] = await pg.evaluate(() => ({ who: document.getElementById("who")?.textContent, life: document.getElementById("life")?.textContent, handCards: document.querySelectorAll("#hand .card").length, fieldCards: document.querySelectorAll("#field .card").length, err: document.getElementById("err")?.textContent || "" }));
     out[seat].pageErrors = errs;
     await pg.screenshot({ path: path.join(run, "shots", `${label}-${seat}-hand.png`), fullPage: true });

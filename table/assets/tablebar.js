@@ -7,7 +7,9 @@
   const KEY = "divinci-tablebar";
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { return {}; } };
   const save = v => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} };
-  const prefs = Object.assign({ voice: true, alerts: false }, load());
+  const prefs = Object.assign({ voice: false, alerts: false }, load());      // quiet by default: the 🔈 button turns the table voice on
+  let muted = false;                                                       // ?mute=1: silent in this tab, whatever was saved (test games)
+  try { muted = new URLSearchParams(location.search).get("mute") === "1"; } catch {}
   const VIEWS = [["/me", "📱", "Me", "Me"], ["/stage", "🎭", "Stage", "Stage"], ["/xr", "🔮", "Round table", "Round"], ["/board", "🃏", "Cards", "Cards"], ["/log", "📜", "", ""]];
   const here = location.pathname.replace(/\/+$/, "") || "/";
   const synth = window.speechSynthesis || null;
@@ -65,7 +67,7 @@
       : '<span class="e">📱</span> <span class="l">Me</span><span class="s">Me</span>';
     const nm = window.TableSeat && window.TableSeat.name && window.TableSeat.name();
     who.innerHTML = nm ? `<span class="e">👤 </span>${nm.replace(/[<>&]/g, "")}` : '<span class="e">👤 </span>Who?';
-    vb.textContent = !synth ? "🔇" : prefs.voice ? "🔊" : "🔈";
+    vb.textContent = !synth || muted ? "🔇" : prefs.voice ? "🔊" : "🔈";
     const canNotify = "Notification" in window;
     nb.textContent = !canNotify ? "🚫" : prefs.alerts && Notification.permission === "granted" ? "🔔" : "🔕";
     nb.title = !canNotify ? "this browser can't show notifications (on an iPhone, add the page to the Home Screen first)"
@@ -76,7 +78,7 @@
     if (s.mine && !prev.mine) alertMe("✋ Your turn to pass priority", "The table is waiting on you.");
     if (s.turn && !prev.turn) alertMe("▶ It's your turn", "Open your page to play it.");
     prev = { mine: !!s.mine, turn: !!s.turn };
-    vb.title = !synth ? "this browser can't speak" : prefs.voice ? "table voice on (tap to mute)" : "table voice off (tap to turn on)";
+    vb.title = !synth ? "this browser can't speak" : muted ? "muted for this tab (?mute=1)" : prefs.voice ? "table voice on (tap to mute)" : "table voice off (tap to turn on)";
   }
   if (document.body) mount(); else addEventListener("DOMContentLoaded", mount);
   setInterval(refresh, 400);
@@ -111,7 +113,7 @@
     return voices.length ? voices[hash(name) % voices.length] : null;       // each seat keeps its own voice
   }
   function say(name, text) {
-    if (!synth || !prefs.voice || !text) return;
+    if (!synth || !prefs.voice || muted || !text) return;
     if (synth.pending && synth.speaking) synth.cancel();                    // a backlog is worse than skipping to the latest
     const u = new SpeechSynthesisUtterance(text.replace(/\s+/g, " ").slice(0, 300));
     const v = voiceFor(name); if (v) u.voice = v;
