@@ -642,6 +642,14 @@ def ai_advance(seat_name: str, action: str) -> str | None:
     return None
 
 
+# What a pilot's key may do through /api/brain/<action> (the last path segment, so every alias is covered): exactly what
+# /hand and the pilot mode of tablectl use. Everything else either makes a card or a permanent from nothing (draw, search,
+# peek, topdeck, put, token, counter, animate, ...) or is the table host's (new-game, take, fair-reveal). The host's brain
+# token keeps all of it. Checked BEFORE ai_advance: a refused action must not walk the turn on as a side effect.
+PILOT_ACTIONS = frozenset({"say", "begin", "land", "cast", "turn-up", "tap", "untap", "attack", "damage", "block",
+                           "pass", "end", "life"})
+
+
 SEAT_KEYS: dict = {}   # person → [sha256 of each key a device of theirs was given]
 SEAT_DEVICES: dict = {}   # person → [device fingerprints that claimed it]
 
@@ -2900,6 +2908,12 @@ class H(BaseHTTPRequestHandler):
                     b["no_life"] = True                     # the players hit say their own life; only my lifelink counts
                 if pilot and act == "fair-reveal":           # it publishes every deck's seed and shuffled order
                     return self._send(403, {"error": "only the table's host can publish the fairness proof: it shows every deck's order"})
+                if pilot and act not in PILOT_ACTIONS:
+                    self._refused(act, "pilot-not-allowed", "")
+                    return self._send(403, {"error": f"'{act}' isn't available to a pilot seat: it has no card behind it "
+                                                     f"(a pilot plays: {', '.join(sorted(PILOT_ACTIONS))}); the table's host can do it"})
+                if pilot and act == "cast":
+                    b.pop("discount", None)                 # a client-named cost reduction is not checked by the engine: host only
                 with (BEGIN_LOCK if act == "begin" else nullcontext()):
                     if act == "begin":
                         with PHASE_LOCK:

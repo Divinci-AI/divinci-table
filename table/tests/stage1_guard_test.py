@@ -227,14 +227,77 @@ def item2():
         S.claim_all()
         c, d = S.brain("Claude", "fair-reveal")
         pub = S.call("GET", "/api/fair")[1]
-        check("a pilot's fair-reveal is refused, naming the fairness proof", c == 403 and "fair" in str(d.get("error", "")).lower(), (c, d))
+        check("a pilot's fair-reveal is refused, naming the fairness proof", c == 403 and "fairness proof" in str(d.get("error", "")), (c, d))
         check("…and GET /api/fair still shows no seeds or orders", not pub.get("revealed") and "records" not in pub, str(pub)[:200])
         c, d = S.host_brain("Claude", "fair-reveal")
         pub = S.call("GET", "/api/fair")[1]
         check("the host's brain token may still publish the proof", c == 200 and pub.get("revealed") and "records" in pub, (c, str(pub)[:120]))
 
 
-SECTIONS = {"1": item1, "2": item2}
+# ───────────────────────────────── item 3 ─────────────────────────────────
+# Everything /hand and the pilot mode of tablectl (pilot_ctl_test.py) use. The rest has no card behind it, or is the host's.
+ALLOWED = ("say", "begin", "land", "cast", "turn-up", "tap", "untap", "attack", "damage", "block", "pass", "end", "life")
+REFUSED = {"draw": {"n": 3}, "search": {"name": "Sol Ring"}, "peek": {"n": 2}, "topdeck": {"name": "Sol Ring"},
+           "put": {"name": "Sol Ring"}, "token": {"name": "Treasure", "power": 9, "toughness": 9, "n": 3},
+           "counter": {"ref": "#1", "n": 5}, "animate": {"ref": "#1", "power": 9, "toughness": 9},
+           "bottom": {"name": "Sol Ring"}, "shuffle": {}, "mulligan": {}, "discard": {"name": "Sol Ring"}, "mill": {"n": 3},
+           "role": {"ref": "#1", "kind": "Young Hero"}, "destroy": {"ref": "#1"}, "exile": {"ref": "#1"}, "bounce": {"ref": "#1"},
+           "blink": {"ref": "#1"}, "graveyard-out": {"name": "x"}, "manifest": {"n": 2}, "no-such-action": {}}
+
+
+def zones(st):
+    return ([h["name"] for h in st["hand"]], st["library"], len(st["permanents"]), len(st["graveyard"]),
+            sorted((p["id"], p.get("counters", 0), p.get("pt")) for p in st["permanents"]))
+
+
+def item3():
+    print("item 3: a pilot key may only do what /hand and tablectl's pilot mode use")
+    with Server() as S:
+        S.claim_all()
+        S.start_game()
+        lands = [h["name"] for h in S.state("Claude")["hand"] if h.get("land")]
+        if lands:
+            S.brain("Claude", "land", name=lands[0])           # so there is a permanent #id for the ref actions
+        before = zones(S.state("Claude"))
+        bad = {}
+        for act, body in REFUSED.items():
+            c, d = S.brain("Claude", act, **body)
+            if not (c == 403 and "pilot" in str(d.get("error", "")).lower()):
+                bad[act] = (c, str(d)[:90])
+        check("every action outside the allowlist is refused with 403 and says it is not for a pilot", not bad, bad)
+        check("…and none of them moved a card (hand, library, battlefield, graveyard, counters)", zones(S.state("Claude")) == before,
+              (before, zones(S.state("Claude"))))
+        c, d = S.call("POST", "/api/brain/anything/draw", {"seat": "Claude", "n": 2}, key=S.claim("Claude"))
+        check("an alias path ending in draw is covered too", c == 403 and zones(S.state("Claude")) == before, (c, str(d)[:100]))
+        c, d = S.brain("Claude", "say", text="Hello table.")
+        check("allowed: say", c == 200, (c, d))
+        c, d = S.brain("Claude", "life", player="me", delta=-1)
+        check("allowed: my own life", c == 200, (c, d))
+        st = S.state("Claude")
+        land = next((p for p in st["permanents"] if "Land" in (p.get("type") or "")), None)
+        if land:
+            c, d = S.brain("Claude", "tap", ref="#%d" % land["id"], announce=True)
+            check("allowed: tap a permanent", c == 200, (c, d))
+        c, d = S.brain("Claude", "pass")
+        check("allowed: pass is not blocked by the allowlist (its own rules are item 5)", c != 403 or "pilot" not in str(d.get("error", "")).lower(), (c, d))
+        # a discount the client names is ignored for a pilot key
+        S.host_brain("Claude", "search", name="Sol Ring", to="hand")
+        c0, d0 = S.brain("Claude", "cast", name="Sol Ring")
+        c1, d1 = S.brain("Claude", "cast", name="Sol Ring", discount=5)
+        st = S.state("Claude")
+        check("casting Sol Ring with no mana is refused (baseline)", c0 == 400 and "can't pay" in str(d0.get("error", "")), (c0, d0))
+        check("…and a client-supplied discount does not make it castable", c1 == 400 and "can't pay" in str(d1.get("error", ""))
+              and not any(p["name"] == "Sol Ring" for p in st["permanents"]), (c1, str(d1)[:120]))
+        # the host brain token keeps everything
+        n0 = len(S.state("Claude")["hand"])
+        c, d = S.host_brain("Claude", "draw", n=2)
+        c2, d2 = S.host_brain("Claude", "token", name="Treasure", power=0, toughness=0)
+        check("the host's brain token still draws and makes tokens", c == 200 and len(S.state("Claude")["hand"]) == n0 + 2 and c2 == 200, (c, c2, str(d2)[:100]))
+        c, d = S.host_brain("Claude", "cast", name="Sol Ring", discount=5)
+        check("…and still honours a discount (Jukai Naturalist and friends)", c == 200, (c, str(d)[:120]))
+
+
+SECTIONS = {"1": item1, "2": item2, "3": item3}
 
 
 def main():
