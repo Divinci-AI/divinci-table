@@ -1,11 +1,40 @@
 {
   "about": "Design failures fit_check.py is KNOWN to report. The gate lets the run exit 0 only when every FAIL is listed here and every entry here still fails: a failure that is not listed breaks the run (fix it or list it, on purpose), and an entry that stopped failing breaks it too (remove it, so the list never lies). blocks = printed parts that must NOT be printed until the entry is fixed; hardware-only items block assembly, not printing.",
   "known_failures": [
-    {"id": "chute-step", "blocks": ["discard_chute"], "owner": "michael", "review_by": "2026-10-15",
-     "reason": "the chute's top plate stands 2.4 mm above the bed and a 1.6 mm card is dragged onto it: the card's edge catches the step. Feather the plate into the bed, or make the chute a pick-and-place target."},
-    {"id": "flip-card-vs-head", "blocks": ["flip_fence"], "owner": "michael", "review_by": "2026-10-15",
-     "reason": "the card, turning past vertical, touches the head parts that do not tilt (bracket leg / side plates). Raise or narrow them, shorten the release angle, or move the hinge. Depends on the head model in head_scad(); the head has not been built."},
-    {"id": "bolt-length", "blocks": [], "owner": "michael", "review_by": "2026-10-12",
-     "reason": "the BOM lists 1 inch bolts and the stack leaves 0.0 mm of margin; buy 1-1/2 inch (hardware only: blocks assembly, not printing)."}
+    {
+      "id": "chute-step",
+      "blocks": [
+        "discard_chute"
+      ],
+      "owner": "michael",
+      "review_by": "2026-10-15",
+      "reason": "the chute's top plate stands 2.4 mm above the bed and a 1.6 mm card is dragged onto it: the card's edge catches the step. Feather the plate into the bed, or make the chute a pick-and-place target."
+    },
+    {
+      "id": "flip-card-vs-head",
+      "blocks": [
+        "flip_fence"
+      ],
+      "owner": "michael",
+      "review_by": "2026-10-15",
+      "reason": "the card, turning past vertical, touches the head parts that do not tilt (bracket leg / side plates). Raise or narrow them, shorten the release angle, or move the hinge. Depends on the head model in head_scad(); the head has not been built."
+    },
+    {
+      "id": "bolt-length",
+      "blocks": [],
+      "owner": "michael",
+      "review_by": "2026-10-12",
+      "reason": "the BOM lists 1 inch bolts and the stack leaves 0.0 mm of margin; buy 1-1/2 inch (hardware only: blocks assembly, not printing).",
+      "hardware_only": true
+    },
+    {
+      "id": "flip-release-clearance",
+      "blocks": [
+        "flip_fence"
+      ],
+      "owner": "michael",
+      "review_by": "2026-10-15",
+      "reason": "after the magnet lets go the head stays put for 0.6 s while the card falls onto the very face the head hangs from: the card cannot topple, and the straight-up rise then pushes into it. The head must withdraw along the face normal before or as the card falls, or the flip needs another mechanism (two passes, or a hinged paddle station, no head hinge)."
+    }
   ]
 }

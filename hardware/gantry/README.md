@@ -32,14 +32,20 @@ section M). The suction design this replaced is in git history.
   off the carriage and the bed is clear. **Z is never assumed:** every connection starts with Z unknown, and the driver refuses
   any move with a Z in it until you say where Z is: put the NOZZLE at a measured height by hand (a sheet of paper under it,
   magnet head off) and run `gantry.py zero-z` (it sends `G92 Z0`), or `home --z --clear`. A reconnect forgets it again.
+  **Homing X and Y also moves the head at whatever height it happens to be at:** before the first `home` of a session, raise the head
+  by hand or from the printer's menu until it is clear of everything on the bed (the deck box is about 118 mm tall).
+  `magnet_min_z` and `travel_z` have no defaults: until you measure and set them in `gantry.json`, every magnet Z move, pick,
+  place, rack move and flip is refused.
   `min_z` is the CAMERA's floor; the magnet has its own, `magnet_min_z` (default 0), because `touch_z` sits below `min_z` by design.
-- **Put a hardware cut-off on the magnet; the software one is not enough.** The timer lives in the Python process: if the
-  process is killed, the Mac sleeps or the USB cable is pulled, `M106 S255` stays on and nothing can send `M107`. The driver
-  retries the off command three times, then refuses every other command until it succeeds, but that cannot help over a dead
-  cable. Add a hardware timer or a relay that drops the 24 V when the printer's fan output goes low, or a visible inline switch
-  you can reach (it is on the shopping list for the arm route and cheap for this one). A carry may hold the magnet for up
-  to `carry_max_s` (90 s); nothing may exceed 180 s; a bare `magnet on` is limited to `magnet_max_s` (20 s) because an
-  energised magnet with no card on it heats (the listing warns of damage at 120 C).
+- **Put a hardware cut-off on the magnet; the software one is not enough.** The timer lives in the Python process, and Marlin
+  latches `M106 S255` until it is told `M107`. If the process dies, the Mac sleeps or the cable is pulled, the fan output
+  STAYS HIGH and the magnet stays on. So a relay that opens "when the fan output goes low" does nothing for this failure: the
+  output never goes low. What does work: (1) a thermal cut-off fuse (60-70 C, under $1) in series with the coil and bonded to the
+  magnet's body, which ignores software completely; (2) a delay-off module on the fan output that needs a fresh edge to re-arm,
+  so a latched-high output times out by itself; (3) a visible inline switch you can reach. The driver retries the off command three
+  times, then refuses every other command until one succeeds, and it starts the timer before it sends the on command, but none
+  of that helps over a dead cable. A carry may hold the magnet for up to `carry_max_s` (90 s); nothing may exceed 180 s; a bare
+  `magnet on` is limited to `magnet_max_s` (20 s) because an energised magnet with no card on it heats (the listing warns of damage at 120 C).
 - **The magnet is full-on or off, never in between.** The fan output can run at partial power (PWM); a part-powered
   magnet holds weakly and can drop a card mid-move. Only `M106 S255` and `M107` are ever sent.
 - **The magnet must not stay on without a card.** The maker rates it for continuous use *under load* and warns that

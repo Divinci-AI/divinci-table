@@ -273,6 +273,20 @@ report("FAIL" if hit else "ok", "the card, turning, clears the bracket leg and s
 low = card_hits_head(lift=-30.0)
 report("ok" if low else "FAIL", "negative control: with the bracket 30 mm lower the same sweep DOES find the card", "" if low else "the sweep cannot fail, so its 'clear' above means nothing")
 
+# 7.2b after the magnet lets go the head stays where it is (the script waits release_ms for the card to topple, THEN rises): does the falling card hit it?
+def head_rect(theta):                                 # magnet + swivel, in (y, z) world coordinates, hanging off the card's face at pitch theta
+    fy, fz = fp.washer_top(P, theta); th = math.radians(theta); u, nn = (math.cos(th), math.sin(th)), (-math.sin(th), math.cos(th))
+    return [(P.fence_y + fy + a * u[0] + b * nn[0], fz + a * u[1] + b * nn[1]) for a, b in ((-12, 0), (12, 0), (12, 30), (-12, 30))]
+def fall_hit(shift_y=0.0):
+    hr = [(y + shift_y, z) for y, z in head_rect(P.release_deg)]
+    for tt in range(int(P.release_deg) + 2, 181, 2):
+        if sat_overlap(card_poly(tt), hr): return tt
+    return None
+fh = fall_hit()
+report("FAIL" if fh else "ok", "after release, the card can fall without landing on the head (the head waits release_ms where it is, then rises)",
+       f"the head is on the face the card is turning toward: the card meets it at {fh} deg of its 180; the head must retreat BEFORE or AS the card falls, along the face normal and clear of the card's arc" if fh else "clear", id="flip-release-clearance")
+report("ok" if fall_hit(shift_y=-150.0) is None else "FAIL", "negative control: a head 150 mm away from the falling card is not hit", "" if fall_hit(shift_y=-150.0) is None else "the check always fires, so it means nothing")
+
 # 7.3 the swivel: can it slide off the bolt along the slot it was slid in through?
 free_out = not any(collides(f'intersection(){{ import("{STL/"magnet_swivel.stl"}"); {bolt(x, 0)} }}') for x in (0, 6, 12, 18, 24))
 report("WARN" if free_out else "ok", "swivel: something other than friction keeps it from sliding off the bolt along the keyhole slot",
@@ -308,21 +322,29 @@ import os
 LEDGER = Path(os.environ.get("FIT_CHECK_LEDGER") or HERE / "fit_check_ledger.json")
 ledger = _json.loads(LEDGER.read_text())["known_failures"] if LEDGER.exists() else []
 known = {k["id"]: k for k in ledger}
+import datetime as _dt
+parts = sorted(f.stem for f in STL.glob("*.stl")); today = _dt.date.today().isoformat(); bad_ledger = []
+for k in ledger:                                      # an entry may not silence a failure by being vague, mistyped or forgotten
+    for b in k.get("blocks", []):
+        if b not in parts: bad_ledger.append(f"{k['id']}: blocks '{b}', which is not a part ({', '.join(parts)})")
+    if not k.get("blocks") and not k.get("hardware_only"): bad_ledger.append(f"{k['id']}: blocks nothing; name the parts it blocks, or set hardware_only: true (it blocks assembly, not printing)")
+    if not k.get("reason"): bad_ledger.append(f"{k['id']}: no reason")
+    if str(k.get("review_by", "")) < today: bad_ledger.append(f"{k['id']}: review_by {k.get('review_by')} has passed ({today}): fix it, or re-decide it on purpose by moving the date")
 failing = {i for lvl, i, _ in checks if lvl == "FAIL" and i}
 anon = [w for lvl, i, w in checks if lvl == "FAIL" and not i]
 new = sorted(failing - set(known)); stale = sorted(set(known) - failing)
 blocked = {}
 for i in failing & set(known):
     for part in known[i].get("blocks", []): blocked.setdefault(part, []).append(i)
-parts = sorted(f.stem for f in STL.glob("*.stl"))
 print()
 print(f"{results.count('ok')} ok, {results.count('WARN')} warn, {results.count('FAIL')} fail  ({len(failing & set(known))} on the ledger)")
 for i in sorted(failing & set(known)): print(f"  known  {i}: {known[i]['reason']}")
 for i in new: print(f"  NEW    {i}: a failure that is not on the ledger (fix it, or add it to {LEDGER.name} with a reason)")
 for i in stale: print(f"  STALE  {i}: on the ledger but no longer failing: remove it")
 for w in anon: print(f"  NEW    (no id) {w}")
+for b in bad_ledger: print(f"  LEDGER {b}")
 print("cleared to print:", ", ".join(p for p in parts if p not in blocked) or "none")
 print("blocked:         ", "; ".join(f"{p} ({', '.join(v)})" for p, v in sorted(blocked.items())) or "none")
-ok_gate = not new and not stale and not anon
+ok_gate = not new and not stale and not anon and not bad_ledger
 print("PRE-PRINT GATE:", ("BLOCKED" if blocked else "OPEN") if ok_gate else "BROKEN (the ledger and the checks disagree)")
 sys.exit(0 if ok_gate else 1)

@@ -57,10 +57,11 @@ ok = True
 for bad in ["M104 S200", "M109 S200", "M140 S60", "M190 S60", "G1 X10 E5", "M500",
             "M211 S0", "M302 P1", "G29", "M104 S1", "M140 S60", "M104 S05",
             "M106 S128", "M106", "M106 P1 S255", "M107 P1", "M106 S255 P0",          # the magnet: full on or off only
-            "G2 X10 Y10 I5 J0 E1", "G3 X10 Y10 I5 J0 Z5", "G2"]:                   # arcs: no extruding, no Z
+            "G2 X10 Y10 I5 J0 E1", "G3 X10 Y10 I5 J0 Z5", "G2",
+            "G28", "G28 Z", "G28 X Y Z", "G91", "M220 S300", "M220 S100 X1", "G92 Z0", "G92 X0"]:   # bare/Z homing, relative moves, feed multiplier, G92                   # arcs: no extruding, no Z
     ok &= check(f"refuses {bad}", refused(lambda: gantry.safe(bad)))
 for good in ["M104 S0", "M140 S0", "M105", "G28 X Y", "G0 X10 Y20 F3000", "M114", "M400", "M84", "g0 x5 ; comment",
-             "M106 S255", "M107", "G2 X10 Y10 I5 J0 F1500", "G3 X1.5 Y-0.5 I-2 J3"]:
+             "M106 S255", "M107", "G2 X10 Y10 I5 J0 F1500", "G3 X1.5 Y-0.5 I-2 J3", "M220 S100"]:
     ok &= check(f"allows {good}", not refused(lambda: gantry.safe(good)))
 
 fake = FakeMarlin()
@@ -78,7 +79,7 @@ ok &= check("homing Z without clear=True is refused", refused(lambda: p.home(z=T
 p.zero_z(0)
 ok &= check("zero_z declares Z (G92 Z0) and only then is Z known", fake.sent[-1] == "G92 Z0" and p.z_known)
 ok &= check("refuses Z past travel", refused(lambda: p.goto(10, 10, 251)))
-ok &= check("G92 for anything but Z is refused", refused(lambda: gantry.safe("G92 X0")) and refused(lambda: gantry.safe("G92 E0")))
+ok &= check("G92 and Z homing are refused through the public send() too", refused(lambda: p.send("G92 Z50")) and refused(lambda: p.send("G28 X Y Z")) and refused(lambda: p.send("G28")) and refused(lambda: p.send("G91")))
 ok &= check("a new connection forgets Z", not gantry.Printer(ser=FakeMarlin(), log=lambda *_: None).z_known)
 q2 = gantry.Printer(ser=FakeMarlin(), log=lambda *_: None); q2.home(z=True, clear=True)
 ok &= check("home(z=True, clear=True) makes Z known", q2.z_known and q2.ser.sent[-1].startswith("G28 X Y Z") or "G28 X Y Z" in q2.ser.sent)
@@ -133,7 +134,7 @@ ok &= check("an area smaller than one frame is one shot, centred", (c, r) == (1,
 ok &= check("lens into the bed is refused", refused(lambda: gantry.footprint(100, cfg)))
 
 # ── the hand rack: rise before crossing, slide out from under the next shelf ─────────────────────
-cfg = dict(gantry.RIG_DEFAULT, touch_z=5, travel_z=60, rack={"slot0": [40, 350], "pitch": 46, "rise": 3.6, "slots": 7})
+cfg = dict(gantry.RIG_DEFAULT, touch_z=5, travel_z=60, magnet_min_z=0, rack={"slot0": [40, 350], "pitch": 46, "rise": 3.6, "slots": 7})
 gantry.config = lambda: cfg
 fake = FakeMarlin("CR-6 Max")
 p = gantry.Printer(ser=fake, log=lambda *_: None)
@@ -177,6 +178,17 @@ cfg["magnet_min_z"] = 8
 ok &= check("A: touch_z below magnet_min_z is refused", refused(lambda: p.pick(50, 50)))
 cfg["magnet_min_z"] = 0
 
+# ── unmeasured floors refuse (nothing assumes a floor of 0) ──────────────────────────────────────
+cfg = dict(gantry.RIG_DEFAULT, touch_z=5)
+gantry.config = lambda: cfg
+fake = FakeMarlin("CR-6 Max"); p = gantry.Printer(ser=fake, log=lambda *_: None); p.zero_z(0)
+ok &= check("magnet_min_z unset: a magnet Z move is refused", refused(lambda: p.goto(10, 10, 20, tool="magnet")))
+cfg["magnet_min_z"] = 0
+ok &= check("travel_z unset: a pick is refused (nothing assumes the way is clear)", refused(lambda: p.pick(50, 50)))
+ok &= check("…and a place is refused the same way", refused(lambda: p.place(50, 50)))
+cfg = dict(gantry.RIG_DEFAULT, min_z=50, touch_z=5, magnet_min_z=0, travel_z=60)
+gantry.config = lambda: cfg
+
 # ── E: the magnet is not on the nozzle ──────────────────────────────────────────────────────────
 cfg.update(magnet_offset_mm=[10, -5])
 fake = FakeMarlin("CR-6 Max"); p = gantry.Printer(ser=fake, log=lambda *_: None); p.zero_z(0)
@@ -219,6 +231,38 @@ ok &= check("D: while latched, M107 is still accepted", orig("M107") == [])
 p.send = orig
 p.magnet_off()
 ok &= check("D: a successful off clears the latch", not p.magnet_fault and not p.magnet)
+
+# ── D2: the timer is started before the on command, and a stale timer cannot switch off a newer on ──
+cfg = dict(gantry.RIG_DEFAULT)
+gantry.config = lambda: cfg
+fake = FakeMarlin(); p = gantry.Printer(ser=fake, log=lambda *_: None)
+orig = p.send
+state = {"timer_when_on_sent": None}
+def watch(line, timeout=30, **kw):
+    if line == "M106 S255":
+        state["timer_when_on_sent"] = p._magnet_timer is not None and p._magnet_timer.is_alive()
+    return orig(line, timeout, **kw)
+p.send = watch
+p.magnet_on(max_s=5)
+ok &= check("D2: the timer is already RUNNING when M106 S255 is sent", state["timer_when_on_sent"] is True)
+p.magnet_off(); p.send = orig
+def failing_on(line, timeout=30, **kw):
+    if line == "M106 S255":
+        raise RuntimeError("serial dropped")
+    return orig(line, timeout, **kw)
+p.send = failing_on
+try:
+    p.magnet_on(max_s=5)
+except RuntimeError:
+    pass
+p.send = orig
+ok &= check("D2: if the on command fails, M107 is requested and no timer is left", fake.sent[-1] == "M107" and p._magnet_timer is None and not p.magnet)
+p.magnet_on(max_s=5)
+stale = p._magnet_timer
+p.magnet_on(max_s=5)                                       # a newer on replaces the timer
+n = fake.sent.count("M107"); p._magnet_timeout(stale)
+ok &= check("D2: a timer that was replaced while it waited does nothing", fake.sent.count("M107") == n and p.magnet)
+p.magnet_off()
 
 # ── F: the flip goes through the same gate ──────────────────────────────────────────────────────
 cfg = dict(gantry.RIG_DEFAULT, min_z=0, magnet_min_z=0, travel_z=100, touch_z=2)

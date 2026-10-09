@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The pre-print gate must hold in both directions (runs fit_check.py three times, one after another, ~15 s each):
+"""The pre-print gate must hold in both directions and refuse a vague ledger (runs fit_check.py six times, one after another, ~13 s each):
   - a real failure that is NOT on the ledger breaks the run (exit 1, 'NEW');
   - a ledger entry that no longer fails breaks the run (exit 1, 'STALE');
   - the shipped ledger passes (exit 0) and says BLOCKED.
@@ -25,5 +25,13 @@ code, out = run(real + [{"id": "not-a-real-check", "blocks": [], "reason": "x"}]
 check("a ledger entry that no longer fails breaks the run", code == 1 and "STALE  not-a-real-check" in out and "BROKEN" in out)
 code, out = run(real)
 check("the shipped ledger passes and reports BLOCKED, not OPEN", code == 0 and "PRE-PRINT GATE: BLOCKED" in out)
+def edited(i, **kw): return [dict(e, **kw) if e["id"] == i else e for e in real]
+code, out = run(edited("chute-step", blocks=["discard_chut"]))
+check("a ledger entry that names a part wrongly (so blocks nothing) breaks the run", code == 1 and "LEDGER chute-step: blocks 'discard_chut'" in out)
+code, out = run(edited("chute-step", blocks=[]))
+check("an entry that blocks nothing needs hardware_only: true", code == 1 and "blocks nothing" in out)
+code, out = run(edited("chute-step", review_by="2020-01-01"))
+check("an entry past its review_by date breaks the run", code == 1 and "review_by 2020-01-01 has passed" in out)
+code, out = run(real)
 check("a blocked part is not listed as cleared", "discard_chute" not in out.split("cleared to print:")[1].split("\n")[0])
 print("ALL PASS" if ok else "SOME FAILED"); sys.exit(0 if ok else 1)

@@ -154,7 +154,7 @@
    "route": [
     "magnet"
    ],
-   "role": "the hand: picks up steel-sleeved cards; about 0.25 A / 3 W at 24 V",
+   "role": "the hand: picks up steel-sleeved cards; rated about 0.25 A, which is 6 W at 24 V (the listing gives no current and it has not been measured: measure it before choosing a fuse or cap)",
    "used_in": [
     {
      "doc": "manual",

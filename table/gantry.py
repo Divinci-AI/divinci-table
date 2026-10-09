@@ -70,11 +70,12 @@ SAFE_DEFAULT = (200, 200, 200)            # unknown machine: stay inside the sma
 RIG_DEFAULT = {"min_z": 0, "lens_at_z0_mm": 0, "cam_offset_mm": [0, 0], "focal_mm": 18,
                "sensor_mm": [22.3, 14.9], "y_feed": 1200, "overlap": 0.3, "magnet_max_s": 20, "touch_z": None,
                "lift_mm": 20, "arc_feed": 1500, "travel_z": None,
-               "magnet_min_z": 0, "carry_max_s": 90, "magnet_offset_mm": [0, 0],
+               "magnet_min_z": None, "carry_max_s": 90, "magnet_offset_mm": [0, 0],
                "flip": {}, "flip_hinged_head_built": False,
                "rack": {"slot0": None, "pitch": 46, "rise": 3.6, "slots": 7, "base_t": 2.0}}
 # min_z is the CAMERA's floor (the lens must clear the bed). The magnet hand has its own floor, magnet_min_z: touch_z is
 #   below min_z by design, because the magnet touches a card while the lens is not on the head. goto(tool="magnet") uses it.
+#   magnet_min_z and travel_z default to None = NOT MEASURED: every magnet Z move, pick, place and flip is refused until they are set.
 # magnet_offset_mm: [x, y] of the magnet's axis relative to the nozzle. Every pick, place, rack move, tap and flip is given in
 #   BED coordinates of the magnet and the carriage goes to that point minus the offset.
 # carry_max_s: how long the magnet may stay on across one pick-and-place. magnet_max_s covers a bare `magnet on`.
@@ -133,21 +134,28 @@ class Refused(ValueError):
     pass
 
 
-def safe(line: str) -> str:
-    """The one gate every G-code line passes. Returns the cleaned line or raises Refused."""
+def safe(line: str, internal: bool = False) -> str:
+    """The one gate every G-code line passes. Returns the cleaned line or raises Refused. `internal` is only for the two
+    Printer methods that own a dangerous command and its bookkeeping (home(z, clear) and zero_z)."""
     line = line.split(";")[0].strip().upper()
     if not line:
         raise Refused("empty line")
     word = line.split()[0]
+    if word == "G28" and line != "G28 X Y" and not (internal and re.fullmatch(r"G28 X Y Z", line)):
+        raise Refused(f"{line}: only 'G28 X Y' may be sent; homing Z goes through Printer.home(z=True, clear=True)")
+    if word == "G91":
+        raise Refused("relative moves skip the travel and floor checks: use absolute moves (G90) through Printer.goto")
+    if word == "M220" and line != "M220 S100":
+        raise Refused(f"{line}: a feed multiplier would defeat y_feed; only 'M220 S100'")
     if word in HEATERS_OFF and re.fullmatch(rf"{word}( T\d)? S0", line):
         return line
     if word in ("M106", "M107"):                   # the part-fan output drives the magnet: full on or off, nothing else
         if line in (MAGNET_ON, MAGNET_OFF):
             return line
         raise Refused(f"{line}: the fan output is the magnet; only '{MAGNET_ON}' and '{MAGNET_OFF}' are allowed")
-    if word == "G92":                              # only 'G92 Z<n>', and only Printer.zero_z() sends it
-        if not re.fullmatch(r"G92 Z-?[\d.]+", line):
-            raise Refused(f"{line}: only 'G92 Z<height>' is allowed (it declares where Z is; nothing else may)")
+    if word == "G92":                              # only 'G92 Z<n>', and only Printer.zero_z() sends it: it moves where Z IS
+        if not (internal and re.fullmatch(r"G92 Z-?[\d.]+", line)):
+            raise Refused(f"{line}: G92 declares where an axis is; only Printer.zero_z() may send 'G92 Z<height>'")
         return line
     if word in ("G2", "G3"):                       # arcs, for tapping: X Y end and I J centre offset, never extruding
         if re.search(r"\bE", line) or not re.fullmatch(r"G[23]( [XYIJF]-?[\d.]+)+", line):
@@ -206,8 +214,8 @@ class Printer:
         self.magnet_off()
         return False
 
-    def send(self, line: str, timeout: float = 30) -> list[str]:
-        cmd = safe(line)
+    def send(self, line: str, timeout: float = 30, _internal: bool = False) -> list[str]:
+        cmd = safe(line, internal=_internal)
         if self.magnet_fault and cmd not in (MAGNET_OFF, "M84", "M114", "M400"):
             raise Refused(f"{cmd}: the magnet could not be switched off; only M107, M84, M114 and M400 are accepted until it is")
         with self._lock:
@@ -263,14 +271,14 @@ class Printer:
         if z and not clear:
             raise Refused("homing Z drives the head down: remove the magnet head and camera from under the nozzle, "
                           "then pass clear=True (CLI: home --z --clear)")
-        self.send("G28 X Y" + (" Z" if z else ""), timeout=120)
+        self.send("G28 X Y" + (" Z" if z else ""), timeout=120, _internal=True)
         if z:
             self.z_known = True
 
     def zero_z(self, height: float = 0.0):
         """The explicit way to say where Z is without homing it: put the NOZZLE at `height` mm above the bed by hand
         (a sheet of paper, with the magnet head off), then call this. Nothing else sets z_known."""
-        self.send(f"G92 Z{height:g}")
+        self.send(f"G92 Z{height:g}", _internal=True)
         self.z_known = True
 
     def _need_z(self):
@@ -284,6 +292,8 @@ class Printer:
         if z is not None:
             self._need_z()
             floor, name = (cfg["magnet_min_z"], "magnet_min_z") if tool == "magnet" else (cfg["min_z"], "the camera floor min_z")
+            if floor is None:
+                raise Refused("magnet_min_z is not measured (gantry.json): the lowest Z the magnet may go, with its hang below the nozzle")
             if z < floor:
                 raise Refused(f"Z{z} is below {name}={floor} (gantry.json)")
         if y is not None:
@@ -315,18 +325,30 @@ class Printer:
 
     def magnet_on(self, max_s: float | None = None):
         """Full on, with a timer that turns it off after max_s (default gantry.json magnet_max_s, at most ABS_MAGNET_MAX_S)
-        whatever happens next. The timer runs on its own thread, so a blocked caller cannot stop it."""
+        whatever happens next. The timer is started BEFORE the on command, so a failure in between cannot leave the coil on with
+        nothing counting; it runs on its own thread, so a blocked caller cannot stop it from starting its attempt."""
         cap = self._cap(max_s)
         with self._lock:
             if self._magnet_timer:
                 self._magnet_timer.cancel()
-            self.send(MAGNET_ON)
+            t = threading.Timer(cap, lambda: self._magnet_timeout(t))
+            t.daemon = True
+            self._magnet_timer = t
+            t.start()
+            try:
+                self.send(MAGNET_ON)
+            except Exception:
+                try:
+                    self.magnet_off()                  # whatever the line did, ask for off
+                except Exception:
+                    pass
+                raise
             self.magnet = True
-            self._magnet_timer = threading.Timer(cap, self._magnet_timeout)
-            self._magnet_timer.daemon = True
-            self._magnet_timer.start()
 
-    def _magnet_timeout(self):
+    def _magnet_timeout(self, timer=None):
+        with self._lock:
+            if timer is not None and timer is not self._magnet_timer:
+                return                                 # a newer magnet_on replaced this timer while it waited for the lock
         self.log("magnet on too long: turning it off")
         for attempt in range(3):
             try:
@@ -367,13 +389,18 @@ class Printer:
         if z is None:
             raise Refused("measure touch_z (the Z where the magnet just touches a card) into gantry.json first")
         z = float(z)
+        if config()["magnet_min_z"] is None:
+            raise Refused("magnet_min_z is not measured (gantry.json)")
         if z < config()["magnet_min_z"]:
             raise Refused(f"touch_z={z} is below magnet_min_z={config()['magnet_min_z']}")
         return z
 
     def _travel_z(self, z: float) -> float:
         cfg = config()
-        return max(z + cfg["lift_mm"], float(cfg.get("travel_z") or 0))
+        if cfg.get("travel_z") is None:
+            raise Refused("travel_z is not measured (gantry.json): the height that clears the tallest thing on the bed "
+                          "(the deck box is ~118 mm, the rack's fence 40 mm)")
+        return max(z + cfg["lift_mm"], float(cfg["travel_z"]))
 
     def _over(self, x: float, y: float, z: float):
         """Up to the travel height first (never diagonally through the rack's fence), across, then down to z.
@@ -606,6 +633,7 @@ def main(argv=None):
         print(snap(CACHE / time.strftime("snap-%Y%m%d-%H%M%S.jpg")))
         return
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))   # so `with` turns the magnet off on a kill too
+    signal.signal(signal.SIGHUP, lambda *_: sys.exit(129))    # and when the terminal is closed
     with Printer(a.port, a.baud) as p:
         run(p, a)
 
