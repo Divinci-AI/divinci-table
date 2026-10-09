@@ -975,6 +975,48 @@ def finish_step(by: str | None) -> tuple[int, dict]:
         return 200, phase_public()
 
 
+def step_logged() -> bool:
+    """Has the active player already DONE something in the step the table is at (a land or any card on their board, a spell,
+    an attack)? BACK can undo a NEXT pressed too soon; it can not undo the play. Looks at the visible log after the event that
+    opened this step; an unknown start (the log was cut) counts as nothing logged."""
+    cur, idx = PHASE["player"], PHASE["step"]
+    with EV_LOCK:
+        evs = list(EVENTS)
+    since = []
+    for e in reversed(evs):
+        if e.get("type") == "phase" and not e.get("kind") and e.get("player") == cur and e.get("index") == idx:
+            break
+        since.append(e)
+    else:
+        return False
+    for e in since:
+        t = e.get("type")
+        if t == "declare" and e.get("by") == cur:
+            return True
+        if t == "board3d" and cur in (e.get("owner"), e.get("seat")):
+            return True
+        if t == "chat" and e.get("by") == cur and not e.get("talk"):
+            return True
+        if t == "say" and e.get("speaker") == cur and e.get("action") in ("land", "cast", "attack", "turn-up", "manifest"):
+            return True
+    return False
+
+
+def back_refusal(key: str) -> str | None:
+    """A remote room: who may press BACK. The active player (their key), one step within their own turn, and not once they have
+    done something in that step. Going back into the previous player's turn is the host's. PHASE_LOCK is the caller's."""
+    cur = PHASE["player"]
+    if cur is None:
+        return None                                    # prev_step says the game hasn't started
+    if not seat_key_ok(cur, key):
+        return f"only {cur}, whose turn it is, can go back a step: ask them (or the table's host)"
+    if cur in VPS or PHASE["step"] == 0:
+        return "going back into the previous player's turn takes the table's host, not a player's key"
+    if step_logged():
+        return f"something was already logged in {STEPS[PHASE['step']]} (a land, a spell or an attack): BACK can't undo that; ask the table's host"
+    return None
+
+
 def prev_step(by: str | None = None) -> tuple[int, dict]:
     """BACK, for a NEXT pressed too soon: one step back within a person's turn (no priority window
     reopens), or from the very start of a turn back to the previous player's cleanup — but never into an
@@ -2737,6 +2779,13 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, phase_public())
             if self.path == "/api/phase/windows":          # {"on": false}: step timeouts off for the table
                 b = self._json()
+                if self._restricted_room():                # a remote room: the active player or the host
+                    with PHASE_LOCK:
+                        cur = PHASE["player"]
+                        ok = cur is not None and seat_key_ok(cur, self._seat_key(b))
+                    if not ok:
+                        return self._send(403, {"error": (f"only {cur}, whose turn it is, or the table's host can switch step timeouts"
+                                                          if cur else "only the table's host can switch step timeouts before the game starts")})
                 with PHASE_LOCK:
                     WINDOWS["on"] = bool(b.get("on", not WINDOWS["on"]))
                     if not WINDOWS["on"]:
@@ -2745,6 +2794,11 @@ class H(BaseHTTPRequestHandler):
                 snapshot()
                 return self._send(200, phase_public())
             if self.path == "/api/phase/back":             # BACK: a NEXT pressed too soon
+                if self._restricted_room():                # a remote room: not a table-wide override any seated key may use
+                    with PHASE_LOCK:
+                        why = back_refusal(self._seat_key(self._json()))
+                    if why:
+                        return self._send(403 if "logged" not in why else 409, {**phase_public(), "error": why})
                 code, out = prev_step(str(self._json().get("by", ""))[:30] if self.headers.get("Content-Length") else None)
                 snapshot()
                 return self._send(code, out)
@@ -3077,6 +3131,15 @@ class H(BaseHTTPRequestHandler):
         self._send(403, {"error": "this page is only available on the table's laptop"})
         return True
 
+    def _restricted_room(self) -> bool:
+        """A remote caller in a room that checks seat keys (a cloud room, or STRICT_SEATS), who is not the host. The laptop itself
+        and the host's brain token (even through the Worker) are never restricted; neither is a keyless LAN game, where BACK,
+        HOLD and WINDOWS stay open to every device on the network (documented in docs/hud-plan.md, not changed)."""
+        return STRICT_SEATS and not self._is_local() and not self._brain_ok()
+
+    def _seat_key(self, b: dict) -> str:
+        return str(b.get("key") or self.headers.get("X-Seat-Key", ""))[:200]
+
     def _brain_ok(self):
         return bool(VPS) and secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN)
 
@@ -3086,6 +3149,14 @@ class H(BaseHTTPRequestHandler):
         True when it refused (and answered). The laptop itself is never asked."""
         rule = REMOTE_SEAT_POSTS.get(self.path)
         if not STRICT_SEATS or rule is None or self._is_local():
+            return False
+        if self.path in ("/api/phase/back", "/api/phase/hold", "/api/phase/windows") and self._brain_ok():
+            try:                                           # the host working through the Worker: no seat key, recorded as "host"
+                b = self._json() if int(self.headers.get("Content-Length", 0) or 0) else {}
+            except (ValueError, BadRequest):
+                b = {}
+            b["by"] = str(b.get("by") or "host")[:30]
+            self._jcache = b
             return False
         field, own = rule
         try:

@@ -46,15 +46,19 @@ def check(name, ok, detail=""):
 class Server:
     """A table with two pilots (Claude, Fusion) and two people (Michael, Sam), cloud-room style, on its own port."""
 
-    def __init__(self, order="Claude,Fusion,Michael,Sam", extra=()):
-        self.order, self.extra = order, list(extra)
+    def __init__(self, order="Claude,Fusion,Michael,Sam", extra=(), cloud=True):
+        self.order, self.extra, self.cloud = order, list(extra), cloud
         self.tmp = Path(tempfile.mkdtemp(prefix="stage1-"))
         self.token_file = self.tmp / "token"
         self.keys: dict[str, str] = {}
 
     def __enter__(self):
         env = {k: v for k, v in os.environ.items() if k != "TYPESAFE_API_KEY"}
-        env.update(TABLE_CLOUD="1", HF_HUB_OFFLINE="1", ROUTER="code", REPLIES="template",
+        env.pop("TABLE_CLOUD", None)
+        env.pop("STRICT_SEATS", None)
+        if self.cloud:
+            env["TABLE_CLOUD"] = "1"
+        env.update(HF_HUB_OFFLINE="1", ROUTER="code", REPLIES="template",
                    TABLE_RESEARCH_DIR=str(self.tmp / "research"))
         cmd = [sys.executable, str(HERE / "server.py"), "--any-card", "--port", str(PORT), "--brain", "external",
                "--token-file", str(self.token_file),
@@ -81,12 +85,13 @@ class Server:
             self.proc.kill()
 
     # ── calls ──
-    def call(self, method, path, body=None, key=None, host=False, ua="phone"):
-        """A REMOTE call unless host=True: then it is the laptop itself, with the brain token."""
+    def call(self, method, path, body=None, key=None, host=False, ua="phone", token=False, local=False):
+        """A REMOTE call unless host=True (the laptop itself, with the brain token) or local=True (the laptop, no token).
+        token=True adds the brain token to a remote call: a host working through the Worker."""
         h = {"Content-Type": "application/json", "User-Agent": ua}
-        if host:
+        if host or token:
             h["X-Brain-Token"] = self.token_file.read_text().strip()
-        else:
+        if not (host or local):
             h["X-Forwarded-For"] = "203.0.113.9"
         if key:
             h["X-Seat-Key"] = key
@@ -154,20 +159,16 @@ class Server:
         return 0, {"error": "never got through"}
 
     def finish_turn(self, who):
-        """The active player's turn is over: every step passed in order until the turn moves on."""
-        start = who
-        for _ in range(200):
+        """The active person's turn, played out: whoever is next in the round passes, and when the round is done the active
+        person's NEXT ends the step, until the turn moves to somebody else."""
+        for _ in range(600):
             ph = self.phase()
-            if ph["player"] != start:
+            if ph["player"] != who:
                 return ph
             nx = (ph.get("passes") or {}).get("next")
-            if nx is None:
-                c, d = (self.brain(start, "end", text="done") if start in ("Claude", "Fusion") else self.next(start))
-                if c == 409:
-                    time.sleep(0.25)
-                continue
-            self.pass_for(nx) if nx != start or start not in ("Claude", "Fusion") else None
-            time.sleep(0.05)
+            c, d = self.pass_for(nx) if nx else self.next(who)
+            if c == 409:
+                time.sleep(0.15)
         return self.phase()
 
 
@@ -408,7 +409,104 @@ def item5():
         check("(the host brain's pass is not held to the pilot rules)", c == 200, (c, str(d)[:100]))
 
 
-SECTIONS = {"1": item1, "2": item2, "3": item3, "4": item4, "5": item5}
+# ───────────────────────────────── item 7 ─────────────────────────────────
+ORDER7 = "Michael,Sam,Claude,Fusion"
+
+
+def michael_at_upkeep(S):
+    """Claim everyone, start the game (Michael first) and walk his untap step to upkeep."""
+    S.claim_all()
+    S.start_game()
+    S.next("Michael")
+    time.sleep(0.3)
+    ph = S.phase()
+    assert ph["player"] == "Michael" and ph["step"] == "upkeep", ph
+    return S.claim("Michael"), S.claim("Sam")
+
+
+def back(S, who, **kw):
+    return S.call("POST", "/api/phase/back", {"by": who, "key": S.claim(who)}, key=S.claim(who), **kw)
+
+
+def hold_events(S):
+    return [e for e in S.call("GET", "/api/events?since=0")[1]["events"] if e.get("type") == "phase" and e.get("kind") == "hold"]
+
+
+def item7():
+    print("item 7: BACK, HOLD and WINDOWS in a remote room")
+    with Server(order=ORDER7) as S:                            # BACK is the active player's
+        mk, sk = michael_at_upkeep(S)
+        c, d = back(S, "Sam")
+        check("BACK by a seated player who is NOT the active one is refused", c in (403, 409) and S.phase()["step"] == "upkeep", (c, S.phase()["step"], str(d)[:100]))
+        check("…and says whose turn it is", "Michael" in str(d.get("error", "")), d)
+    with Server(order=ORDER7) as S:                            # …and not once a land is logged in the step
+        mk, sk = michael_at_upkeep(S)
+        S.call("POST", "/api/my-board", {"by": "Michael", "key": mk, "permanents": [{"name": "Forest"}]}, key=mk)
+        c, d = back(S, "Michael")
+        check("BACK is refused once a land was logged in that step", c in (403, 409) and S.phase()["step"] == "upkeep", (c, S.phase()["step"], str(d)[:100]))
+        check("…and says something was already logged", "logged" in str(d.get("error", "")), d)
+        c, d = S.call("POST", "/api/phase/back", {"by": "anyone"}, token=True)
+        check("(the host may still go back: it is the host's table)", c == 200 and S.phase()["step"] == "untap", (c, S.phase()["step"], str(d)[:100]))
+    with Server(order=ORDER7) as S:                            # …nor once an attack is
+        mk, sk = michael_at_upkeep(S)
+        S.call("POST", "/api/declare/attack", {"by": "Michael", "key": mk, "attacks": [{"attacker": "Bear", "target": "Sam", "power": 2}]}, key=mk)
+        c, d = back(S, "Michael")
+        check("BACK is refused once an attack was logged in that step", c in (403, 409) and S.phase()["step"] == "upkeep", (c, S.phase()["step"], str(d)[:100]))
+    with Server(order=ORDER7) as S:                            # …and never across into the previous player's turn
+        S.claim_all()
+        S.start_game()
+        S.finish_turn("Michael")
+        ph = S.phase()
+        check("(Sam's turn has started, at untap)", ph["player"] == "Sam" and ph["step"] == "untap", (ph["player"], ph["step"]))
+        c, d = back(S, "Sam")
+        check("BACK across into the previous player's turn is refused to the active player's own key", c in (403, 409) and S.phase()["player"] == "Sam", (c, S.phase()["player"], str(d)[:100]))
+        check("…and says it takes the host", "host" in str(d.get("error", "")), d)
+        c, d = S.call("POST", "/api/phase/back", {"by": "someone"}, token=True)
+        ph = S.phase()
+        check("the host's brain token (through the Worker, no seat key) may cross back", c == 200 and ph["player"] == "Michael", (c, ph["player"], str(d)[:100]))
+    with Server(order=ORDER7) as S:                            # HOLD: any seated player, logged under who really did it
+        mk, sk = michael_at_upkeep(S)
+        c, d = back(S, "Michael")
+        ph = S.phase()
+        check("the active player's BACK in an untouched step goes back exactly one step", c == 200 and ph["step"] == "untap" and ph["player"] == "Michael", (c, ph["step"], str(d)[:100]))
+        S.next("Michael")
+        time.sleep(0.3)
+        check("(the laptop itself is never asked: its BACK is unchanged)", S.call("POST", "/api/phase/back", {"by": "host"}, local=True)[0] == 200 and S.phase()["step"] == "untap", S.phase()["step"])
+        S.next("Michael")
+        time.sleep(0.3)
+        c, d = S.call("POST", "/api/phase/hold", {"on": True, "by": "Michael", "key": sk}, key=sk)
+        h = hold_events(S)
+        check("a seated player can HOLD, and the log names who really did it (not who the body claims)", c == 200 and h and h[-1].get("by") == "Sam" and h[-1].get("on") is True, (c, h[-1:]))
+        c, d = S.call("POST", "/api/phase/hold", {"on": False, "key": mk}, key=mk)
+        h = hold_events(S)
+        check("…and so does the release", c == 200 and h[-1].get("by") == "Michael" and h[-1].get("on") is False, h[-1:])
+        check("an unseated device cannot HOLD", S.call("POST", "/api/phase/hold", {"on": True})[0] == 403)
+    with Server(order=ORDER7) as S:                            # WINDOWS: the active player or the host
+        mk, sk = michael_at_upkeep(S)
+        c, d = S.call("POST", "/api/phase/windows", {"on": False, "key": sk}, key=sk)
+        check("WINDOWS by a seated player who is not the active one is refused", c in (403, 409) and S.phase()["windows"] is True, (c, str(d)[:100]))
+        check("…and says whose turn it is", "Michael" in str(d.get("error", "")), d)
+        c, d = S.call("POST", "/api/phase/windows", {"on": False, "key": mk}, key=mk)
+        check("the active player may switch step timeouts off", c == 200 and S.phase()["windows"] is False, (c, str(d)[:100]))
+        c, d = S.call("POST", "/api/phase/windows", {"on": True}, token=True)
+        check("the host's brain token (through the Worker) may switch them back on", c == 200 and S.phase()["windows"] is True, (c, str(d)[:100]))
+        check("an unseated device cannot touch WINDOWS", S.call("POST", "/api/phase/windows", {"on": False})[0] == 403)
+    with Server(order=ORDER7, cloud=False) as S:               # the keyless LAN (no STRICT_SEATS): documented, unchanged
+        S.claim_all()
+        S.start_game()
+        S.next("Michael")
+        time.sleep(0.3)
+        c, d = S.call("POST", "/api/phase/windows", {"on": False, "by": "anyone"})
+        check("keyless LAN: any device can still switch WINDOWS (unchanged, documented)", c == 200 and S.phase()["windows"] is False, (c, d))
+        S.call("POST", "/api/phase/windows", {"on": True})
+        c, d = S.call("POST", "/api/phase/hold", {"on": True, "by": "anyone"})
+        S.call("POST", "/api/phase/hold", {"on": False})
+        check("keyless LAN: any device can still HOLD", c == 200, (c, d))
+        c, d = S.call("POST", "/api/phase/back", {"by": "anyone"})
+        check("keyless LAN: any device can still BACK a step (unchanged, documented)", c == 200 and S.phase()["step"] == "untap", (c, S.phase()["step"], str(d)[:100]))
+
+
+SECTIONS = {"1": item1, "2": item2, "3": item3, "4": item4, "5": item5, "7": item7}
 
 
 def main():
