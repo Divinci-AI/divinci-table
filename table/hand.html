@@ -42,19 +42,20 @@ select{padding:7px;border-radius:8px;background:#071820;color:var(--ink);border:
     <div class="sub" id="phase">—</div></div>
     <div id="startrow" style="display:none;margin-top:8px"><button class="gold" id="start">Start the game</button>
       <span class="sub">or roll for who goes first on the stage</span></div>
-    <div style="margin-top:8px"><button class="gold" id="begin">Begin my turn (untap, draw)</button><button id="pass">Pass</button>
+    <div style="margin-top:8px"><button class="gold" id="begin" disabled>Begin my turn (untap, draw)</button><button id="pass">Pass</button>
       <button id="end">End my turn</button></div>
     <div class="sub" id="mana" style="margin-top:6px"></div>
     <div id="err" role="alert"></div></div>
   <div class="panel"><h2>Hand</h2><div id="hand"></div></div>
   <div class="panel"><h2>Battlefield</h2><div id="field"></div>
     <div id="atk" style="margin-top:8px"></div></div>
+  <div class="panel"><h2>The other players</h2><div id="opps"><div class="sub">Nobody else yet.</div></div></div>
   <div class="panel"><h2>What happened</h2><div id="log"></div></div>
 </main>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-let S = null, since = "latest", attackers = new Set(), lastAttack = [], alert = null;
+let S = null, PH = null, since = "latest", attackers = new Set(), lastAttack = [], alert = null;
 const me = () => (window.TableSeat && TableSeat.name()) || "";
 const key = () => (window.TableSeat && TableSeat.body().key) || "";
 async function call(method, path, body) {
@@ -67,10 +68,11 @@ async function act(action, body = {}) {
   $("err").textContent = "";
   for (let i = 0; i < 20; i++) {                        // my turn walks its steps: wait while the others pass
     const { ok, code, d } = await call("POST", "/api/brain/" + action, { seat: me(), ...body });
-    if (code === 409 && d.waiting) { $("err").textContent = `waiting on ${d.waiting.join(", ")}…`; await new Promise(r => setTimeout(r, 2000)); continue; }
+    const w = Array.isArray(d.waiting) ? d.waiting.join(", ") : (d.waiting || "");   // the server sends a string ("Ben, Ann"); a refusal carries [] and no wait
+    if (code === 409 && w) { $("err").textContent = `waiting on ${w}…`; await new Promise(r => setTimeout(r, 2000)); continue; }
     if (!ok) { $("err").textContent = d.error || "refused"; return null; }
     (d.said || []).forEach(x => logLine(x)); $("err").textContent = "";
-    await load(); return d;
+    await load(); refreshPhase(); return d;
   }
 }
 function logLine(t) { $("log").insertAdjacentHTML("afterbegin", `<div>${esc(t)}</div>`); }
@@ -104,11 +106,23 @@ function draw() {
       ${p.face_down ? `<span class="tag">really ${esc(p.name)}</span>` : ""}<div>
       ${ready ? `<label><input type=checkbox data-atk="${p.id}" ${attackers.has(p.id) ? "checked" : ""}> attack</label>` : ""}
       ${p.face_down && p.turn_up_cost ? `<button data-up="${p.id}">Turn face up (${esc(p.turn_up_cost)})</button>` : ""}
-      <button data-tap="${p.id}">${p.tapped ? "Untap" : "Tap"}</button></div></div>`; }).join("") : `<div class="sub">Nothing on the battlefield yet.</div>`;
+      ${p.tapped && !canUntap() ? "" : `<button data-tap="${p.id}">${p.tapped ? "Untap" : "Tap"}</button>`}</div></div>`; }).join("") : `<div class="sub">Nothing on the battlefield yet.</div>`;
+  const inc = S.incoming || [];
+  $("alert").innerHTML = ($("alert").innerHTML || "") + (inc.length && !alert ? `<div class="alert">${inc.map(i => `${esc(i.attacker)} attacks you with ${esc(i.creature)} for ${i.power}${i.trample ? " (trample)" : ""}`).join("<br>")}<br>
+      <button class="gold" data-take>Take it</button>${(S.permanents || []).filter(p => p.pt && !p.tapped).map(p => `<button data-blk="${p.id}">Block with ${esc(p.name)} ${esc(p.pt)}</button>`).join("")}</div>` : "");
+  const o = S.opponents || {}, pb = S.public_boards || {};
+  $("opps").innerHTML = Object.keys(o).length || Object.keys(pb).length ? Object.entries(o).map(([n, v]) => `<div class="card"><b>${esc(n)}</b>
+      <span class="tag">${v.life} life</span><span class="tag">${v.hand} in hand</span><span class="tag">${v.library} in library</span>
+      <div class="x">Lands: ${v.lands} (${v.tapped_lands || 0} tapped)${(v.lands_list || []).length ? " — " + esc([...new Set(v.lands_list)].join(", ")) : ""}</div>
+      <div class="x">${(v.creatures || []).length ? (v.creatures || []).map(c => `${esc(c.name)} ${esc(c.pt)}${c.tapped ? " (tapped)" : ""}`).join("; ") : "No creatures."}</div>
+      ${(v.battlefield || []).length ? `<div class="t">Also: ${esc((v.battlefield || []).join("; "))}</div>` : ""}
+      ${(v.graveyard || []).length ? `<div class="t">Graveyard: ${esc(v.graveyard.join(", "))}</div>` : ""}</div>`).join("") +
+    Object.entries(pb).map(([n, v]) => `<div class="card"><b>${esc(n)}</b> <span class="t">(a real deck, from photos and what they said)</span>
+      <div class="x">${esc((v.permanents || []).map(p => p.name || p).join("; ") || "nothing recorded yet")}</div></div>`).join("") : `<div class="sub">Nobody else yet.</div>`;
   const opps = Object.entries(S.life_table || {}).filter(([n, l]) => n !== S.seat && l > 0).map(([n]) => n);
   $("atk").innerHTML = (attackers.size ? `<select id="target">${opps.map(o => `<option>${esc(o)}</option>`).join("")}</select>
       <button class="gold" id="attack">Attack with ${attackers.size}</button>` : "") +
-    (lastAttack.length ? `<button id="dmg">They didn't block: deal the damage</button>` : "");
+    (lastAttack.length ? `<button id="dmg">Finish combat damage</button>` : "");
 }
 document.body.addEventListener("click", async e => {
   const t = e.target, d = t.dataset || {}, h = S?.hand || [];
@@ -123,9 +137,10 @@ document.body.addEventListener("click", async e => {
   if (t.id === "attack") { const who = $("target").value, ids = [...attackers];
     const r = await act("attack", { assign: Object.fromEntries(ids.map(i => ["#" + i, who])) });
     if (r) { lastAttack = ids.map(i => ["#" + i, who]); attackers.clear(); draw(); } return; }
-  if (t.id === "dmg") { await act("damage", { hits: Object.fromEntries(lastAttack.map(([r, w]) => [r, [w, null]])), no_life: true }); lastAttack = []; return draw(); }
-  if (d.take !== undefined) { await act("block", { amount: alert.amount, attacker: alert.attacker, trample: alert.trample }); alert = null; return draw(); }
-  if (d.blk !== undefined) { await act("block", { blocker: "#" + d.blk, amount: alert.amount, attacker: alert.attacker, trample: alert.trample }); alert = null; return draw(); }
+  if (t.id === "dmg") { await act("damage", { hits: {} }); lastAttack = []; return draw(); }
+  if (d.take !== undefined) { await act("block", { attacker: alert ? alert.attacker : undefined }); alert = null; return draw(); }
+  if (d.blk !== undefined) { await act("block", { blocker: "#" + d.blk, attacker: alert ? alert.attacker : undefined }); alert = null; return draw(); }
+  if (d.pass !== undefined) { alert = null; draw(); return passNow(); }
   if (d.dismiss !== undefined) { alert = null; return draw(); }
 });
 $("begin").onclick = () => { alert = null; act("begin"); };
@@ -134,7 +149,9 @@ $("start").onclick = async () => {
   const d = await r.json().catch(() => ({})); $("err").textContent = r.ok ? "" : (d.error || "couldn't start");
   if (r.ok) logLine(`The game starts: ${d.player} goes first.`);
 };
-$("pass").onclick = () => { alert = null; act("pass"); };
+// A real pass: it names the step it was looking at, so a press that arrives after the table moved on is refused, not applied to the next step.
+const passNow = async () => { await refreshPhase(); return act("pass", PH && PH.player ? { player: PH.player, step: PH.step } : {}); };
+$("pass").onclick = () => { alert = null; passNow(); };
 $("end").onclick = () => { lastAttack = []; act("end", { text: "That's my turn." }); };
 async function poll() {
   try {
@@ -143,7 +160,7 @@ async function poll() {
       if (e.type === "say" && e.speaker === me()) continue;
       if (e.type === "attention" && (e.addressee || "").toLowerCase() === me().toLowerCase()) {
         if (e.kind === "turn") alert = { html: "It's your turn. <button class='gold' data-dismiss>OK</button> Press <b>Begin my turn</b>." };
-        else if (e.kind === "priority") alert = { html: `${esc(e.text || "Priority")}: cast an instant, or <button data-dismiss>Pass</button>` };
+        else if (e.kind === "priority") alert = { html: `${esc(e.text || "Priority")}: cast an instant, or <button data-pass>Pass</button> <button data-dismiss>Not now</button>` };
         else if (e.kind === "attacked") {
           const blockers = (S?.permanents || []).filter(p => p.pt && !p.tapped);
           alert = { amount: e.amount || 0, attacker: e.attacker, trample: !!e.trample,
@@ -159,9 +176,24 @@ async function poll() {
   } catch {}
   setTimeout(poll, 1200);
 }
-async function phase() {
-  try { const p = await (await fetch("/api/phase")).json(); $("phase").textContent = p.player ? `${p.player} · ${p.step}` : "game not started";
+// What the server will accept, mirrored here only to grey buttons out: the server refuses the rest (and says why).
+// Untap by hand is the active player's, in their own untap step, and nowhere else (the server refuses it; so no button).
+function canUntap() { return !!PH && !!S && PH.player === S.seat && PH.step === "untap"; }
+let uiUntap = false;
+function canBegin() { return !!PH && !!me() && PH.player === me() && !PH.begun && PH.index < (PH.steps || []).indexOf("main 1"); }
+function buttons() {
+  const b = canBegin(); $("begin").disabled = !b;
+  $("begin").title = b ? "" : !PH || !PH.player ? "the game has not started" : PH.player !== me() ? `it is ${PH.player}'s turn` : PH.begun ? "you already began this turn" : "begin is for the start of your turn";
+}
+async function refreshPhase() {
+  try { const p = await (await fetch("/api/phase")).json(); PH = p; const ps = p.passes || {}, mine = ps.next && ps.next.toLowerCase() === me().toLowerCase();
+    $("phase").textContent = p.player ? `${p.player} · ${p.step}` + (ps.next ? ` · waiting on ${ps.next}${ps.seconds_left != null ? ` (${Math.ceil(ps.seconds_left)}s${mine ? " — then the table passes for you" : ""})` : ""}` : "") : "game not started";
     $("startrow").style.display = p.player || !me() ? "none" : ""; } catch {}
+  buttons();
+  if (canUntap() !== uiUntap) { uiUntap = canUntap(); if (S) draw(); }   // Untap appears / goes away with the step
+}
+async function phase() {
+  await refreshPhase();
   if (!S && me()) load();                                // a seat just claimed (seat.js has no event for it)
   setTimeout(phase, 2000);
 }

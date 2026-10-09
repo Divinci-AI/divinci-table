@@ -100,6 +100,11 @@ const j = async (m, p, b, h = {}) => { const r = await fetch(BASE + p, { method:
     } else check("the overlay reached the Board page for the next step", false, JSON.stringify(before));
 
     console.log("the table voice");
+    check("the voice is off by default", (await page2.evaluate(() => __tablebar.prefs.voice)) === false);
+    await j("POST", "/api/brain/say", { seat: "Claude", text: "Default is quiet." }, pilot);
+    await sleep(2500);
+    check("…so nothing is spoken until it is switched on", !(await page2.evaluate(() => window.__spoken)).some(t => /Default is quiet/.test(t)));
+    await page2.click(".tb-v");                                   // switch the voice on (the button is the toggle)
     const [sc] = await j("POST", "/api/brain/say", { seat: "Claude", text: "I play my land and pass." }, pilot);
     await page2.waitForFunction(() => window.__spoken.some(t => /I play my land/.test(t)), null, { timeout: 8000 }).catch(() => {});
     const sp = await page2.evaluate(() => window.__spoken);
@@ -113,6 +118,16 @@ const j = async (m, p, b, h = {}) => { const r = await fetch(BASE + p, { method:
     await j("POST", "/api/brain/say", { seat: "Claude", text: "Voice is back." }, pilot);
     await page2.waitForFunction(() => window.__spoken.some(t => /Voice is back/.test(t)), null, { timeout: 8000 }).catch(() => {});
     check("and it speaks again when switched back on", (await page2.evaluate(() => window.__spoken)).some(t => /Voice is back/.test(t)));
+
+    const mpage = await ctx.newPage();                             // ?mute=1: silent in that tab even with the voice saved on
+    await mpage.addInitScript(() => { window.__spoken = []; Object.defineProperty(window, "speechSynthesis", { configurable: true, value: {
+      speak(u) { window.__spoken.push(u.text); }, cancel() {}, getVoices() { return []; }, onvoiceschanged: null } }); });
+    await mpage.goto(`${BASE}/me?player=Michael&mute=1`);
+    await sleep(1500);
+    await j("POST", "/api/brain/say", { seat: "Claude", text: "Muted tab line." }, pilot);
+    await sleep(2500);
+    check("?mute=1 keeps a tab silent although the voice is saved on", !(await mpage.evaluate(() => window.__spoken)).some(t => /Muted tab line/.test(t)));
+    await mpage.close();
 
     console.log("notifications");
     await walk("end", pilot).catch(() => {});

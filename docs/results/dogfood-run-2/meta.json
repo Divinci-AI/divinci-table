@@ -1,0 +1,16 @@
+{
+ "port": 8841,
+ "order": "Opus,Sonnet",
+ "turn_cap": 8,
+ "started": "2026-10-09T09:49:51",
+ "decks": {
+  "Sonnet": [
+   "Tuvasa the Sunlit",
+   "decks/tuvasa.json"
+  ],
+  "Opus": [
+   "Kaust, Eyes of the Glade",
+   "decks/kaust.json"
+  ]
+ }
+}

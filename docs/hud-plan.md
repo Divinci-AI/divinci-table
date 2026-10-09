@@ -166,3 +166,41 @@ Existing suites (`pass_ui_e2e`, `phase_test`, `remote_guard_test`, `pilot_ctl_te
 5. BACK in a remote game: who may press it? Propose a rule.
 6. What in the test plan would pass while the product is still wrong?
 7. The build order: server rules first, then dock with pilot hand, then real-deck hand. Wrong order?
+
+## Stage 1 notes (implemented 2026-10-09; tests: `table/tests/stage1_guard_test.py`, `table/tests/stage1_ui_e2e.cjs`)
+
+What the server now refuses for a REMOTE caller (a request carrying a forwarding header). Every refusal says why.
+
+1. **`begin`** (`begin_refusal`): only the ACTIVE seat, before main 1, once a turn. "At its untap step" is taken as "before main 1" because a
+   pilot's begin walks untap -> upkeep -> draw -> main 1 and waits at each step for the people to pass: the page retries `begin` with the
+   step already at upkeep, and that retry must not be refused. `PHASE["begun"]` ends it. A lock serialises a double tap. Before the game
+   starts only the host's brain token may begin (brain_e2e plays solo engine turns that way); a pilot doing it would make itself first
+   and skip the high roll. `/api/phase` now carries `begun`; `/hand` greys Begin out unless the server would accept it.
+2. **`fair-reveal`**: refused to a pilot key (it publishes every deck's seed and order through `GET /api/fair`). The host's token still can.
+3. **Pilot allowlist** (`PILOT_ACTIONS`, applied to the last path segment of `/api/brain/<action>` BEFORE `ai_advance`, so a refused action
+   cannot walk the turn on as a side effect, and every alias path is covered). Derived from what `hand.html` calls and what
+   `pilot_ctl_test.py` does with the pilot mode of `tablectl.py`:
+
+       say  begin  land  cast  turn-up  tap  untap  attack  damage  block  pass  end  life (own only)
+
+   Refused with 403 and a reason: draw, search, peek, topdeck, put, token, counter, animate, bottom, shuffle, mulligan, discard, mill,
+   role, destroy, exile, bounce, blink, graveyard-out, manifest, take, new-game, fair-reveal, and any unknown action. `discount` on `cast` is
+   dropped for a pilot key. The host's brain token keeps every action. (`tablectl` exposes more verbs than this; on a pilot key they now
+   answer 403 "isn't available to a pilot seat". If a pilot legitimately needs one, add it here with the card behind it.)
+4. **Untap** (`untap_refusal`): only the active player, in their own untap step. Both paths: `/api/brain/untap` (pilot keys; the host token is
+   exempt) and `/api/card-action` `untap` (people with real decks, everyone). `begin` still untaps everything. Tap is not restricted. No
+   "undo my last tap". `/hand` and `/board` no longer offer an Untap button the server would refuse. NOT covered: `/api/my-board` replaces a
+   whole board including tapped state, so for a real deck this stays honor by nature.
+5. **Pilot pass**: `/hand`'s alert Pass and the red bar's Pass call `POST /api/brain/pass` with the step they were looking at. For a pilot key
+   the server refuses a pass when the game has not started, when it is the pilot's own turn, when the pilot is not in the round, has
+   already passed, is not next in turn order, or names a `player`/`step` the table has left (stale). The host token's pass is unchanged.
+   The pass is counted before the answer is sent. `/hand` also read the 409 `waiting` string as an array (`join` is not a function), so a
+   begin that had to wait never retried.
+6. **`/me`**: `checklistFirst` answers `"error"` (not `true`) when the checklist cannot be read; only the popup's Pass, or the NEXT button
+   the person pressed, sends a pass. The NEXT button still proceeds when the list is unreadable: the person asked for it.
+7. **BACK / HOLD / WINDOWS** in a room that checks seat keys (cloud, or `STRICT_SEATS=1`), for a caller that is not the host:
+   BACK = the active player's own key, one step, refused once the visible log shows a land/board change, a chat play or an attack for
+   that player in this step, and never into the previous player's turn. HOLD = any seated key, logged as who really pressed it.
+   WINDOWS = the active player's key. "Host" = the laptop itself (no forwarding header) or the brain token, including through the Worker
+   with no seat key (`_restricted_room`). **Keyless LAN games (no `STRICT_SEATS`) are unchanged: any device on the network can still
+   BACK, HOLD and switch WINDOWS. Documented, not fixed.** Not done (stage 2+): a confirmation from the previous player, rate limits.

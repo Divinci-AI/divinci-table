@@ -1,0 +1,300 @@
+#1 seat {'name': 'Sonnet', 'kind': 'claimed'}
+#2 seat {'name': 'Opus', 'kind': 'claimed'}
+#3 phase {'player': 'Opus', 'step': 'untap', 'index': 0}
+#4 attention {'kind': 'turn', 'text': '(NEXT)', 'addressee': 'Opus'}
+#5 highroll {'mode': 'quantum', 'sides': 20, 'round': 1, 'contenders': ['Opus', 'Sonnet'], 'rolls': {'1': {'Opus': 16, 'Sonnet': 15}}, 'winner': 'Opus', 'by': 'Opus', 'seating': ['Opus', 'Sonnet'], 'started': 1791564607.54, 'entropy': 'be2d67bb9fee04e790c4c6de210482655461a8b7059cb0e99998f09d601eefcb', 'source': 'ANU quantum (qrng.anu.edu.au)', 'formula': "fair.die_roll(entropy, 'highroll|<round>|<name>', sides)", 'order': ['Opus', 'Sonnet']}
+#6 phase {'player': 'Opus', 'step': 'upkeep', 'index': 1}
+#7 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: upkeep. You may cast an instant now, or pass.', 'step': 'upkeep', 'active': 'Opus'}
+#8 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'upkeep', 'left': []}
+#9 phase {'player': 'Opus', 'step': 'draw', 'index': 2}
+#10 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: draw. You may cast an instant now, or pass.', 'step': 'draw', 'active': 'Opus'}
+#11 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'draw', 'left': []}
+#12 phase {'player': 'Opus', 'step': 'main 1', 'index': 3}
+#13 say {'speaker': 'Opus', 'text': 'Opus, turn 1.', 'action': 'begin', 'speech': 'Opus, turn 1.'}
+#14 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'main 1', 'left': []}
+#15 say {'speaker': 'Opus', 'text': 'I play Command Tower.', 'action': 'land', 'speech': 'I play Command Tower.'}
+#16 say {'speaker': 'Opus', 'text': 'I cast Wild Growth on Command Tower.', 'action': 'cast', 'speech': 'I cast Wild Growth on Command Tower.'}
+#17 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: main 1. You may cast an instant now, or pass.', 'step': 'main 1', 'active': 'Opus'}
+#18 phase {'player': 'Opus', 'step': 'beginning of combat', 'index': 4}
+#19 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: beginning of combat. You may cast an instant now, or pass.', 'step': 'beginning of combat', 'active': 'Opus'}
+#20 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'beginning of combat', 'left': []}
+#21 phase {'player': 'Opus', 'step': 'declare attackers', 'index': 5}
+#22 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: declare attackers. You may cast an instant now, or pass.', 'step': 'declare attackers', 'active': 'Opus'}
+#23 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'declare attackers', 'left': []}
+#24 phase {'player': 'Opus', 'step': 'declare blockers', 'index': 6}
+#25 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: declare blockers. You may cast an instant now, or pass.', 'step': 'declare blockers', 'active': 'Opus'}
+#26 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'declare blockers', 'left': []}
+#27 phase {'player': 'Opus', 'step': 'combat damage', 'index': 7}
+#28 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: combat damage. You may cast an instant now, or pass.', 'step': 'combat damage', 'active': 'Opus'}
+#29 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'combat damage', 'left': []}
+#30 phase {'player': 'Opus', 'step': 'main 2', 'index': 8}
+#31 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: main 2. You may cast an instant now, or pass.', 'step': 'main 2', 'active': 'Opus'}
+#32 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'main 2', 'left': []}
+#33 phase {'player': 'Opus', 'step': 'end step', 'index': 9}
+#34 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: end step. You may cast an instant now, or pass.', 'step': 'end step', 'active': 'Opus'}
+#35 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'end step', 'left': []}
+#36 journal-due {'seat': 'Opus', 'moment': 'end_of_turn'}
+#37 say {'speaker': 'Opus', 'text': "That's my turn.", 'action': 'end', 'speech': "That's my turn."}
+#38 phase {'player': 'Sonnet', 'step': 'untap', 'index': 0}
+#39 attention {'kind': 'turn', 'text': '(NEXT)', 'addressee': 'Sonnet'}
+#40 phase {'player': 'Sonnet', 'step': 'upkeep', 'index': 1}
+#41 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: upkeep. You may cast an instant now, or pass.', 'step': 'upkeep', 'active': 'Sonnet'}
+#42 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'upkeep', 'left': []}
+#43 phase {'player': 'Sonnet', 'step': 'draw', 'index': 2}
+#44 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: draw. You may cast an instant now, or pass.', 'step': 'draw', 'active': 'Sonnet'}
+#45 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'draw', 'left': []}
+#46 phase {'player': 'Sonnet', 'step': 'main 1', 'index': 3}
+#47 say {'speaker': 'Sonnet', 'text': 'Sonnet, turn 1.', 'action': 'begin', 'speech': 'Sonnet, turn 1.'}
+#48 say {'speaker': 'Sonnet', 'text': 'I play Forest.', 'action': 'land', 'speech': 'I play Forest.'}
+#49 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: main 1. You may cast an instant now, or pass.', 'step': 'main 1', 'active': 'Sonnet'}
+#50 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'main 1', 'left': []}
+#51 phase {'player': 'Sonnet', 'step': 'beginning of combat', 'index': 4}
+#52 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: beginning of combat. You may cast an instant now, or pass.', 'step': 'beginning of combat', 'active': 'Sonnet'}
+#53 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'beginning of combat', 'left': []}
+#54 phase {'player': 'Sonnet', 'step': 'declare attackers', 'index': 5}
+#55 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: declare attackers. You may cast an instant now, or pass.', 'step': 'declare attackers', 'active': 'Sonnet'}
+#56 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'declare attackers', 'left': []}
+#57 phase {'player': 'Sonnet', 'step': 'declare blockers', 'index': 6}
+#58 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: declare blockers. You may cast an instant now, or pass.', 'step': 'declare blockers', 'active': 'Sonnet'}
+#59 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'declare blockers', 'left': []}
+#60 phase {'player': 'Sonnet', 'step': 'combat damage', 'index': 7}
+#61 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: combat damage. You may cast an instant now, or pass.', 'step': 'combat damage', 'active': 'Sonnet'}
+#62 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'combat damage', 'left': []}
+#63 phase {'player': 'Sonnet', 'step': 'main 2', 'index': 8}
+#64 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: main 2. You may cast an instant now, or pass.', 'step': 'main 2', 'active': 'Sonnet'}
+#65 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'main 2', 'left': []}
+#66 phase {'player': 'Sonnet', 'step': 'end step', 'index': 9}
+#67 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: end step. You may cast an instant now, or pass.', 'step': 'end step', 'active': 'Sonnet'}
+#68 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'end step', 'left': []}
+#69 journal-due {'seat': 'Sonnet', 'moment': 'end_of_turn'}
+#70 say {'speaker': 'Sonnet', 'text': 'go', 'action': 'end', 'speech': 'go'}
+#71 phase {'player': 'Opus', 'step': 'untap', 'index': 0}
+#72 attention {'kind': 'turn', 'text': '(NEXT)', 'addressee': 'Opus'}
+#73 phase {'player': 'Opus', 'step': 'upkeep', 'index': 1}
+#74 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: upkeep. You may cast an instant now, or pass.', 'step': 'upkeep', 'active': 'Opus'}
+#75 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'upkeep', 'left': []}
+#76 phase {'player': 'Opus', 'step': 'draw', 'index': 2}
+#77 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: draw. You may cast an instant now, or pass.', 'step': 'draw', 'active': 'Opus'}
+#78 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'draw', 'left': []}
+#79 phase {'player': 'Opus', 'step': 'main 1', 'index': 3}
+#80 say {'speaker': 'Opus', 'text': 'Opus, turn 2.', 'action': 'begin', 'speech': 'Opus, turn 2.'}
+#81 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'main 1', 'left': []}
+#82 say {'speaker': 'Opus', 'text': 'I play Game Trail, tapped.', 'action': 'land', 'speech': 'I play Game Trail, tapped.'}
+#83 say {'speaker': 'Opus', 'text': 'I cast Kaust, Eyes of the Glade from the command zone.', 'action': 'cast', 'speech': 'I cast Kaust, Eyes of the Glade from the command zone.'}
+#84 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: main 1. You may cast an instant now, or pass.', 'step': 'main 1', 'active': 'Opus'}
+#85 phase {'player': 'Opus', 'step': 'beginning of combat', 'index': 4}
+#86 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: beginning of combat. You may cast an instant now, or pass.', 'step': 'beginning of combat', 'active': 'Opus'}
+#87 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'beginning of combat', 'left': []}
+#88 phase {'player': 'Opus', 'step': 'declare attackers', 'index': 5}
+#89 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: declare attackers. You may cast an instant now, or pass.', 'step': 'declare attackers', 'active': 'Opus'}
+#90 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'declare attackers', 'left': []}
+#91 phase {'player': 'Opus', 'step': 'declare blockers', 'index': 6}
+#92 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: declare blockers. You may cast an instant now, or pass.', 'step': 'declare blockers', 'active': 'Opus'}
+#93 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'declare blockers', 'left': []}
+#94 phase {'player': 'Opus', 'step': 'combat damage', 'index': 7}
+#95 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: combat damage. You may cast an instant now, or pass.', 'step': 'combat damage', 'active': 'Opus'}
+#96 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'combat damage', 'left': []}
+#97 phase {'player': 'Opus', 'step': 'main 2', 'index': 8}
+#98 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: main 2. You may cast an instant now, or pass.', 'step': 'main 2', 'active': 'Opus'}
+#99 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'main 2', 'left': []}
+#100 phase {'player': 'Opus', 'step': 'end step', 'index': 9}
+#101 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: end step. You may cast an instant now, or pass.', 'step': 'end step', 'active': 'Opus'}
+#102 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'end step', 'left': []}
+#103 journal-due {'seat': 'Opus', 'moment': 'end_of_turn'}
+#104 say {'speaker': 'Opus', 'text': "That's my turn.", 'action': 'end', 'speech': "That's my turn."}
+#105 phase {'player': 'Sonnet', 'step': 'untap', 'index': 0}
+#106 attention {'kind': 'turn', 'text': '(NEXT)', 'addressee': 'Sonnet'}
+#107 phase {'player': 'Sonnet', 'step': 'upkeep', 'index': 1}
+#108 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: upkeep. You may cast an instant now, or pass.', 'step': 'upkeep', 'active': 'Sonnet'}
+#109 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'upkeep', 'left': []}
+#110 phase {'player': 'Sonnet', 'step': 'draw', 'index': 2}
+#111 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: draw. You may cast an instant now, or pass.', 'step': 'draw', 'active': 'Sonnet'}
+#112 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'draw', 'left': []}
+#113 phase {'player': 'Sonnet', 'step': 'main 1', 'index': 3}
+#114 say {'speaker': 'Sonnet', 'text': 'Sonnet, turn 2.', 'action': 'begin', 'speech': 'Sonnet, turn 2.'}
+#115 say {'speaker': 'Sonnet', 'text': 'I play Island.', 'action': 'land', 'speech': 'I play Island.'}
+#116 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'main 1', 'left': []}
+#117 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: main 1. You may cast an instant now, or pass.', 'step': 'main 1', 'active': 'Sonnet'}
+#118 phase {'player': 'Sonnet', 'step': 'beginning of combat', 'index': 4}
+#119 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: beginning of combat. You may cast an instant now, or pass.', 'step': 'beginning of combat', 'active': 'Sonnet'}
+#120 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'beginning of combat', 'left': []}
+#121 phase {'player': 'Sonnet', 'step': 'declare attackers', 'index': 5}
+#122 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: declare attackers. You may cast an instant now, or pass.', 'step': 'declare attackers', 'active': 'Sonnet'}
+#123 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'declare attackers', 'left': []}
+#124 phase {'player': 'Sonnet', 'step': 'declare blockers', 'index': 6}
+#125 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: declare blockers. You may cast an instant now, or pass.', 'step': 'declare blockers', 'active': 'Sonnet'}
+#126 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'declare blockers', 'left': []}
+#127 phase {'player': 'Sonnet', 'step': 'combat damage', 'index': 7}
+#128 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: combat damage. You may cast an instant now, or pass.', 'step': 'combat damage', 'active': 'Sonnet'}
+#129 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'combat damage', 'left': []}
+#130 phase {'player': 'Sonnet', 'step': 'main 2', 'index': 8}
+#131 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: main 2. You may cast an instant now, or pass.', 'step': 'main 2', 'active': 'Sonnet'}
+#132 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'main 2', 'left': []}
+#133 phase {'player': 'Sonnet', 'step': 'end step', 'index': 9}
+#134 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: end step. You may cast an instant now, or pass.', 'step': 'end step', 'active': 'Sonnet'}
+#135 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'end step', 'left': []}
+#136 journal-due {'seat': 'Sonnet', 'moment': 'end_of_turn'}
+#137 say {'speaker': 'Sonnet', 'text': "That's my turn.", 'action': 'end', 'speech': "That's my turn."}
+#138 phase {'player': 'Opus', 'step': 'untap', 'index': 0}
+#139 attention {'kind': 'turn', 'text': '(NEXT)', 'addressee': 'Opus'}
+#140 phase {'player': 'Opus', 'step': 'upkeep', 'index': 1}
+#141 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: upkeep. You may cast an instant now, or pass.', 'step': 'upkeep', 'active': 'Opus'}
+#142 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'upkeep', 'left': []}
+#143 phase {'player': 'Opus', 'step': 'draw', 'index': 2}
+#144 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: draw. You may cast an instant now, or pass.', 'step': 'draw', 'active': 'Opus'}
+#145 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'draw', 'left': []}
+#146 phase {'player': 'Opus', 'step': 'main 1', 'index': 3}
+#147 say {'speaker': 'Opus', 'text': 'Opus, turn 3.', 'action': 'begin', 'speech': 'Opus, turn 3.'}
+#148 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'main 1', 'left': []}
+#149 say {'speaker': 'Opus', 'text': 'I play Mountain.', 'action': 'land', 'speech': 'I play Mountain.'}
+#150 say {'speaker': 'Opus', 'text': 'I cast a creature face down.', 'action': 'cast', 'speech': 'I cast a creature face down.'}
+#151 say {'speaker': 'Opus', 'text': 'I cast Ransom Note.', 'action': 'cast', 'speech': 'I cast Ransom Note.'}
+#152 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: main 1. You may cast an instant now, or pass.', 'step': 'main 1', 'active': 'Opus'}
+#153 phase {'player': 'Opus', 'step': 'beginning of combat', 'index': 4}
+#154 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: beginning of combat. You may cast an instant now, or pass.', 'step': 'beginning of combat', 'active': 'Opus'}
+#155 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'beginning of combat', 'left': []}
+#156 phase {'player': 'Opus', 'step': 'declare attackers', 'index': 5}
+#157 attention {'kind': 'attacked', 'addressee': 'Sonnet', 'attacker': 'Kaust, Eyes of the Glade', 'amount': 2, 'trample': False, 'text': 'Opus attacks you with Kaust, Eyes of the Glade (2). Block it, or `block` with no blocker to take it.'}
+#158 journal-due {'seat': 'Sonnet', 'moment': 'attacked'}
+#159 say {'speaker': 'Opus', 'text': 'I attack Sonnet with Kaust, 2 damage.', 'action': 'attack', 'speech': 'I attack Sonnet with Kaust, 2 damage.'}
+#160 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'declare attackers', 'left': []}
+#161 life {'player': 'Sonnet', 'delta': -2, 'by': 'combat', 'life': 38}
+#162 say {'speaker': 'Sonnet', 'text': "No blocks. I take 2; I'm at 38.", 'action': 'block', 'speech': "No blocks. I take 2; I'm at 38."}
+#163 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: declare attackers. You may cast an instant now, or pass.', 'step': 'declare attackers', 'active': 'Opus'}
+#164 phase {'player': 'Opus', 'step': 'declare blockers', 'index': 6}
+#165 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: declare blockers. You may cast an instant now, or pass.', 'step': 'declare blockers', 'active': 'Opus'}
+#166 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'declare blockers', 'left': []}
+#167 phase {'player': 'Opus', 'step': 'combat damage', 'index': 7}
+#168 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: combat damage. You may cast an instant now, or pass.', 'step': 'combat damage', 'active': 'Opus'}
+#169 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'combat damage', 'left': []}
+#170 phase {'player': 'Opus', 'step': 'main 2', 'index': 8}
+#171 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: main 2. You may cast an instant now, or pass.', 'step': 'main 2', 'active': 'Opus'}
+#172 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'main 2', 'left': []}
+#173 phase {'player': 'Opus', 'step': 'end step', 'index': 9}
+#174 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: end step. You may cast an instant now, or pass.', 'step': 'end step', 'active': 'Opus'}
+#175 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'end step', 'left': []}
+#176 journal-due {'seat': 'Opus', 'moment': 'end_of_turn'}
+#177 say {'speaker': 'Opus', 'text': "That's my turn.", 'action': 'end', 'speech': "That's my turn."}
+#178 phase {'player': 'Sonnet', 'step': 'untap', 'index': 0}
+#179 attention {'kind': 'turn', 'text': '(NEXT)', 'addressee': 'Sonnet'}
+#180 phase {'player': 'Sonnet', 'step': 'upkeep', 'index': 1}
+#181 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: upkeep. You may cast an instant now, or pass.', 'step': 'upkeep', 'active': 'Sonnet'}
+#182 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'upkeep', 'left': []}
+#183 phase {'player': 'Sonnet', 'step': 'draw', 'index': 2}
+#184 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: draw. You may cast an instant now, or pass.', 'step': 'draw', 'active': 'Sonnet'}
+#185 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'draw', 'left': []}
+#186 phase {'player': 'Sonnet', 'step': 'main 1', 'index': 3}
+#187 say {'speaker': 'Sonnet', 'text': 'Sonnet, turn 3.', 'action': 'begin', 'speech': 'Sonnet, turn 3.'}
+#188 say {'speaker': 'Sonnet', 'text': 'I play Azorius Chancery, tapped.', 'action': 'land', 'speech': 'I play Azorius Chancery, tapped.'}
+#189 say {'speaker': 'Sonnet', 'text': 'Azorius Chancery returns Forest to my hand.', 'action': 'land', 'speech': 'Azorius Chancery returns Forest to my hand.'}
+#190 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'main 1', 'left': []}
+#191 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: main 1. You may cast an instant now, or pass.', 'step': 'main 1', 'active': 'Sonnet'}
+#192 phase {'player': 'Sonnet', 'step': 'beginning of combat', 'index': 4}
+#193 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: beginning of combat. You may cast an instant now, or pass.', 'step': 'beginning of combat', 'active': 'Sonnet'}
+#194 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'beginning of combat', 'left': []}
+#195 phase {'player': 'Sonnet', 'step': 'declare attackers', 'index': 5}
+#196 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: declare attackers. You may cast an instant now, or pass.', 'step': 'declare attackers', 'active': 'Sonnet'}
+#197 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'declare attackers', 'left': []}
+#198 phase {'player': 'Sonnet', 'step': 'declare blockers', 'index': 6}
+#199 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: declare blockers. You may cast an instant now, or pass.', 'step': 'declare blockers', 'active': 'Sonnet'}
+#200 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'declare blockers', 'left': []}
+#201 phase {'player': 'Sonnet', 'step': 'combat damage', 'index': 7}
+#202 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: combat damage. You may cast an instant now, or pass.', 'step': 'combat damage', 'active': 'Sonnet'}
+#203 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'combat damage', 'left': []}
+#204 phase {'player': 'Sonnet', 'step': 'main 2', 'index': 8}
+#205 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: main 2. You may cast an instant now, or pass.', 'step': 'main 2', 'active': 'Sonnet'}
+#206 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'main 2', 'left': []}
+#207 phase {'player': 'Sonnet', 'step': 'end step', 'index': 9}
+#208 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: end step. You may cast an instant now, or pass.', 'step': 'end step', 'active': 'Sonnet'}
+#209 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'end step', 'left': []}
+#210 journal-due {'seat': 'Sonnet', 'moment': 'end_of_turn'}
+#211 say {'speaker': 'Sonnet', 'text': "That's my turn.", 'action': 'end', 'speech': "That's my turn."}
+#212 phase {'player': 'Opus', 'step': 'untap', 'index': 0}
+#213 attention {'kind': 'turn', 'text': '(NEXT)', 'addressee': 'Opus'}
+#214 phase {'player': 'Opus', 'step': 'upkeep', 'index': 1}
+#215 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: upkeep. You may cast an instant now, or pass.', 'step': 'upkeep', 'active': 'Opus'}
+#216 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'upkeep', 'left': []}
+#217 phase {'player': 'Opus', 'step': 'draw', 'index': 2}
+#218 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: draw. You may cast an instant now, or pass.', 'step': 'draw', 'active': 'Opus'}
+#219 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'draw', 'left': []}
+#220 phase {'player': 'Opus', 'step': 'main 1', 'index': 3}
+#221 say {'speaker': 'Opus', 'text': 'Opus, turn 4.', 'action': 'begin', 'speech': 'Opus, turn 4.'}
+#222 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'main 1', 'left': []}
+#223 say {'speaker': 'Opus', 'text': 'I cast Boltbender.', 'action': 'cast', 'speech': 'I cast Boltbender.'}
+#224 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: main 1. You may cast an instant now, or pass.', 'step': 'main 1', 'active': 'Opus'}
+#225 phase {'player': 'Opus', 'step': 'beginning of combat', 'index': 4}
+#226 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: beginning of combat. You may cast an instant now, or pass.', 'step': 'beginning of combat', 'active': 'Opus'}
+#227 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'beginning of combat', 'left': []}
+#228 phase {'player': 'Opus', 'step': 'declare attackers', 'index': 5}
+#229 attention {'kind': 'attacked', 'addressee': 'Sonnet', 'attacker': 'Kaust, Eyes of the Glade', 'amount': 2, 'trample': False, 'text': 'Opus attacks you with Kaust, Eyes of the Glade (2). Block it, or `block` with no blocker to take it.'}
+#230 journal-due {'seat': 'Sonnet', 'moment': 'attacked'}
+#231 attention {'kind': 'attacked', 'addressee': 'Sonnet', 'attacker': 'a face-down 2/2', 'amount': 2, 'trample': False, 'text': 'Opus attacks you with a face-down 2/2 (2). Block it, or `block` with no blocker to take it.'}
+#232 journal-due {'seat': 'Sonnet', 'moment': 'attacked'}
+#233 say {'speaker': 'Opus', 'text': 'I attack Sonnet with Kaust and a face-down 2/2, 4 damage.', 'action': 'attack', 'speech': 'I attack Sonnet with Kaust and a face-down 2/2, 4 damage.'}
+#234 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'declare attackers', 'left': []}
+#235 life {'player': 'Sonnet', 'delta': -2, 'by': 'combat', 'life': 36}
+#236 say {'speaker': 'Sonnet', 'text': "No blocks. I take 2; I'm at 36.", 'action': 'block', 'speech': "No blocks. I take 2; I'm at 36."}
+#237 life {'player': 'Sonnet', 'delta': -2, 'by': 'combat', 'life': 34}
+#238 say {'speaker': 'Sonnet', 'text': "No blocks. I take 2; I'm at 34.", 'action': 'block', 'speech': "No blocks. I take 2; I'm at 34."}
+#239 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: declare attackers. You may cast an instant now, or pass.', 'step': 'declare attackers', 'active': 'Opus'}
+#240 phase {'player': 'Opus', 'step': 'declare blockers', 'index': 6}
+#241 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: declare blockers. You may cast an instant now, or pass.', 'step': 'declare blockers', 'active': 'Opus'}
+#242 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'declare blockers', 'left': []}
+#243 phase {'player': 'Opus', 'step': 'combat damage', 'index': 7}
+#244 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: combat damage. You may cast an instant now, or pass.', 'step': 'combat damage', 'active': 'Opus'}
+#245 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'combat damage', 'left': []}
+#246 phase {'player': 'Opus', 'step': 'main 2', 'index': 8}
+#247 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: main 2. You may cast an instant now, or pass.', 'step': 'main 2', 'active': 'Opus'}
+#248 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'main 2', 'left': []}
+#249 phase {'player': 'Opus', 'step': 'end step', 'index': 9}
+#250 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: end step. You may cast an instant now, or pass.', 'step': 'end step', 'active': 'Opus'}
+#251 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'end step', 'left': []}
+#252 journal-due {'seat': 'Opus', 'moment': 'end_of_turn'}
+#253 say {'speaker': 'Opus', 'text': "That's my turn.", 'action': 'end', 'speech': "That's my turn."}
+#254 phase {'player': 'Sonnet', 'step': 'untap', 'index': 0}
+#255 attention {'kind': 'turn', 'text': '(NEXT)', 'addressee': 'Sonnet'}
+#256 phase {'player': 'Sonnet', 'step': 'upkeep', 'index': 1}
+#257 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: upkeep. You may cast an instant now, or pass.', 'step': 'upkeep', 'active': 'Sonnet'}
+#258 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'upkeep', 'left': []}
+#259 phase {'player': 'Sonnet', 'step': 'draw', 'index': 2}
+#260 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: draw. You may cast an instant now, or pass.', 'step': 'draw', 'active': 'Sonnet'}
+#261 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'draw', 'left': []}
+#262 phase {'player': 'Sonnet', 'step': 'main 1', 'index': 3}
+#263 say {'speaker': 'Sonnet', 'text': 'Sonnet, turn 4.', 'action': 'begin', 'speech': 'Sonnet, turn 4.'}
+#264 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'main 1', 'left': []}
+#265 say {'speaker': 'Sonnet', 'text': 'I play Forest.', 'action': 'land', 'speech': 'I play Forest.'}
+#266 say {'speaker': 'Sonnet', 'text': 'I cast Kestia, the Cultivator.', 'action': 'cast', 'speech': 'I cast Kestia, the Cultivator.'}
+#267 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: main 1. You may cast an instant now, or pass.', 'step': 'main 1', 'active': 'Sonnet'}
+#268 phase {'player': 'Sonnet', 'step': 'beginning of combat', 'index': 4}
+#269 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: beginning of combat. You may cast an instant now, or pass.', 'step': 'beginning of combat', 'active': 'Sonnet'}
+#270 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'beginning of combat', 'left': []}
+#271 phase {'player': 'Sonnet', 'step': 'declare attackers', 'index': 5}
+#272 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: declare attackers. You may cast an instant now, or pass.', 'step': 'declare attackers', 'active': 'Sonnet'}
+#273 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'declare attackers', 'left': []}
+#274 phase {'player': 'Sonnet', 'step': 'declare blockers', 'index': 6}
+#275 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: declare blockers. You may cast an instant now, or pass.', 'step': 'declare blockers', 'active': 'Sonnet'}
+#276 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'declare blockers', 'left': []}
+#277 phase {'player': 'Sonnet', 'step': 'combat damage', 'index': 7}
+#278 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: combat damage. You may cast an instant now, or pass.', 'step': 'combat damage', 'active': 'Sonnet'}
+#279 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'combat damage', 'left': []}
+#280 phase {'player': 'Sonnet', 'step': 'main 2', 'index': 8}
+#281 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: main 2. You may cast an instant now, or pass.', 'step': 'main 2', 'active': 'Sonnet'}
+#282 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'main 2', 'left': []}
+#283 phase {'player': 'Sonnet', 'step': 'end step', 'index': 9}
+#284 attention {'kind': 'priority', 'addressee': 'Opus', 'text': 'Sonnet: end step. You may cast an instant now, or pass.', 'step': 'end step', 'active': 'Sonnet'}
+#285 pass {'by': 'Opus', 'ai': True, 'player': 'Sonnet', 'step': 'end step', 'left': []}
+#286 journal-due {'seat': 'Sonnet', 'moment': 'end_of_turn'}
+#287 say {'speaker': 'Sonnet', 'text': "That's my turn.", 'action': 'end', 'speech': "That's my turn."}
+#288 phase {'player': 'Opus', 'step': 'untap', 'index': 0}
+#289 attention {'kind': 'turn', 'text': '(NEXT)', 'addressee': 'Opus'}
+#290 phase {'player': 'Opus', 'step': 'upkeep', 'index': 1}
+#291 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: upkeep. You may cast an instant now, or pass.', 'step': 'upkeep', 'active': 'Opus'}
+#292 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'upkeep', 'left': []}
+#293 phase {'player': 'Opus', 'step': 'draw', 'index': 2}
+#294 attention {'kind': 'priority', 'addressee': 'Sonnet', 'text': 'Opus: draw. You may cast an instant now, or pass.', 'step': 'draw', 'active': 'Opus'}
+#295 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'draw', 'left': []}
+#296 phase {'player': 'Opus', 'step': 'main 1', 'index': 3}
+#297 say {'speaker': 'Opus', 'text': 'Opus, turn 5.', 'action': 'begin', 'speech': 'Opus, turn 5.'}
+#298 say {'speaker': 'Opus', 'text': 'I turn #8 face up: Ainok Survivalist.', 'action': 'turn-up', 'speech': 'I turn #8 face up: Ainok Survivalist.'}
+#299 say {'speaker': 'Opus', 'text': 'Ainok Survivalist gets a +1/+1 counter.', 'action': 'turn-up', 'speech': 'Ainok Survivalist gets a +1/+1 counter.'}
+#300 pass {'by': 'Sonnet', 'ai': True, 'player': 'Opus', 'step': 'main 1', 'left': []}

@@ -72,6 +72,8 @@ def req(method, path, body=None, brain=True):
     headers = {"Content-Type": "application/json", "User-Agent": "tablectl/1.0 (divinci-table pilot client)"}
     if ROOM:
         headers["Cookie"] = f"room={ROOM}"
+    if os.environ.get("TABLE_FORWARD_FOR"):            # test harness: look like a remote device (what the cloud Worker adds), so the seat guard and a pilot's rules apply even on 127.0.0.1
+        headers["X-Forwarded-For"] = os.environ["TABLE_FORWARD_FOR"]
     if brain:
         if SEAT_KEY_FILE:                              # a pilot seat in a cloud room: its own key, never the host's token
             headers["X-Seat-Key"] = Path(SEAT_KEY_FILE).read_text().strip()
@@ -138,6 +140,11 @@ def fmt_event(e):
         return f"[{t}] #{e['id']} ⚑ {who} ({e['kind']}): \"{e['text']}\"{extra}"
     if k == "shown":
         return f"[{t}] #{e['id']} SHOWN {e['card']} (by {e['by']})"
+    if k == "pass":
+        if e.get("kind") == "reset":
+            return f"[{t}] #{e['id']} PASS round reset: {e.get('why')}"
+        how = f"AUTO-PASSED after {e.get('secs', '?')}s (did not answer)" if e.get("timeout") or e.get("auto") else "passed"
+        return f"[{t}] #{e['id']} {e.get('by')} {how} in {e.get('player')}'s {e.get('step')}"
     if k == "say":
         return f"[{t}] #{e['id']} SAID ({e['speaker']}): {e['text']}"
     if k == "life":
@@ -201,6 +208,24 @@ def cmd_state(_):
               f"{' [tapped]' if p['tapped'] else ''}{' [sick]' if p['sick'] and p['pt'] else ''}")
     lands = [p for p in s["permanents"] if "Land" in (p["type"] or "")]
     print(f"  lands: {len(lands)} ({sum(1 for p in lands if not p['tapped'])} untapped)")
+    for p in s["permanents"]:                             # what each permanent does: the rules text, once
+        if p.get("text") and not p.get("face_down") and "Land" not in (p["type"] or ""):
+            print(f"      #{p['id']} {p['name']}: " + p["text"].replace("\n", " / ")[:200])
+    if s.get("incoming"):
+        print("\nATTACKING YOU (the table's numbers; answer with `block [CREATURE] --attacker NAME`):")
+        for i in s["incoming"]:
+            print(f"  {i['attacker']}'s {i['creature']} {i.get('ref') or ''} for {i['power']}{' (trample)' if i['trample'] else ''}")
+    for n, o in (s.get("opponents") or {}).items():
+        print(f"\n{n} ({o['commander']}): life {o['life']}, hand {o['hand']}, library {o['library']}, "
+              f"lands {o['lands']} ({o.get('tapped_lands', 0)} tapped)")
+        print("  creatures: " + ("; ".join(f"{c['name']} {c['pt']}{' [tapped]' if c['tapped'] else ''}" for c in o.get("creatures", [])) or "none"))
+        others = o.get("battlefield") or []
+        if others:
+            print("  battlefield: " + "; ".join(others))
+        if o.get("graveyard"):
+            print("  graveyard: " + ", ".join(o["graveyard"]))
+    for n, b in (s.get("public_boards") or {}).items():
+        print(f"\n{n} (real deck, from photos/what they said): " + ("; ".join(p.get("name", str(p)) if isinstance(p, dict) else str(p) for p in b.get("permanents", [])) or "nothing recorded"))
     print(f"\ngraveyard: {', '.join(s['graveyard']) or '—'}")
     print(f"others' announced cards: {', '.join(s['announced_by_others']) or '—'}")
     print("\nrecent table events:")
@@ -254,12 +279,20 @@ def main():
     mf.add_argument("--cloak", action="store_true", help="cloak: ward 2")
     c.add_argument("--color", help="for 'choose a color' (W/U/B/R/G), e.g. Utopia Sprawl")
     c.add_argument("--quiet", action="store_true")
-    bl = sub.add_parser("block"); bl.add_argument("ref", nargs="?"); bl.add_argument("--amount", type=int, required=True)
+    bl = sub.add_parser("block"); bl.add_argument("ref", nargs="?"); bl.add_argument("--amount", type=int, default=0, help="ignored for a remote seat: the table reads the attacker's power itself")
     bl.add_argument("--trample", action="store_true"); bl.add_argument("--attacker")
     at = sub.add_parser("attack"); at.add_argument("pairs", nargs="+", help='"Creature=Player"'); at.add_argument("--role-on")
     dm = sub.add_parser("damage", help='attackers that hit a player: "Ellivere=Michael" "#14=Sam:5"')
-    dm.add_argument("hits", nargs="+")
+    dm.add_argument("hits", nargs="*", help="optional for a remote seat: the table deals blocked and unblocked damage itself")
     dm.add_argument("--no-life", action="store_true", help="triggers only: the players already said their life")
+    ac = sub.add_parser("activate", help="pay and run an activated ability of a permanent (cost checked; abilities the table can't run are refused before anything is paid): "
+                                         "activate SOURCE [--index N] [--x X] [--target REF [--at SEAT]] [--pick LAND ...] [--bottom CARD ...]")
+    ac.add_argument("source"); ac.add_argument("--index", type=int); ac.add_argument("--x", type=int, default=0)
+    ac.add_argument("--target"); ac.add_argument("--at"); ac.add_argument("--pick", nargs="*"); ac.add_argument("--bottom", nargs="*")
+    ef = sub.add_parser("effect", help="a trigger/ability the table does not model, allowed only when the SOURCE card's text says it: "
+                                       "effect SOURCE draw|surveil|scry|manifest|destroy|exile|bounce [--n N] [--put top|bottom|graveyard] [--target REF --at SEAT]")
+    ef.add_argument("source"); ef.add_argument("kind"); ef.add_argument("--n", type=int, default=1); ef.add_argument("--put")
+    ef.add_argument("--target"); ef.add_argument("--at")
     ro = sub.add_parser("role"); ro.add_argument("ref"); ro.add_argument("kind")
     en = sub.add_parser("end"); en.add_argument("text", nargs="?")
     sub.add_parser("pass", help="answer a priority window: no instant this time")
@@ -356,6 +389,10 @@ def main():
             who, _, n = rest.partition(":")
             hits[ref] = [who, int(n) if n else None]
         return act("damage", hits=hits, no_life=a.no_life)
+    if a.cmd == "activate":
+        return act("activate", source=a.source, index=a.index, x=a.x, target=a.target, at=a.at, pick=a.pick, bottom=a.bottom)
+    if a.cmd == "effect":
+        return act("effect", source=a.source, kind=a.kind, n=a.n, put=a.put, target=a.target, at=a.at)
     if a.cmd == "role":
         return act("role", ref=a.ref, kind=a.kind)
     if a.cmd == "claim":

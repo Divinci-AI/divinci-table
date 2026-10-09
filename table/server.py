@@ -23,7 +23,7 @@ import os
 import secrets
 import sys
 import threading
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import time
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -485,7 +485,7 @@ def passes_needed() -> list[str]:
 
 
 HUMAN_PASS_SECS = max(0.0, float(args.human_pass_secs))   # see --human-pass-secs
-AI_PASS_TIMEOUT = 30.0                             # an AI that never answers is passed for (logged), never a freeze
+AI_PASS_TIMEOUT = float(os.environ.get("TABLE_AI_PASS_SECS") or 30.0)   # an AI that never answers is passed for (logged), never a freeze; a model player thinks longer than 30 s, so the dogfood harness raises it
 
 
 def passes_state() -> dict:
@@ -499,7 +499,7 @@ def passes_state() -> dict:
         PASS.update(waiting_on=nxt, since=time.time())
     elif nxt in VPS and time.time() - PASS.get("since", time.time()) > AI_PASS_TIMEOUT:
         PASS["passed"].append(nxt)                # an AI seat that didn't answer: pass for it, say so
-        emit("pass", by=nxt, ai=True, timeout=True, player=PHASE["player"], step=STEPS[PHASE["step"]])
+        emit("pass", by=nxt, ai=True, auto=True, timeout=True, secs=AI_PASS_TIMEOUT, player=PHASE["player"], step=STEPS[PHASE["step"]])
         _append("brain.jsonl", {"ts": round(time.time(), 2), "ai_pass_timeout": nxt, "step": STEPS[PHASE["step"]]})
         return passes_state()
     if HUMAN_PASS_SECS and nxt and nxt not in VPS and (HOLD["on"] or any(t.get("kind") == "question" and not t["done"] for t in TODOS)):
@@ -509,6 +509,9 @@ def passes_state() -> dict:
         emit("pass", by=nxt, human=True, timeout=True, player=PHASE["player"], step=STEPS[PHASE["step"]])
         return passes_state()
     out = {"need": need, "passed": passed, "next": nxt}
+    if nxt in VPS and PHASE["player"] is not None:   # a virtual-deck seat has a clock too, and everyone can see it
+        out.update(deadline=round(PASS["since"] + AI_PASS_TIMEOUT, 2), secs=AI_PASS_TIMEOUT, now=round(time.time(), 2),
+                   seconds_left=round(max(0.0, PASS["since"] + AI_PASS_TIMEOUT - time.time()), 1))
     if _human_timer_applies(nxt):                 # the page shows a countdown and goes red as it runs out
         out.update(deadline=round(PASS["since"] + HUMAN_PASS_SECS, 2), secs=HUMAN_PASS_SECS, now=round(time.time(), 2))
     return out
@@ -575,6 +578,66 @@ def priority_reset(why: str):
                          text=f"{active}: {step}. Something new happened — you may respond, or pass.", step=step, active=active)
 
 
+def untap_refusal(owner: str) -> str | None:
+    """Why `owner` may not untap a permanent by hand right now, or None: only the ACTIVE player, in their own untap step (the
+    start of the turn untaps everything; this is the manual one). Tapping is not checked: tap is legal whenever you hold
+    priority. Used by /api/brain/untap (a pilot's key) and /api/card-action (a person's real deck)."""
+    if PHASE["player"] is None:
+        return "the game hasn't started: nothing untaps yet"
+    if PHASE["player"] != owner:
+        return f"you can only untap in your own untap step: it's {PHASE['player']}'s turn, not {owner}'s"
+    if STEPS[PHASE["step"]] != "untap":
+        return f"you can only untap in your untap step: {owner}'s turn is at {STEPS[PHASE['step']]} now"
+    return None
+
+
+PASS_LOCK = threading.Lock()                         # one pilot pass at a time, for the same reason
+
+
+def pilot_pass_refusal(seat_name: str, b: dict) -> str | None:
+    """Why a pilot's pass does not count right now, or None. The page names the step it was looking at (`player`, `step`): a
+    pass for a step that has already moved on is stale and must not pass the NEXT one. Then the round's own rules, which people
+    already obey in next_step: you pass once, in turn order, in a step you are in the round for, and never in your own turn.
+    PHASE_LOCK is the caller's."""
+    if PHASE["player"] is None:
+        return START_HINT
+    here = STEPS[PHASE["step"]]
+    said_p, said_s = b.get("player"), b.get("step")
+    if (said_p is not None and said_p != PHASE["player"]) or (said_s is not None and said_s != here):
+        return f"stale pass: it was for {said_p or PHASE['player']}'s {said_s or here}, the table is at {PHASE['player']}'s {here}"
+    if PHASE["player"] == seat_name:
+        return "it's your own turn: there is nothing to pass; end it with End my turn"
+    ps = passes_state()
+    if seat_name not in ps["need"]:
+        return f"you aren't in {here}'s priority round"
+    if seat_name in ps["passed"]:
+        if ps["next"] is None:
+            return f"you already passed {here}, and so has everyone else: {PHASE['player']} moves the turn on (the step ends when they act)"
+        return f"you already passed {here}: waiting on {ps['next']}"
+    if ps["next"] != seat_name:
+        return f"{ps['next']} passes first (turn order), then you"
+    return None
+
+
+BEGIN_LOCK = threading.Lock()                        # one begin at a time: a double tap must not untap and draw twice
+
+
+def begin_refusal(seat_name: str, host: bool = False) -> str | None:
+    """Why `begin` (untap, draw, reset the land drop) is not legal for this seat right now, or None. Only the ACTIVE seat,
+    before main 1 (its own walk through upkeep and draw is a retry of the same begin), and once per turn. PHASE_LOCK/BEGIN_LOCK
+    are the caller's. Before the game starts only the host's brain may begin (a solo engine game with no turn order, as
+    brain_e2e plays); a pilot doing so would make itself the first player and skip the high roll."""
+    if PHASE["player"] is None:
+        return None if host else START_HINT
+    if PHASE["player"] != seat_name:
+        return f"it's {PHASE['player']}'s turn, not {seat_name}'s: begin is for the start of your own turn"
+    if PHASE.get("begun"):
+        return f"{seat_name} already began this turn"
+    if PHASE["step"] >= STEPS.index("main 1"):
+        return f"begin is for the start of the turn (untap); {seat_name}'s turn is already at {STEPS[PHASE['step']]}"
+    return None
+
+
 AI_STEP_OF = {"begin": "main 1", "attack": "declare attackers", "damage": "combat damage", "end": "end step"}
 AI_MAIN_ACTIONS = {"land", "cast", "turn-up", "manifest", "put", "blink", "token"}
 AI_OPENED: dict = {"key": None}                      # (player, step) whose round has been announced
@@ -607,6 +670,8 @@ def ai_advance(seat_name: str, action: str) -> str | None:
             if waiting or priority_open():
                 return ", ".join(waiting + (list(PRIORITY["seats"]) if priority_open() else []))
         PRIORITY.update(waiting=[], seats=[])
+        if STEPS[PHASE["step"]] == "combat damage":
+            combat_flush(PHASE["player"])
         PHASE["step"] += 1
         emit("phase", player=PHASE["player"], step=STEPS[PHASE["step"]], index=PHASE["step"])
     if PHASE["step"] == goal and target in ("end step", "declare attackers") and STEPS[goal] not in NO_PRIORITY:
@@ -621,6 +686,54 @@ def ai_advance(seat_name: str, action: str) -> str | None:
             if waiting or priority_open():
                 return ", ".join(waiting + (list(PRIORITY["seats"]) if priority_open() else []))
     return None
+
+
+# What a pilot's key may do through /api/brain/<action> (the last path segment, so every alias is covered): exactly what
+# /hand and the pilot mode of tablectl use. Everything else either makes a card or a permanent from nothing (draw, search,
+# peek, topdeck, put, token, counter, animate, ...) or is the table host's (new-game, take, fair-reveal). The host's brain
+# token keeps all of it. Checked BEFORE ai_advance: a refused action must not walk the turn on as a side effect.
+PILOT_ACTIONS = frozenset({"say", "begin", "land", "cast", "turn-up", "tap", "untap", "attack", "damage", "block",
+                           "pass", "end", "life", "effect", "activate"})
+
+# Combat the SERVER computes. A pilot says which creatures attack whom; the engine knows their power. The defender never types
+# an amount: `block` takes the number from here, and whatever nobody blocked is dealt when the turn moves on. (Before this, the
+# defender typed how much it took, so the table was trusting whoever was being hit.)
+PRESTART_ACTIONS = AI_MAIN_ACTIONS | {"attack", "damage", "block"}
+START_HINT = ("the game hasn't started: start it with `highroll quantum` (tablectl) or POST /api/highroll/start "
+              "{\"mode\": \"quantum\"}; the winner of the roll goes first")
+COMBAT: dict = {"pending": [], "hits": [], "human": [], "used": set()}
+EFFECT_WORDS = {"draw": r"\bdraws? ", "surveil": r"\bsurveil\b", "scry": r"\bscry\b", "manifest": r"\bmanifest",
+                "destroy": r"\bdestroy", "exile": r"\bexile", "bounce": r"(owner's hand|return target|return it to)"}
+EFFECT_USES: dict = {}                               # (seat, turn, source, kind) -> times used this turn
+GAME_FIRST: dict = {"seat": None}                    # who took the first turn: in a two-player game that seat skips its first draw
+
+
+def combat_reset():
+    COMBAT.update(pending=[], hits=[], human=[], used=set())
+
+
+def combat_flush(attacker_seat: str | None = None):
+    """Whatever is still attacking a pilot seat and was not blocked is dealt now, unblocked. PHASE_LOCK/VP_LOCK are the caller's."""
+    from ai_turn import resolve_block
+    for e in [e for e in COMBAT["pending"] if attacker_seat is None or e["attacker"] == attacker_seat]:
+        COMBAT["pending"].remove(e)
+        d = VPS.get(e["defender"])
+        if d is None:
+            continue
+        with VP_LOCK:
+            life0 = d.life
+            res = resolve_block(d, None, e["power"], e["trample"], e["name"])
+            if d.life != life0:
+                emit("life", player=d.name, delta=d.life - life0, by="combat", life=d.life)
+        for line in res["said"]:
+            emit("say", speaker=d.name, text=line, action="block", auto=True, speech=line)
+        if life0 - d.life > 0 and e.get("ref"):
+            COMBAT["hits"].append({"attacker": e["attacker"], "ref": e["ref"], "defender": d.name, "amount": life0 - d.life})
+
+
+def combat_incoming(seat_name: str) -> list:
+    return [{"attacker": e["attacker"], "creature": e["name"], "ref": e.get("ref"), "power": e["power"], "trample": e["trample"]}
+            for e in COMBAT["pending"] if e["defender"] == seat_name]
 
 
 SEAT_KEYS: dict = {}   # person → [sha256 of each key a device of theirs was given]
@@ -790,15 +903,25 @@ def phase_public() -> dict:
         if is_open:
             left = PRIORITY["beat_until"] - now if now < PRIORITY["beat_until"] else PRIORITY["deadline"] - now
         return {"player": PHASE["player"], "step": STEPS[PHASE["step"]], "index": PHASE["step"], "steps": STEPS,
+                "begun": bool(PHASE.get("begun")),
                 "order": turn_order(), "waiting": list(PRIORITY["seats"]) if is_open else [],
                 "seconds_left": round(max(0.0, left), 1), "ai": list(VPS),
                 "windows": WINDOWS["on"], "window_secs": args.priority_window, "hold": HOLD["on"],
                 "open_questions": sum(1 for t in TODOS if t.get("kind") == "question" and not t["done"]),
-                "passes": passes_state(), "autopass": dict(AUTOPASS), "autopass_default": AUTOPASS_DEFAULT}
+                "passes": passes_state(), "autopass": dict(AUTOPASS), "autopass_default": AUTOPASS_DEFAULT,
+                **({"start": START_HINT} if PHASE["player"] is None else {})}
 
 
 def start_turn(name: str):
     """Hand the turn to a seat: an AI seat plays its whole turn; a human starts at untap."""
+    if PHASE["player"] is None:
+        GAME_FIRST["seat"] = name
+    with VP_LOCK:
+        combat_flush(None)                             # an unblocked attacker whose turn ended without a `damage` still hits
+        combat_reset()
+    with VP_LOCK:
+        for v_ in VPS.values():
+            v_.clear_until_eot()                           # "until end of turn" ends with the turn
     PHASE.update(player=name, step=0, begun=False)
     PRIORITY.update(step=None, waiting=[], seats=[], deadline=0.0, beat_until=0.0)
     emit("phase", player=name, step=STEPS[0], index=0)
@@ -906,6 +1029,48 @@ def finish_step(by: str | None) -> tuple[int, dict]:
         emit("phase", player=PHASE["player"], step=step, index=PHASE["step"], by=by)
         open_priority(step)
         return 200, phase_public()
+
+
+def step_logged() -> bool:
+    """Has the active player already DONE something in the step the table is at (a land or any card on their board, a spell,
+    an attack)? BACK can undo a NEXT pressed too soon; it can not undo the play. Looks at the visible log after the event that
+    opened this step; an unknown start (the log was cut) counts as nothing logged."""
+    cur, idx = PHASE["player"], PHASE["step"]
+    with EV_LOCK:
+        evs = list(EVENTS)
+    since = []
+    for e in reversed(evs):
+        if e.get("type") == "phase" and not e.get("kind") and e.get("player") == cur and e.get("index") == idx:
+            break
+        since.append(e)
+    else:
+        return False
+    for e in since:
+        t = e.get("type")
+        if t == "declare" and e.get("by") == cur:
+            return True
+        if t == "board3d" and cur in (e.get("owner"), e.get("seat")):
+            return True
+        if t == "chat" and e.get("by") == cur and not e.get("talk"):
+            return True
+        if t == "say" and e.get("speaker") == cur and e.get("action") in ("land", "cast", "attack", "turn-up", "manifest"):
+            return True
+    return False
+
+
+def back_refusal(key: str) -> str | None:
+    """A remote room: who may press BACK. The active player (their key), one step within their own turn, and not once they have
+    done something in that step. Going back into the previous player's turn is the host's. PHASE_LOCK is the caller's."""
+    cur = PHASE["player"]
+    if cur is None:
+        return None                                    # prev_step says the game hasn't started
+    if not seat_key_ok(cur, key):
+        return f"only {cur}, whose turn it is, can go back a step: ask them (or the table's host)"
+    if cur in VPS or PHASE["step"] == 0:
+        return "going back into the previous player's turn takes the table's host, not a player's key"
+    if step_logged():
+        return f"something was already logged in {STEPS[PHASE['step']]} (a land, a spell or an attack): BACK can't undo that; ask the table's host"
+    return None
 
 
 def prev_step(by: str | None = None) -> tuple[int, dict]:
@@ -1078,6 +1243,7 @@ LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", 
           ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/openmic/rate"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
+          ("GET", "/api/journal/due"), ("GET", "/api/journal"), ("POST", "/api/journal"), ("POST", "/api/identity"),   # a pilot's own journal and identity: the handlers need that seat's key
           ("GET", "/stage"), ("GET", "/api/stage"), ("POST", "/api/stage/hand"), ("GET", "/hand"),
           ("GET", "/vendor/three.module.min.js"), ("GET", "/vendor/three.core.min.js"),
           ("GET", "/avatars/index.json")}
@@ -2295,6 +2461,14 @@ class H(BaseHTTPRequestHandler):
                 v = brain_view(VPS[sn])
             v["seat"] = sn
             v["seats"] = list(VPS)
+            with VP_LOCK:
+                v["incoming"] = combat_incoming(sn)        # who is attacking this seat, with the table's own power numbers
+                v["opponents"] = {n: {**o.public(), "lands_list": [p.name for p in o.battlefield if p.is_("Land")],
+                                      "tapped_lands": sum(1 for p in o.battlefield if p.is_("Land") and p.tapped),
+                                      "creatures": [{"name": o.shown(p), "pt": "%d/%d" % o.stats(p), "tapped": p.tapped,
+                                                     "sick": p.sick} for p in o.battlefield if p.is_("Creature")]}
+                                  for n, o in VPS.items() if n != sn}
+            v["public_boards"] = {k: x for k, x in PUBLIC_BOARD.items() if k != sn}
             with CONVO_LOCK:
                 v["announced_by_others"] = list(CONVO["announced"][-30:])
             v["life_table"] = self._life_table()
@@ -2463,6 +2637,11 @@ class H(BaseHTTPRequestHandler):
                         p["tapped"] = True
                     text = f"{owner} activates {nm}: {ability}" + (f" — targeting {target}" if target else "")
                 elif action in ("tap", "untap"):
+                    if action == "untap":
+                        with PHASE_LOCK:
+                            why = untap_refusal(owner)
+                        if why:
+                            return self._send(409, {"error": why})
                     p["tapped"] = action == "tap"
                     text = f"{owner} {action}s {nm}."
                 elif action in ("counter+", "counter-"):
@@ -2536,6 +2715,8 @@ class H(BaseHTTPRequestHandler):
                 seats = [h["name"] for h in HUMANS] + list(VPS)
                 if by not in seats:
                     return self._send(400, {"error": "who is attacking?"})
+                if by in VPS:                              # a seat with a deck attacks with the engine (`attack`): it knows the power
+                    return self._send(409, {"error": f"{by} plays a deck: attack with the Attack action, the table reads the creatures' power itself"})
                 out = []
                 for a in (b.get("attacks") or [])[:20]:
                     attacker, target = str(a.get("attacker", ""))[:80], str(a.get("target", ""))[:30]
@@ -2551,6 +2732,10 @@ class H(BaseHTTPRequestHandler):
                     if target in VPS:                     # an AI seat decides its blocks, as when the attack is said aloud
                         emit("attention", kind="attacked", text=text, addressee=target, attacker=attacker, amount=power,
                              trample=trample, by=by)
+                        if power is not None:             # the defender will block against THIS number, not one it types
+                            with VP_LOCK:
+                                COMBAT["pending"].append({"attacker": by, "defender": target, "ref": None, "name": attacker,
+                                                          "power": power, "trample": trample})
                 if not out:
                     return self._send(400, {"error": "no attack: pick an attacker and someone to attack"})
                 emit("declare", kind="attack", by=by, attacks=out)
@@ -2665,6 +2850,13 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, phase_public())
             if self.path == "/api/phase/windows":          # {"on": false}: step timeouts off for the table
                 b = self._json()
+                if self._restricted_room():                # a remote room: the active player or the host
+                    with PHASE_LOCK:
+                        cur = PHASE["player"]
+                        ok = cur is not None and seat_key_ok(cur, self._seat_key(b))
+                    if not ok:
+                        return self._send(403, {"error": (f"only {cur}, whose turn it is, or the table's host can switch step timeouts"
+                                                          if cur else "only the table's host can switch step timeouts before the game starts")})
                 with PHASE_LOCK:
                     WINDOWS["on"] = bool(b.get("on", not WINDOWS["on"]))
                     if not WINDOWS["on"]:
@@ -2673,6 +2865,11 @@ class H(BaseHTTPRequestHandler):
                 snapshot()
                 return self._send(200, phase_public())
             if self.path == "/api/phase/back":             # BACK: a NEXT pressed too soon
+                if self._restricted_room():                # a remote room: not a table-wide override any seated key may use
+                    with PHASE_LOCK:
+                        why = back_refusal(self._seat_key(self._json()))
+                    if why:
+                        return self._send(403 if "logged" not in why else 409, {**phase_public(), "error": why})
                 code, out = prev_step(str(self._json().get("by", ""))[:30] if self.headers.get("Content-Length") else None)
                 snapshot()
                 return self._send(code, out)
@@ -2878,18 +3075,54 @@ class H(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "you can only change your own life total"})
                 if pilot and act == "damage":
                     b["no_life"] = True                     # the players hit say their own life; only my lifelink counts
-                with PHASE_LOCK:
-                    blocked = ai_advance(sn, act)
-                if blocked:
-                    return self._send(409, {**phase_public(), "waiting": blocked,
-                                            "error": f"waiting on passes: {blocked} (retry)"})
-                with acting(sn):
-                    out = self._brain(act, b)
-                if act in ("cast", "turn-up", "manifest") and PHASE["player"] != sn:
-                    priority_reset(f"{sn} responded ({act})")   # an AI answered in a person's step: round again
-                    ai_passed(sn)                               # …and it has had its say in the new round
-                elif act == "pass" and PHASE["player"] != sn:
-                    ai_passed(sn)
+                if pilot and act == "fair-reveal":           # it publishes every deck's seed and shuffled order
+                    return self._send(403, {"error": "only the table's host can publish the fairness proof: it shows every deck's order"})
+                b.pop("_pilot", None)
+                if pilot:
+                    b["_pilot"] = True
+                if pilot and act in PRESTART_ACTIONS and PHASE["player"] is None:
+                    self._refused(act, "game-not-started", "")
+                    return self._send(409, {**phase_public(), "error": START_HINT})
+                if pilot and act not in PILOT_ACTIONS:
+                    self._refused(act, "pilot-not-allowed", "")
+                    return self._send(403, {"error": f"'{act}' isn't available to a pilot seat: it has no card behind it "
+                                                     f"(a pilot plays: {', '.join(sorted(PILOT_ACTIONS))}); the table's host can do it"})
+                if pilot and act == "untap":
+                    with PHASE_LOCK:
+                        why = untap_refusal(sn)
+                    if why:
+                        self._refused(act, "untap-not-now", why)
+                        return self._send(409, {**phase_public(), "error": why})
+                if pilot and act == "cast":
+                    b.pop("discount", None)                 # a client-named cost reduction is not checked by the engine: host only
+                lock = BEGIN_LOCK if act == "begin" else PASS_LOCK if (pilot and act == "pass") else nullcontext()
+                with lock:                                  # a double tap queues behind the first press and sees its effect
+                    if act == "begin":
+                        with PHASE_LOCK:
+                            why = begin_refusal(sn, host=not pilot)
+                        if why:
+                            self._refused(act, "not-your-begin", why)
+                            return self._send(409, {**phase_public(), "error": why})
+                    if pilot and act == "pass":
+                        with PHASE_LOCK:
+                            why = pilot_pass_refusal(sn, b)
+                            if why is None:
+                                ai_passed(sn)               # counted BEFORE the answer goes out: the page reads the round next
+                        if why:
+                            self._refused(act, "pass-not-now", why)
+                            return self._send(409, {**phase_public(), "error": why})
+                    with PHASE_LOCK:
+                        blocked = ai_advance(sn, act)
+                    if blocked:
+                        return self._send(409, {**phase_public(), "waiting": blocked,
+                                                "error": f"waiting on passes: {blocked} (retry)"})
+                    with acting(sn):
+                        out = self._brain(act, b)
+                    if act in ("cast", "turn-up", "manifest") and PHASE["player"] != sn:
+                        priority_reset(f"{sn} responded ({act})")   # an AI answered in a person's step: round again
+                        ai_passed(sn)                               # …and it has had its say in the new round
+                    elif act == "pass" and PHASE["player"] != sn:
+                        ai_passed(sn)                               # (a no-op after the pilot's own, counted above)
                 return out
             if self.path == "/api/reset":                  # new game: empty hand, full library, no history
                 with T.lock:
@@ -2975,6 +3208,15 @@ class H(BaseHTTPRequestHandler):
         self._send(403, {"error": "this page is only available on the table's laptop"})
         return True
 
+    def _restricted_room(self) -> bool:
+        """A remote caller in a room that checks seat keys (a cloud room, or STRICT_SEATS), who is not the host. The laptop itself
+        and the host's brain token (even through the Worker) are never restricted; neither is a keyless LAN game, where BACK,
+        HOLD and WINDOWS stay open to every device on the network (documented in docs/hud-plan.md, not changed)."""
+        return STRICT_SEATS and not self._is_local() and not self._brain_ok()
+
+    def _seat_key(self, b: dict) -> str:
+        return str(b.get("key") or self.headers.get("X-Seat-Key", ""))[:200]
+
     def _brain_ok(self):
         return bool(VPS) and secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN)
 
@@ -2984,6 +3226,14 @@ class H(BaseHTTPRequestHandler):
         True when it refused (and answered). The laptop itself is never asked."""
         rule = REMOTE_SEAT_POSTS.get(self.path)
         if not STRICT_SEATS or rule is None or self._is_local():
+            return False
+        if self.path in ("/api/phase/back", "/api/phase/hold", "/api/phase/windows") and self._brain_ok():
+            try:                                           # the host working through the Worker: no seat key, recorded as "host"
+                b = self._json() if int(self.headers.get("Content-Length", 0) or 0) else {}
+            except (ValueError, BadRequest):
+                b = {}
+            b["by"] = str(b.get("by") or "host")[:30]
+            self._jcache = b
             return False
         field, own = rule
         try:
@@ -3050,7 +3300,8 @@ class H(BaseHTTPRequestHandler):
                                                          f"(pass force to say it anyway)"})
                     said = [text]
                 elif action == "begin":
-                    said, drew = VP.begin_turn()
+                    on_the_play = VP.turn == 0 and GAME_FIRST.get("seat") == VP.name and len(turn_order()) == 2
+                    said, drew = VP.begin_turn(skip_draw=on_the_play)
                     private["drew"] = drew
                 elif action == "land":
                     said = VP.manual_land(b["name"])
@@ -3068,15 +3319,70 @@ class H(BaseHTTPRequestHandler):
                 elif action == "block":                  # someone attacked the AI; the brain blocks (or not)
                     from ai_turn import resolve_block
                     blk = VP.perm(b["blocker"]) if b.get("blocker") else None
+                    entry = None
+                    if b.get("_pilot"):                  # a pilot says only WHICH creature blocks WHICH attacker: the number is ours
+                        mine = [e for e in COMBAT["pending"] if e["defender"] == VP.name]
+                        if not mine:
+                            raise IllegalAction("nothing is attacking you right now (or it has already been dealt with)")
+                        want = str(b.get("attacker") or "").strip().lower()
+                        entry = next((e for e in mine if want and want in (str(e.get("ref") or "").lower(), e["name"].lower())), None)
+                        if entry is None and want:                    # "Kaust" for "Kaust, Eyes of the Glade": one attacker whose name starts with it
+                            part = [e for e in mine if e["name"].lower().startswith(want) or e["name"].lower().split(",")[0] == want]
+                            entry = part[0] if len(part) == 1 else None
+                        if entry is None and want:
+                            raise IllegalAction("no attacker '" + str(b.get("attacker")) + "' is attacking you: "
+                                                + ", ".join(f"{e['name']} {e.get('ref') or ''} ({e['power']})" for e in mine))
+                        entry = entry or mine[0]
+                        if blk is not None:
+                            if not blk.is_("Creature") or blk.tapped:
+                                raise IllegalAction(f"{blk.name} can't block: it must be an untapped creature")
+                            if blk.id in COMBAT["used"]:
+                                raise IllegalAction(f"{blk.name} already blocked this combat")
+                            COMBAT["used"].add(blk.id)
+                        b["amount"], b["trample"], b["attacker"] = entry["power"], entry["trample"], entry["name"]
+                        COMBAT["pending"].remove(entry)
                     life0 = VP.life
                     res = resolve_block(VP, blk, int(b["amount"]), bool(b.get("trample")), b.get("attacker"))
                     said = res["said"]
                     if VP.life != life0:
                         emit("life", player=VP.name, delta=VP.life - life0, by="combat", life=VP.life)
+                    if entry is not None and entry.get("ref") and life0 - VP.life > 0:
+                        COMBAT["hits"].append({"attacker": entry["attacker"], "ref": entry["ref"], "defender": VP.name,
+                                               "amount": life0 - VP.life})
                     forget_dead(res)
+                    if entry is not None and entry.get("ref") and res.get("attacker_died") and entry["attacker"] in VPS:
+                        with VP_LOCK:                                 # the attacker that died to the block leaves ITS owner's board
+                            try:
+                                VPS[entry["attacker"]].move(entry["ref"], "graveyard")
+                            except Exception:
+                                pass
                 elif action == "attack":
                     said = VP.manual_attack(b["assign"], role_on=b.get("role_on"))
+                    for ref, who in b["assign"].items():
+                        c = VP.perm(ref)
+                        defender = seat(who) or next((h["name"] for h in HUMANS if h["name"].lower() == str(who).lower()), str(who))
+                        entry = {"attacker": VP.name, "defender": defender, "ref": f"#{c.id}", "name": VP.shown(c),
+                                 "power": VP.stats(c)[0], "trample": "Trample" in ([] if c.face_down else c.card.get("keywords") or [])}
+                        if defender in VPS and defender != VP.name:
+                            COMBAT["pending"].append(entry)
+                            emit("attention", kind="attacked", addressee=defender, attacker=entry["name"], amount=entry["power"],
+                                 trample=entry["trample"], text=f"{VP.name} attacks you with {entry['name']} ({entry['power']}). "
+                                                                f"Block it, or `block` with no blocker to take it.")
+                        else:
+                            COMBAT["human"].append(entry)
                 elif action == "damage":                 # its attackers that hit a player: triggers + life
+                    if b.get("_pilot"):                  # the table dealt it: unblocked damage now, blocked damage already
+                        combat_flush(VP.name)
+                        said_hits = {}
+                        for h in [h for h in COMBAT["hits"] if h["attacker"] == VP.name]:
+                            COMBAT["hits"].remove(h)
+                            said_hits[h["ref"]] = [h["defender"], h["amount"]]
+                        for e in [e for e in COMBAT["human"] if e["attacker"] == VP.name]:   # a person's own life, a person's own blocks:
+                            COMBAT["human"].remove(e)                                      # the most it can be is the creature's power
+                            claim = (b.get("hits") or {}).get(e["ref"]) or (b.get("hits") or {}).get(e["name"])
+                            if claim:
+                                said_hits[e["ref"]] = [e["defender"], min(int(claim[1] if claim[1] is not None else e["power"]), e["power"])]
+                        b["hits"] = said_hits
                     hits = {ref: (v[0], v[1]) for ref, v in b["hits"].items()}
                     said, deltas = VP.combat_damage(hits)
                     if b.get("no_life"):                   # the players state their own life: triggers only
@@ -3088,6 +3394,62 @@ class H(BaseHTTPRequestHandler):
                             raise IllegalAction(r["error"])
                     lt = life_table()
                     said += [f"{who} is at {lt[who]}." for who in deltas if who != VP.name and who in lt]
+                elif action == "activate":                # pay and run an activated ability; the table checks the cost and what it does
+                    tgt = None
+                    if b.get("target"):
+                        owner = seat(b.get("at") or VP.name)
+                        if owner is None:
+                            raise IllegalAction(f"no seat '{b.get('at')}'")
+                        tgt = VPS[owner].perm(str(b["target"]))
+                    said = VP.activate(str(b.get("source", "")), x=int(b.get("x") or 0),
+                                       index=None if b.get("index") in (None, "") else int(b["index"]), target=tgt,
+                                       pick=b.get("pick"), put=b.get("put"), bottom=b.get("bottom"))
+                    if getattr(VP, "last_peek", None):
+                        private["top"], VP.last_peek = VP.last_peek, None
+                elif action == "effect":                  # a trigger or ability the engine does not model: allowed only when the SOURCE card says so
+                    kind = str(b.get("kind", "")).lower()
+                    if kind not in EFFECT_WORDS:
+                        raise IllegalAction(f"effect kinds: {', '.join(EFFECT_WORDS)}")
+                    src = VP.perm(str(b.get("source", "")))
+                    if src.face_down:
+                        raise IllegalAction("a face-down permanent has no effects: turn it face up first")
+                    text = (src.card.get("text") or "").lower()
+                    if not re.search(EFFECT_WORDS[kind], text):
+                        raise IllegalAction(f"{src.name} doesn't say anything that {kind}s: it reads: {(src.card.get('text') or '')[:160]}")
+                    use = (VP.name, VP.turn, src.id, kind)
+                    EFFECT_USES[use] = EFFECT_USES.get(use, 0) + 1
+                    if EFFECT_USES[use] > (1 if kind in ("destroy", "exile", "bounce") else 3):
+                        raise IllegalAction(f"{src.name} has already done that as often as it can this turn")
+                    n = max(1, min(int(b.get("n") or 1), 3))
+                    if kind == "draw":
+                        before = len(VP.hand)
+                        VP.draw(n)
+                        private["drew"] = [c["name"] for c in VP.hand[before:]]
+                        said = [f"{src.name}: I draw {len(private['drew'])} card{'s' if len(private['drew']) != 1 else ''}."]
+                    elif kind in ("surveil", "scry"):
+                        top = VP.peek(1)
+                        private["top"] = top
+                        put = str(b.get("put") or "top")
+                        if top and put == "graveyard" and kind == "surveil":
+                            VP.mill(1)
+                        elif top and put == "bottom" and kind == "scry":
+                            VP.bottom(top[0], from_top=True)
+                        elif put not in ("top", "graveyard", "bottom"):
+                            raise IllegalAction("put: top | bottom (scry) | graveyard (surveil)")
+                        said = [f"{src.name}: I {kind} 1" + (f" and put it on the {put}." if put != "top" else " and leave it on top.")]
+                    elif kind == "manifest":
+                        said = VP.manifest(n)
+                    else:
+                        owner = seat(b.get("at") or VP.name)
+                        if owner is None:
+                            raise IllegalAction(f"no seat '{b.get('at')}'")
+                        tv = VPS[owner]
+                        tp = tv.perm(str(b.get("target", "")))
+                        if kind == "destroy" and "Indestructible" in ([] if tp.face_down else tp.card.get("keywords") or []):
+                            raise IllegalAction(f"{tp.name} is indestructible")
+                        said = [f"{src.name}: " + tv.move(f"#{tp.id}", {"destroy": "graveyard", "exile": "exile", "bounce": "hand"}[kind])[0]]
+                        if owner != VP.name:
+                            emit("attention", kind="effect", addressee=owner, text=f"{VP.name}'s {src.name} {kind}s your {tp.name}.")
                 elif action == "role":
                     said = VP.add_role(VP.perm(b["ref"]), b["kind"].strip().title())
                 elif action == "end":
