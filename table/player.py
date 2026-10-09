@@ -788,25 +788,42 @@ def _manual(cls):
                     self.todo.append(msg)
         return said
 
-    def manual_land(self, name):
+    def manual_land(self, name, bounce=None):
+        """Play a land from the hand. A bounce land (Azorius Chancery, Gruul Turf: "When this land enters, return a land you
+        control to its owner's hand") returns the land the caller names with `bounce` ('#id' or name of a land on its own
+        battlefield, or 'self' for the bounce land itself). With no other land it returns itself; with others and no choice,
+        it is refused — before the land is played."""
         c = self.hand_card(name)
         if "Land" not in c["types"]:
             raise IllegalAction(f"{c['name']} is not a land")
         if self.land_played:
             raise IllegalAction("you already played a land this turn")
+        karoo = "return a land you control to its owner's hand" in (c.get("text") or "")
+        pick, itself = None, False
+        if karoo:
+            others = [p for p in self.battlefield if p.is_("Land") and not p.face_down]
+            b = str(bounce).strip() if bounce not in (None, "") else ""
+            if b.lower() in ("self", "itself", "this") or (b and b.lower() == c["name"].lower()
+                                                           and not any(p.name.lower() == b.lower() for p in others)):
+                itself = True
+            elif b:
+                pick = self.perm(b)                         # refused unless it is on the caller's own battlefield
+                if pick not in others:
+                    raise IllegalAction(f"{c['name']} returns a LAND you control: #{pick.id} {self.shown(pick)} is not one ("
+                                        + ", ".join(f"#{p.id} {p.name}" for p in others) + f", or 'self'). Nothing was played")
+            elif others:
+                raise IllegalAction(f"{c['name']} returns a land you control to your hand: say which with --bounce REF ("
+                                    + ", ".join(f"#{p.id} {p.name}" + (" (tapped)" if p.tapped else "") for p in others)
+                                    + f", or 'self' for {c['name']} itself). Nothing was played")
+            else:
+                itself = True                               # the only land it can return is itself
+        elif bounce not in (None, ""):
+            raise IllegalAction(f"{c['name']} returns no land: leave out --bounce")
         said = [self.play_land(c)]
-        if "return a land you control to its owner's hand" in (c.get("text") or ""):
-            # bounce lands (Simic Growth Chamber & co.): another land back to hand — a tapped basic first,
-            # then any basic, then any other land; with no other land, it returns itself
-            this = next((p for p in reversed(self.battlefield) if p.card is c), None)
-            others = [p for p in self.battlefield if p.is_("Land") and p is not this]
-            basic = lambda p: "Basic" in (p.card.get("supertypes") or [])
-            pick = (next((p for p in others if basic(p) and p.tapped), None) or next((p for p in others if basic(p)), None)
-                    or (others[0] if others else this))
-            if pick is not None:
-                self.battlefield.remove(pick)
-                self.hand.append(pick.card)
-                said.append(f"{c['name']} returns {pick.name} to my hand.")
+        if karoo:
+            back = next(p for p in reversed(self.battlefield) if p.card is c) if itself else pick
+            self.move(f"#{back.id}", "hand")                # Auras on it (Wild Growth) fall off, as with any bounce
+            said.append(f"{c['name']} returns {'itself' if itself else back.name} to my hand.")
         return said
 
     def manual_cast(self, name, on=None, role_on=None, modes=None, targets=None, commander=False, x=0, discount=0,

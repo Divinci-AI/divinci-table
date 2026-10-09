@@ -55,6 +55,10 @@ def payload_checks():
     check("…--mode 2 sends 2, and no index when none was given", body.get("mode") == 2 and "index" not in body, body)
     path, body = sent("activate", "Woe Strider", "--sac", "#12")
     check("tablectl activate --sac REF sends which permanent to sacrifice", body.get("sac") == "#12" and "mode" not in body, body)
+    path, body = sent("land", "Gruul Turf", "--bounce", "#7")
+    check("tablectl land --bounce REF sends which land returns", path == "/api/brain/land" and body.get("bounce") == "#7", body)
+    path, body = sent("land", "Forest")
+    check("…and a plain land sends no bounce", "bounce" not in body, body)
 
 
 def main():

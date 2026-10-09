@@ -3304,7 +3304,7 @@ class H(BaseHTTPRequestHandler):
                     said, drew = VP.begin_turn(skip_draw=on_the_play)
                     private["drew"] = drew
                 elif action == "land":
-                    said = VP.manual_land(b["name"])
+                    said = VP.manual_land(b["name"], bounce=b.get("bounce"))
                 elif action == "cast" and b.get("face_down"):
                     said = VP.cast_face_down(b["name"])
                 elif action == "turn-up":

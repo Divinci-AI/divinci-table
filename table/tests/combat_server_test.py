@@ -238,6 +238,36 @@ def main():
               c == 200 and not any(p["id"] == goat["id"] for p in st["permanents"]) and any(p["id"] == strider["id"] for p in st["permanents"])
               and r.get("private", {}).get("top") and st["library"] == lib0, (c, r.get("error"), r.get("private")))
 
+    print("a bounce land: the pilot chooses which land returns (--bounce)")
+    with Server(order="Claude,Fusion", humans=False) as S5:
+        S5.claim_all()
+        S5.start_game()
+        c, r = S5.host_brain("Claude", "search", name="Gruul Turf")                 # into the hand (or it is there already)
+        assert c == 200 or "Gruul Turf" in [h["name"] for h in S5.state("Claude")["hand"]], (c, r)
+        forest = onto_battlefield(S5, "Claude", "Forest")
+        mountain = onto_battlefield(S5, "Claude", "Mountain")
+        c, r = go(S5, "Claude", "begin")
+        assert c == 200, (c, r)
+        c, r = S5.brain("Claude", "land", name="Gruul Turf")
+        st = S5.state("Claude")
+        check("Gruul Turf with no --bounce: refused, the lands it could return listed, nothing played",
+              c == 400 and f"#{forest['id']}" in str(r.get("error")) and not st["land_played"]
+              and "Gruul Turf" in [h["name"] for h in st["hand"]], (c, r))
+        S5.host_brain("Claude", "token", name="Bear", power=2, toughness=2)
+        c, r = S5.brain("Claude", "land", name="Gruul Turf", bounce=f"#{perm(S5, 'Claude', 'Bear')['id']}")
+        check("…a permanent of Claude's that is not a land is refused", c == 400 and "is not one" in str(r.get("error"))
+              and not S5.state("Claude")["land_played"], (c, r))
+        fusion_land = onto_battlefield(S5, "Fusion", "Forest")
+        c, r = S5.brain("Claude", "land", name="Gruul Turf", bounce=f"#{fusion_land['id']}")
+        check("…so is Fusion's land", c == 400 and not S5.state("Claude")["land_played"], (c, r))
+        mountains0 = [h["name"] for h in S5.state("Claude")["hand"]].count("Mountain")
+        c, r = S5.brain("Claude", "land", name="Gruul Turf", bounce=f"#{mountain['id']}")
+        st = S5.state("Claude")
+        check("…--bounce the Mountain: Gruul Turf is played, the Mountain is back in hand, the Forest stays",
+              c == 200 and st["land_played"] and not any(p["id"] == mountain["id"] for p in st["permanents"])
+              and any(p["id"] == forest["id"] for p in st["permanents"])
+              and [h["name"] for h in st["hand"]].count("Mountain") == mountains0 + 1, (c, r))
+
     os.environ["TABLE_AI_PASS_SECS"] = "3"                                         # a silent seat: the clock is short here
     with Server(order="Claude,Fusion", humans=False) as S3:
         S3.claim_all()

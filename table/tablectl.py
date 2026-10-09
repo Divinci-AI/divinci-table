@@ -272,6 +272,8 @@ def main():
     s = sub.add_parser("say"); s.add_argument("text"); s.add_argument("--force", action="store_true")
     sub.add_parser("begin").add_argument("--quiet", action="store_true")
     x = sub.add_parser("land"); x.add_argument("name"); x.add_argument("--quiet", action="store_true")
+    x.add_argument("--bounce", help="a bounce land (Azorius Chancery, Gruul Turf): which land of yours it returns to your hand "
+                                    "(#id or name; 'self' for the bounce land itself)")
     c = sub.add_parser("cast"); c.add_argument("name"); c.add_argument("--on"); c.add_argument("--role-on")
     c.add_argument("--mode", action="append", type=int); c.add_argument("--targets"); c.add_argument("--x", type=int, default=0)
     c.add_argument("--discount", type=int, default=0, help="generic cost reduction you know applies")
@@ -375,7 +377,7 @@ def main():
     if a.cmd == "begin":
         return act("begin", quiet=q)
     if a.cmd == "land":
-        return act("land", name=a.name, quiet=q)
+        return act("land", name=a.name, bounce=a.bounce, quiet=q)
     if a.cmd == "cast":
         if a.face_down:
             return act("cast", name=a.name, face_down=True)
