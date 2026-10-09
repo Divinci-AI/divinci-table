@@ -149,6 +149,14 @@ def main():
         c, r = S.brain("Claude", "effect", source="#99999", kind="draw")
         check("a source that is not on your battlefield is refused", c == 400, (c, r))
 
+        print("a remote pilot reaches its own journal and nobody else's")
+        c, r = S.call("GET", "/api/journal/due?seat=Claude", key=S.claim("Claude"))
+        check("journal-due for your own seat answers from a remote device", c == 200 and "due" in r, (c, r))
+        c, r = S.call("GET", "/api/journal/due?seat=Fusion", key=S.claim("Claude"))
+        check("…another seat's journal is refused", c == 403, (c, r))
+        c, r = S.call("GET", "/api/journal/due?seat=Claude")
+        check("…and so is no key at all", c == 403, (c, r))
+
         print("a seat with a deck cannot hand the table its own attack numbers")
         c, r = S.call("POST", "/api/declare/attack", {"by": "Claude", "key": S.claim("Claude"),
                                                       "attacks": [{"attacker": "X", "target": "Fusion", "power": 40}]}, key=S.claim("Claude"))
