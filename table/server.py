@@ -819,6 +819,10 @@ def next_step(by: str | None = None, shared: bool = False, confirm: bool = False
             if PHASE["player"] is None:
                 start_turn(turn_order()[0])
             return 200, phase_public()
+    if not person and pilot and seat_key_ok(pilot, key):
+        # A virtual-deck seat passes and ends its turns with the buttons on /hand. NEXT used to answer need_seat here, so the page
+        # opened the claim popup, reloaded, and the next press failed the same way: an endless loop for the person playing it.
+        return 403, {**phase_public(), "error": f"{pilot} plays a virtual deck: pass and end your turn with the buttons on /hand, not NEXT"}   # 403, no need_seat
     if not person or not seat_key_ok(person, key):    # only a device that claimed this seat passes for it
         return 403, {**phase_public(), "error": ("claim your seat first (👤 at the top)" if not person or person not in SEAT_KEYS
                                                  else f"this device isn't {person}'s — claim your own seat (👤)"),
