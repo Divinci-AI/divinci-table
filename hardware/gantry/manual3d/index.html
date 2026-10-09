@@ -194,15 +194,20 @@ hw.magnet = group(mesh(cyl(10, 10, 15), mat.magnet, 0, 0, 7.5), mesh(cyl(8, 8, 0
 { const o = new THREE.Shape(); o.absarc(0, 0, 6.35, 0, Math.PI * 2, false); const h = new THREE.Path(); h.absarc(0, 0, 3.3, 0, Math.PI * 2, true); o.holes.push(h);
   hw.nylon = mesh(new THREE.ExtrudeGeometry(o, { depth: 6, curveSegments: 40, bevelEnabled: false }), mat.nylon); }
 const YB = 12.7;                   // the hole is 1 inch from one end of the 3 inch bracket: 12.7 mm from its centre. The bracket's group origin is the HOLE, so the bolt axis stays at 0,0
-function makeAngle(withHole) {
-  const leg = 25.4, t = 3.2, len = 76.2;
+function makeAngle(withHole, len = 76.2, cy = YB) {   // len: piece length; cy: where its centre sits along y in the bracket's frame
+  const leg = 25.4, t = 3.2;
   const hs = new THREE.Shape(); hs.moveTo(-leg / 2, -len / 2); hs.lineTo(leg / 2, -len / 2); hs.lineTo(leg / 2, len / 2); hs.lineTo(-leg / 2, len / 2); hs.closePath();
   if (withHole) { const hole = new THREE.Path(); hole.absarc(0, -YB, 3.4, 0, Math.PI * 2, true); hs.holes.push(hole); }
-  const horiz = mesh(new THREE.ExtrudeGeometry(hs, { depth: t, bevelEnabled: false, curveSegments: 32 }), mat.alu, 0, YB, 0);
-  const vert = mesh(new THREE.BoxGeometry(t, len, leg), mat.alu, -leg / 2 + t / 2, YB, t + leg / 2 - t / 2);
+  const horiz = mesh(new THREE.ExtrudeGeometry(hs, { depth: t, bevelEnabled: false, curveSegments: 32 }), mat.alu, 0, cy, 0);
+  const vert = mesh(new THREE.BoxGeometry(t, len, leg), mat.alu, -leg / 2 + t / 2, cy, t + leg / 2 - t / 2);
   return group(horiz, vert);
 }
 hw.angle = makeAngle(true); hw.angleBlank = makeAngle(false);
+const CUT_Y = YB + 38.1;            // the saw cut: the far end of the 3 inch piece
+hw.offcut = makeAngle(false, 73.8, CUT_Y + 36.9);   // the rest of a ~150 mm stock piece (kept for the camera mount)
+{ const dark = new THREE.MeshStandardMaterial({ color: 0x2b303a, roughness: 0.6, metalness: 0.2 });
+  hw.saw = group(mesh(new THREE.BoxGeometry(200, 0.8, 12), mat.steel, 0, 0, 6), mesh(new THREE.BoxGeometry(3, 3, 46), dark, -100, 0, 23), mesh(new THREE.BoxGeometry(3, 3, 46), dark, 100, 0, 23),
+    mesh(new THREE.BoxGeometry(203, 3, 3), dark, 0, 0, 46), mesh(new THREE.BoxGeometry(34, 11, 16), dark, 118, 0, 34)); }   // origin: the blade's teeth line, centred; the blade runs along x
 hw.drill = group(mesh(cyl(3.175, 3.175, 40, 32), mat.steel, 0, 0, 22.4), mesh(new THREE.ConeGeometry(3.175, 2.4, 32).rotateX(-Math.PI / 2), mat.steel, 0, 0, 1.2));   // origin: the tip
 hw.spring = mesh(helix(5.2, 1.7, 4, 0.45), mat.spring);
 { const nut = mesh(hexPrism(11.11, 5.6), mat.steel, 0, 0, 2.8);
@@ -347,9 +352,9 @@ document.getElementById("reset").onclick = () => setMode(mode);
 
 
 // ---------- step-by-step assembly (hardware/gantry/README.md, Steps 4 and 5) ----------
-const ROLE = { angleBlank: "cut to length, edges filed", drill: "1/4 in (6.35 mm); pilot with a small bit first", card: "63 x 88 mm", inner: "the card goes in first", outer: "slides over the card, washer and tape", washer: "about 1/2 inch across, 1.2 mm: the magnet's grip", tape2: "keeps the washer from wandering", jig: "holds the sleeved card face-down", bridge: "its hole puts the washer at the card's centre", swivel: "printed: holds the magnet and bolt", magnet: "24 V, 20 x 15 mm", m3: "flat-head, M3 x 6", bolt: "1/4\"-20 x 1\"", nylon: "6 mm low-friction washer", angle: "drilled leg sticks out under the carriage", spring: "short compression spring", wing: "wing nut: sets the drag",
+const ROLE = { angleBlank: "the 3 in magnet piece", offcut: "kept: the longer piece is for the camera mount", saw: "clamp the angle, saw straight, then file and deburr", drill: "1/4 in (6.35 mm); pilot with a small bit first", card: "63 x 88 mm", inner: "the card goes in first", outer: "slides over the card, washer and tape", washer: "about 1/2 inch across, 1.2 mm: the magnet's grip", tape2: "keeps the washer from wandering", jig: "holds the sleeved card face-down", bridge: "its hole puts the washer at the card's centre", swivel: "printed: holds the magnet and bolt", magnet: "24 V, 20 x 15 mm", m3: "flat-head, M3 x 6", bolt: "1/4\"-20 x 1\"", nylon: "6 mm low-friction washer", angle: "drilled leg sticks out under the carriage", spring: "short compression spring", wing: "wing nut: sets the drag",
   carriage: "the printer's X carriage", tape: "holds the bracket to the carriage", nozzle: "magnet face stays 5 mm or more below it", wire: "22 AWG two-core leads (+ / -)", clipA: "printed lead clip", clipB: "printed lead clip", clipC: "printed lead clip", clipD: "printed lead clip" };
-const NAME = { angleBlank: "Aluminium angle, 3 in piece", drill: "Drill bit", card: "Card", inner: "Inner sleeve", outer: "Outer sleeve", washer: "#10 zinc washer", tape2: "Clear tape", carriage: "X carriage", tape: "Mounting tape", nozzle: "Nozzle", wire: "Magnet leads", clipA: "Lead clip", clipB: "Lead clip", clipC: "Lead clip", clipD: "Lead clip" };
+const NAME = { angleBlank: "Aluminium angle", offcut: "Offcut", saw: "Hacksaw", drill: "Drill bit", card: "Card", inner: "Inner sleeve", outer: "Outer sleeve", washer: "#10 zinc washer", tape2: "Clear tape", carriage: "X carriage", tape: "Mounting tape", nozzle: "Nozzle", wire: "Magnet leads", clipA: "Lead clip", clipB: "Lead clip", clipC: "Lead clip", clipD: "Lead clip" };
 let labelMode = "current";   // all | current | off
 const stepLabels = {};
 function makeStepLabel(id, obj, local) {
@@ -364,7 +369,7 @@ function labelPoint(obj) { const b = bboxOf(obj), c = b.getCenter(new THREE.Vect
 const groups = { magnet: new THREE.Group(), sleeve: new THREE.Group() }; for (const g of Object.values(groups)) { g.visible = false; world.add(g); }
 let G = "magnet";                // the active guide
 const L = 34;                     // the frame (carriage, bracket) hangs this far up until step 7 lowers it onto the bolt
-const STEP_LOWER = 7;
+const STEP_LOWER = 8;
 const SUBIDS = new Set(["magnet", "swivel", "m3", "bolt", "nylon"]);
 const FRAME = new Set(["carriage", "tape", "angle", "nozzle"]);
 const ghostMat = (m) => { const c = m.clone(); c.transparent = true; return c; };
@@ -374,8 +379,10 @@ const asms = { magnet: {}, sleeve: {} }, asm = asms.magnet;
 const MAGNET_STEPS = [
   { title: "Before you start", ref: "Step 3", intro: [], focus: ["magnet", "swivel", "m3", "bolt", "nylon", "spring", "wing", "angleBlank", "carriage"], cam: [[120, 0, 10], 340, [0.1, -0.55, 1.2]],
     text: "Print the swivel (and a spare) and four lead clips first, while the printer is still a printer. On the table: the 24 V magnet, M3 x 6 flat-head screw, 1/4\"-20 bolt, nylon spacer, spring, wing nut and the 3\" aluminium angle. The grey block is the printer's X carriage." },
-  { title: "Cut and drill the bracket", ref: "Step 1", intro: ["angleBlank", "drill"], focus: ["drill", "angle"], cam: [[215, 20, 8], 190, [0.7, -1, 0.6]],
-    text: "Cut a piece about 3 in (76 mm) from the aluminium angle and file its edges smooth. Mark a point 1 in (25 mm) from one end, centred on one leg, and drill a 1/4 in (6.35 mm) hole there: start with a small pilot bit, clamp the piece down, and wear eye protection. The bolt goes through this hole later." },
+  { title: "Saw the bracket to length", ref: "Step 1", intro: ["saw"], focus: ["saw", "angleBlank"], cam: [[215, 60, 22], 560, [1, -0.8, 0.8]],
+    text: "Cut the aluminium angle to a 3 in (76 mm) magnet piece: the longer piece (about 6 in) is for the camera. Clamp the angle in a vice or to the bench, mark the cut line, and saw straight across with the hacksaw. Then file the cut edges smooth and deburr them. Wear eye protection." },
+  { title: "Drill the hole", ref: "Step 1", intro: ["drill"], focus: ["drill", "angle"], cam: [[215, 20, 8], 190, [0.7, -1, 0.6]],
+    text: "Mark a point 1 in (25 mm) from one end, centred on one leg, and drill a 1/4 in (6.35 mm) hole there: start with a small pilot bit, clamp the piece down, and wear eye protection. The bolt goes through this hole later." },
   { title: "Tape the bracket to the X carriage", ref: "Step 4, item 1", intro: ["angle", "tape"], focus: ["angle"], cam: [[-30, 0, 45 + L], 300, [0.7, -1, 0.5]],
     text: "Stick the 3\" angle to the side of the X carriage with mounting tape plus zip ties. The drilled leg stays horizontal and sticks out under the carriage." },
   { title: "Set the swivel on the magnet", ref: "Step 4, item 2", intro: ["magnet", "swivel"], focus: ["magnet", "swivel"], cam: [[0, 0, 18], 190, [0.8, -1, 0.5]],
@@ -405,29 +412,32 @@ let STEPS = MAGNET_STEPS;
 function buildExtras() {
   const grey = new THREE.MeshStandardMaterial({ color: 0x6d7683, roughness: 0.6, metalness: 0.4 });
   addExtra("carriage", group(mesh(new THREE.BoxGeometry(72, 72, 62), grey, -48.7, YB, 71.7)), -1, null, null);
-  addExtra("tape", group(mesh(new THREE.BoxGeometry(0.8, 60, 22), new THREE.MeshStandardMaterial({ color: 0xe0527a, roughness: 0.5 }), -13.1, YB, 49.7)), 2, [118, -50, 6], [-13.1, YB, 49.7]);
-  addExtra("nozzle", group(mesh(new THREE.CylinderGeometry(4, 0.4, 14, 24).rotateX(Math.PI / 2), mat.spring, -50, YB, 33), mesh(new THREE.CylinderGeometry(7, 7, 6, 6).rotateX(Math.PI / 2), mat.steel, -50, YB, 43)), 10, [160, 20, 6], [-50, YB, 38]);
+  addExtra("tape", group(mesh(new THREE.BoxGeometry(0.8, 60, 22), new THREE.MeshStandardMaterial({ color: 0xe0527a, roughness: 0.5 }), -13.1, YB, 49.7)), 3, [118, -50, 6], [-13.1, YB, 49.7]);
+  addExtra("nozzle", group(mesh(new THREE.CylinderGeometry(4, 0.4, 14, 24).rotateX(Math.PI / 2), mat.spring, -50, YB, 33), mesh(new THREE.CylinderGeometry(7, 7, 6, 6).rotateX(Math.PI / 2), mat.steel, -50, YB, 43)), 11, [160, 20, 6], [-50, YB, 38]);
   const red = new THREE.MeshStandardMaterial({ color: 0xd63a3a, roughness: 0.5 }), blk = new THREE.MeshStandardMaterial({ color: 0x20242b, roughness: 0.5 });
   const pts = [[10, 0, 7.5], [34, -6, 24], [24, -24 + YB, 40], [9, -24 + YB, 43.8], [9, 24 + YB, 43.8], [-5, 34 + YB, 48], [-28, 39.9 + YB, 54], [-53, 39.9 + YB, 54], [-82, 48 + YB, 60]].map(a => new THREE.Vector3(...a));
   const tube = (dz, m) => mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(v => v.clone().add(new THREE.Vector3(0, 0, dz)))), 160, 0.9, 8), m);
-  addExtra("wire", group(tube(0, red), tube(1.9, blk)), 11, null, null);
-  addExtra("angleBlank", hw.angleBlank, 0, null, null); asm.angleBlank.pose = k => ({ p: TRAY.angle, r: [0, 0, 0], op: k === 0 ? 1 : 0, vis: k === 0 });
-  addExtra("drill", hw.drill, 1, null, null); asm.drill.pose = k => k === 0 ? { p: [TRAY.angle[0], TRAY.angle[1], 46], r: [0, 0, 0], op: 0.3, vis: true } : k === 1 ? { p: [TRAY.angle[0], TRAY.angle[1], -1.5], r: [0, 0, 0], op: 1, vis: true } : { p: [TRAY.angle[0], TRAY.angle[1], 46], r: [0, 0, 0], op: 0, vis: false };
-  makeStepLabel("angleBlank", asm.angleBlank.obj, new THREE.Vector3(0, 0, 30)); makeStepLabel("drill", asm.drill.obj, new THREE.Vector3(0, 0, 42));
+  addExtra("wire", group(tube(0, red), tube(1.9, blk)), 12, null, null);
+  const hov = [TRAY.angle[0], TRAY.angle[1], 46], sawAt = z => [TRAY.angle[0], TRAY.angle[1] + CUT_Y, z];
+  addExtra("angleBlank", hw.angleBlank, 0, null, null); asm.angleBlank.pose = k => ({ p: TRAY.angle, r: [0, 0, 0], op: k <= 1 ? 1 : 0, vis: k <= 1 });
+  addExtra("offcut", hw.offcut, 0, null, null); asm.offcut.pose = k => k === 0 ? { p: TRAY.angle, r: [0, 0, 0], op: 1, vis: true } : { p: [TRAY.angle[0], TRAY.angle[1] + 45, 0], r: [0, 0, 0], op: 0, vis: false };
+  addExtra("saw", hw.saw, 1, null, null); asm.saw.pose = k => k === 0 ? { p: sawAt(70), r: [0, 0, 0], op: 0.3, vis: true } : k === 1 ? { p: sawAt(14), r: [0, 0, 0], op: 1, vis: true } : { p: sawAt(70), r: [0, 0, 0], op: 0, vis: false };
+  addExtra("drill", hw.drill, 2, null, null); asm.drill.pose = k => k <= 1 ? { p: hov, r: [0, 0, 0], op: 0, vis: false } : k === 2 ? { p: [TRAY.angle[0], TRAY.angle[1], -1.5], r: [0, 0, 0], op: 1, vis: true } : { p: hov, r: [0, 0, 0], op: 0, vis: false };
+  makeStepLabel("angleBlank", asm.angleBlank.obj, new THREE.Vector3(0, 0, 30)); makeStepLabel("offcut", asm.offcut.obj, new THREE.Vector3(0, CUT_Y + 36.9, 30)); makeStepLabel("saw", asm.saw.obj, new THREE.Vector3(0, 0, 52)); makeStepLabel("drill", asm.drill.obj, new THREE.Vector3(0, 0, 42));
   const clipGeo = entries.clip.obj.children[0].geometry;
   const pt = { carriage: [-48.7, YB, 104], tape: [-13.1, -30 + YB, 61], nozzle: [-50, YB, 27], wire: [-28, 40 + YB, 58] };
   for (const [id, v] of Object.entries(pt)) makeStepLabel(id, asm[id].obj, new THREE.Vector3(...v));
   const mk = () => new THREE.Mesh(clipGeo, mat.print);
   const place = (id, intro, pos, rx, stage, home) => { const c = mk(); c.castShadow = c.receiveShadow = true; c.rotation.x = rx; c.position.set(...pos); addExtra(id, group(c), intro, stage, home); };
-  place("clipA", 11, [2, -32 + YB, 39.3], 0, [90, -80, 0], [9, -24 + YB, 43]); place("clipB", 11, [2, 16 + YB, 39.3], 0, [112, -80, 0], [9, 24 + YB, 43]);
-  place("clipC", 12, [-60, 36 + YB, 62], -Math.PI / 2, [134, -80, 0], [-53, 40 + YB, 54]); place("clipD", 12, [-35, 36 + YB, 62], -Math.PI / 2, [156, -80, 0], [-28, 40 + YB, 54]);
+  place("clipA", 12, [2, -32 + YB, 39.3], 0, [90, -80, 0], [9, -24 + YB, 43]); place("clipB", 12, [2, 16 + YB, 39.3], 0, [112, -80, 0], [9, 24 + YB, 43]);
+  place("clipC", 13, [-60, 36 + YB, 62], -Math.PI / 2, [134, -80, 0], [-53, 40 + YB, 54]); place("clipD", 13, [-35, 36 + YB, 62], -Math.PI / 2, [156, -80, 0], [-28, 40 + YB, 54]);
   for (const [id, v] of Object.entries({ clipA: [9, -24 + YB, 50], clipB: [9, 24 + YB, 50], clipC: [-53, 44 + YB, 54], clipD: [-28, 44 + YB, 54] })) makeStepLabel(id, asm[id].obj, new THREE.Vector3(...v));
 }
 const TRAY = { magnet: [70, 70, 0], swivel: [70, 25, 0], m3: [70, -20, 3], bolt: [70, -65, 0], nylon: [140, 70, 0], spring: [140, 25, 0], wing: [140, -20, 0], angle: [215, 20, 0] };
 function magnetParts() {
   const parts = Object.fromEntries(Object.keys(TRAY).map(id => [id, { obj: entries[id].obj, stage: TRAY[id], intro: STEPS.findIndex(st => st.intro.includes(id)) }]));
-  // the drilled bracket appears on the tray the moment the drill goes through the blank (step 2), then travels to the carriage as before
-  parts.angle.pose = k => k === 0 ? { p: TRAY.angle, r: [0, 0, 0], op: 0, vis: false } : k === 1 ? { p: TRAY.angle, r: [0, 0, 0], op: 1, vis: true } : { p: finalPose("angle", k), r: [0, 0, 0], op: 1, vis: true };
+  // the drilled bracket appears on the tray the moment the drill goes through the blank (step 3), then travels to the carriage as before
+  parts.angle.pose = k => k <= 1 ? { p: TRAY.angle, r: [0, 0, 0], op: 0, vis: false } : k === 2 ? { p: TRAY.angle, r: [0, 0, 0], op: 1, vis: true } : { p: finalPose("angle", k), r: [0, 0, 0], op: 1, vis: true };
   return { ...parts, ...asm };
 }
 function partsFor() { return G === "sleeve" ? sleeveParts() : magnetParts(); }
@@ -478,6 +488,7 @@ function applyU(uu, driveCamera) {
   for (const [id, e] of Object.entries(PARTS)) {
     if (id === "__init") continue; const A = stateAt(id, k), B = stateAt(id, k2);
     e.obj.position.set(...A.p.map((v, i) => v + (B.p[i] - v) * f));
+    if (id === "saw") e.obj.position.x += 38 * Math.sin(uu * 48) * Math.max(0, 1 - Math.abs(uu - 1) * 1.6);   // the back-and-forth stroke, driven by the timeline position
     e.obj.rotation.set(...A.r.map((v, i) => v + (B.r[i] - v) * f)); if (id === "wing" && e.intro === k2 && f < 1) e.obj.rotation.z = (1 - f) * Math.PI * 6;
     e.obj.visible = f === 0 ? A.vis : (A.vis || B.vis);
     const op = A.op + (B.op - A.op) * f, hi = (f === 0 ? STEPS[k] : nextSt);
