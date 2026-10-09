@@ -131,6 +131,8 @@ const HARDWARE = [
     text: "Drops in through the swivel's top hole; its head seats flush in the countersink. Snug, not tight: PLA cracks." },
   { id: "bolt", name: "1/4\"-20 x 1\" hex bolt", qty: "1", step: "Step 4", size: "1/4\"-20 x 25.4",
     text: "Its head slides into the swivel's hex slot, thread up, so it turns with the swivel. Turns in the bracket's hole." },
+  { id: "pin", name: "1.75 mm filament pin", qty: "1 per swivel", step: "Step 4", size: "1.75 x 12 mm",
+    text: "A 12 mm piece of 1.75 mm filament (any colour). With a dab of super glue it goes down the hole in the swivel plug and into the hole in the swivel's floor: this, not the fit, is what keeps the plug from sliding out." },
   { id: "nylon", name: "Nylon spacer, cut to 6 mm", qty: "1", step: "Step 4", size: "0.257\" bore x 1/2\"",
     text: "A low-friction washer between the swivel and the bracket." },
   { id: "angle", name: "Aluminium angle bracket (3\")", qty: "1", step: "Step 1 / Step 4", size: "1\" x 3\" x 1/8\"",
@@ -209,6 +211,7 @@ function makeAngle(withHole, len = 76.2, cy = YB) {   // len: piece length; cy: 
   const vert = mesh(new THREE.BoxGeometry(t, len, leg), mat.alu, -leg / 2 + t / 2, cy, t + leg / 2 - t / 2);
   return group(horiz, vert);
 }
+hw.pin = mesh(cyl(0.875, 0.875, 12, 16), new THREE.MeshStandardMaterial({ color: 0xf2c230, roughness: 0.45 }), 0, 0, 6);   // a 12 mm length of 1.75 mm filament; origin: its lower end
 hw.angle = makeAngle(true); hw.angleBlank = makeAngle(false);
 const CUT_Y = YB + 38.1;            // the saw cut: the far end of the 3 inch piece
 hw.offcut = makeAngle(false, 73.8, CUT_Y + 36.9);   // the rest of a ~150 mm stock piece (kept for the camera mount)
@@ -282,7 +285,7 @@ async function build() {
     if (def.id === "clip") { clipSlots.slice(1).forEach(([cx, cy]) => { const c = new THREE.Mesh(obj.children[0].geometry, mat.print); c.castShadow = c.receiveShadow = true; c.position.set(cx - x, cy - y, 0); obj.add(c); }); obj.position.set(clipSlots[0][0], clipSlots[0][1], 0); entries.clip.home.copy(obj.position); }
   }
   // hardware: loose pieces beside the printed ones
-  const order = ["magnet", "m3", "bolt", "nylon", "angle", "spring", "wing"];
+  const order = ["magnet", "m3", "bolt", "pin", "nylon", "angle", "spring", "wing"];
   const loose = Object.fromEntries(order.map((id, i) => [id, [-70 + i * 55, -60 - (i % 2) * 38]]));
   for (const def of HARDWARE) { const o = hw[def.id]; const [x, y] = loose[def.id]; o.position.set(x, y, def.id === "m3" ? 1.5 : 0); register(def, o, "hw", o.position); }
   Object.values(entries).forEach(placeAnchor);
@@ -300,7 +303,8 @@ function headPose(f) {
     swivel:  { p: [0, 0, swivelZ + 40 * f] },
     m3:      { p: [0, 0, swivelZ + floor + 80 * f] },
     bolt:    { p: [60 * f, 0, hexBase + 40 * f] },
-    plug:    { p: [3.5 + 90 * f, 0, swivelZ + 6.8] },          // slides in from +X along the channel, after the bolt
+    plug:    { p: [3.5 + 90 * f, 0, swivelZ + 6.8] },
+    pin:     { p: [9.8, 0, swivelZ + 3.2 + 60 * f] },            // down the plug's hole and into the swivel's floor hole          // slides in from +X along the channel, after the bolt
     nylon:   { p: [0, 0, swivelZ + 15.1 + 70 * f] },
     angle:   { p: [0, 0, swivelZ + 15.1 + 6 + 105 * f] },
     spring:  { p: [0, 0, swivelZ + 15.1 + 6 + 3.2 + 140 * f] },
@@ -319,7 +323,7 @@ function setMode(m) {
   document.getElementById("labels").style.display = m === "steps" ? "" : "none";
   document.getElementById("steps").style.display = m === "steps" ? "block" : "none";
   document.getElementById("lists").style.display = m === "steps" ? "none" : "block";
-  const headIds = new Set(["magnet", "swivel", "m3", "bolt", "plug", "nylon", "angle", "spring", "wing"]);
+  const headIds = new Set(["magnet", "swivel", "m3", "bolt", "plug", "pin", "nylon", "angle", "spring", "wing"]);
   for (const [id, e] of Object.entries(entries)) e.obj.visible = m === "all" || (m !== "all" && headIds.has(id) && !(m === "steps" && false));
   if (m !== "steps") leaveSteps();
   if (m === "steps") { enterSteps(); return; }
@@ -381,7 +385,7 @@ for (const [list, defs, kind] of [["list-print", PRINTED, "print"], ["list-hw", 
   for (const d of defs) {
     const li = document.createElement("li"); const b = document.createElement("button"); b.className = "item"; b.dataset.id = d.id; b.setAttribute("aria-pressed", "false");
     b.innerHTML = `<span class="num ${kind}">${n++}</span><span></span><span class="qty"></span>`; b.children[1].textContent = d.name; b.children[2].textContent = "x" + d.qty.replace(/ \(.*\)/, "");
-    b.addEventListener("click", () => { if (mode === "head" && !["swivel", "magnet", "m3", "bolt", "plug", "nylon", "angle", "spring", "wing"].includes(d.id)) setMode("all"); select(d.id); });
+    b.addEventListener("click", () => { if (mode === "head" && !["swivel", "magnet", "m3", "bolt", "plug", "pin", "nylon", "angle", "spring", "wing"].includes(d.id)) setMode("all"); select(d.id); });
     li.append(b); ul.append(li);
   }
 }
@@ -426,7 +430,7 @@ const DIMDEFS = {                // local coordinates of each part; values are t
   flipCard: [[[-46.25, 0, 0], [46.25, 0, 0], [0, -1, 0], "92.5 mm (long edge)", 8], [[-46.25, 0, 0], [-46.25, 66.5, 0], [-1, 0, 0], "66.5 mm", 8]],
 };
 const BOXDIMS = {                // printed parts and the card: overall size from the STL bounds / the .scad, drawn along the bounding box
-  plug: [["x", "10.7 mm"], ["y", "11.3 mm"], ["z", "8.2 mm"]], swivel: [["x", "24 mm"], ["z", "15.1 mm"]], clip: [["x", "14 mm"], ["y", "16 mm"], ["z", "7.8 mm"]], jig: [["x", "72.9 mm"], ["y", "98.9 mm"], ["z", "9.6 mm"]], bridge: [["x", "72.9 mm"], ["y", "24 mm"], ["z", "5 mm"]],
+  plug: [["x", "10.7 mm"], ["y", "11.3 mm"], ["z", "8.2 mm"]], pin: [["z", "12 mm"]], swivel: [["x", "24 mm"], ["z", "15.1 mm"]], clip: [["x", "14 mm"], ["y", "16 mm"], ["z", "7.8 mm"]], jig: [["x", "72.9 mm"], ["y", "98.9 mm"], ["z", "9.6 mm"]], bridge: [["x", "72.9 mm"], ["y", "24 mm"], ["z", "5 mm"]],
   deck: [["x", "73.3 mm"], ["y", "99.3 mm"], ["z", "117.8 mm"]], follower: [["x", "67.5 mm"], ["y", "93.5 mm"]], chute: [["x", "74.5 mm"], ["y", "90.1 mm"], ["z", "52.4 mm"]],
   rack: [["x", "349.3 mm"], ["y", "40 mm"], ["z", "111.3 mm"]], card: [["x", "63 mm"], ["y", "88 mm"]],
 };
@@ -451,7 +455,7 @@ const NAME = { fence: "Flip fence", grip: "Grip strip", zone: "Station area", fl
 // Dimensions, taken from the models and the README (printed parts: STL bounding boxes + the .scad parameters). "TBD" = not measured yet.
 const DIMS = {
   fence: "123.3 x 51.5 x 3.5 mm; rails 94.5 mm apart (card 92.5 + 2); face leans 8 deg; groove 1.5 mm for a grip strip", flipCard: "92.5 x 66.5 mm; card_t 1.6 mm TBD; washer 33.25 mm from the pivot edge",
-  plug: "10.7 x 11.3 x 8.2 mm; base about 11.3 wide in the 11.6 hex channel, neck about 6.7 wide in the 7 slot, 1.9 mm pin hole at 9.8 mm; five widths marked by 1-5 notches in the handle", swivel: "24 x 24 x 15.1 mm; hex slot 11.6 mm AF; top hole 7 mm; M3 hole 3.2 mm", clip: "14 x 16 x 7.8 mm; holds 5 mm wire",
+  pin: "1.75 mm filament, 12 mm long; goes in 1.9 mm holes (one in the plug, one 3.3 mm deep in the swivel floor)", plug: "10.7 x 11.3 x 8.2 mm; base about 11.3 wide in the 11.6 hex channel, neck about 6.7 wide in the 7 slot, 1.9 mm pin hole at 9.8 mm; five widths marked by 1-5 notches in the handle", swivel: "24 x 24 x 15.1 mm; hex slot 11.6 mm AF; top hole 7 mm; M3 hole 3.2 mm", clip: "14 x 16 x 7.8 mm; holds 5 mm wire",
   deck: "73.3 x 99.3 x 117.8 mm; for 66.5 x 92.5 mm sleeved cards; card_t 1.6 mm TBD (measure 10 cards)", follower: "67.5 x 93.5 x 3.0 mm",
   chute: "74.5 x 90.1 x 52.4 mm; 35 deg ramp; bed_t 6 mm TBD (measure your bed)", rack: "349.3 x 40.0 x 111.3 mm; 7 slots, 46 mm pitch; card_t 1.6 mm TBD",
   jig: "72.9 x 98.9 x 9.6 mm; card pocket 68.1 x 94.1 mm", bridge: "72.9 x 24.0 x 5.0 mm; washer hole for 11.1 mm OD",
@@ -466,7 +470,7 @@ const DIMS = {
   washer: "#10: 0.438 in (11.1 mm) OD; bore and thickness drawn, TBD", tape2: "about 18 mm square patch (drawn)",
 };
 const SHORT = { fence: "123 x 52 x 3.5 mm", flipCard: "92.5 x 66.5 mm", flipHead: "hinge 20 mm above the face",  angle: "76 x 25.4 x 3.2 mm", angleBlank: "76 x 25.4 x 3.2 mm", offcut: "about 74 mm", magnet: "20 dia x 15 mm", swivel: "24 x 24 x 15 mm", bolt: "1/4-20 x 25.4 mm", nylon: "12.7 OD x 6 mm", saw: "300 mm blade", drill: "6.35 mm bit",
-  plug: "11 x 11 x 8 mm", jig: "73 x 99 x 9.6 mm", bridge: "73 x 24 x 5 mm", card: "63 x 88 mm", washer: "11.1 mm OD", m3: "M3 x 6 mm", wing: "1/4-20", clipA: "14 x 16 x 8 mm", clipB: "14 x 16 x 8 mm", clipC: "14 x 16 x 8 mm", clipD: "14 x 16 x 8 mm" };
+  pin: "1.75 x 12 mm", plug: "11 x 11 x 8 mm", jig: "73 x 99 x 9.6 mm", bridge: "73 x 24 x 5 mm", card: "63 x 88 mm", washer: "11.1 mm OD", m3: "M3 x 6 mm", wing: "1/4-20", clipA: "14 x 16 x 8 mm", clipB: "14 x 16 x 8 mm", clipC: "14 x 16 x 8 mm", clipD: "14 x 16 x 8 mm" };
 let labelMode = "current";   // all | current | off
 const stepLabels = {};
 function makeStepLabel(id, obj, local) {
@@ -481,7 +485,7 @@ function labelPoint(obj) { const b = bboxOf(obj), c = b.getCenter(new THREE.Vect
 const groups = { magnet: new THREE.Group(), sleeve: new THREE.Group(), flip: new THREE.Group() }; for (const g of Object.values(groups)) { g.visible = false; world.add(g); }
 let G = "magnet";                // the active guide
 const L = 34;                     // the frame (carriage, bracket) hangs this far up until step 7 lowers it onto the bolt
-const SUBIDS = new Set(["magnet", "swivel", "m3", "bolt", "plug", "nylon"]);
+const SUBIDS = new Set(["magnet", "swivel", "m3", "bolt", "plug", "pin", "nylon"]);
 const FRAME = new Set(["carriage", "tape", "angle", "nozzle"]);
 const ghostMat = (m) => { const c = m.clone(); c.transparent = true; return c; };
 function addExtra(id, obj, intro, stageAbs, home, guide = "magnet") { obj.traverse(o => { if (o.isMesh) { o.material = ghostMat(o.material); } o.userData.id = id; }); groups[guide].add(obj); obj.updateMatrixWorld(true);
@@ -489,7 +493,7 @@ function addExtra(id, obj, intro, stageAbs, home, guide = "magnet") { obj.traver
 const asms = { magnet: {}, sleeve: {}, flip: {} }, asm = asms.magnet;
 const MAGNET_STEPS = [
   { title: "Before you start", ref: "Step 3", intro: [], focus: ["magnet", "swivel", "m3", "bolt", "nylon", "spring", "wing", "angleBlank", "carriage"], cam: [[120, 0, 10], 340, [0.1, -0.55, 1.2]],
-    text: "Print the swivel (and a spare), four lead clips and the swivel plugs (a small plate of ten in five widths) first, while the printer is still a printer. On the table: the 24 V magnet, M3 x 6 flat-head screw, 1/4\"-20 bolt, nylon spacer, spring, wing nut and the 3\" aluminium angle. The grey block is the printer's X carriage." },
+    text: "Print the swivel (and a spare), four lead clips and the swivel plugs (a small plate of ten in five widths) first, and have a few cm of 1.75 mm filament for the plug's pin, while the printer is still a printer. On the table: the 24 V magnet, M3 x 6 flat-head screw, 1/4\"-20 bolt, nylon spacer, spring, wing nut and the 3\" aluminium angle. The grey block is the printer's X carriage." },
   { title: "Saw the bracket to length", ref: "Step 1", intro: ["saw"], only: ["saw", "angleBlank", "offcut"], focus: ["saw", "angleBlank"], cam: [[232, 50, 14], 640, [0.8, -1, 0.55]],
     text: "Cut the aluminium angle to a 3 in (76 mm) magnet piece: the longer piece (about 6 in) is for the camera. Clamp the angle in a vice or to the bench, mark the cut line, and saw straight across with the hacksaw. The teeth point away from you, so it cuts on the push stroke: use light pressure and long, steady strokes. Then file the cut edges smooth and deburr them. Wear eye protection." },
   { title: "Drill the hole", ref: "Step 1", intro: ["drill"], only: ["drill", "angle", "angleBlank"], focus: ["drill", "angle"], cam: [[215, 20, 6], 150, [0.7, -1, 0.6]],
@@ -502,8 +506,10 @@ const MAGNET_STEPS = [
     text: "Drop the M3 x 6 mm flat-head screw in through the swivel's top hole and screw it down into the magnet with a screwdriver through the same hole. The head seats flush in the countersink. Snug, not tight: PLA cracks." },
   { title: "Slide the bolt into the hex slot", ref: "Step 4, item 2", intro: ["bolt"], focus: ["bolt"], cam: [[8, 0, 30], 170, [0.9, -0.9, 0.4]],
     text: "Slide the 1/4\" bolt in from the side, head first and thread up: the hex channel takes the head and the slot in the ceiling takes the thread. The bolt now turns with the swivel." },
-  { title: "Close the slot with the plug", ref: "Step 4, item 2", intro: ["plug"], focus: ["plug", "bolt", "swivel"], cam: [[10, 0, 22], 150, [0.9, -0.9, 0.5]],
-    text: "Slide the swivel plug in from the open side, ear up, the way the bolt went in: its wide base fills the hex channel behind the bolt's head and its narrow neck fills the slot behind the thread. It should go in with a firm push and stay put when you tilt the swivel. Too loose, take the next tighter one; will not go in, the next looser (the plate has two of each width). Then lock it: push a 1.75 mm piece of filament (about 12 mm long, with a dab of super glue) down the hole in the plug and into the hole in the swivel's floor, and trim it flush. This step is not optional: without the plug the bolt can slide back out of the swivel sideways, and a press fit alone will not hold it." },
+  { title: "Close the slot with the plug", ref: "Step 4, item 2", intro: ["plug"], focus: ["plug", "bolt", "swivel"], fade: { swivel: 0.4 }, cam: [[8, 0, 20], 120, [0.9, -0.9, 0.55]],
+    text: "Slide the swivel plug in from the open side, ear up, the way the bolt went in: its wide base fills the hex channel behind the bolt's head and its narrow neck fills the slot behind the thread. It should go in with a firm push and stay put when you tilt the swivel. Too loose, take the next tighter one; will not go in, the next looser (the plate has two of each width). The swivel is shown see-through here so you can see the base in the hex channel behind the bolt's head, and the neck in the slot beside the thread. Next step: the pin that locks it. This is not optional: without the plug the bolt can slide back out of the swivel sideways." },
+  { title: "Lock the plug with a filament pin", ref: "Step 4, item 2", intro: ["pin"], focus: ["pin", "plug", "swivel"], fade: { swivel: 0.3, plug: 0.35 }, cam: [[9.8, 0, 10], 95, [0.95, -0.7, 0.35]],
+    text: "A press fit only holds the plug while you work on it; a knock would walk it out. Cut a 12 mm piece of 1.75 mm filament, touch its tip with super glue, and push it down the hole in the plug (the hole near the outer end) until it bottoms in the hole in the swivel's floor, then trim it flush with the top. A swivel printed before the floor hole existed has no hole to receive it: drill 1.8 mm through the plug's hole and 3 mm into the floor first, or use super glue on the plug instead." },
   { title: "Put the nylon washer on the bolt", ref: "Step 4, item 3", tapeMm: 6, intro: ["nylon"], focus: ["nylon"], cam: [[0, 0, 34], 170, [0.8, -1, 0.5]],
     text: "Cut about 6 mm off a nylon spacer with the hacksaw. It's a low-friction washer that goes on the bolt above the swivel." },
   { title: "Push the bolt up through the bracket's hole", ref: "Step 4, item 3", intro: [], focus: ["angle", "bolt"], cam: [[0, 0, 40], 230, [0.9, -1, 0.35]],
@@ -547,7 +553,7 @@ function buildExtras() {
   place("clipC", stepIdx("Two more clips"), [-60, 36 + YB, 62], -Math.PI / 2, [134, -80, 0], [-53, 40 + YB, 54]); place("clipD", stepIdx("Two more clips"), [-35, 36 + YB, 62], -Math.PI / 2, [156, -80, 0], [-28, 40 + YB, 54]);
   for (const [id, v] of Object.entries({ clipA: [9, -24 + YB, 50], clipB: [9, 24 + YB, 50], clipC: [-53, 44 + YB, 54], clipD: [-28, 44 + YB, 54] })) makeStepLabel(id, asm[id].obj, new THREE.Vector3(...v));
 }
-const TRAY = { magnet: [70, 70, 0], swivel: [70, 25, 0], m3: [70, -20, 3], bolt: [70, -65, 0], nylon: [140, 70, 0], spring: [140, 25, 0], wing: [140, -20, 0], plug: [140, -65, 0], angle: [215, 20, 0] };
+const TRAY = { magnet: [70, 70, 0], swivel: [70, 25, 0], m3: [70, -20, 3], bolt: [70, -65, 0], nylon: [140, 70, 0], spring: [140, 25, 0], wing: [140, -20, 0], plug: [140, -65, 0], pin: [215, -30, 0], angle: [215, 20, 0] };
 function magnetParts() {
   const parts = Object.fromEntries(Object.keys(TRAY).map(id => [id, { obj: entries[id].obj, stage: TRAY[id], intro: STEPS.findIndex(st => st.intro.includes(id)) }]));
   // the drilled bracket appears on the tray the moment the drill goes through the blank (step 3), then travels to the carriage as before
@@ -559,6 +565,13 @@ function magnetParts() {
     if (u <= iPlug - 1) return { p: TRAY.plug, r: [0, 0, 0], vis: true, op: 0.3 };
     const t = u - (iPlug - 1);
     return { p: t < 0.6 ? lerp(TRAY.plug, near, ease(t / 0.6)) : lerp(near, fin, ease((t - 0.6) / 0.4)), r: [0, 0, 0], vis: true, op: 0.3 + 0.7 * t };
+  };
+  const iPin = stepIdx("Lock the plug"), pf = headPose(0).pin.p, above = [pf[0], pf[1], pf[2] + 30];
+  parts.pin.dyn = u => {
+    if (u >= iPin) return { p: pf, r: [0, 0, 0], vis: true, op: 1 };
+    if (u <= iPin - 1) return { p: TRAY.pin, r: [0, 0, 0], vis: true, op: 0.3 };
+    const t = u - (iPin - 1);
+    return { p: t < 0.6 ? lerp(TRAY.pin, above, ease(t / 0.6)) : lerp(above, pf, ease((t - 0.6) / 0.4)), r: [0, 0, 0], vis: true, op: 0.3 + 0.7 * t };
   };
   return { ...parts, ...asm };
 }
@@ -616,7 +629,7 @@ function applyU(uu, driveCamera) {
     if (id === "wing" && e.intro === k2 && f < 1) e.obj.rotation.z = (1 - f) * Math.PI * 6;
     const mA = !STEPS[k].only || STEPS[k].only.includes(id) ? 1 : 0, mB = !nextSt.only || nextSt.only.includes(id) ? 1 : 0, mul = mA + (mB - mA) * f;   // a step's `only` list fades every other piece out (and back in when you leave)
     e.obj.visible = (dq ? dq.vis : (f === 0 ? A.vis : (A.vis || B.vis))) && mul > 0.001;
-    const op = (dq ? dq.op : (A.op + (B.op - A.op) * f)) * mul, hi = (f === 0 ? STEPS[k] : nextSt);
+    const fdA = STEPS[k].fade?.[id] ?? 1, fdB = nextSt.fade?.[id] ?? 1, op = (dq ? dq.op : (A.op + (B.op - A.op) * f)) * mul * (fdA + (fdB - fdA) * f), hi = (f === 0 ? STEPS[k] : nextSt);
     const glow = hi.focus.includes(id) || hi.intro.includes(id) ? 0.4 : 0;
     if (dimsOf[id]) { const fA = !STEPS[k].noDims && (STEPS[k].focus.includes(id) || STEPS[k].intro.includes(id)) ? 1 : 0, fB = !nextSt.noDims && (nextSt.focus.includes(id) || nextSt.intro.includes(id)) ? 1 : 0; setRulers(id, e.obj.visible ? op * (fA + (fB - fA) * f) : 0); }
     e.obj.traverse(o => { if (o.isMesh && o.material) { o.material.transparent = true; o.material.opacity = op; if (o.material.emissive) { o.material.emissive.set(0x0b4f8a); o.material.emissiveIntensity = glow; } } });
