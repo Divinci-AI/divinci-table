@@ -500,7 +500,7 @@ const MAGNET_STEPS = [
     text: "Drop the M3 x 6 mm flat-head screw in through the swivel's top hole and screw it down into the magnet with a screwdriver through the same hole. The head seats flush in the countersink. Snug, not tight: PLA cracks." },
   { title: "Slide the bolt into the hex slot", ref: "Step 4, item 2", intro: ["bolt"], focus: ["bolt"], cam: [[8, 0, 30], 170, [0.9, -0.9, 0.4]],
     text: "Slide the 1/4\" bolt in from the side, head first and thread up: the hex channel takes the head and the slot in the ceiling takes the thread. The bolt now turns with the swivel." },
-  { title: "Put the nylon washer on the bolt", ref: "Step 4, item 3", intro: ["nylon"], focus: ["nylon"], cam: [[0, 0, 34], 170, [0.8, -1, 0.5]],
+  { title: "Put the nylon washer on the bolt", ref: "Step 4, item 3", tapeMm: 6, intro: ["nylon"], focus: ["nylon"], cam: [[0, 0, 34], 170, [0.8, -1, 0.5]],
     text: "Cut about 6 mm off a nylon spacer with the hacksaw. It's a low-friction washer that goes on the bolt above the swivel." },
   { title: "Push the bolt up through the bracket's hole", ref: "Step 4, item 3", intro: [], focus: ["angle", "bolt"], cam: [[0, 0, 40], 230, [0.9, -1, 0.35]],
     text: "The bolt goes up through the hole in the bracket's horizontal leg, and turns freely in it. (Here the bracket comes down onto the bolt; on the printer you lift the swivel into place.)" },
@@ -625,6 +625,31 @@ function applyU(uu, driveCamera) {
   if (near !== shownStep) showStepText(near);
   const sc = document.getElementById("scrub"); if (sc && Math.abs(parseFloat(sc.value) - uu) > 1e-3) sc.value = uu;
 }
+// A US tape measure drawn to scale (one inch = 480 px), for a step that says "cut N mm": it marks where N mm falls on a tape
+// marked in inches, so nobody has to do the arithmetic at the bench. Computed from mm, nothing hard-coded.
+function tapeFigure(mm) {
+  const NS = "http://www.w3.org/2000/svg", PX = 480, X0 = 24, W = 330, H = 150, inch = mm / 25.4, px = v => X0 + v * PX;
+  const el = (n, a, txt) => { const e = document.createElementNS(NS, n); for (const [k, v] of Object.entries(a)) e.setAttribute(k, v); if (txt != null) e.textContent = txt; return e; };
+  const frac = n => { const d = n % 16 === 0 ? 1 : n % 8 === 0 ? 2 : n % 4 === 0 ? 4 : n % 2 === 0 ? 8 : 16; return n === 0 ? "0" : `${n * d / 16}/${d}`; };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img", "aria-label": `A US tape measure with ${mm} mm marked` });
+  svg.style.cssText = "max-width:420px;display:block;margin:10px 0 4px";
+  svg.append(el("rect", { x: 0, y: 14, width: W, height: 62, rx: 3, fill: "#f2d230" }), el("rect", { x: 0, y: 14, width: 4, height: 62, fill: "#8a8a8a" }));   // the blade and its hook
+  for (let n = 0; px(n / 16) <= W - 8; n++) {                          // a tick at every 1/16 inch, longer for 1/8, 1/4 and 1/2
+    const len = n % 8 === 0 ? 30 : n % 4 === 0 ? 24 : n % 2 === 0 ? 17 : 10, x = px(n / 16);
+    svg.append(el("line", { x1: x, y1: 14, x2: x, y2: 14 + len, stroke: "#111", "stroke-width": n % 8 === 0 ? 1.8 : 1 }));
+    if (n % 2 === 0 && n) svg.append(el("text", { x, y: 14 + len + 11, "text-anchor": "middle", "font-size": 10, fill: "#111", "font-weight": 600 }, frac(n)));
+  }
+  const x = px(inch), lo = Math.floor(inch * 16), hi = Math.ceil(inch * 16);
+  svg.append(el("rect", { x: X0, y: 82, width: x - X0, height: 10, fill: "#e8edf3", opacity: 0.9 }));            // the cut piece, from the zero line
+  svg.append(el("line", { x1: x, y1: 8, x2: x, y2: 100, stroke: "#e5484d", "stroke-width": 2 }));
+  svg.append(el("text", { x, y: 116, "text-anchor": "middle", "font-size": 11, fill: "#e5484d", "font-weight": 700 }, `${mm} mm`));
+  svg.append(el("text", { x: X0, y: 134, "font-size": 9.5, fill: "currentColor" }, "ticks are 1/16 inch; the long ones are 1/8, 1/4, 1/2"));
+  const wrap = document.createElement("div"), cap = document.createElement("p"); wrap.className = "tapefig";
+  const near = Math.round(inch * 16), off = (inch * 16 - near) / 16 * 25.4;       // mm from the nearest 1/16 line (negative: short of it)
+  cap.className = "dims";
+  cap.textContent = `${mm} mm = ${inch.toFixed(3)} in: between the ${frac(lo)}" and ${frac(hi)}" ticks, ${Math.abs(off).toFixed(2)} mm ${off < 0 ? "short of" : "past"} the ${frac(near)}" tick. Hold the spacer's flat end at the zero line (or at the 1" line, if the hook is loose, and mark at 1" + this), mark the red line, and cut on the waste side of the mark.`;
+  wrap.append(svg, cap); return wrap;
+}
 function showStepText(i) {
   shownStep = i; const st = STEPS[i];
   document.getElementById("step-no").textContent = `Step ${i + 1} of ${STEPS.length}`;
@@ -633,6 +658,7 @@ function showStepText(i) {
   const h = document.createElement("h3"); h.textContent = `${i + 1}. ${st.title}`; pane.append(h);
   const r = document.createElement("p"); r.className = "step"; r.textContent = st.ref + " of the assembly manual"; pane.append(r);
   const t = document.createElement("p"); t.textContent = st.text; pane.append(t);
+  if (st.tapeMm) pane.append(tapeFigure(st.tapeMm));
   const ids = st.focus.filter(id => entries[id]?.def.name || NAME[id]);
   if (ids.length) { const c = document.createElement("div"); c.className = "chips"; for (const id of ids) { const x = document.createElement("span"); x.className = "chip"; x.textContent = entries[id]?.def.name || NAME[id]; c.append(x); } pane.append(c);
     if (ids.some(id => /TBD|not measured|stand-in/.test(DIMS[id] || ""))) { const n = document.createElement("div"); n.className = "dims tbd"; n.textContent = "Amber rulers show sizes in the 3D view. Values marked TBD are not measured yet."; pane.append(n); }
