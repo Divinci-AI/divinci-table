@@ -289,7 +289,7 @@ report("FAIL" if fh else "ok", "after release, the card can fall without landing
 report("ok" if fall_hit(shift_y=-150.0) is None else "FAIL", "negative control: a head 150 mm away from the falling card is not hit", "" if fall_hit(shift_y=-150.0) is None else "the check always fires, so it means nothing")
 
 # 7.3 the swivel plug (parts/swivel_plug_lib.scad): it must slide in the way the bolt did, close the side the bolt would escape by, and stay clear of the bolt
-PLUG_LIB = HERE / "parts" / "swivel_plug_lib.scad"; SWIVEL = STL / "magnet_swivel.stl"; GRADES = {"A loose": 0.25, "B snug": 0.15, "C tight": 0.05}
+PLUG_LIB = HERE / "parts" / "swivel_plug_lib.scad"; SWIVEL = STL / "magnet_swivel.stl"; GRADES = {"1 (0.45, loosest)": 0.45, "2 (0.35)": 0.35, "3 (0.25)": 0.25, "4 (0.15)": 0.15, "5 (0.05, tightest)": 0.05}
 def plug_hits(fit, d=0.0, ribs=False):
     return collides(f'include <{PLUG_LIB}>\nintersection(){{ import("{SWIVEL}"); translate([{d},0,0]) plug({fit}, {str(ribs).lower()}); }}')
 if PLUG_LIB.exists():
@@ -297,11 +297,11 @@ if PLUG_LIB.exists():
         bad = [d for d in (24, 18, 12, 6, 0) if plug_hits(fit, d)]                          # nominal swivel
         bad_g = [d for d in (24, 18, 12, 6, 0) if plug_hits(fit - GROW / 2 + 0.01, d)]    # printed holes ~GROW small in total: GROW/2 per wall (+0.01: exact zero clearance is coplanar faces, which the kernel reports as a sliver)
         if bad: report("FAIL", f"swivel plug {name}: slides into the swivel from +X (nominal)", f"collides at x shift {bad}", id=f"plug-insert-{name[0]}")
-        elif bad_g and name[0] in "AB": report("FAIL", f"swivel plug {name}: still slides in when the holes print {GROW:g} mm small", f"collides at x shift {bad_g}", id=f"plug-insert-grown-{name[0]}")
-        else: report("ok", f"swivel plug {name}: slides in (nominal" + ("" if bad_g else " and holes printed 0.3 small") + ")", "" if not bad_g else "grown 0.3 it binds: that is the 'tight' grade, it will need a push")
-    mid = GRADES["B snug"]
+        elif bad_g and fit >= 0.25: report("FAIL", f"swivel plug {name}: still slides in when the holes print {GROW:g} mm small", f"collides at x shift {bad_g}", id=f"plug-insert-grown-{name[0]}")
+        else: report("ok", f"swivel plug {name}: slides in (nominal" + ("" if bad_g else " and holes printed 0.3 small") + ")", "" if not bad_g else "when the holes print 0.3 small it binds: a tight grade, it will need a push")
+    mid = GRADES["3 (0.25)"]
     head_hits = [g for g in (0, GROW) if collides(f'include <{PLUG_LIB}>\nintersection(){{ {bolt(0, g)}; plug({mid}, false); }}')]
-    report("FAIL" if head_hits else "ok", "swivel plug does not touch the seated bolt (nominal, and the bolt grown 0.3)", "the plug hits the bolt head" if head_hits else "clear of head and thread", id="plug-vs-bolt")
+    report("FAIL" if head_hits else "ok", "swivel plug (grade 3) does not touch the seated bolt (nominal, and the bolt grown 0.3)", "the plug hits the bolt head" if head_hits else "clear of head and thread", id="plug-vs-bolt")
     out_free = [x for x in (2, 4, 6, 8, 12, 18) if not collides(f'include <{PLUG_LIB}>\nintersection(){{ {bolt(x, 0)}; plug({mid}, false); }}')]
     report("FAIL" if out_free else "ok", "with the plug in, the bolt cannot slide out along the keyhole slot",
            f"the bolt still passes at x={out_free}" if out_free else "blocked from 2 mm on: the head meets the base, the thread meets the neck", id="plug-retains")
