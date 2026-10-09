@@ -8,6 +8,8 @@ from the printer's MACHINE_TYPE.
   ~/.venvs/table/bin/python table/gantry.py ports             # what's plugged in
   ~/.venvs/table/bin/python table/gantry.py info              # firmware, machine, position
   ~/.venvs/table/bin/python table/gantry.py home              # X and Y only (see Z below)
+  ~/.venvs/table/bin/python table/gantry.py zero-z [H]        # declare Z: nozzle H mm above the bed (default 0); required before any Z move
+  ~/.venvs/table/bin/python table/gantry.py flip --dry-run    # the edge flip's checked lines, nothing sent
   ~/.venvs/table/bin/python table/gantry.py goto 110 110 [Z]
   ~/.venvs/table/bin/python table/gantry.py snap              # one photo where the camera is now
   ~/.venvs/table/bin/python table/gantry.py plan --area all --z 300   # how many shots, no motion
@@ -63,12 +65,23 @@ SAFE_DEFAULT = (200, 200, 200)            # unknown machine: stay inside the sma
 #   min_z            lowest Z the head may go with the camera on (lens must clear the bed + cards)
 #   lens_at_z0_mm    lens front to bed distance when Z = 0 (negative: lens hangs below the nozzle)
 #   cam_offset_mm    [x, y] of the lens axis relative to the nozzle
-#   focal_mm, sensor_mm   18 mm kit lens at its widest on the T5i's APS-C sensor (22.3 x 14.9)
+#   focal_mm, sensor_mm   18 mm kit lens at its widest on the T3i's APS-C sensor (22.3 x 14.9)
 #   y_feed           the bed carries the cards, so Y moves gently or they slide
 RIG_DEFAULT = {"min_z": 0, "lens_at_z0_mm": 0, "cam_offset_mm": [0, 0], "focal_mm": 18,
                "sensor_mm": [22.3, 14.9], "y_feed": 1200, "overlap": 0.3, "magnet_max_s": 20, "touch_z": None,
                "lift_mm": 20, "arc_feed": 1500, "travel_z": None,
-               "rack": {"slot0": None, "pitch": 46, "rise": 3.6, "slots": 7}}
+               "magnet_min_z": 0, "carry_max_s": 90, "magnet_offset_mm": [0, 0],
+               "flip": {}, "flip_hinged_head_built": False,
+               "rack": {"slot0": None, "pitch": 46, "rise": 3.6, "slots": 7, "base_t": 2.0}}
+# min_z is the CAMERA's floor (the lens must clear the bed). The magnet hand has its own floor, magnet_min_z: touch_z is
+#   below min_z by design, because the magnet touches a card while the lens is not on the head. goto(tool="magnet") uses it.
+# magnet_offset_mm: [x, y] of the magnet's axis relative to the nozzle. Every pick, place, rack move, tap and flip is given in
+#   BED coordinates of the magnet and the carriage goes to that point minus the offset.
+# carry_max_s: how long the magnet may stay on across one pick-and-place. magnet_max_s covers a bare `magnet on`.
+# rack.base_t: thickness of the rack's base (hand_rack.scad base_t); slot 0's shelf is that high above the bed, so every rack
+#   pick/place is base_t higher than a card lying on the bed.
+# flip_hinged_head_built: a live flip() is refused until this is true (the passive pitch hinge is a design, not hardware yet).
+ABS_MAGNET_MAX_S = 180                 # no config value may exceed this
 # travel_z: the head rises at least this high before any X/Y move while carrying, so it clears the hand rack's fence
 # rack: the printed hand rack (hardware/gantry/parts/hand_rack.scad). slot0 = [x, y] of the centre of slot 0's card,
 #   measured in Step 7; pitch and rise match the .scad. Each slot k sits k*pitch to the right and k*rise higher; a
@@ -132,6 +145,10 @@ def safe(line: str) -> str:
         if line in (MAGNET_ON, MAGNET_OFF):
             return line
         raise Refused(f"{line}: the fan output is the magnet; only '{MAGNET_ON}' and '{MAGNET_OFF}' are allowed")
+    if word == "G92":                              # only 'G92 Z<n>', and only Printer.zero_z() sends it
+        if not re.fullmatch(r"G92 Z-?[\d.]+", line):
+            raise Refused(f"{line}: only 'G92 Z<height>' is allowed (it declares where Z is; nothing else may)")
+        return line
     if word in ("G2", "G3"):                       # arcs, for tapping: X Y end and I J centre offset, never extruding
         if re.search(r"\bE", line) or not re.fullmatch(r"G[23]( [XYIJF]-?[\d.]+)+", line):
             raise Refused(f"{line}: an arc needs X Y I J (F) only")
@@ -156,6 +173,8 @@ class Printer:
         self._lock = threading.RLock()                 # the magnet's timer and the caller share one serial line
         self._magnet_timer: threading.Timer | None = None
         self.magnet = False
+        self.magnet_fault = False                      # the timer could not turn the magnet off: refuse everything but M107/M84
+        self.z_known = False                           # Z is only known after zero_z() / an explicit home(z=True, clear=True); never across a reconnect
         if ser is None:
             import serial
             ports = [port] if port else find_ports()
@@ -189,6 +208,8 @@ class Printer:
 
     def send(self, line: str, timeout: float = 30) -> list[str]:
         cmd = safe(line)
+        if self.magnet_fault and cmd not in (MAGNET_OFF, "M84", "M114", "M400"):
+            raise Refused(f"{cmd}: the magnet could not be switched off; only M107, M84, M114 and M400 are accepted until it is")
         with self._lock:
             return self._send_locked(cmd, timeout)
 
@@ -235,13 +256,36 @@ class Printer:
                 return {k: float(v) for k, v in m.items() if k in "XYZ"}
         return {}
 
-    def home(self, z: bool = False):
+    def home(self, z: bool = False, clear: bool = False):
+        """X and Y only by default. Homing Z drives the head DOWN to the endstop/probe: with the magnet or camera hanging
+        below the nozzle it hits the bed. So it needs clear=True, the caller's statement that nothing hangs below the nozzle
+        and the bed is clear; only then is Z known."""
+        if z and not clear:
+            raise Refused("homing Z drives the head down: remove the magnet head and camera from under the nozzle, "
+                          "then pass clear=True (CLI: home --z --clear)")
         self.send("G28 X Y" + (" Z" if z else ""), timeout=120)
+        if z:
+            self.z_known = True
 
-    def goto(self, x=None, y=None, z=None, feed=3000):
+    def zero_z(self, height: float = 0.0):
+        """The explicit way to say where Z is without homing it: put the NOZZLE at `height` mm above the bed by hand
+        (a sheet of paper, with the magnet head off), then call this. Nothing else sets z_known."""
+        self.send(f"G92 Z{height:g}")
+        self.z_known = True
+
+    def _need_z(self):
+        if not self.z_known:
+            raise Refused("Z is not known since this connection opened: run zero_z() (nozzle at a measured height) or "
+                          "home(z=True, clear=True) first. A Z move from an unknown Z can drive the head into the table.")
+
+    def goto(self, x=None, y=None, z=None, feed=3000, tool="camera"):
+        """Absolute move. tool="camera" keeps the lens above min_z; tool="magnet" uses magnet_min_z (touch_z lives below min_z)."""
         cfg = config()
-        if z is not None and z < cfg["min_z"]:
-            raise Refused(f"Z{z} is below the camera floor min_z={cfg['min_z']} (gantry.json)")
+        if z is not None:
+            self._need_z()
+            floor, name = (cfg["magnet_min_z"], "magnet_min_z") if tool == "magnet" else (cfg["min_z"], "the camera floor min_z")
+            if z < floor:
+                raise Refused(f"Z{z} is below {name}={floor} (gantry.json)")
         if y is not None:
             feed = min(feed, cfg["y_feed"])         # the bed carries the cards
         parts = []
@@ -258,9 +302,21 @@ class Printer:
         self.send("M400", timeout=120)             # wait until the move has finished
 
     # ── the magnet hand ───────────────────────────────────────────────────────────────────────────
+    def offset(self) -> tuple[float, float]:
+        """[x, y] of the magnet's axis relative to the nozzle (gantry.json magnet_offset_mm)."""
+        ox, oy = config().get("magnet_offset_mm") or (0, 0)
+        return float(ox), float(oy)
+
+    def _cap(self, max_s: float | None, key: str = "magnet_max_s") -> float:
+        cap = float(max_s if max_s is not None else config().get(key) or 20)
+        if cap <= 0:
+            raise Refused("the magnet's time limit must be positive")
+        return min(cap, ABS_MAGNET_MAX_S)              # whatever the config says, never longer than this
+
     def magnet_on(self, max_s: float | None = None):
-        """Full on, with a timer that turns it off after max_s (gantry.json magnet_max_s) whatever happens next."""
-        cap = float(max_s if max_s is not None else config().get("magnet_max_s") or 20)
+        """Full on, with a timer that turns it off after max_s (default gantry.json magnet_max_s, at most ABS_MAGNET_MAX_S)
+        whatever happens next. The timer runs on its own thread, so a blocked caller cannot stop it."""
+        cap = self._cap(max_s)
         with self._lock:
             if self._magnet_timer:
                 self._magnet_timer.cancel()
@@ -272,7 +328,15 @@ class Printer:
 
     def _magnet_timeout(self):
         self.log("magnet on too long: turning it off")
-        self.magnet_off()
+        for attempt in range(3):
+            try:
+                self.magnet_off()
+                return
+            except Exception as e:                     # the serial line is the only way to switch it off: try again
+                self.log(f"magnet off failed ({e}); attempt {attempt + 1} of 3")
+                time.sleep(0.05)
+        self.magnet_fault = True                       # still on, as far as anyone knows: refuse every other command
+        self.log("MAGNET MAY STILL BE ON and could not be switched off over serial: cut its power at the supply")
 
     def magnet_off(self):
         with self._lock:
@@ -281,10 +345,11 @@ class Printer:
                 self._magnet_timer = None
             self.send(MAGNET_OFF)
             self.magnet = False
+            self.magnet_fault = False
 
     def arc(self, x: float, y: float, cx: float, cy: float, ccw: bool = False, feed: float | None = None):
-        """From the current XY to (x, y) around the centre (cx, cy). The whole circle must stay inside the travel,
-        so no part of the swing can leave it."""
+        """From the current XY to (x, y) around the centre (cx, cy), all in CARRIAGE coordinates. The whole circle must
+        stay inside the travel, so no part of the swing can leave it."""
         pos = self.position()
         r = math.hypot(pos["X"] - cx, pos["Y"] - cy)
         if abs(math.hypot(x - cx, y - cy) - r) > 0.5:
@@ -301,58 +366,122 @@ class Printer:
         z = config().get("touch_z")
         if z is None:
             raise Refused("measure touch_z (the Z where the magnet just touches a card) into gantry.json first")
-        return float(z)
+        z = float(z)
+        if z < config()["magnet_min_z"]:
+            raise Refused(f"touch_z={z} is below magnet_min_z={config()['magnet_min_z']}")
+        return z
 
     def _travel_z(self, z: float) -> float:
         cfg = config()
         return max(z + cfg["lift_mm"], float(cfg.get("travel_z") or 0))
 
     def _over(self, x: float, y: float, z: float):
-        """Up to the travel height first (never diagonally through the rack's fence), across, then down to z."""
+        """Up to the travel height first (never diagonally through the rack's fence), across, then down to z.
+        x, y are where the MAGNET goes (bed coordinates); the carriage goes there minus the magnet offset."""
+        ox, oy = self.offset()
         up = self._travel_z(z)
-        self.goto(z=max(up, self.position()["Z"]))
-        self.goto(x, y)
-        self.goto(z=z)
+        self.goto(z=max(up, self.position()["Z"]), tool="magnet")
+        self.goto(x - ox, y - oy, tool="magnet")
+        self.goto(z=z, tool="magnet")
         return up
 
     def pick(self, x: float, y: float, dz: float = 0.0, slide_x: float = 0.0):
-        """Grip the card centred at (x, y). dz: how much higher than a card lying on the bed (a rack slot).
-        slide_x: after gripping, slide the card this far in X at the same height before lifting."""
+        """Grip the card centred at (x, y) (the magnet's position). dz: how much higher than a card lying on the bed (a rack
+        slot, which includes the rack's base). slide_x: after gripping, slide the card this far in X at the same height."""
         z = self._touch_z() + dz
         up = self._over(x, y, z)
-        self.magnet_on()
+        self.magnet_on(self._cap(None, "carry_max_s"))
         time.sleep(0.2)
         if slide_x:
-            self.goto(x + slide_x)
-        self.goto(z=up)
+            self.goto(x + slide_x - self.offset()[0], tool="magnet")
+        self.goto(z=up, tool="magnet")
 
     def place(self, x: float, y: float, dz: float = 0.0, slide_x: float = 0.0):
         """Set the held card down centred at (x, y); with slide_x it comes down at x + slide_x and slides in."""
         z = self._touch_z() + dz
         up = self._over(x + slide_x, y, z)
         if slide_x:
-            self.goto(x)
+            self.goto(x - self.offset()[0], tool="magnet")
         self.magnet_off()
         time.sleep(0.2)
-        self.goto(z=up)
+        self.goto(z=up, tool="magnet")
 
     def rack_slot(self, k: int) -> dict:
-        """Where slot k of the hand rack is: pick(**rack_slot(k)) takes its card, place(**rack_slot(k)) fills it."""
+        """Where slot k of the hand rack is: pick(**rack_slot(k)) takes its card, place(**rack_slot(k)) fills it.
+        dz includes the rack's base (rack.base_t): slot 0's shelf is base_t above the bed, not on it."""
         r = dict(RIG_DEFAULT["rack"], **(config().get("rack") or {}))
         if r.get("slot0") is None:
             raise Refused("measure the hand rack's slot 0 (rack.slot0 in gantry.json) first")
         if not 0 <= k < r["slots"]:
             raise Refused(f"the rack has slots 0..{r['slots'] - 1}")
         x0, y0 = r["slot0"]
-        return {"x": x0 + k * r["pitch"], "y": y0, "dz": k * r["rise"], "slide_x": -r["pitch"] if k else 0.0}
+        return {"x": x0 + k * r["pitch"], "y": y0, "dz": r["base_t"] + k * r["rise"], "slide_x": -r["pitch"] if k else 0.0}
 
     def tap(self, cx: float, cy: float, ccw: bool = False):
-        """The held card turns a quarter about its corner pinned at (cx, cy): the magnet swings a quarter circle."""
+        """The held card turns a quarter about its corner pinned at (cx, cy): the magnet swings a quarter circle.
+        (cx, cy) and the result are the magnet's bed coordinates; the carriage swings about (cx, cy) minus the offset."""
+        ox, oy = self.offset()
         pos = self.position()
-        dx, dy = pos["X"] - cx, pos["Y"] - cy
-        ex, ey = (cx - dy, cy + dx) if ccw else (cx + dy, cy - dx)
-        self.arc(ex, ey, cx, cy, ccw=ccw)
-        return ex, ey
+        ccx, ccy = cx - ox, cy - oy
+        dx, dy = pos["X"] - ccx, pos["Y"] - ccy
+        ex, ey = (ccx - dy, ccy + dx) if ccw else (ccx + dy, ccy - dx)
+        self.arc(ex, ey, ccx, ccy, ccw=ccw)
+        return ex + ox, ey + oy
+
+    # ── the edge flip (hardware/gantry/flip_path.py) ──────────────────────────────────────────────
+    def flip_plan(self, overrides: dict | None = None) -> list:
+        """Every waypoint of the flip as (Waypoint, G-code line), checked against the travel, the magnet floor and safe()
+        BEFORE anything moves. Raises Refused naming the first bad waypoint."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("flip_path", HERE.parent / "hardware" / "gantry" / "flip_path.py")
+        fp = importlib.util.module_from_spec(spec)
+        sys.modules["flip_path"] = fp
+        spec.loader.exec_module(fp)
+        cfg = config()
+        params = fp.Params(**{**(cfg.get("flip") or {}), **(overrides or {})})
+        params.travel = tuple(self.travel)
+        ox, oy = self.offset()
+        plan = []
+        for w in fp.waypoints(params):
+            x, y, z = w.x - ox, w.y - oy, w.z
+            for axis, v, hi in (("X", x, self.travel[0]), ("Y", y, self.travel[1]), ("Z", z, self.travel[2])):
+                if not 0 <= v <= hi:
+                    raise Refused(f"flip waypoint '{w.name}': {axis}{v:.1f} is outside 0..{hi} mm")
+            if z < cfg["magnet_min_z"]:
+                raise Refused(f"flip waypoint '{w.name}': Z{z:.1f} is below magnet_min_z={cfg['magnet_min_z']}")
+            feed = min(w.feed, cfg["y_feed"])          # the bed carries the cards: every flip move has a Y part
+            plan.append((w, safe(f"G1 X{x:.2f} Y{y:.2f} Z{z:.2f} F{feed}")))
+        return plan
+
+    def flip(self, dry_run: bool = False, overrides: dict | None = None):
+        """Run the edge flip through the same gate as every other move. dry_run=True returns the checked lines and sends
+        nothing. A live flip needs Z known and flip_hinged_head_built=true in gantry.json (the hinged head is a design,
+        not hardware yet); the magnet is always off when it ends, however it ends."""
+        plan = self.flip_plan(overrides)
+        if dry_run:
+            return [line for _, line in plan]
+        if not config().get("flip_hinged_head_built"):
+            raise Refused("the flip needs the passive pitch hinge (README, Flipping a card): build and bench-test it, "
+                          "then set flip_hinged_head_built in gantry.json")
+        self._need_z()
+        w0, _ = plan[0]
+        ox, oy = self.offset()
+        try:
+            self.goto(z=max(self._travel_z(w0.z), self.position()["Z"]), tool="magnet")
+            self.goto(w0.x - ox, w0.y - oy, tool="magnet")
+            for w, line in plan:
+                self.send("G90")
+                self.send(line)
+                self.send("M400", timeout=120)
+                if w.magnet and not self.magnet:
+                    self.magnet_on(self._cap(None, "carry_max_s"))
+                elif not w.magnet and self.magnet:
+                    self.magnet_off()
+                if w.dwell_ms:
+                    time.sleep(w.dwell_ms / 1000)
+        finally:
+            self.magnet_off()
+        return [line for _, line in plan]
 
     def temps(self) -> dict:
         for l in self.send("M105"):
@@ -442,6 +571,9 @@ def main(argv=None):
     sub.add_parser("ports")
     sub.add_parser("info")
     h = sub.add_parser("home"); h.add_argument("--z", action="store_true")
+    h.add_argument("--clear", action="store_true", help="with --z: nothing hangs below the nozzle and the bed is clear")
+    zz = sub.add_parser("zero-z"); zz.add_argument("height", type=float, nargs="?", default=0.0)
+    fl = sub.add_parser("flip"); fl.add_argument("--dry-run", action="store_true")
     g = sub.add_parser("goto"); g.add_argument("x", type=float); g.add_argument("y", type=float)
     g.add_argument("z", type=float, nargs="?")
     sub.add_parser("snap")
@@ -495,11 +627,16 @@ def run(p: Printer, a) -> None:
         p.place(a.x2, a.y2)
         print(p.position())
     elif a.cmd == "tap":
-        p.goto(a.x, a.y); print(p.tap(a.cx, a.cy, ccw=a.ccw))
+        ox, oy = p.offset()
+        p.goto(a.x - ox, a.y - oy); print(p.tap(a.cx, a.cy, ccw=a.ccw))
     elif a.cmd == "info":
         print(json.dumps(p.info(), indent=2))
     elif a.cmd == "home":
-        p.home(z=a.z); print(p.position())
+        p.home(z=a.z, clear=a.clear); print(p.position())
+    elif a.cmd == "zero-z":
+        p.zero_z(a.height); print(p.position())
+    elif a.cmd == "flip":
+        print("\n".join(p.flip(dry_run=a.dry_run)))
     elif a.cmd == "goto":
         p.goto(a.x, a.y, a.z); print(p.position())
     elif a.cmd == "temps":
