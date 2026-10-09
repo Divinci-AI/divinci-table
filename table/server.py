@@ -924,6 +924,23 @@ def highroll_enter(name: str, value, by: str) -> tuple[int, dict]:
 
 
 CEREMONY = {"on": False}
+READY: set = set()                                   # seats that pressed Ready at the check-in (cleared with a new game)
+
+
+def checkin_public() -> dict:
+    """Who is at the table before the game starts: each seat is empty (nobody has claimed it), claimed, or ready. A seat run by the table's
+    own brain (an AI with a release behind it) is always ready; a person's seat and a virtual-deck pilot's seat are ready when
+    that player says so. START waits until every seat is ready."""
+    seats = []
+    for n in turn_order():
+        kind = "pilot" if n in PILOTS else "ai" if n in VPS else "human"
+        claimed = n in SEAT_KEYS or kind == "ai"
+        seats.append({"name": n, "kind": kind, "claimed": bool(claimed), "ready": kind == "ai" or n in READY})
+    return {"seats": seats, "all_ready": all(x["ready"] for x in seats), "waiting": [x["name"] for x in seats if not x["ready"]]}
+
+
+def checkin_required() -> bool:
+    return STRICT_SEATS and os.environ.get("TABLE_HIGHROLL") != "first" and os.environ.get("TABLE_CHECKIN") != "off"
 
 
 def begin_game(by: str) -> tuple[int, dict]:
@@ -937,6 +954,9 @@ def begin_game(by: str) -> tuple[int, dict]:
         if mode == "first":
             start_turn(turn_order()[0])
             return 200, phase_public()
+        if checkin_required() and not checkin_public()["all_ready"]:
+            ci = checkin_public()
+            return 409, {**phase_public(), "error": "waiting for " + ", ".join(ci["waiting"]) + " to check in (press Ready)", "checkin": ci}
         if HIGHROLL.get("mode") == "physical" and not HIGHROLL.get("winner"):
             return 409, {**phase_public(), "highroll": highroll_public(), "error": "a real-dice roll is under way: enter the dice"}
         if CEREMONY["on"]:
@@ -971,7 +991,7 @@ def phase_public() -> dict:
                 "windows": WINDOWS["on"], "window_secs": args.priority_window, "hold": HOLD["on"],
                 "open_questions": sum(1 for t in TODOS if t.get("kind") == "question" and not t["done"]),
                 "passes": passes_state(), "autopass": dict(AUTOPASS), "autopass_default": AUTOPASS_DEFAULT,
-                **({"start": START_HINT} if PHASE["player"] is None else {})}
+                **({"start": START_HINT, "checkin": checkin_public(), "checkin_required": checkin_required()} if PHASE["player"] is None else {})}
 
 
 def start_turn(name: str):
@@ -1298,7 +1318,7 @@ STRICT_SEATS = CLOUD or os.environ.get("STRICT_SEATS") == "1"
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"), ("POST", "/api/seat/check"),
-          ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/openmic/rate"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("POST", "/api/ready"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/openmic/rate"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/api/journal/due"), ("GET", "/api/journal"), ("POST", "/api/journal"), ("POST", "/api/identity"),   # a pilot's own journal and identity: the handlers need that seat's key
@@ -2966,6 +2986,19 @@ class H(BaseHTTPRequestHandler):
                 emit("seat", name=name, kind="claimed")
                 snapshot()
                 return self._send(200, {"name": name, "key": key})
+            if self.path == "/api/ready":                  # {"by": "Sam", "key": …, "ready": true}: a seat checks in before the game starts
+                b = self._json()
+                nm = next((n for n in turn_order() if n.lower() == str(b.get("by", "")).lower()), None)
+                if nm is None or nm in VPS and nm not in PILOTS:
+                    return self._send(400, {"error": "no seat of yours by that name"})
+                if not seat_key_ok(nm, str(b.get("key", ""))):
+                    return self._send(403, {"error": "claim your seat first (👤)", "need_seat": True})
+                if PHASE["player"] is not None:
+                    return self._send(409, {"error": "the game has already started"})
+                with PHASE_LOCK:
+                    (READY.add if b.get("ready", True) else READY.discard)(nm)
+                emit("checkin", seat=nm, ready=nm in READY, waiting=checkin_public()["waiting"])
+                return self._send(200, {"checkin": checkin_public()})
             if self.path == "/api/autopass":               # {"by": "Sam", "key": …, "mode": "off"|"others"|"others-no-combat"}
                 b = self._json()
                 person = next((h["name"] for h in HUMANS if h["name"].lower() == str(b.get("by", "")).lower()), None)
@@ -3193,6 +3226,7 @@ class H(BaseHTTPRequestHandler):
                 for k in LIFE:
                     LIFE[k] = 40
                 journal_reset()
+                READY.clear()
                 emit("new-game")
                 SPOKEN.clear()
                 with BOARD_LOCK:
@@ -3599,6 +3633,7 @@ class H(BaseHTTPRequestHandler):
                     for k in LIFE:
                         LIFE[k] = 40
                     journal_reset()
+                    READY.clear()
                     emit("new-game")
                     emit("fair", kind="sealed", **fair_public())
                     SPOKEN.clear()

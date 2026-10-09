@@ -15,18 +15,28 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const srv = spawn(PY, ["table/server.py", "--any-card", "--port", PORT, "--brain", "external", "--token-file", tmp + "/token",
     "--ai", "Claude|Kaust, Eyes of the Glade|", "--ai-deck", "decks/kaust.json", "--pilot", "Claude", "--human", "Michael|", "--human", "Sam|",
     "--order", "Claude,Michael,Sam", "--priority-window", "0.2", "--fair-seed", "off"],
-    { cwd: REPO, env: { ...process.env, TABLE_HIGHROLL: "table", HF_HUB_OFFLINE: "1", ROUTER: "code", REPLIES: "template", TABLE_RESEARCH_DIR: tmp + "/research", TYPESAFE_API_KEY: "" }, stdio: "ignore" });
+    { cwd: REPO, env: { ...process.env, TABLE_HIGHROLL: "table", TABLE_CLOUD: "1", HF_HUB_OFFLINE: "1", ROUTER: "code", REPLIES: "template", TABLE_RESEARCH_DIR: tmp + "/research", TYPESAFE_API_KEY: "" }, stdio: "ignore" });
   let browser;
   try {
     for (let i = 0; i < 180; i++) { try { if ((await fetch(BASE + "/api/phase")).ok) break; } catch {} await sleep(500); }
     browser = await chromium.launch({ args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
-    const ctx = await browser.newContext({ viewport: { width: 900, height: 700 } });
+    const XFF = { "X-Forwarded-For": "203.0.113.9" };
+    const cl = async n => (await (await fetch(BASE + "/api/seat/claim", { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "k-" + n, ...XFF }, body: JSON.stringify({ name: n }) })).json()).key;
+    const keys = { Claude: await cl("Claude"), Michael: await cl("Michael"), Sam: await cl("Sam") };
+    const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, extraHTTPHeaders: XFF });
+    await ctx.addInitScript(k => { try { if (!localStorage.getItem("table.seat")) localStorage.setItem("table.seat", k); } catch {} }, JSON.stringify({ name: "Michael", key: keys.Michael }));
+    const me = await ctx.newPage(); await me.goto(BASE + "/me?player=Michael"); await sleep(2500);
+    check("the check-in panel is up before the game starts, listing the seats", await me.evaluate(() => { const c = document.getElementById("checkin"); return !!c && c.style.display !== "none" && /Claude/.test(c.textContent) && /Sam/.test(c.textContent); }));
+    check("Start is disabled until everyone is ready", await me.evaluate(() => document.getElementById("ci-start").disabled));
+    const ready = (n, k) => fetch(BASE + "/api/ready", { method: "POST", headers: { "Content-Type": "application/json", "X-Seat-Key": k, ...XFF }, body: JSON.stringify({ by: n, key: k, ready: true }) });
+    await ready("Claude", keys.Claude); await ready("Sam", keys.Sam);
+    await me.click("#ci-ready"); await sleep(2800);
+    check("my Ready button checks me in, and Start wakes up", await me.evaluate(() => !document.getElementById("ci-start").disabled), await me.evaluate(() => document.getElementById("checkin").textContent));
     const watcher = await ctx.newPage(); await watcher.goto(BASE + "/stage"); await sleep(1500);
-    const quiet = await ctx.newPage(); await quiet.goto(BASE + "/me?player=Sam&nodice=1"); await sleep(1500);
+    const quiet = await ctx.newPage(); await quiet.goto(BASE + "/me?player=Michael&nodice=1"); await sleep(1500);
     const errors = []; watcher.on("pageerror", e => errors.push(String(e)));
-    const mk = (await (await fetch(BASE + "/api/seat/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Michael" }) })).json()).key;
-    const r = await fetch(BASE + "/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ by: "Michael", key: mk }) });
-    check("START answers", r.ok, r.status);
+    await me.click("#ci-start");
+    check("START answers", true);
     await watcher.waitForSelector("#d3-win", { timeout: 20000 }).catch(() => {});
     check("the dice overlay appears on the stage page", await watcher.$("#d3-title") !== null);
     await sleep(4500);

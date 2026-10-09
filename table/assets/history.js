@@ -40,6 +40,7 @@
     if (t === "todo" && e.kind === "added") return { who: "", kind: "table",
       html: (e.items || []).map(x => `🃏 ${x.for ? name(x.for) + ": " : ""}${esc(x.text)}`).join("<br>") };
     if (t === "attention" && e.kind === "turn") return null;
+    if (t === "checkin") return { who: e.seat, kind: "table", html: `${name(e.seat)} is ${e.ready ? "ready" : "not ready"}` + (e.waiting && e.waiting.length ? ` &mdash; waiting for ${e.waiting.map(esc).join(", ")}` : " &mdash; everyone is here") };
     if (t === "highroll") {                              // the opening ceremony: who goes first, and every die behind it
       if (e.error) return { who: "", kind: "table", html: `🎲 the high roll failed: ${esc(e.error)}` };
       const rounds = Object.entries(e.rolls || {}).sort((a, b) => a[0] - b[0])

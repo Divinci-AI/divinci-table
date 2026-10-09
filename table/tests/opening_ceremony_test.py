@@ -35,6 +35,18 @@ with Server() as S:                                    # Claude (pilot), Fusion 
     S.claim_all()
     ph0 = S.phase()
     check("before START nobody has the turn", ph0.get("player") is None, ph0.get("player"))
+    ci = ph0.get("checkin") or {}
+    check("the phase lists every seat with its check-in state", {x["name"] for x in ci.get("seats", [])} == {"Claude", "Fusion", "Michael", "Sam"} and ci.get("all_ready") is False, ci)
+    c, d = S.next("Michael")
+    check("START before everyone has checked in is refused, naming who is missing", c == 409 and "check in" in str(d.get("error")) and S.phase().get("player") is None, (c, d.get("error")))
+    for n in ("Claude", "Fusion", "Michael"):
+        S.call("POST", "/api/ready", {"by": n, "key": S.claim(n), "ready": True}, key=S.claim(n))
+    c, d = S.next("Michael")
+    check("…still refused while Sam has not", c == 409 and "Sam" in str(d.get("error")), (c, d.get("error")))
+    c, r = S.call("POST", "/api/ready", {"by": "Sam", "key": S.claim("Michael"), "ready": True}, key=S.claim("Michael"))
+    check("one player cannot check another in", c == 403 and "Sam" not in [x["name"] for x in S.phase()["checkin"]["seats"] if x["ready"]], (c, r))
+    c, r = S.call("POST", "/api/ready", {"by": "Sam", "key": S.claim("Sam"), "ready": True}, key=S.claim("Sam"))
+    check("the last player checks in: everyone is ready", c == 200 and r["checkin"]["all_ready"], (c, r))
     c, d = S.next("Michael")
     ph = S.phase()
     hr = d.get("highroll") or {}
@@ -58,6 +70,8 @@ with Server() as S:                                    # Claude (pilot), Fusion 
 
 with Server(humans=False, order="Claude,Fusion") as S2:
     S2.claim_all()
+    for n in ("Claude", "Fusion"):
+        S2.call("POST", "/api/ready", {"by": n, "key": S2.claim(n), "ready": True}, key=S2.claim(n))
     c, d = S2.next("Claude")
     hr = d.get("highroll") or {}
     check("a virtual-deck seat's START runs the same ceremony", c == 200 and hr.get("winner") in ("Claude", "Fusion") and S2.phase().get("player") == hr.get("winner"), (c, str(d)[:160]))

@@ -290,6 +290,7 @@ def main():
     dm = sub.add_parser("damage", help='attackers that hit a player: "Ellivere=Michael" "#14=Sam:5"')
     dm.add_argument("hits", nargs="*", help="optional for a remote seat: the table deals blocked and unblocked damage itself")
     dm.add_argument("--no-life", action="store_true", help="triggers only: the players already said their life")
+    sub.add_parser("ready", help="check in before the game starts: this seat is here and ready (the game starts when every seat is)")
     ac = sub.add_parser("activate", help="pay and run an activated ability of a permanent (cost checked; abilities the table can't run are refused before anything is paid): "
                                          "activate SOURCE [--index N] [--mode N] [--sac REF] [--x X] [--target REF [--at SEAT]] [--pick LAND ...] [--bottom CARD ...]")
     ac.add_argument("--sac", help="a cost that sacrifices ANOTHER permanent ('Sacrifice another creature', 'Sacrifice a Spirit'): which one of yours (#id or name)")
@@ -396,6 +397,8 @@ def main():
             who, _, n = rest.partition(":")
             hits[ref] = [who, int(n) if n else None]
         return act("damage", hits=hits, no_life=a.no_life)
+    if a.cmd == "ready":
+        print(json.dumps(req("POST", "/api/ready", {"by": SEAT, "key": Path(SEAT_KEY_FILE).read_text().strip(), "ready": True}, brain=False), indent=1)); return
     if a.cmd == "activate":
         return act("activate", source=a.source, index=a.index, mode=a.mode, sac=a.sac, x=a.x, target=a.target, at=a.at,
                    pick=a.pick, bottom=a.bottom)
