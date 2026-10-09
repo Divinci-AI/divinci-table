@@ -53,7 +53,7 @@ and whether table talk goes through the Release's chat endpoint.
 
 ## Camera gantry: two players now, four players next
 
-**Now (CR-6 Max + Canon T5i).** The CR-6 Max is a bed-slinger: the head moves in X, the
+**Now (CR-6 Max + Canon T3i).** The CR-6 Max is a bed-slinger: the head moves in X, the
 bed moves in Y, and the gantry rises in Z. A camera on the head can only cover the bed itself, so the
 prototype is a **two-player duel on the 400 × 400 mm bed**: each player gets a 400 × 195 mm half,
 which holds two rows of six cards. From the top of Z the 18 mm lens sees about 500 × 330 mm, so one or

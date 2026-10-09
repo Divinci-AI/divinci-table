@@ -26,8 +26,8 @@
  },
  "items": [
   {
-   "id": "canon-t5i",
-   "name": "Canon EOS Rebel T5i with 18–55 mm lens",
+   "id": "canon-t3i",
+   "name": "Canon EOS Rebel T3i with 18–55 mm lens",
    "qty": 1,
    "source": "on-hand",
    "status": "on-hand",
@@ -115,7 +115,7 @@
     "magnet",
     "arm"
    ],
-   "role": "camera to the Mac (the T5i's port is Mini-B); skip if the camera's own cable turns up",
+   "role": "camera to the Mac (the T3i's port is Mini-B); skip if the camera's own cable turns up",
    "used_in": [
     {
      "doc": "manual",

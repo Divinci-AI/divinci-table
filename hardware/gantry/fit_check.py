@@ -19,9 +19,10 @@ STL = HERE / "parts" / "stl"
 BED = (390, 390, 390)
 GROW = 0.3          # printed holes come out about this much small in total
 results = []
+checks = []                                         # (level, id, what): id names a check the ledger can list
 
-def report(level, what, detail=""):
-    results.append(level); print(f"  {level:4s} {what}" + (f"  ({detail})" if detail else ""))
+def report(level, what, detail="", id=None):
+    results.append(level); checks.append((level, id, what)); print(f"  {level:4s} {what}" + (f"  ({detail})" if detail else ""))
 
 def triangles(path):
     v = [tuple(round(float(x), 4) for x in m) for m in re.findall(r"vertex\s+(\S+)\s+(\S+)\s+(\S+)", path.read_text(errors="ignore"))]
@@ -215,6 +216,113 @@ report("ok" if collides(f"intersection(){{ union(){{ {head_scad(bad.x, bad.y, ba
 fixed_head = fp.Params(hinge_h=None)
 report("ok", "the fixed head's path (no hinge) is only listed, not accepted", f"it would need the face at {fp.washer_top(fixed_head, 90)[1]:.0f} mm and tilted {P.release_deg:g} deg against a level face")
 
+print("7. stricter pre-print checks (added 2026-10-08): each fails for a reason a person could verify with a ruler")
+import json as _json
+def tri_list(path):
+    v = triangles(path); return [v[i:i + 3] for i in range(0, len(v), 3)]
+def overhang_area(T, rot_x_deg=0.0, limit_deg=45.0):
+    """Area (mm2) of faces that face down more steeply than limit_deg from vertical AND are off the bed, when the part is turned by rot_x_deg
+    about X and set on the bed (its lowest point at z=0). Flat 'bridges' count in full: the number is what needs supports or bridging."""
+    c, s = math.cos(math.radians(rot_x_deg)), math.sin(math.radians(rot_x_deg))
+    R = [[(a[0], a[1] * c - a[2] * s, a[1] * s + a[2] * c) for a in t] for t in T]
+    zmin = min(p[2] for t in R for p in t); area = 0.0
+    for a, b, d in R:
+        ux, uy, uz = (b[i] - a[i] for i in range(3)); vx, vy, vz = (d[i] - a[i] for i in range(3))
+        nx, ny, nz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx; L = math.sqrt(nx * nx + ny * ny + nz * nz) or 1.0
+        if nz / L < -math.cos(math.radians(limit_deg)) and min(a[2], b[2], d[2]) > zmin + 0.3: area += L / 2
+    return area, zmin
+
+# 7.1 the chute: a card is DRAGGED onto its top plate, which stands wall mm above the bed
+ch = scad_vars("discard_chute.scad"); step_h = ch["wall"]
+report("FAIL" if step_h > 0.5 else "ok", "chute: the top plate is flush enough to drag a card onto (a step above the bed catches the card's edge)",
+       f"the plate stands {step_h:g} mm above the bed; the sleeved card is {ct:g} mm thick; allow at most 0.5 mm, or give it a feathered lead-in or pick-and-place", id="chute-step")
+T_ch = tri_list(STL / "discard_chute.stl")
+best = min(((overhang_area(T_ch, a)[0], a) for a in (0, 35, 55, 90, 180)), key=lambda t: t[0])
+report("WARN" if best[0] > 300 else "ok", "chute: prints without supports in some orientation (faces more than 45 degrees from vertical, off the bed)",
+       f"best of 0/35/55/90/180 deg is {best[0]:.0f} mm2 at {best[1]} deg (the STL as modelled: {overhang_area(T_ch, 0)[0]:.0f} mm2 with its lowest point {overhang_area(T_ch, 0)[1]:.1f} mm from the bed plane): plan supports, and orient it in the slicer", id="chute-overhang")
+
+# 7.2 the card against the parts of the head that do NOT tilt (bracket leg, side plates), over the whole flip
+def sat_overlap(A, B):
+    for poly in (A, B):
+        for i in range(len(poly)):
+            x1, y1 = poly[i]; x2, y2 = poly[(i + 1) % len(poly)]; nx, ny = y1 - y2, x2 - x1
+            pa = [nx * p[0] + ny * p[1] for p in A]; pb = [nx * p[0] + ny * p[1] for p in B]
+            if max(pa) <= min(pb) or max(pb) <= min(pa): return False
+    return True
+def card_poly(theta):                                # the card's (y, z) rectangle at pitch theta, world coordinates
+    ey, ez = fp.edge_at(P, theta); th = math.radians(theta); u, nn = (math.cos(th), math.sin(th)), (-math.sin(th), math.cos(th))
+    return [(P.fence_y + ey + a * u[0] + b * nn[0], ez + a * u[1] + b * nn[1]) for a, b in ((0, 0), (P.card_w, 0), (P.card_w, P.card_t), (0, P.card_t))]
+def fixed_boxes(x, yc, zn, lift=0.0):                # (x0, x1, y0, y1, z0, z1): the two side plates and the bracket leg, as in head_scad()
+    ax = zn - P.nozzle_above_axis + lift
+    return [(x + s * 16 - 2, x + s * 16 + 2, yc - 7, yc + 7, ax - 8, ax + 22) for s in (-1, 1)] + [(x - 25, x + 25, yc - 15, yc + 15, ax + 22, ax + 26)]
+def card_hits_head(lift=0.0, step=0.5):
+    rel = max(i for i, w in enumerate(W) if not w.magnet and w.dwell_ms == P.release_ms) if any(w.dwell_ms == P.release_ms for w in W) else len(W) - 1
+    worst = None
+    for a, b in zip(W[:rel], W[1:rel + 1]):
+        n = max(1, int(max(abs(b.x - a.x), abs(b.y - a.y), abs(b.z - a.z)) / 1.0) + 1)
+        for k in range(n + 1):
+            t = k / n; x, y, z, th = (a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t, a.tilt + (b.tilt - a.tilt) * t)
+            cp = card_poly(th); cx0, cx1 = P.fence_x - P.card_l / 2, P.fence_x + P.card_l / 2
+            for name, (x0, x1, y0, y1, z0, z1) in zip(("left side plate", "right side plate", "bracket leg"), fixed_boxes(x, y, z, lift)):
+                if x1 > cx0 and x0 < cx1 and sat_overlap(cp, [(y0, z0), (y1, z0), (y1, z1), (y0, z1)]):
+                    return (th, name, z0, z1, max(p[1] for p in cp))
+    return None
+hit = card_hits_head()
+report("FAIL" if hit else "ok", "the card, turning, clears the bracket leg and side plates (the parts of the head that do not tilt)",
+       f"the {hit[1]} at pitch {hit[0]:.0f} deg: the card's top edge is {hit[4]:.0f} mm above the bed; that part occupies {hit[2]:.0f}..{hit[3]:.0f} mm and hangs from the carriage, so it does not tilt with the card" if hit else "clear over the whole path, 1 mm steps", id="flip-card-vs-head")
+low = card_hits_head(lift=-30.0)
+report("ok" if low else "FAIL", "negative control: with the bracket 30 mm lower the same sweep DOES find the card", "" if low else "the sweep cannot fail, so its 'clear' above means nothing")
+
+# 7.3 the swivel: can it slide off the bolt along the slot it was slid in through?
+free_out = not any(collides(f'intersection(){{ import("{STL/"magnet_swivel.stl"}"); {bolt(x, 0)} }}') for x in (0, 6, 12, 18, 24))
+report("WARN" if free_out else "ok", "swivel: something other than friction keeps it from sliding off the bolt along the keyhole slot",
+       "the slot is open to the side: the path the bolt went in by is free, so only the spring's preload on the nylon washer holds it (a card dragged sideways could walk it off)" if free_out else "the slot is closed",
+       id="swivel-retention")
+
+# 7.4 hardware that the BOM lists against what the stack needs
+bom = _json.loads((HERE.parent / "bom.json").read_text()); items = bom["items"] if isinstance(bom, dict) and "items" in bom else bom
+bolt_item = next((i for i in items if i.get("id") == "hex-bolts"), {}); bolt_in = 1.5 if "1-1/2" in bolt_item.get("name", "") or "1.5" in bolt_item.get("name", "") else 1.0
+need_len = SWIVEL_TOP + NYLON + BRACKET + SPRING_SOLID + NUT - POCKET_FLOOR - HEAD_H
+report("FAIL" if bolt_in * 25.4 < need_len + 0.5 else "ok", "the bolt in the bill of materials is long enough for the stack with a margin of at least 0.5 mm",
+       f"the BOM lists a {bolt_in:g} inch bolt ({bolt_in * 25.4:.1f} mm); the stack needs {need_len:.1f} mm of bolt + 0.5 mm: buy 1-1/2 inch", id="bolt-length")
+est = 1.25 + 0.30 + 0.20                              # #10 washer 0.049 in + card 0.3 + two sleeves, nominal: an ESTIMATE, to be replaced by the ten-card measurement
+report("WARN" if est > ct else "ok", "card_t (a card with its washer) is not below an estimate from the parts' nominal thicknesses",
+       f"card_t is {ct:g} mm; washer 1.25 + card 0.30 + sleeves 0.20 = {est:.2f} mm: the deck box's slot is card_t + {d['slot_play']:g} and the rack's slot card_t + {r['gap']:g}; measure ten and set card_t in all three .scad files", id="card-t-unmeasured")
+
+# 7.5 layout: the hard-coded footprints in section 6 against the STL files they stand for
+def bbox(name):
+    v = triangles(STL / name); return [(min(c[i] for c in v), max(c[i] for c in v)) for i in range(3)]
+pairs = {"deck box": (bbox("deck_box.stl"), 73.3, 99.3), "discard chute": (bbox("discard_chute.stl"), 74.5, 90.0), "flip fence": (bbox("flip_fence.stl"), 123.3, 51.5)}
+off = [f"{n}: STL {b[0][1]-b[0][0]:.1f} x {b[1][1]-b[1][0]:.1f} vs layout {w:g} x {h:g}" for n, (b, w, h) in pairs.items() if abs(b[0][1] - b[0][0] - w) > 1.0 or abs(b[1][1] - b[1][0] - h) > 1.0]
+rb = bbox("hand_rack.stl"); rack_w = rb[0][1] - rb[0][0]
+if abs(rack_w - (LAYOUT["rack_x"][1] - LAYOUT["rack_x"][0])) > 1.0: off.append(f"hand rack: STL {rack_w:.1f} wide vs layout {LAYOUT['rack_x'][1]-LAYOUT['rack_x'][0]:.1f}")
+report("FAIL" if off else "ok", "the layout rectangles used by the collision checks match the STL footprints", "; ".join(off) if off else "deck box, rack, chute and fence agree to 1 mm", id="layout-drift")
+
+# 7.6 reach needs the magnet's offset from the nozzle, which nobody has measured
+cfgp = HERE.parent.parent / "table" / ".cache" / "gantry.json"; offs = (_json.loads(cfgp.read_text()).get("magnet_offset_mm") if cfgp.exists() else None)
+report("WARN" if not offs else "ok", "magnet_offset_mm (magnet axis relative to the nozzle) is measured, so reach to the deck, rack and chute can be checked",
+       "not measured: every reach check assumes [0, 0]. The chute needs the magnet at least ~20 mm in FRONT of the nozzle (Y offset <= -20) to drag a card onto it; bed Y can't go below 0" if not offs else f"offset {offs}", id="magnet-offset-unmeasured")
+
+# ── the gate: a failure may only pass if it is written down, and a written-down failure that stopped failing must be removed ──
+import os
+LEDGER = Path(os.environ.get("FIT_CHECK_LEDGER") or HERE / "fit_check_ledger.json")
+ledger = _json.loads(LEDGER.read_text())["known_failures"] if LEDGER.exists() else []
+known = {k["id"]: k for k in ledger}
+failing = {i for lvl, i, _ in checks if lvl == "FAIL" and i}
+anon = [w for lvl, i, w in checks if lvl == "FAIL" and not i]
+new = sorted(failing - set(known)); stale = sorted(set(known) - failing)
+blocked = {}
+for i in failing & set(known):
+    for part in known[i].get("blocks", []): blocked.setdefault(part, []).append(i)
+parts = sorted(f.stem for f in STL.glob("*.stl"))
 print()
-print("FAIL" if "FAIL" in results else ("WARN" if "WARN" in results else "ALL OK"), f"({results.count('ok')} ok, {results.count('WARN')} warn, {results.count('FAIL')} fail)")
-sys.exit(1 if "FAIL" in results else 0)
+print(f"{results.count('ok')} ok, {results.count('WARN')} warn, {results.count('FAIL')} fail  ({len(failing & set(known))} on the ledger)")
+for i in sorted(failing & set(known)): print(f"  known  {i}: {known[i]['reason']}")
+for i in new: print(f"  NEW    {i}: a failure that is not on the ledger (fix it, or add it to {LEDGER.name} with a reason)")
+for i in stale: print(f"  STALE  {i}: on the ledger but no longer failing: remove it")
+for w in anon: print(f"  NEW    (no id) {w}")
+print("cleared to print:", ", ".join(p for p in parts if p not in blocked) or "none")
+print("blocked:         ", "; ".join(f"{p} ({', '.join(v)})" for p, v in sorted(blocked.items())) or "none")
+ok_gate = not new and not stale and not anon
+print("PRE-PRINT GATE:", ("BLOCKED" if blocked else "OPEN") if ok_gate else "BROKEN (the ledger and the checks disagree)")
+sys.exit(0 if ok_gate else 1)

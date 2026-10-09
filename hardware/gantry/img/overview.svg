@@ -24,7 +24,7 @@
   <circle cx="256" cy="244" r="10" fill="#222"/>
   <text x="300" y="258" fill="#1a1a1a" font-size="12">ball head</text>
   <rect x="216" y="254" width="80" height="58" rx="8" fill="#1d1d1d"/>
-  <text x="256" y="288" text-anchor="middle" fill="#fff" font-size="13">Canon T5i</text>
+  <text x="256" y="288" text-anchor="middle" fill="#fff" font-size="13">Canon T3i</text>
   <rect x="236" y="312" width="40" height="44" rx="4" fill="#333"/>
   <text x="256" y="372" text-anchor="middle" fill="#1a1a1a" font-size="12">lens points down</text>
   <path d="M236 356 L190 452 L330 452 L276 356 Z" fill="#f5c542" opacity="0.25"/>

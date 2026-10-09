@@ -8,7 +8,7 @@ check has been run and its output read. Hardware steps need a person at the prin
 
 The AI player gets a body at the table: **eyes overhead and a hand at its own seat.**
 
-- **Eyes: the CR-6 Max gantry** carries the Canon T5i over the bed (`hardware/gantry/`). It photographs the whole
+- **Eyes: the CR-6 Max gantry** carries the Canon T3i over the bed (`hardware/gantry/`). It photographs the whole
   duel table, both players' battlefields, and feeds `/api/board` like the fixed camera does today.
 - **Hand: an SO-101 arm** (open source, Hugging Face LeRobot; we print its parts on the CR-6 Max) clamped at the AI's
   side of the bed, with a **suction cup** instead of the gripper (flat cards) and a 32 mm wrist camera. Its wrist roll

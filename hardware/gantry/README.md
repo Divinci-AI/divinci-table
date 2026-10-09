@@ -1,6 +1,6 @@
 # Camera gantry + magnet hand — assembly manual
 
-A Creality **CR-6 Max** 3D printer turned into eyes and a hand for the table. A **Canon EOS Rebel T5i** looks straight
+A Creality **CR-6 Max** 3D printer turned into eyes and a hand for the table. A **Canon EOS Rebel T3i** looks straight
 down at the cards on the bed, and a small **24 V electromagnet** on the print head picks up the AI's cards, which
 carry a steel washer inside the sleeve. The printer only *moves*: it never heats or extrudes (`table/gantry.py`
 refuses those G-codes). This is the first step toward the "Jumanji table" in [docs/roadmap.md](../../docs/roadmap.md):
@@ -27,8 +27,19 @@ section M). The suction design this replaced is in git history.
   spare hub or an old laptop.
 - **Never run a normal print with the camera or magnet head attached.** `gantry.py` allows only motion and status
   commands (and, once added, magnet on/off).
-- **Z homing drives the head down.** With anything hanging below the nozzle it can crash into the bed. Use
-  `gantry.py home` (X and Y only) until `min_z` is measured (Step 7).
+- **Z homing drives the head down.** With anything hanging below the nozzle (the camera, the magnet head) it crashes into the
+  bed or the cards. `gantry.py home` homes X and Y only, and `home --z` is refused unless you add `--clear` to say the head is
+  off the carriage and the bed is clear. **Z is never assumed:** every connection starts with Z unknown, and the driver refuses
+  any move with a Z in it until you say where Z is: put the NOZZLE at a measured height by hand (a sheet of paper under it,
+  magnet head off) and run `gantry.py zero-z` (it sends `G92 Z0`), or `home --z --clear`. A reconnect forgets it again.
+  `min_z` is the CAMERA's floor; the magnet has its own, `magnet_min_z` (default 0), because `touch_z` sits below `min_z` by design.
+- **Put a hardware cut-off on the magnet; the software one is not enough.** The timer lives in the Python process: if the
+  process is killed, the Mac sleeps or the USB cable is pulled, `M106 S255` stays on and nothing can send `M107`. The driver
+  retries the off command three times, then refuses every other command until it succeeds, but that cannot help over a dead
+  cable. Add a hardware timer or a relay that drops the 24 V when the printer's fan output goes low, or a visible inline switch
+  you can reach (it is on the shopping list for the arm route and cheap for this one). A carry may hold the magnet for up
+  to `carry_max_s` (90 s); nothing may exceed 180 s; a bare `magnet on` is limited to `magnet_max_s` (20 s) because an
+  energised magnet with no card on it heats (the listing warns of damage at 120 C).
 - **The magnet is full-on or off, never in between.** The fan output can run at partial power (PWM); a part-powered
   magnet holds weakly and can drop a card mid-move. Only `M106 S255` and `M107` are ever sent.
 - **The magnet must not stay on without a card.** The maker rates it for continuous use *under load* and warns that
@@ -45,7 +56,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 
 | Part | Qty | Used for |
 |---|---|---|
-| Canon EOS Rebel T5i with 18–55 mm lens | 1 | the eyes |
+| Canon EOS Rebel T3i with 18–55 mm lens | 1 | the eyes |
 | Creality CR-6 Max 3D printer | 1 | prints the Step 3 parts, then becomes the gantry |
 | PLA+ filament | — | the Step 3 parts |
 | Zip ties | ~10 | backing up the tape, tidying cables |
@@ -352,6 +363,14 @@ hinge is confirmed as a requirement. Do not build the hinged head until this pas
   run, because the magnet goes off when the program ends), `tap CX CY X Y [--ccw]`. `pick`/`place` need `touch_z`
   (measured in Step 7) in `gantry.json`. Tested against a fake Marlin board in `table/tests/gantry_test.py`,
   mutation-checked (no timer, any fan command). Still to do: a settle pause after moves, tuned on the real rig.
+- **Done (2026-10-08):** `touch_z` is checked against its own floor (`magnet_min_z`), not the camera's; rack picks include the rack's
+  2 mm base (`rack.base_t`); Z must be known (above); the magnet's timer retries and latches a fault; `magnet_offset_mm` (the magnet's
+  axis relative to the nozzle, MEASURE IT) is applied to pick, place, rack, tap and flip; `gantry.py flip --dry-run` prints the flip's
+  checked lines and a live `flip()` is refused until `flip_hinged_head_built` is true in `gantry.json` (the hinged head is a design,
+  not hardware). 96 checks in `table/tests/gantry_test.py`; reverting each of those fixes fails them.
+- **Before printing anything, run `fit_check.py`.** It ends with a PRE-PRINT GATE: failures are listed in `fit_check_ledger.json`, the
+  run exits 0 only when every failure is on the ledger and every ledger entry still fails, and it prints which parts are cleared to
+  print. `fit_check_gate_test.py` proves the gate in both directions.
 - `gantry.py scan` assumes the camera rides on the **carriage**. With the camera on the **X beam**, X moves don't move
   the camera: use `snap` at the top of Z, and the scan needs a `camera_on: "beam"` setting so it moves only Z and Y.
 
