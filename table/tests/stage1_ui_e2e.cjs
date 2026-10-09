@@ -6,6 +6,7 @@
 // Item 4  /hand and /board: no Untap button unless it is legal; a refusal's reason is shown.
 // Item 5  /hand's priority alert and the red Pass bar really pass for a pilot (POST /api/brain/pass, not /api/phase/next).
 // Item 6  /me never presses NEXT by itself when its checklist request fails.
+process.env.TABLE_HIGHROLL = process.env.TABLE_HIGHROLL || "first";   // tests start the first seat; the opening high roll has its own test
 const { chromium } = require(process.env.PW || "@playwright/test");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path");
@@ -41,6 +42,7 @@ async function withServer(order, fn) {
   finally { if (browser) await browser.close(); srv.kill(); await sleep(500); }
 }
 
+const browser_new = async ctx => ctx.browser().newContext({ viewport: { width: 390, height: 780 }, extraHTTPHeaders: XFF });   // a second device: its own storage
 const open = async (ctx, url, name) => {
   const page = await ctx.newPage();
   await page.goto(BASE + url);
@@ -212,6 +214,21 @@ const humansPass = async keys => {                     // whichever person is ne
     check("…and the server refuses it with a reason if sent anyway", c === 409 && /untap step/.test(d.error || ""), JSON.stringify([c, d]));
     await board.evaluate(async () => { const r = await fetch("/api/card-action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ seat: "Michael", index: 0, name: "Forest", action: "untap" }) }); window.__why = (await r.json()).error; });
     check("(the page sees the same reason)", /untap step/.test(await board.evaluate(() => window.__why)));
+  });
+
+  // ───────── /me without ?player=: the device already told the table who it is ─────────
+  await withServer("Claude,Michael,Sam", async ({ ctx, keys }) => {
+    await section("/me remembers the claimed seat", async () => {
+      await ctx.addInitScript(v => { try { if (!localStorage.getItem("table.seat")) localStorage.setItem("table.seat", v); } catch {} },
+        JSON.stringify({ name: "Michael", key: keys.Michael }));               // this device claimed Michael's seat earlier
+      const page = await ctx.newPage();
+      await page.goto(BASE + "/me");                                          // …and later the bare address
+      await page.waitForFunction(() => document.getElementById("view") && !document.getElementById("view").hidden, null, { timeout: 15000 }).catch(() => {});
+      const picking = await page.evaluate(() => !document.getElementById("pick").hidden);
+      check("a device that already claimed a seat is not asked who it is on a bare /me", !picking, "the picker is showing");
+      check("…it opens as that player", /Michael/.test(await page.evaluate(() => document.getElementById("title").textContent)), await page.evaluate(() => document.getElementById("title").textContent));
+      check("…and the address now names the player (a bookmark of it works)", /player=Michael/.test(page.url()), page.url());
+    });
   });
 
   console.log(failed.length ? `\n${failed.length} FAILED: ${failed.join("; ")}` : "\nALL PASS");

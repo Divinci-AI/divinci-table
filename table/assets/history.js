@@ -40,6 +40,14 @@
     if (t === "todo" && e.kind === "added") return { who: "", kind: "table",
       html: (e.items || []).map(x => `🃏 ${x.for ? name(x.for) + ": " : ""}${esc(x.text)}`).join("<br>") };
     if (t === "attention" && e.kind === "turn") return null;
+    if (t === "highroll") {                              // the opening ceremony: who goes first, and every die behind it
+      if (e.error) return { who: "", kind: "table", html: `🎲 the high roll failed: ${esc(e.error)}` };
+      const rounds = Object.entries(e.rolls || {}).sort((a, b) => a[0] - b[0])
+        .map(([r, m]) => Object.entries(m).map(([n, v]) => `${name(n)} <b>${v}</b>`).join(" · ")).join(" &rarr; tie, again: ");
+      const how = e.mode === "physical" ? "real dice" : (e.source ? esc(e.source) : esc(e.mode || ""));
+      return { who: "", kind: "table", html: `🎲 high roll (d${e.sides || 20}, ${how}): ${rounds || "waiting for the dice"}` +
+        (e.winner ? ` &mdash; <b>${esc(e.winner)}</b> goes first` : "") };
+    }
     if (t === "fair") return { who: "", kind: "table", html: `🎲 fairness: ${esc(e.kind)}` };
     if (t === "new-game") return { who: "", kind: "table", html: "── new game ──" };
     return null;

@@ -42,6 +42,7 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
 <script src="/assets/brand.js" defer></script>
 <script src="/assets/myboard.js" defer></script>
 <script src="/assets/openmic-rate.js" defer></script>
+<script src="/assets/dice3d.js" defer></script>
 </head>
 <body data-brand="me">
 <h1 id="title">Divinci Table</h1>
@@ -76,12 +77,16 @@ input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px 
 </div>
 <script>
 const $=id=>document.getElementById(id), esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const me=new URLSearchParams(location.search).get("player");
+let me=new URLSearchParams(location.search).get("player");
 let AI=[], since=0, caps=[], lastCast=null;
 async function j(u,o){const r=await fetch(u,o);const t=await r.text();try{return JSON.parse(t)}catch{return {error:t.slice(0,120)}}}
 async function start(){
   const cfg=await j("/api/voice-config"); AI=(cfg.ai_players||[]).map(p=>p.name);
   const humans=(cfg.humans||[]).map(h=>h.name);
+  if(!me && window.TableSeat){                   // no ?player= in the address: this device already told the table who it is
+    await window.TableSeat.ready; const n=window.TableSeat.name();
+    if(n && humans.includes(n)){ me=n; history.replaceState(null,"","?player="+encodeURIComponent(n)); }
+  }
   if(!me){ $("pick").hidden=false;
     $("names").innerHTML=humans.map(n=>`<button onclick="location.search='?player=${encodeURIComponent(n)}'">${esc(n)}</button>`).join("")
       +`<button onclick="location.search='?player=watcher'">Just watching</button>`; return; }

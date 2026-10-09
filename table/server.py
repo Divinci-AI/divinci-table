@@ -841,13 +841,23 @@ def highroll_start(mode: str, sides: int, by: str) -> tuple[int, dict]:
         return 409, {**highroll_public(), "error": "the game has already started — high roll is before the first turn"}
     if HIGHROLL.get("mode") == "physical":
         return 409, {**highroll_public(), "error": "a real-dice roll is under way — enter the dice"}
-    if mode not in ("physical", "quantum") or not 2 <= sides <= 100:
-        return 400, {"error": "mode is physical or quantum; sides 2-100"}
+    if mode not in ("physical", "quantum", "table") or not 2 <= sides <= 100:
+        return 400, {"error": "mode is physical, quantum or table; sides 2-100"}
     names = [n for n in turn_order() if not is_out(n)]
     HIGHROLL.clear()
     HIGHROLL.update(mode=mode, sides=sides, round=1, contenders=names, rolls={}, winner=None, by=by[:30],
                     seating=names, started=round(time.time(), 2))
-    if mode == "quantum":
+    if mode == "table":                               # no network: this table's own fresh randomness, published with the roll
+        import fair
+        import secrets as _secrets
+        src = _secrets.token_hex(32)
+        HIGHROLL.update(entropy=src, source="this table's own randomness (no network needed)",
+                        formula="fair.die_roll(entropy, 'highroll|<round>|<name>', sides)")
+        while not HIGHROLL["winner"]:
+            r = str(HIGHROLL["round"])
+            HIGHROLL["rolls"][r] = {n: fair.die_roll(src, f"highroll|{r}|{n}", sides) for n in HIGHROLL["contenders"]}
+            _highroll_settle()
+    elif mode == "quantum":
         import fair
         parts = fair.online_parts()                  # ANU (rate-limited: may wait up to a minute) + drand
         if not parts.get("anu_qrng"):                 # ANU allows one request a minute: wait it out and try
@@ -913,6 +923,41 @@ def highroll_enter(name: str, value, by: str) -> tuple[int, dict]:
     return 200, highroll_public()
 
 
+CEREMONY = {"on": False}
+
+
+def begin_game(by: str) -> tuple[int, dict]:
+    """START / the first NEXT: every game opens with the high roll for who goes first (recorded in the game log, with the
+    randomness it came from). A cloud room draws from ANU quantum / drand and falls back to the table's own randomness; a table at
+    home never leaves the laptop. TABLE_HIGHROLL=first skips it (tests only: the first seat in the order simply starts)."""
+    mode = os.environ.get("TABLE_HIGHROLL") or ("quantum" if CLOUD else "table")
+    with PHASE_LOCK:
+        if PHASE["player"] is not None:
+            return 200, phase_public()
+        if mode == "first":
+            start_turn(turn_order()[0])
+            return 200, phase_public()
+        if HIGHROLL.get("mode") == "physical" and not HIGHROLL.get("winner"):
+            return 409, {**phase_public(), "highroll": highroll_public(), "error": "a real-dice roll is under way: enter the dice"}
+        if CEREMONY["on"]:
+            return 202, {**phase_public(), "highroll": highroll_public(), "rolling": True}
+        CEREMONY["on"] = True
+
+    def run():
+        try:
+            code, d = highroll_start(mode, 20, by or "table")
+            if code != 200 and mode == "quantum":              # no quantum source reachable: the table's own randomness, said so in the log
+                code, d = highroll_start("table", 20, by or "table")
+            if code != 200:
+                emit("highroll", error=str(d.get("error", "the roll failed")), mode=mode)
+        finally:
+            CEREMONY["on"] = False
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    t.join(15)                                              # a quantum draw usually answers in a second or two
+    return 200, {**phase_public(), "highroll": highroll_public()}
+
+
 def phase_public() -> dict:
     with PHASE_LOCK:
         now, is_open = time.time(), priority_open()
@@ -963,10 +1008,7 @@ def next_step(by: str | None = None, shared: bool = False, confirm: bool = False
     person = next((h["name"] for h in HUMANS if by and h["name"].lower() == by.lower()), None)
     pilot = next((n for n in PILOTS if by and n.lower() == by.lower()), None)
     if not person and pilot and seat_key_ok(pilot, key) and PHASE["player"] is None:
-        with PHASE_LOCK:                              # a virtual-deck seat may START the game (its turns run from /hand)
-            if PHASE["player"] is None:
-                start_turn(turn_order()[0])
-            return 200, phase_public()
+        return begin_game(pilot)                       # a virtual-deck seat may START the game (its turns run from /hand)
     if not person and pilot and seat_key_ok(pilot, key):
         # A virtual-deck seat passes and ends its turns with the buttons on /hand. NEXT used to answer need_seat here, so the page
         # opened the claim popup, reloaded, and the next press failed the same way: an endless loop for the person playing it.
@@ -976,10 +1018,9 @@ def next_step(by: str | None = None, shared: bool = False, confirm: bool = False
                                                  else f"this device isn't {person}'s — claim your own seat (👤)"),
                      "need_seat": True}
     by = person
+    if PHASE["player"] is None:
+        return begin_game(by)                         # the opening ceremony: the high roll (outside the lock: its thread starts the turn)
     with PHASE_LOCK:
-        if PHASE["player"] is None:
-            start_turn(turn_order()[0])
-            return 200, phase_public()
         if PHASE["player"] in VPS:                   # an AI's turn: NEXT is the person passing this step's round
             ps = passes_state()
             who = next((n for n in ps["need"] if n.lower() == by.lower()), None)

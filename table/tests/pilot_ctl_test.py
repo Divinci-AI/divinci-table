@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+os.environ.setdefault("TABLE_HIGHROLL", "first")        # tests start the first seat in the order; the opening high roll has its own test (opening_ceremony_test.py)
 import stat
 import subprocess
 import sys

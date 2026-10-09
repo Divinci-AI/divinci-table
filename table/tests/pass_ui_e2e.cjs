@@ -3,6 +3,7 @@
 // end, the Pass button works from any page, "My page" pulses, the AI seat's announcements are spoken in the browser and
 // the voice can be muted, and reduced motion removes the pulsing.
 //   PW=/path/to/@playwright/test node table/tests/pass_ui_e2e.cjs
+process.env.TABLE_HIGHROLL = process.env.TABLE_HIGHROLL || "first";   // tests start the first seat; the opening high roll has its own test
 const { chromium } = require(process.env.PW || "@playwright/test");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path");
