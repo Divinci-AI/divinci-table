@@ -56,7 +56,8 @@ print("1. pieces and bed")
 for f in sorted(STL.glob("*.stl")):
     v = triangles(f); n = pieces(v)
     size = [max(c[i] for c in v) - min(c[i] for c in v) for i in range(3)]
-    if n != 1: report("FAIL", f.name, f"{n} separate pieces")
+    if f.stem.endswith("_plate"): report("ok" if all(s_ <= b for s_, b in zip(sorted(size)[::-1][:2], BED[:2])) else "FAIL", f.name, f"a plate of {n} separate parts, " + " x ".join(f"{s_:.0f}" for s_ in size) + " mm")
+    elif n != 1: report("FAIL", f.name, f"{n} separate pieces")
     elif any(s > b for s, b in zip(sorted(size)[::-1][:2], BED[:2])): report("FAIL", f.name, "bigger than the bed")
     else: report("ok", f.name, "one piece, " + " x ".join(f"{s:.0f}" for s in size) + " mm")
 
@@ -287,11 +288,27 @@ report("FAIL" if fh else "ok", "after release, the card can fall without landing
        f"the head is on the face the card is turning toward: the card meets it at {fh} deg of its 180; the head must retreat BEFORE or AS the card falls, along the face normal and clear of the card's arc" if fh else "clear", id="flip-release-clearance")
 report("ok" if fall_hit(shift_y=-150.0) is None else "FAIL", "negative control: a head 150 mm away from the falling card is not hit", "" if fall_hit(shift_y=-150.0) is None else "the check always fires, so it means nothing")
 
-# 7.3 the swivel: can it slide off the bolt along the slot it was slid in through?
-free_out = not any(collides(f'intersection(){{ import("{STL/"magnet_swivel.stl"}"); {bolt(x, 0)} }}') for x in (0, 6, 12, 18, 24))
-report("WARN" if free_out else "ok", "swivel: something other than friction keeps it from sliding off the bolt along the keyhole slot",
-       "the slot is open to the side: the path the bolt went in by is free, so only the spring's preload on the nylon washer holds it (a card dragged sideways could walk it off)" if free_out else "the slot is closed",
-       id="swivel-retention")
+# 7.3 the swivel plug (parts/swivel_plug_lib.scad): it must slide in the way the bolt did, close the side the bolt would escape by, and stay clear of the bolt
+PLUG_LIB = HERE / "parts" / "swivel_plug_lib.scad"; SWIVEL = STL / "magnet_swivel.stl"; GRADES = {"A loose": 0.25, "B snug": 0.15, "C tight": 0.05}
+def plug_hits(fit, d=0.0, ribs=False):
+    return collides(f'include <{PLUG_LIB}>\nintersection(){{ import("{SWIVEL}"); translate([{d},0,0]) plug({fit}, {str(ribs).lower()}); }}')
+if PLUG_LIB.exists():
+    for name, fit in GRADES.items():
+        bad = [d for d in (24, 18, 12, 6, 0) if plug_hits(fit, d)]                          # nominal swivel
+        bad_g = [d for d in (24, 18, 12, 6, 0) if plug_hits(fit - GROW / 2 + 0.01, d)]    # printed holes ~GROW small in total: GROW/2 per wall (+0.01: exact zero clearance is coplanar faces, which the kernel reports as a sliver)
+        if bad: report("FAIL", f"swivel plug {name}: slides into the swivel from +X (nominal)", f"collides at x shift {bad}", id=f"plug-insert-{name[0]}")
+        elif bad_g and name[0] in "AB": report("FAIL", f"swivel plug {name}: still slides in when the holes print {GROW:g} mm small", f"collides at x shift {bad_g}", id=f"plug-insert-grown-{name[0]}")
+        else: report("ok", f"swivel plug {name}: slides in (nominal" + ("" if bad_g else " and holes printed 0.3 small") + ")", "" if not bad_g else "grown 0.3 it binds: that is the 'tight' grade, it will need a push")
+    mid = GRADES["B snug"]
+    head_hits = [g for g in (0, GROW) if collides(f'include <{PLUG_LIB}>\nintersection(){{ {bolt(0, g)}; plug({mid}, false); }}')]
+    report("FAIL" if head_hits else "ok", "swivel plug does not touch the seated bolt (nominal, and the bolt grown 0.3)", "the plug hits the bolt head" if head_hits else "clear of head and thread", id="plug-vs-bolt")
+    out_free = [x for x in (2, 4, 6, 8, 12, 18) if not collides(f'include <{PLUG_LIB}>\nintersection(){{ {bolt(x, 0)}; plug({mid}, false); }}')]
+    report("FAIL" if out_free else "ok", "with the plug in, the bolt cannot slide out along the keyhole slot",
+           f"the bolt still passes at x={out_free}" if out_free else "blocked from 2 mm on: the head meets the base, the thread meets the neck", id="plug-retains")
+    retained = not out_free
+else:
+    retained = False
+    report("WARN", "swivel: nothing but friction keeps it from sliding off the bolt along the keyhole slot", "no plug part yet (parts/swivel_plug_lib.scad)", id="swivel-retention")
 
 # 7.4 hardware that the BOM lists against what the stack needs
 bom = _json.loads((HERE.parent / "bom.json").read_text()); items = bom["items"] if isinstance(bom, dict) and "items" in bom else bom

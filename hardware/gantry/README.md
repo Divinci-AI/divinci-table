@@ -72,6 +72,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Part | Qty | Size (from the .scad / STL; TBD = measure yours) | Used for |
 |---|---|---|---|
 | Printed magnet swivel | 1 (+1 spare) | 24 × 24 × 15.1 mm; hex slot 11.6 mm AF; top hole 7 mm | holds the magnet and turns in its bracket |
+| Printed swivel plug | 1 per swivel (6 printed in 3 fits) | T-shaped, 7 x 11 x 8 mm; slides into the swivel's open side after the bolt | closes the hex channel and the slot so the bolt cannot slide out; keep the fit that needs a firm push (`parts/swivel_plug_lib.scad`) |
 | Printed deck box with a one-card exit slot | 1 | 73.3 × 99.3 × 117.8 mm; `card_t` 1.6 mm TBD | the AI's shuffled deck, face-up and covered; one card out at a time |
 | Printed deck box follower plate | 1 | 67.5 × 93.5 × 3.0 mm | rides on four springs, keeping the top card at the exit slot |
 | Printed discard chute | 1 | 74.5 × 90.1 × 52.4 mm; 35° ramp; `bed_t` 6 mm TBD | graveyard and exile go off the bed's edge into a tray |

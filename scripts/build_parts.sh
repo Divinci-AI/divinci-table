@@ -17,3 +17,5 @@ render "sleeve_jig tray" stl/sleeve_jig_tray.stl sleeve_jig.scad
 render "sleeve_jig bridge" stl/sleeve_jig_bridge.stl -D 'part="bridge"' sleeve_jig.scad
 render "fit_gauge slits" stl/fit_gauge_slits.stl -D 'part="slits"' fit_gauges.scad
 render "fit_gauge comb" stl/fit_gauge_comb.stl -D 'part="comb"' fit_gauges.scad
+render "swivel plug" stl/swivel_plug.stl swivel_plug.scad
+render "swivel plug plate (3 grades x2)" stl/swivel_plug_plate.stl swivel_plug_plate.scad
