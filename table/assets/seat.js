@@ -11,6 +11,9 @@
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { return {}; } };
   const save = v => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} };
   let mine = load();
+  // Every tab of this site shares one localStorage entry, but each tab used to copy it into memory once and never look again:
+  // a tab opened before you claimed kept asking who you are, and a tab holding an old key kept using it. Follow the shared entry.
+  addEventListener("storage", e => { if (e.key === KEY) { mine = load(); chip(); } });
   const post = (p, b) => fetch(p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) })
     .then(async r => ({ ok: r.ok, d: await r.json().catch(() => ({})) }));
   async function claim(name, key, invite) {
@@ -85,8 +88,14 @@
       } catch {}
     }
     if (mine.name && mine.key && !qk) {               // check in with my key: the server records this device,
-      const r = await post("/api/seat/claim", { name: mine.name, key: mine.key });   // so this laptop's other windows
-      if (!r.ok && r.d && /claimed on another device|only a person/.test(r.d.error || "")) { mine = {}; save(mine); chip(); }
+      const sent = mine.key, r = await post("/api/seat/claim", { name: mine.name, key: mine.key });   // so this laptop's other windows
+      if (r.ok && r.d.key && r.d.key !== sent) {      // the table did not know that key (an old room's, one site shares them all) and issued a new one: keep it
+        if (load().key === sent || !load().key) { mine = { name: r.d.name, key: r.d.key }; save(mine); } else mine = load();   // unless another tab already did
+        chip();
+      } else if (!r.ok && r.d && /claimed on another device|only a person/.test(r.d.error || "")) {
+        if (load().key === sent) { mine = {}; save(mine); } else mine = load();          // forget it only if no other tab has replaced it meanwhile
+        chip();
+      }
     }                                                 // (any address, any tab) pick up the same seat
     if (!mine.name && !qp) {
       try {
