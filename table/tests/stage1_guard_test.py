@@ -46,8 +46,8 @@ def check(name, ok, detail=""):
 class Server:
     """A table with two pilots (Claude, Fusion) and two people (Michael, Sam), cloud-room style, on its own port."""
 
-    def __init__(self, order="Claude,Fusion,Michael,Sam", extra=(), cloud=True):
-        self.order, self.extra, self.cloud = order, list(extra), cloud
+    def __init__(self, order="Claude,Fusion,Michael,Sam", extra=(), cloud=True, humans=True):
+        self.order, self.extra, self.cloud, self.humans = order, list(extra), cloud, humans
         self.tmp = Path(tempfile.mkdtemp(prefix="stage1-"))
         self.token_file = self.tmp / "token"
         self.keys: dict[str, str] = {}
@@ -64,7 +64,7 @@ class Server:
                "--token-file", str(self.token_file),
                "--ai", "Claude|Kaust, Eyes of the Glade|", "--ai-deck", str(REPO / "decks/kaust.json"),
                "--ai", "Fusion|Tuvasa the Sunlit|", "--ai-deck", str(REPO / "decks/tuvasa.json"),
-               "--pilot", "Claude", "--pilot", "Fusion", "--human", "Michael|", "--human", "Sam|",
+               "--pilot", "Claude", "--pilot", "Fusion", *(["--human", "Michael|", "--human", "Sam|"] if self.humans else []),
                "--order", self.order, "--priority-window", "0.2", "--fair-seed", "off", *self.extra]
         self.proc = subprocess.Popen(cmd, cwd=REPO, env=env, stdout=open(self.tmp / "server.log", "w"), stderr=subprocess.STDOUT)
         for _ in range(180):
@@ -112,7 +112,7 @@ class Server:
         return self.keys[name]
 
     def claim_all(self):
-        for n in ("Claude", "Fusion", "Michael", "Sam"):
+        for n in ("Claude", "Fusion", "Michael", "Sam")[:4 if self.humans else 2]:
             self.claim(n)
 
     def brain(self, seat, action, **body):

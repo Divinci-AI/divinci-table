@@ -104,7 +104,7 @@ def main():
         print("a block, trample over it, and the lie is still ignored")
         c, r = go(S, "Claude", "attack", assign={f"#{ogre['id']}": "Fusion"})
         guard = perm(S, "Fusion", "Guard")
-        c2, r2 = S.brain("Fusion", "block", blocker=f"#{guard['id']}", amount=0, trample=False, attacker="Ogre token")
+        c2, r2 = S.brain("Fusion", "block", blocker=f"#{guard['id']}", amount=0, trample=False, attacker="Ogre")
         l4 = S.state("Fusion")["life"]
         check("5 trample into a 1/4: 1 goes through (table's numbers, not the 0 sent)", c2 == 200 and l4 == l3 - 1, (c2, r2, l3, l4))
         check("the blocker that took lethal is gone from its board", not any(p["name"].startswith("Guard") for p in S.state("Fusion")["permanents"]))
@@ -126,10 +126,26 @@ def main():
         l5 = S.state("Fusion")["life"]
         check("the turn passed on and the table dealt the 4", l5 == l4 - 4, (c, l4, l5))
 
+        print("the player on the play skips the first draw; the rest of the new rules")
+        check("with four at the table the first player does draw (Commander): eight cards", len(S.state("Claude")["hand"]) == 8, len(S.state("Claude")["hand"]))
+        c, r = S.brain("Claude", "pass")
+        check("a pass in your own turn names who moves it on, not 'waiting on None'", c == 409 and "None" not in str(r.get("error")), (c, r))
+
         print("a seat with a deck cannot hand the table its own attack numbers")
         c, r = S.call("POST", "/api/declare/attack", {"by": "Claude", "key": S.claim("Claude"),
                                                       "attacks": [{"attacker": "X", "target": "Fusion", "power": 40}]}, key=S.claim("Claude"))
         check("a pilot's /api/declare/attack is refused (the engine attacks)", c == 409, (c, r))
+
+    with Server(order="Claude,Fusion", humans=False) as S2:                                      # two players: the one on the play skips its first draw
+        S2.claim_all()
+        S2.start_game()
+        c, r = go(S2, "Claude", "begin")
+        check("two players: Claude on the play begins with no draw (seven cards) and is told so",
+              c == 200 and len(S2.state("Claude")["hand"]) == 7 and any("no draw" in x for x in r.get("said", [])), (c, len(S2.state("Claude")["hand"]), r.get("said")))
+        go(S2, "Claude", "end")
+        time.sleep(1.5)
+        c, r = go(S2, "Fusion", "begin")
+        check("…and the second player does draw (eight cards)", c == 200 and len(S2.state("Fusion")["hand"]) == 8, (c, len(S2.state("Fusion")["hand"])))
 
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)

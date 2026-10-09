@@ -203,6 +203,24 @@ def cmd_state(_):
               f"{' [tapped]' if p['tapped'] else ''}{' [sick]' if p['sick'] and p['pt'] else ''}")
     lands = [p for p in s["permanents"] if "Land" in (p["type"] or "")]
     print(f"  lands: {len(lands)} ({sum(1 for p in lands if not p['tapped'])} untapped)")
+    for p in s["permanents"]:                             # what each permanent does: the rules text, once
+        if p.get("text") and not p.get("face_down") and "Land" not in (p["type"] or ""):
+            print(f"      #{p['id']} {p['name']}: " + p["text"].replace("\n", " / ")[:200])
+    if s.get("incoming"):
+        print("\nATTACKING YOU (the table's numbers; answer with `block [CREATURE] --attacker NAME`):")
+        for i in s["incoming"]:
+            print(f"  {i['attacker']}'s {i['creature']} {i.get('ref') or ''} for {i['power']}{' (trample)' if i['trample'] else ''}")
+    for n, o in (s.get("opponents") or {}).items():
+        print(f"\n{n} ({o['commander']}): life {o['life']}, hand {o['hand']}, library {o['library']}, "
+              f"lands {o['lands']} ({o.get('tapped_lands', 0)} tapped)")
+        print("  creatures: " + ("; ".join(f"{c['name']} {c['pt']}{' [tapped]' if c['tapped'] else ''}" for c in o.get("creatures", [])) or "none"))
+        others = o.get("battlefield") or []
+        if others:
+            print("  battlefield: " + "; ".join(others))
+        if o.get("graveyard"):
+            print("  graveyard: " + ", ".join(o["graveyard"]))
+    for n, b in (s.get("public_boards") or {}).items():
+        print(f"\n{n} (real deck, from photos/what they said): " + ("; ".join(p.get("name", str(p)) if isinstance(p, dict) else str(p) for p in b.get("permanents", [])) or "nothing recorded"))
     print(f"\ngraveyard: {', '.join(s['graveyard']) or '—'}")
     print(f"others' announced cards: {', '.join(s['announced_by_others']) or '—'}")
     print("\nrecent table events:")

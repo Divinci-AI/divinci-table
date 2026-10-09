@@ -1,7 +1,7 @@
 # Dogfood run 2: Sonnet 5.5 (Tuvasa) vs Opus 5.5 (Kaust), decks swapped, 8 turns each, build `48ab779`
 
 Opus played all 8 turns (final: Sonnet 5, Opus 32). Sonnet reached its turn 8 and then waited ~25 min for an answer to its attack:
-Opus had stopped at its own cap, so the last combat was never resolved by the other seat. Cost: Opus 242k tokens / 68 calls, Sonnet 251k / 101 calls.
+Opus had stopped at its own cap, so the last combat was never resolved by the other seat. (Sonnet's final "server unreachable" was me stopping the server afterwards, not a crash.) Cost: Opus 242k tokens / 68 calls, Sonnet 251k / 101 calls.
 Raw notes: `findings-Opus.md`, `findings-Sonnet.md`; table log: `events.txt` (300 events, 75 passes, every one marked `ai: true`, i.e. still not distinguishing a real pass from a timeout).
 
 Fixed by run 1's changes and confirmed working: the table read the attackers' power (nobody typed damage), unblocked damage landed, no land before the game.
@@ -18,3 +18,6 @@ Fixed by run 1's changes and confirmed working: the table read the attackers' po
 9. Silent seat: priority windows of 5-7 min; the other seat's turn took ~25 min with an unresponsive seat. No visible countdown, auto-passes unmarked.
 10. Journal due, remote: refused ("only available on the table's laptop").
 11. The phase never left "declare attackers" while damage was applied; `end` jumped to cleanup.
+
+## Fixed after this run (commit following 49529a6)
+Findings 1 (message), 4, 5, 6, 7 (partial names). Open: 2, 3, 8, 9, 10, 11.

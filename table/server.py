@@ -608,6 +608,8 @@ def pilot_pass_refusal(seat_name: str, b: dict) -> str | None:
     if seat_name not in ps["need"]:
         return f"you aren't in {here}'s priority round"
     if seat_name in ps["passed"]:
+        if ps["next"] is None:
+            return f"you already passed {here}, and so has everyone else: {PHASE['player']} moves the turn on (the step ends when they act)"
         return f"you already passed {here}: waiting on {ps['next']}"
     if ps["next"] != seat_name:
         return f"{ps['next']} passes first (turn order), then you"
@@ -697,6 +699,7 @@ PRESTART_ACTIONS = AI_MAIN_ACTIONS | {"attack", "damage", "block"}
 START_HINT = ("the game hasn't started: start it with `highroll quantum` (tablectl) or POST /api/highroll/start "
               "{\"mode\": \"quantum\"}; the winner of the roll goes first")
 COMBAT: dict = {"pending": [], "hits": [], "human": [], "used": set()}
+GAME_FIRST: dict = {"seat": None}                    # who took the first turn: in a two-player game that seat skips its first draw
 
 
 def combat_reset():
@@ -905,6 +908,8 @@ def phase_public() -> dict:
 
 def start_turn(name: str):
     """Hand the turn to a seat: an AI seat plays its whole turn; a human starts at untap."""
+    if PHASE["player"] is None:
+        GAME_FIRST["seat"] = name
     with VP_LOCK:
         combat_flush(None)                             # an unblocked attacker whose turn ended without a `damage` still hits
         combat_reset()
@@ -3285,7 +3290,8 @@ class H(BaseHTTPRequestHandler):
                                                          f"(pass force to say it anyway)"})
                     said = [text]
                 elif action == "begin":
-                    said, drew = VP.begin_turn()
+                    on_the_play = VP.turn == 0 and GAME_FIRST.get("seat") == VP.name and len(turn_order()) == 2
+                    said, drew = VP.begin_turn(skip_draw=on_the_play)
                     private["drew"] = drew
                 elif action == "land":
                     said = VP.manual_land(b["name"])
@@ -3310,6 +3316,9 @@ class H(BaseHTTPRequestHandler):
                             raise IllegalAction("nothing is attacking you right now (or it has already been dealt with)")
                         want = str(b.get("attacker") or "").strip().lower()
                         entry = next((e for e in mine if want and want in (str(e.get("ref") or "").lower(), e["name"].lower())), None)
+                        if entry is None and want:                    # "Kaust" for "Kaust, Eyes of the Glade": one attacker whose name starts with it
+                            part = [e for e in mine if e["name"].lower().startswith(want) or e["name"].lower().split(",")[0] == want]
+                            entry = part[0] if len(part) == 1 else None
                         if entry is None and want:
                             raise IllegalAction("no attacker '" + str(b.get("attacker")) + "' is attacking you: "
                                                 + ", ".join(f"{e['name']} {e.get('ref') or ''} ({e['power']})" for e in mine))
@@ -3331,6 +3340,12 @@ class H(BaseHTTPRequestHandler):
                         COMBAT["hits"].append({"attacker": entry["attacker"], "ref": entry["ref"], "defender": VP.name,
                                                "amount": life0 - VP.life})
                     forget_dead(res)
+                    if entry is not None and entry.get("ref") and res.get("attacker_died") and entry["attacker"] in VPS:
+                        with VP_LOCK:                                 # the attacker that died to the block leaves ITS owner's board
+                            try:
+                                VPS[entry["attacker"]].move(entry["ref"], "graveyard")
+                            except Exception:
+                                pass
                 elif action == "attack":
                     said = VP.manual_attack(b["assign"], role_on=b.get("role_on"))
                     for ref, who in b["assign"].items():

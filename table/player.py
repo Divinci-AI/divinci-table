@@ -711,7 +711,7 @@ def _manual(cls):
             raise IllegalAction(f"no permanent '{ref}' on your battlefield")
         return p
 
-    def begin_turn(self):
+    def begin_turn(self, skip_draw: bool = False):
         self.turn += 1
         self.land_played = False
         for p in self.battlefield:
@@ -720,7 +720,10 @@ def _manual(cls):
         said = [f"{self.name}, turn {self.turn}."]          # not "Claude's turn": Moira's possessive comes out "Clouds turn"
         said += self.upkeep()
         before = len(self.hand)
-        self.draw()
+        if skip_draw:                                       # the player who goes first in a two-player game does not draw
+            said.append("I'm on the play: no draw this turn.")
+        else:
+            self.draw()
         drew = self.hand[-1]["name"] if len(self.hand) > before else None
         return said, drew
 
