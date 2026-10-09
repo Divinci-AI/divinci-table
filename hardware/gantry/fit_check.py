@@ -309,12 +309,13 @@ if PLUG_LIB.exists():
     # the assembled head: nylon washer (12.7 OD, 6.5 bore, NYLON thick) on top of the swivel and the bracket's leg (BRACKET thick, 1" wide) on that. The plug is flush on top and its ear stands out
     # past the body, and it TURNS with the swivel (the bolt does) under the bracket: sweep a full turn in 15 degree steps (nominal, and grown 0.3).
     top = SWIVEL_TOP; nyl_z, brk_z = top, top + NYLON
-    stack = (f'translate([0,0,{nyl_z}]) difference(){{ cylinder(d=12.7, h={NYLON}, $fn=48); translate([0,0,-1]) cylinder(d=6.5, h={NYLON + 2}, $fn=32); }}'
-             f' translate([-12.7,-38,{brk_z}]) difference(){{ cube([25.4, 76, {BRACKET}]); translate([12.7, 25.4, -1]) cylinder(d=6.6, h={BRACKET + 2}, $fn=32); }}')
+    def stack_at(bz):                    # ONE union: a bare { A B } inside intersection() is flattened by OpenSCAD into intersect(plug, A, B), which is always empty (found by the negative control)
+        return (f'union(){{ translate([0,0,{nyl_z}]) difference(){{ cylinder(d=12.7, h={NYLON}, $fn=48); translate([0,0,-1]) cylinder(d=6.5, h={NYLON + 2}, $fn=32); }}'
+                f' translate([-12.7,-25.4,{bz}]) difference(){{ cube([25.4, 76, {BRACKET}]); translate([12.7, 25.4, -1]) cylinder(d=6.6, h={BRACKET + 2}, $fn=32); }} }}')   # the 1/4" hole 1" from the bracket's end sits on the swivel's axis
+    stack = stack_at(brk_z)
     turned = [a for a in range(0, 360, 15) for g in (0, GROW)
-              if collides(f'include <{PLUG_LIB}>\nintersection(){{ rotate([0,0,{a}]) offset_plug(); {{ {stack} }} }}'.replace("offset_plug();", f'translate([0,0,{g/2}]) plug({mid - g/2}, false);'))]
-    low_stack = stack.replace(f"translate([-12.7,-38,{brk_z}])", f"translate([-12.7,-38,{top - 2}])")             # control: the bracket 2 mm INTO the plug's top
-    ctl = collides(f'include <{PLUG_LIB}>\nintersection(){{ translate([0,0,0]) plug({mid}, false); {{ {low_stack} }} }}')
+              if collides(f'include <{PLUG_LIB}>\nintersection(){{ rotate([0,0,{a}]) translate([0,0,{g/2}]) plug({mid - g/2}, false); {stack}; }}')]
+    ctl = collides(f'include <{PLUG_LIB}>\nintersection(){{ plug({mid}, false); {stack_at(top - 2)}; }}')               # control: the bracket 2 mm INTO the plug's top
     report("ok" if ctl else "FAIL", "negative control: a bracket sunk 2 mm into the plug's top DOES collide (the stack check can fail)")
     report("FAIL" if turned else "ok", "swivel plug in the assembled head clears the nylon washer and the bracket, turning a full circle",
            f"touches at {sorted(set(turned))[:6]} degrees" if turned else f"clear all the way round; the plug's top is flush with the swivel, the bracket's underside is {NYLON:g} mm above it", id="plug-vs-stack")
