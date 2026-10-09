@@ -19,6 +19,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let TOKEN = "";
 const j = async (m, p, b, h = {}) => { const r = await fetch(BASE + p, { method: m, headers: { "Content-Type": "application/json", "User-Agent": "stage1-node", ...XFF, ...h }, body: b ? JSON.stringify(b) : undefined }); return [r.status, await r.json().catch(() => ({}))]; };
 const host = async (p, b) => { const r = await fetch(BASE + p, { method: "POST", headers: { "Content-Type": "application/json", "X-Brain-Token": TOKEN }, body: JSON.stringify(b) }); return [r.status, await r.json().catch(() => ({}))]; };
+const section = async (name, fn) => { try { await fn(); } catch (e) { check(`${name}: ran to the end`, false, String(e && e.message || e).split("\n")[0]); } };   // one broken item must not hide the others
 const phase = async () => (await j("GET", "/api/phase"))[1];
 
 async function withServer(order, fn) {
@@ -58,8 +59,10 @@ const humansPass = async keys => {                     // whichever person is ne
   await withServer("Claude,Michael,Sam", async ({ ctx, keys }) => {
     const claudeAuth = { "X-Seat-Key": keys.Claude };
     const hand = await open(ctx, `/hand?player=Claude&key=${encodeURIComponent(keys.Claude)}`, "Claude");
+    let lname, perm, lid;                                                                       // the land item 4 plays, used by the blocks after it
 
     console.log("item 1: Begin only when legal");
+    await section("item 1", async () => {
     await sleep(2500);
     check("before the game starts, Begin is disabled", await hand.evaluate(() => document.getElementById("begin").disabled));
     await j("POST", "/api/phase/next", { by: "Claude", key: keys.Claude });                  // the pilot starts the game: Claude's turn
@@ -72,8 +75,9 @@ const humansPass = async keys => {                     // whichever person is ne
       (PH = { player: "Claude", begun: false, index: 0, steps: ["untap", "upkeep", "draw", "main 1"] }, canBegin())]);
     check("the page's rule: not on someone else's turn, not after begun, not past main 1; yes at untap", JSON.stringify(noBegin) === "[false,false,false,true]", JSON.stringify(noBegin));
     await hand.evaluate(() => refreshPhase());
-
+    });
     console.log("item 6: /me does not press NEXT when its checklist request fails");
+    await section("item 6", async () => {
     const meCtx = await ctx.browser().newContext({ viewport: { width: 390, height: 780 }, extraHTTPHeaders: XFF });
     const me = await meCtx.newPage();
     let nexts = 0, checklists = 0;
@@ -85,14 +89,15 @@ const humansPass = async keys => {                     // whichever person is ne
     check("(the checklist request was made and failed)", checklists >= 1, checklists);
     check("…and /me did not send a NEXT of its own", nexts === 0, `${nexts} POST /api/phase/next`);
     await meCtx.close();
-
+    });
     console.log("item 4: Untap on /hand");
+    await section("item 4 (hand)", async () => {
     const land = (await host("/api/brain/search", { seat: "Claude", name: "Forest", to: "hand" }));
     const st0 = (await j("GET", "/api/brain/state?seat=Claude", undefined, claudeAuth))[1];
-    const lname = (st0.hand.find(h => h.land) || {}).name;
+    lname = (st0.hand.find(h => h.land) || {}).name;
     await j("POST", "/api/brain/land", { seat: "Claude", name: lname }, claudeAuth);
-    const perm = () => j("GET", "/api/brain/state?seat=Claude", undefined, claudeAuth).then(([, s]) => (s.permanents || []).find(p => p.name === lname));
-    const lid = (await perm()).id;
+    perm = () => j("GET", "/api/brain/state?seat=Claude", undefined, claudeAuth).then(([, s]) => (s.permanents || []).find(p => p.name === lname));
+    lid = (await perm()).id;
     await j("POST", "/api/brain/tap", { seat: "Claude", ref: "#" + lid }, claudeAuth);
     await hand.evaluate(() => load());
     await hand.waitForSelector(`[data-tap="${lid}"]`, { timeout: 5000 }).catch(() => {});
@@ -105,8 +110,9 @@ const humansPass = async keys => {                     // whichever person is ne
     await hand.click(`[data-tap="${lid}"]`);                                                   // Tap, from the page
     await sleep(800);
     check("Tap works from the page", (await perm()).tapped);
-
+    });
     console.log("item 1 (cont.): Begin walks the turn; item 4: no Untap past the untap step");
+    await section("item 1/4 (begin, no untap in main 1)", async () => {
     await hand.click("#begin");
     for (let i = 0; i < 40; i++) {                                                             // the people pass upkeep and draw, in turn order
       await humansPass(keys);
@@ -128,8 +134,9 @@ const humansPass = async keys => {                     // whichever person is ne
     const err = await hand.evaluate(() => document.getElementById("err").textContent);
     check("if the request is sent anyway the server's reason is shown", /untap step/.test(err), err);
     check("…and the land stays tapped", (await perm()).tapped);
-
+    });
     console.log("item 5: a pilot passes from the alert and from the red bar");
+    await section("item 5", async () => {
     for (const n of ["Michael", "Sam"]) await j("POST", "/api/autopass", { by: n, key: keys[n], mode: "others" });
     await hand.evaluate(() => { window.__posts = []; const f = window.fetch; window.fetch = (u, i = {}) => { if ((i.method || "GET") === "POST") window.__posts.push(String(u)); return f(u, i); }; });
     let ended = false;
@@ -170,6 +177,7 @@ const humansPass = async keys => {                     // whichever person is ne
     check("its button calls the pilot pass, not /api/phase/next (which refuses a pilot)", posts2.some(u => /\/api\/brain\/pass$/.test(u)) && !posts2.some(u => /\/api\/phase\/next$/.test(u)), JSON.stringify(posts2));
     const fin = await phase();
     check("…and the round counted it", fin.passes.passed.includes("Claude") || fin.step !== stepBefore, JSON.stringify([fin.step, fin.passes]));
+    });
   });
 
   // ───────── server B: Michael (a person with a real deck) goes first ─────────
