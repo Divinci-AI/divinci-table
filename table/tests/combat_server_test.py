@@ -149,6 +149,20 @@ def main():
         c, r = S.brain("Claude", "effect", source="#99999", kind="draw")
         check("a source that is not on your battlefield is refused", c == 400, (c, r))
 
+        print("activated abilities through the pilot's own key")
+        c0, r0 = S.host_brain("Claude", "search", name="Mirror Entity", to="battlefield")
+        assert c0 == 200, (c0, r0)
+        for _ in range(3):
+            S.host_brain("Claude", "search", name="Forest", to="battlefield")
+        me_ = perm(S, "Claude", "Mirror Entity")
+        c, r = S.brain("Claude", "activate", source=f"#{me_['id']}", x=9)
+        check("Mirror Entity X=9 with three Forests: refused, with the reason", c == 400 and "can't pay" in str(r.get("error")), (c, r.get("error")))
+        c, r = S.brain("Claude", "activate", source=f"#{me_['id']}", x=2)
+        pts = [p["pt"] for p in S.state("Claude")["permanents"] if p.get("pt")]
+        check("Mirror Entity X=2: every creature Claude controls is 2/2", c == 200 and pts and all(x == "2/2" for x in pts), (c, r.get("error"), pts))
+        c, r = S.brain("Claude", "activate", source=f"#{me_['id']}", x=2)
+        check("…and a second activation with no mana left is refused", c == 400, (c, r.get("error")))
+
         print("a remote pilot reaches its own journal and nobody else's")
         c, r = S.call("GET", "/api/journal/due?seat=Claude", key=S.claim("Claude"))
         check("journal-due for your own seat answers from a remote device", c == 200 and "due" in r, (c, r))

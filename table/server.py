@@ -693,7 +693,7 @@ def ai_advance(seat_name: str, action: str) -> str | None:
 # peek, topdeck, put, token, counter, animate, ...) or is the table host's (new-game, take, fair-reveal). The host's brain
 # token keeps all of it. Checked BEFORE ai_advance: a refused action must not walk the turn on as a side effect.
 PILOT_ACTIONS = frozenset({"say", "begin", "land", "cast", "turn-up", "tap", "untap", "attack", "damage", "block",
-                           "pass", "end", "life", "effect"})
+                           "pass", "end", "life", "effect", "activate"})
 
 # Combat the SERVER computes. A pilot says which creatures attack whom; the engine knows their power. The defender never types
 # an amount: `block` takes the number from here, and whatever nobody blocked is dealt when the turn moves on. (Before this, the
@@ -919,6 +919,9 @@ def start_turn(name: str):
     with VP_LOCK:
         combat_flush(None)                             # an unblocked attacker whose turn ended without a `damage` still hits
         combat_reset()
+    with VP_LOCK:
+        for v_ in VPS.values():
+            v_.clear_until_eot()                           # "until end of turn" ends with the turn
     PHASE.update(player=name, step=0, begun=False)
     PRIORITY.update(step=None, waiting=[], seats=[], deadline=0.0, beat_until=0.0)
     emit("phase", player=name, step=STEPS[0], index=0)
@@ -3391,6 +3394,18 @@ class H(BaseHTTPRequestHandler):
                             raise IllegalAction(r["error"])
                     lt = life_table()
                     said += [f"{who} is at {lt[who]}." for who in deltas if who != VP.name and who in lt]
+                elif action == "activate":                # pay and run an activated ability; the table checks the cost and what it does
+                    tgt = None
+                    if b.get("target"):
+                        owner = seat(b.get("at") or VP.name)
+                        if owner is None:
+                            raise IllegalAction(f"no seat '{b.get('at')}'")
+                        tgt = VPS[owner].perm(str(b["target"]))
+                    said = VP.activate(str(b.get("source", "")), x=int(b.get("x") or 0),
+                                       index=None if b.get("index") in (None, "") else int(b["index"]), target=tgt,
+                                       pick=b.get("pick"), put=b.get("put"), bottom=b.get("bottom"))
+                    if getattr(VP, "last_peek", None):
+                        private["top"], VP.last_peek = VP.last_peek, None
                 elif action == "effect":                  # a trigger or ability the engine does not model: allowed only when the SOURCE card says so
                     kind = str(b.get("kind", "")).lower()
                     if kind not in EFFECT_WORDS:

@@ -237,7 +237,7 @@ def item2():
 
 # ───────────────────────────────── item 3 ─────────────────────────────────
 # Everything /hand and the pilot mode of tablectl (pilot_ctl_test.py) use. The rest has no card behind it, or is the host's.
-ALLOWED = ("say", "begin", "land", "cast", "turn-up", "tap", "untap", "attack", "damage", "block", "pass", "end", "life", "effect")
+ALLOWED = ("say", "begin", "land", "cast", "turn-up", "tap", "untap", "attack", "damage", "block", "pass", "end", "life", "effect", "activate")
 REFUSED = {"draw": {"n": 3}, "search": {"name": "Sol Ring"}, "peek": {"n": 2}, "topdeck": {"name": "Sol Ring"},
            "put": {"name": "Sol Ring"}, "token": {"name": "Treasure", "power": 9, "toughness": 9, "n": 3},
            "counter": {"ref": "#1", "n": 5}, "animate": {"ref": "#1", "power": 9, "toughness": 9},

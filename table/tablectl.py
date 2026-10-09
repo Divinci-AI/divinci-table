@@ -285,6 +285,10 @@ def main():
     dm = sub.add_parser("damage", help='attackers that hit a player: "Ellivere=Michael" "#14=Sam:5"')
     dm.add_argument("hits", nargs="*", help="optional for a remote seat: the table deals blocked and unblocked damage itself")
     dm.add_argument("--no-life", action="store_true", help="triggers only: the players already said their life")
+    ac = sub.add_parser("activate", help="pay and run an activated ability of a permanent (cost checked; abilities the table can't run are refused before anything is paid): "
+                                         "activate SOURCE [--index N] [--x X] [--target REF [--at SEAT]] [--pick LAND ...] [--bottom CARD ...]")
+    ac.add_argument("source"); ac.add_argument("--index", type=int); ac.add_argument("--x", type=int, default=0)
+    ac.add_argument("--target"); ac.add_argument("--at"); ac.add_argument("--pick", nargs="*"); ac.add_argument("--bottom", nargs="*")
     ef = sub.add_parser("effect", help="a trigger/ability the table does not model, allowed only when the SOURCE card's text says it: "
                                        "effect SOURCE draw|surveil|scry|manifest|destroy|exile|bounce [--n N] [--put top|bottom|graveyard] [--target REF --at SEAT]")
     ef.add_argument("source"); ef.add_argument("kind"); ef.add_argument("--n", type=int, default=1); ef.add_argument("--put")
@@ -385,6 +389,8 @@ def main():
             who, _, n = rest.partition(":")
             hits[ref] = [who, int(n) if n else None]
         return act("damage", hits=hits, no_life=a.no_life)
+    if a.cmd == "activate":
+        return act("activate", source=a.source, index=a.index, x=a.x, target=a.target, at=a.at, pick=a.pick, bottom=a.bottom)
     if a.cmd == "effect":
         return act("effect", source=a.source, kind=a.kind, n=a.n, put=a.put, target=a.target, at=a.at)
     if a.cmd == "role":

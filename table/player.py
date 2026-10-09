@@ -111,6 +111,8 @@ class Perm:
     how: str | None = None                  # how it went face down — public: disguise, morph, manifest, cloak
     turned_up_turn: int | None = None       # Kaust: "turned face up this turn"
     counters: int = 0
+    temp: tuple = (0, 0)                    # "until end of turn" +P/+T (an activated ability); cleared when the next turn starts
+    base_override: tuple | None = None      # Mirror Entity: base power and toughness X/X until end of turn
     chosen: str | None = None               # "As this enters, choose a color" (Utopia Sprawl)
     id: int = field(default_factory=lambda: next(_ids))
 
@@ -198,6 +200,8 @@ class VirtualPlayer:
             pw, tg = 0, 0
         if p.face_down:
             pw, tg = 2, 2
+        if p.base_override:
+            pw, tg = p.base_override
         pw += p.counters
         tg += p.counters
         for a in self.battlefield:
@@ -234,7 +238,7 @@ class VirtualPlayer:
                 if (m.group(1) and src is p) or (m.group(2) and not enchanted):
                     continue
                 pw, tg = pw + int(m.group(3)), tg + int(m.group(4))
-        return pw, tg
+        return pw + p.temp[0], tg + p.temp[1]
 
     def count_each(self, each: str, src: Perm, target: Perm) -> int:
         """How many there are of '... for each <each>'. src is the card with the text, target the
@@ -1180,7 +1184,144 @@ def _manual(cls):
         self.graveyard += milled
         return [f"I mill {len(milled)}: {', '.join(c['name'] for c in milled)}."]
 
-    for f in (hand_card, perm, begin_turn, upkeep, manual_land, manual_cast, manual_attack, attack_triggers,
+    # ── activated abilities: the table checks the cost and runs the ones it understands ──
+    ACT_LINE = re.compile(r"^((?:(?:\{[^}]+\})+|Sacrifice [^:,]+)(?:, ?(?:(?:\{[^}]+\})+|Sacrifice [^:,]+))*): (.+)$")
+
+    def abilities(self, p):
+        """The non-mana activated abilities in a permanent's text: [(cost, effect)]."""
+        out = []
+        for line in ("" if p.face_down else (p.card.get("text") or "")).split("\n"):
+            m = ACT_LINE.match(line.strip())
+            if m and "Add {" not in line and "add {" not in line and "Add one mana" not in line:
+                out.append((m.group(1), m.group(2)))
+        return out
+
+    def clear_until_eot(self):
+        for p in self.battlefield:
+            p.temp, p.base_override = (0, 0), None
+
+    def activate(self, ref, x=0, index=None, target=None, pick=None, put=None, bottom=None):
+        """Pay and run one activated ability of a permanent. Everything is checked BEFORE anything is paid: an ability the table
+        cannot run yet is refused whole, never half-done. `target` is a Perm (the caller resolved it, any seat's)."""
+        src = self.perm(ref)
+        if src.face_down:
+            raise IllegalAction("a face-down permanent has no abilities: turn it face up first")
+        abs_ = self.abilities(src)
+        if not abs_:
+            raise IllegalAction(f"{src.name} has no activated ability the table knows (its text: {(src.card.get('text') or '')[:140]})")
+        if index is None:
+            if len(abs_) > 1:
+                raise IllegalAction(f"{src.name} has {len(abs_)} abilities: say which with --index 0..{len(abs_) - 1}: "
+                                    + " | ".join(f"{i}: {c}: {e[:50]}" for i, (c, e) in enumerate(abs_)))
+            index = 0
+        if not 0 <= index < len(abs_):
+            raise IllegalAction(f"{src.name} has abilities 0..{len(abs_) - 1}")
+        cost, eff = abs_[index]
+        parts = [c.strip() for c in re.split(r",\s*(?![^{]*\})", cost)]
+        tap = sac = False
+        mana = ""
+        for c in parts:
+            if c == "{T}":
+                tap = True
+            elif re.fullmatch(r"Sacrifice (this \w+|CARDNAME|" + re.escape(src.name) + ")", c, re.I):
+                sac = True
+            elif re.fullmatch(r"(\{[^}]+\})+", c):
+                mana += c
+            else:
+                raise IllegalAction(f"the table can't pay '{c}' yet (sacrificing another permanent, life, discarding)")
+        if tap and src.tapped:
+            raise IllegalAction(f"{src.name} is tapped")
+        if tap and src.is_("Creature") and src.sick and "Haste" not in (src.card.get("keywords") or []):
+            raise IllegalAction(f"{src.name} has summoning sickness: its {{T}} ability waits")
+        e = eff.lower()
+        extra = int(x) * mana.count("{X}")
+        run = None
+        m = re.search(r"\bdraw (a|an|one|two|three) cards?\b(?! for each)", e)
+        if m and not re.search(r"\bdraws? (a|an|one|two|three) cards?\b.*\bthen\b", e):
+            n = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3}[m.group(1)]
+            run = lambda: (self.draw(n), [f"{src.name}: I draw {n} card{'s' if n != 1 else ''}."])[1]
+        elif re.match(r"(scry|surveil) (\d)", e):
+            k = int(re.match(r"(scry|surveil) (\d)", e).group(2))
+            word = re.match(r"(scry|surveil)", e).group(1)
+            bad = [b for b in (bottom or []) if b.lower() not in [n.lower() for n in self.peek(k)]]
+            if bad:
+                raise IllegalAction(f"{', '.join(bad)} is not among the top {k} of your library")
+            def run():
+                self.last_peek = self.peek(k)
+                out = []
+                for b in (bottom or []):
+                    if word == "scry":
+                        self.bottom(b, from_top=True)
+                    else:
+                        c_ = next(c for c in self.library[::-1][:k] if c["name"].lower() == b.lower())
+                        self.library.remove(c_); self.graveyard.append(c_)
+                    out.append(b)
+                return [f"{src.name}: I {word} {k}" + (f" and put {len(out)} on the {'bottom' if word == 'scry' else 'graveyard'}." if out else " and keep them on top.")]
+            run = run
+        elif e.startswith("search your library for") and re.search(r"basic land card|forest card|plains card|island card|swamp card|mountain card", e):
+            dest = "battlefield" if "onto the battlefield" in e else "hand"
+            tapped = "tapped" in e
+            upto = "up to two" in e
+            want = 2 if upto or "two basic" in e or " card and a " in e else 1
+            picks = list(pick or [])
+            if (len(picks) != want) and not (upto and 1 <= len(picks) <= 2) or not picks:
+                raise IllegalAction(f"name the {want} land card{'s' if want != 1 else ''} to fetch with --pick (e.g. --pick Forest Plains)")
+            types_ok = [t for t in ("forest", "plains", "island", "swamp", "mountain") if f"{t} card" in e]
+            for pk in picks:
+                card_ = next((c for c in self.library if c["name"].lower() == pk.lower()), None)
+                if card_ is None:
+                    raise IllegalAction(f"no '{pk}' in your library")
+                basic = "Basic" in (card_.get("supertypes") or []) and "Land" in card_["types"]
+                typed = any(t in [s.lower() for s in (card_.get("subtypes") or [])] for t in types_ok)
+                if not (basic or typed) or "Land" not in card_["types"]:
+                    raise IllegalAction(f"{pk} is not a card this ability can fetch")
+            if len(set(p_.lower() for p_ in picks)) < len(picks) and len([c for c in self.library if c["name"].lower() == picks[0].lower()]) < len(picks):
+                raise IllegalAction("not enough of that card left in your library")
+            def run():
+                said_ = []
+                for pk in picks:
+                    said_ += self.search_library(pk, to=dest, tapped=tapped)
+                return [f"{src.name}: " + said_[0].replace("I search my library for", "I fetch", 1)] + said_[1:]
+        elif re.match(r"put a \+1/\+1 counter on this creature", e):
+            run = lambda: (setattr(src, "counters", src.counters + 1), [f"{src.name} gets a +1/+1 counter."])[1]
+        elif re.search(r"^(this creature|" + re.escape(src.name.lower().split(",")[0]) + r"|[\w' ]+) gets \+(\d+)/\+(\d+) until end of turn", e) and not target:
+            mm = re.search(r"gets \+(\d+)/\+(\d+) until end of turn", e)
+            run = lambda: (setattr(src, "temp", (src.temp[0] + int(mm.group(1)), src.temp[1] + int(mm.group(2)))), [f"{src.name} gets +{mm.group(1)}/+{mm.group(2)} until end of turn."])[1]
+        elif re.search(r"target creature gets \+(x|\d+)/\+(x|\d+)", e):
+            if target is None:
+                raise IllegalAction("this ability needs a target creature: --target REF (and --at SEAT if it is not yours)")
+            if not target.is_("Creature"):
+                raise IllegalAction(f"{target.name} is not a creature")
+            mm = re.search(r"target creature gets \+(x|\d+)/\+(x|\d+)", e)
+            bp = extra if mm.group(1) == "x" else int(mm.group(1))
+            bt = extra if mm.group(2) == "x" else int(mm.group(2))
+            def run():
+                target.temp = (target.temp[0] + bp, target.temp[1] + bt)
+                return [f"{src.name}: {target.name} gets +{bp}/+{bt} until end of turn."]
+        elif "creatures you control have base power and toughness x/x" in e:
+            def run():
+                for c_ in self.battlefield:
+                    if c_.is_("Creature"):
+                        c_.base_override = (int(x), int(x))
+                return [f"{src.name}: my creatures are {int(x)}/{int(x)} until end of turn."]
+        if run is None:
+            raise IllegalAction(f"the table can't run this ability yet ({eff[:80]}): nothing was paid. "
+                                f"Use `say` to tell the table what you do, or ask the host")
+        if tap:
+            src.tapped = True                              # so the payment below cannot use the source as a mana source
+        pay = self.plan_payment(mana, extra) if mana else []
+        if pay is None:
+            src.tapped = False
+            raise IllegalAction(f"can't pay {mana}{f' + {extra}' if extra else ''} "
+                                f"(untapped sources: {', '.join(p.name for p, _ in self.sources()) or 'none'})")
+        for pm in {id(x_): x_ for x_ in pay}.values():
+            pm.tapped = True
+        said = [f"{src.name}: I activate it" + (f" with X={x}" if mana.count("{X}") else "") + "."]
+        if sac:
+            said += self.move(f"#{src.id}", "graveyard")
+        return said + run()
+
+    for f in (hand_card, perm, abilities, clear_until_eot, activate, begin_turn, upkeep, manual_land, manual_cast, manual_attack, attack_triggers,
               combat_damage, move, search_library, make_token, make_tokens, discard, mill, peek, topdeck, bottom,
               shuffle_library, mulligan, put, blink, cast_face_down, manifest, turn_up):
         setattr(cls, f.__name__, f)
