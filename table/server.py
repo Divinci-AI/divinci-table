@@ -485,7 +485,7 @@ def passes_needed() -> list[str]:
 
 
 HUMAN_PASS_SECS = max(0.0, float(args.human_pass_secs))   # see --human-pass-secs
-AI_PASS_TIMEOUT = 30.0                             # an AI that never answers is passed for (logged), never a freeze
+AI_PASS_TIMEOUT = float(os.environ.get("TABLE_AI_PASS_SECS") or 30.0)   # an AI that never answers is passed for (logged), never a freeze; a model player thinks longer than 30 s, so the dogfood harness raises it
 
 
 def passes_state() -> dict:

@@ -72,6 +72,8 @@ def req(method, path, body=None, brain=True):
     headers = {"Content-Type": "application/json", "User-Agent": "tablectl/1.0 (divinci-table pilot client)"}
     if ROOM:
         headers["Cookie"] = f"room={ROOM}"
+    if os.environ.get("TABLE_FORWARD_FOR"):            # test harness: look like a remote device (what the cloud Worker adds), so the seat guard and a pilot's rules apply even on 127.0.0.1
+        headers["X-Forwarded-For"] = os.environ["TABLE_FORWARD_FOR"]
     if brain:
         if SEAT_KEY_FILE:                              # a pilot seat in a cloud room: its own key, never the host's token
             headers["X-Seat-Key"] = Path(SEAT_KEY_FILE).read_text().strip()
