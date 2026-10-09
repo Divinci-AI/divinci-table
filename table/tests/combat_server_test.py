@@ -52,6 +52,16 @@ def perm(S, seat, name):
     return next(p for p in S.state(seat)["permanents"] if p["name"].startswith(name))
 
 
+def onto_battlefield(S, seat, name):
+    """The host puts a card from the seat's deck onto its battlefield: from the library, or from the hand when the shuffle
+    (unseeded: --fair-seed off) already dealt it there. Returns that permanent."""
+    c, r = S.host_brain(seat, "search", name=name, to="battlefield")
+    if c != 200:
+        c, r = S.host_brain(seat, "put", name=name)
+    assert c == 200, (name, c, r)
+    return [p for p in S.state(seat)["permanents"] if p["name"] == name][-1]
+
+
 def main():
     with Server() as S:
         S.claim_all()
@@ -133,8 +143,7 @@ def main():
         check("a pass in your own turn names who moves it on, not 'waiting on None'", c == 409 and "None" not in str(r.get("error")), (c, r))
 
         print("effects the engine does not model: only when the source card says so")
-        c, r = S.host_brain("Claude", "search", name="Ransom Note", to="battlefield")
-        note = perm(S, "Claude", "Ransom Note")
+        note = onto_battlefield(S, "Claude", "Ransom Note")
         lib0, gy0 = S.state("Claude")["library"], len(S.state("Claude")["graveyard"])
         c, r = S.brain("Claude", "effect", source=f"#{note['id']}", kind="surveil", put="graveyard")
         st = S.state("Claude")
@@ -150,11 +159,9 @@ def main():
         check("a source that is not on your battlefield is refused", c == 400, (c, r))
 
         print("activated abilities through the pilot's own key")
-        c0, r0 = S.host_brain("Claude", "search", name="Mirror Entity", to="battlefield")
-        assert c0 == 200, (c0, r0)
+        me_ = onto_battlefield(S, "Claude", "Mirror Entity")
         for _ in range(3):
-            S.host_brain("Claude", "search", name="Forest", to="battlefield")
-        me_ = perm(S, "Claude", "Mirror Entity")
+            onto_battlefield(S, "Claude", "Forest")
         c, r = S.brain("Claude", "activate", source=f"#{me_['id']}", x=9)
         check("Mirror Entity X=9 with three Forests: refused, with the reason", c == 400 and "can't pay" in str(r.get("error")), (c, r.get("error")))
         c, r = S.brain("Claude", "activate", source=f"#{me_['id']}", x=2)
@@ -162,6 +169,24 @@ def main():
         check("Mirror Entity X=2: every creature Claude controls is 2/2", c == 200 and pts and all(x == "2/2" for x in pts), (c, r.get("error"), pts))
         c, r = S.brain("Claude", "activate", source=f"#{me_['id']}", x=2)
         check("…and a second activation with no mana left is refused", c == 400, (c, r.get("error")))
+
+        print("a modal ability: the pilot names the mode")
+        for land in ("Mountain", "Plains"):
+            onto_battlefield(S, "Claude", land)
+        st0 = S.state("Claude")
+        c, r = S.brain("Claude", "activate", source=f"#{note['id']}")
+        check("Ransom Note with no mode: refused, the modes listed", c == 400 and "--mode" in str(r.get("error")) and "2: Draw" in str(r.get("error")), (c, r))
+        c, r = S.brain("Claude", "activate", source=f"#{note['id']}", mode="draw")
+        check("…a mode that is not a number is refused (not a server error)", c == 400 and "number" in str(r.get("error")), (c, r))
+        c, r = S.brain("Claude", "activate", source=f"#{note['id']}", mode=1)
+        st1 = S.state("Claude")
+        check("…the goad mode is refused before paying: Ransom Note stays, nothing tapped",
+              c == 400 and "nothing was paid" in str(r.get("error")) and any(p["id"] == note["id"] for p in st1["permanents"])
+              and sum(p["tapped"] for p in st1["permanents"]) == sum(p["tapped"] for p in st0["permanents"]), (c, r.get("error")))
+        c, r = S.brain("Claude", "activate", source=f"#{note['id']}", mode=2)
+        st2 = S.state("Claude")
+        check("…mode 2 draws a card and sacrifices Ransom Note", c == 200 and len(st2["hand"]) == len(st0["hand"]) + 1
+              and not any(p["id"] == note["id"] for p in st2["permanents"]) and "Ransom Note" in st2["graveyard"], (c, r.get("error")))
 
         print("a remote pilot reaches its own journal and nobody else's")
         c, r = S.call("GET", "/api/journal/due?seat=Claude", key=S.claim("Claude"))
@@ -186,6 +211,114 @@ def main():
         time.sleep(1.5)
         c, r = go(S2, "Fusion", "begin")
         check("…and the second player does draw (eight cards)", c == 200 and len(S2.state("Fusion")["hand"]) == 8, (c, len(S2.state("Fusion")["hand"])))
+
+    print("a cost that sacrifices ANOTHER permanent: the pilot names it (--sac)")
+    nyx = ["--ai", "Nyx|Captain N'ghathrod|", "--ai-deck", str(G.REPO / "decks/nghathrod.json"), "--pilot", "Nyx"]
+    with Server(order="Claude,Fusion,Nyx", humans=False, extra=nyx) as S4:
+        S4.claim_all()
+        S4.claim("Nyx")
+        S4.start_game()
+        strider = onto_battlefield(S4, "Nyx", "Woe Strider")
+        c, r = S4.host_brain("Nyx", "token", name="Goat", power=0, toughness=1)
+        assert c == 200, (c, r)
+        goat = perm(S4, "Nyx", "Goat")
+        c, r = S4.host_brain("Claude", "token", name="Bear", power=2, toughness=2)
+        bear = perm(S4, "Claude", "Bear")
+        lib0 = S4.state("Nyx")["library"]
+        c, r = S4.brain("Nyx", "activate", source=f"#{strider['id']}")
+        check("Woe Strider with no --sac: refused, and the Goat is offered", c == 400 and f"#{goat['id']}" in str(r.get("error")), (c, r))
+        c, r = S4.brain("Nyx", "activate", source=f"#{strider['id']}", sac=f"#{bear['id']}")
+        check("…Claude's Bear is not Nyx's to sacrifice: refused, and the Bear is still on Claude's board",
+              c == 400 and any(p["id"] == bear["id"] for p in S4.state("Claude")["permanents"]), (c, r))
+        c, r = S4.brain("Nyx", "activate", source=f"#{strider['id']}", sac=f"#{strider['id']}")
+        check("…nor Woe Strider itself ('another')", c == 400 and "ANOTHER" in str(r.get("error")), (c, r))
+        c, r = S4.brain("Nyx", "activate", source=f"#{strider['id']}", sac=f"#{goat['id']}")
+        st = S4.state("Nyx")
+        check("…--sac the Goat: the Goat is gone, Woe Strider stays, and Nyx privately sees the card it scried",
+              c == 200 and not any(p["id"] == goat["id"] for p in st["permanents"]) and any(p["id"] == strider["id"] for p in st["permanents"])
+              and r.get("private", {}).get("top") and st["library"] == lib0, (c, r.get("error"), r.get("private")))
+
+    print("a bounce land: the pilot chooses which land returns (--bounce)")
+    with Server(order="Claude,Fusion", humans=False) as S5:
+        S5.claim_all()
+        S5.start_game()
+        c, r = S5.host_brain("Claude", "search", name="Gruul Turf")                 # into the hand (or it is there already)
+        assert c == 200 or "Gruul Turf" in [h["name"] for h in S5.state("Claude")["hand"]], (c, r)
+        forest = onto_battlefield(S5, "Claude", "Forest")
+        mountain = onto_battlefield(S5, "Claude", "Mountain")
+        c, r = go(S5, "Claude", "begin")
+        assert c == 200, (c, r)
+        c, r = S5.brain("Claude", "land", name="Gruul Turf")
+        st = S5.state("Claude")
+        check("Gruul Turf with no --bounce: refused, the lands it could return listed, nothing played",
+              c == 400 and f"#{forest['id']}" in str(r.get("error")) and not st["land_played"]
+              and "Gruul Turf" in [h["name"] for h in st["hand"]], (c, r))
+        S5.host_brain("Claude", "token", name="Bear", power=2, toughness=2)
+        c, r = S5.brain("Claude", "land", name="Gruul Turf", bounce=f"#{perm(S5, 'Claude', 'Bear')['id']}")
+        check("…a permanent of Claude's that is not a land is refused", c == 400 and "is not one" in str(r.get("error"))
+              and not S5.state("Claude")["land_played"], (c, r))
+        fusion_land = onto_battlefield(S5, "Fusion", "Forest")
+        c, r = S5.brain("Claude", "land", name="Gruul Turf", bounce=f"#{fusion_land['id']}")
+        check("…so is Fusion's land", c == 400 and not S5.state("Claude")["land_played"], (c, r))
+        mountains0 = [h["name"] for h in S5.state("Claude")["hand"]].count("Mountain")
+        c, r = S5.brain("Claude", "land", name="Gruul Turf", bounce=f"#{mountain['id']}")
+        st = S5.state("Claude")
+        check("…--bounce the Mountain: Gruul Turf is played, the Mountain is back in hand, the Forest stays",
+              c == 200 and st["land_played"] and not any(p["id"] == mountain["id"] for p in st["permanents"])
+              and any(p["id"] == forest["id"] for p in st["permanents"])
+              and [h["name"] for h in st["hand"]].count("Mountain") == mountains0 + 1, (c, r))
+
+    print("the step the phase reports through a pilot's combat (dogfood run 2, Opus finding 11)")
+    with Server(order="Claude,Fusion", humans=False) as S6:
+        S6.claim_all()
+        S6.start_game()
+        for name, p_, t_ in (("Bear", 3, 3), ("Wolf", 2, 2), ("Imp", 1, 1)):
+            S6.host_brain("Claude", "token", name=name, power=p_, toughness=t_)
+        S6.host_brain("Fusion", "token", name="Guard", power=1, toughness=4)
+        step = lambda: S6.phase()["step"]                                    # noqa: E731
+        c, r = go(S6, "Claude", "begin")
+        check("after begin: main 1", c == 200 and step() == "main 1", (c, step()))
+        bear, wolf, imp = (perm(S6, "Claude", n) for n in ("Bear", "Wolf", "Imp"))
+        life0 = S6.state("Fusion")["life"]
+        c, r = go(S6, "Claude", "attack", assign={f"#{bear['id']}": "Fusion"})
+        check("after attack: declare attackers", c == 200 and step() == "declare attackers", (c, step()))
+        c, r = S6.brain("Fusion", "block")
+        life1 = S6.state("Fusion")["life"]
+        check("Fusion takes it: the 3 is dealt now…", c == 200 and life1 == life0 - 3, (c, life0, life1))
+        check("…so the phase no longer says 'declare attackers': it is at combat damage", step() == "combat damage", step())
+        c, r = go(S6, "Claude", "damage")
+        check("after Claude's damage: still combat damage, nothing dealt twice", c == 200 and step() == "combat damage"
+              and S6.state("Fusion")["life"] == life1, (c, step(), S6.state("Fusion")["life"]))
+        c, r = go(S6, "Claude", "end")
+        evs = S6.call("GET", "/api/events?since=0")[1].get("events", [])
+        walked = [e.get("step") for e in evs if e.get("type") == "phase" and e.get("player") == "Claude"]
+        check("after end: the turn is over (cleanup, then the next seat)", c == 200 and (step() == "cleanup" or S6.phase()["player"] == "Fusion"),
+              (c, step()))
+        order_ = ["main 1", "beginning of combat", "declare attackers", "declare blockers", "combat damage", "main 2", "end step"]
+        check("…and `end` did not skip: the log has each of Claude's steps once, in order, through main 2 and the end step",
+              [s for s in walked if s in order_] == order_, walked)
+
+    with Server(order="Claude,Fusion", humans=False) as S7:                                     # two attackers: blocks come one at a time
+        S7.claim_all()
+        S7.start_game()
+        for name, p_, t_ in (("Bear", 3, 3), ("Wolf", 2, 2)):
+            S7.host_brain("Claude", "token", name=name, power=p_, toughness=t_)
+        S7.host_brain("Fusion", "token", name="Guard", power=1, toughness=4)
+        step = lambda: S7.phase()["step"]                                    # noqa: E731
+        go(S7, "Claude", "begin")
+        bear, wolf = (perm(S7, "Claude", n) for n in ("Bear", "Wolf"))
+        guard = perm(S7, "Fusion", "Guard")
+        c, r = go(S7, "Claude", "attack", assign={f"#{bear['id']}": "Fusion", f"#{wolf['id']}": "Fusion"})
+        check("two attackers: declare attackers", c == 200 and step() == "declare attackers", (c, step()))
+        c, r = S7.brain("Fusion", "block", blocker=f"#{guard['id']}", attacker=f"#{bear['id']}")
+        check("one blocked, one still unanswered: declare blockers", c == 200 and step() == "declare blockers", (c, r.get("error"), step()))
+        c, r = S7.brain("Fusion", "block", attacker=f"#{wolf['id']}")
+        check("both answered (damage dealt): combat damage", c == 200 and step() == "combat damage", (c, r.get("error"), step()))
+        life_a = S7.state("Fusion")["life"]
+        c, r = go(S7, "Claude", "end")
+        time.sleep(1.5)
+        check("Claude ends without its own damage: nothing more is dealt, the turn passes to Fusion",
+              S7.state("Fusion")["life"] == life_a and S7.phase()["player"] == "Fusion", (S7.state("Fusion")["life"], life_a, S7.phase()["player"]))
 
     os.environ["TABLE_AI_PASS_SECS"] = "3"                                         # a silent seat: the clock is short here
     with Server(order="Claude,Fusion", humans=False) as S3:

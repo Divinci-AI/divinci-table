@@ -333,5 +333,73 @@ check(len(cl) == before + 1 and cl[-1].ward2, "cloak: the top card face down wit
 import fair
 check(json.loads(json.dumps(k.public())) and all(c.name not in json.dumps(k.public()) for c in cl), "cloaked card's name isn't public")
 
+print("\n16. Bounce lands: the player chooses what returns (dogfood run 2, Gruul Turf and Azorius Chancery)")
+from player import IllegalAction  # noqa: E402
+
+
+def karoo_board(n_lands=2):
+    """Kaust's deck, Gruul Turf in hand, and n basic lands (one Forest tapped) on the battlefield."""
+    g = VirtualPlayer(str(DECK.parent / "kaust.json"), "Opus", seed=3)
+    g.library += g.hand
+    g.hand = []
+    for nm in ("Gruul Turf", "Mountain"):
+        c_ = next(c for c in g.library if c["name"] == nm)
+        g.library.remove(c_)
+        g.hand.append(c_)
+    ls = []
+    for nm in ("Forest", "Mountain", "Plains")[:n_lands]:
+        c_ = next(c for c in g.library if c["name"] == nm)
+        g.library.remove(c_)
+        ls.append(Perm(c_, sick=False, tapped=nm == "Forest"))
+        g.battlefield.append(ls[-1])
+    return g, ls
+
+
+def refused(fn, word):
+    try:
+        fn()
+    except IllegalAction as e:
+        return word in str(e), str(e)
+    return False, "no refusal"
+
+
+g, (forest, mountain) = karoo_board()
+hand0, bf0 = [c["name"] for c in g.hand], list(g.battlefield)
+r = refused(lambda: g.manual_land("Gruul Turf"), "--bounce")
+check(r[0] and f"#{forest.id}" in r[1] and f"#{mountain.id}" in r[1], f"Gruul Turf with two other lands and no choice: refused, both offered ({r[1][:90]})")
+check([c["name"] for c in g.hand] == hand0 and g.battlefield == bf0 and not g.land_played, "…nothing was played (hand, battlefield, land drop unchanged)")
+kaust_ = Perm(g.commander, sick=False)
+g.battlefield.append(kaust_)
+r = refused(lambda: g.manual_land("Gruul Turf", bounce=f"#{kaust_.id}"), "is not one")
+check(r[0] and not g.land_played, "…naming a creature (Kaust) is refused: not a land, nothing played")
+g.battlefield.remove(kaust_)
+other, (their_forest,) = karoo_board(1)
+r = refused(lambda: g.manual_land("Gruul Turf", bounce=f"#{their_forest.id}"), "on your battlefield")
+check(r[0] and not g.land_played, "…another player's land is refused")
+said = g.manual_land("Gruul Turf", bounce=f"#{mountain.id}")
+check(mountain not in g.battlefield and [c["name"] for c in g.hand].count("Mountain") == 2 and forest in g.battlefield
+      and any(p.name == "Gruul Turf" and p.tapped for p in g.battlefield),
+      f"--bounce the untapped Mountain: it returns, the tapped Forest the old default would have picked stays ({said})")
+check(any("returns Mountain" in s for s in said), "…and the table hears which land returned")
+
+g2, (f2,) = karoo_board(1)
+g2.battlefield.remove(f2)
+said = g2.manual_land("Gruul Turf")
+check(not any(p.name == "Gruul Turf" for p in g2.battlefield) and "Gruul Turf" in [c["name"] for c in g2.hand],
+      f"no other land: with no choice given it returns itself ({said})")
+g3, (f3, m3) = karoo_board()
+said = g3.manual_land("Gruul Turf", bounce="self")
+check(not any(p.name == "Gruul Turf" for p in g3.battlefield) and f3 in g3.battlefield and m3 in g3.battlefield,
+      "--bounce self: the bounce land returns itself, the other lands stay")
+g4, (f4, m4) = karoo_board()
+wg = Perm(next(c for c in g4.library if c["name"] == "Wild Growth"), sick=False, attached_to=f4.id)
+g4.battlefield.append(wg)
+g4.manual_land("Gruul Turf", bounce="Forest")
+check(f4 not in g4.battlefield and wg not in g4.battlefield and "Wild Growth" in [c["name"] for c in g4.graveyard],
+      "--bounce the Forest with Wild Growth on it: the Aura falls off to the graveyard")
+g5, _ = karoo_board()
+r = refused(lambda: g5.manual_land("Mountain", bounce="Forest"), "returns no land")
+check(r[0] and not g5.land_played, "--bounce with a land that is not a bounce land is refused")
+
 print(f"\n{sum(results)}/{len(results)} engine checks passed")
 sys.exit(0 if all(results) else 1)

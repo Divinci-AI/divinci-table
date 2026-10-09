@@ -718,6 +718,23 @@ def _match(name: str, candidates, key):
     return None
 
 
+CARD_TYPES = ("creature", "artifact", "land", "enchantment", "planeswalker", "battle")
+
+
+def _sacrifice_fits(p: Perm, what: str) -> bool:
+    """Is this permanent what a "Sacrifice a/another <what>" cost asks for? A card type (creature, artifact…), 'permanent', or
+    a subtype (Spirit, Goblin…). A face-down permanent is a nameless 2/2 creature with no subtypes. A token made by the
+    table carries only its name ("Spirit token"), so a subtype also matches a token named after it."""
+    w = what.lower()
+    if w == "permanent":
+        return True
+    types = ["Creature"] if p.face_down else p.types
+    if w in CARD_TYPES:
+        return w.capitalize() in types
+    subs = [] if p.face_down else [s.lower() for s in (p.card.get("subtypes") or [])]
+    return w in subs or (p.token and not p.face_down and p.name.lower().split(" ")[0] == w)
+
+
 def _manual(cls):
     def hand_card(self, name):
         c = _match(name, self.hand, lambda c: c["name"])
@@ -771,25 +788,42 @@ def _manual(cls):
                     self.todo.append(msg)
         return said
 
-    def manual_land(self, name):
+    def manual_land(self, name, bounce=None):
+        """Play a land from the hand. A bounce land (Azorius Chancery, Gruul Turf: "When this land enters, return a land you
+        control to its owner's hand") returns the land the caller names with `bounce` ('#id' or name of a land on its own
+        battlefield, or 'self' for the bounce land itself). With no other land it returns itself; with others and no choice,
+        it is refused — before the land is played."""
         c = self.hand_card(name)
         if "Land" not in c["types"]:
             raise IllegalAction(f"{c['name']} is not a land")
         if self.land_played:
             raise IllegalAction("you already played a land this turn")
+        karoo = "return a land you control to its owner's hand" in (c.get("text") or "")
+        pick, itself = None, False
+        if karoo:
+            others = [p for p in self.battlefield if p.is_("Land") and not p.face_down]
+            b = str(bounce).strip() if bounce not in (None, "") else ""
+            if b.lower() in ("self", "itself", "this") or (b and b.lower() == c["name"].lower()
+                                                           and not any(p.name.lower() == b.lower() for p in others)):
+                itself = True
+            elif b:
+                pick = self.perm(b)                         # refused unless it is on the caller's own battlefield
+                if pick not in others:
+                    raise IllegalAction(f"{c['name']} returns a LAND you control: #{pick.id} {self.shown(pick)} is not one ("
+                                        + ", ".join(f"#{p.id} {p.name}" for p in others) + f", or 'self'). Nothing was played")
+            elif others:
+                raise IllegalAction(f"{c['name']} returns a land you control to your hand: say which with --bounce REF ("
+                                    + ", ".join(f"#{p.id} {p.name}" + (" (tapped)" if p.tapped else "") for p in others)
+                                    + f", or 'self' for {c['name']} itself). Nothing was played")
+            else:
+                itself = True                               # the only land it can return is itself
+        elif bounce not in (None, ""):
+            raise IllegalAction(f"{c['name']} returns no land: leave out --bounce")
         said = [self.play_land(c)]
-        if "return a land you control to its owner's hand" in (c.get("text") or ""):
-            # bounce lands (Simic Growth Chamber & co.): another land back to hand — a tapped basic first,
-            # then any basic, then any other land; with no other land, it returns itself
-            this = next((p for p in reversed(self.battlefield) if p.card is c), None)
-            others = [p for p in self.battlefield if p.is_("Land") and p is not this]
-            basic = lambda p: "Basic" in (p.card.get("supertypes") or [])
-            pick = (next((p for p in others if basic(p) and p.tapped), None) or next((p for p in others if basic(p)), None)
-                    or (others[0] if others else this))
-            if pick is not None:
-                self.battlefield.remove(pick)
-                self.hand.append(pick.card)
-                said.append(f"{c['name']} returns {pick.name} to my hand.")
+        if karoo:
+            back = next(p for p in reversed(self.battlefield) if p.card is c) if itself else pick
+            self.move(f"#{back.id}", "hand")                # Auras on it (Wild Growth) fall off, as with any bounce
+            said.append(f"{c['name']} returns {'itself' if itself else back.name} to my hand.")
         return said
 
     def manual_cast(self, name, on=None, role_on=None, modes=None, targets=None, commander=False, x=0, discount=0,
@@ -1187,48 +1221,96 @@ def _manual(cls):
     # ── activated abilities: the table checks the cost and runs the ones it understands ──
     ACT_LINE = re.compile(r"^((?:(?:\{[^}]+\})+|Sacrifice [^:,]+)(?:, ?(?:(?:\{[^}]+\})+|Sacrifice [^:,]+))*): (.+)$")
 
-    def abilities(self, p):
-        """The non-mana activated abilities in a permanent's text: [(cost, effect)]."""
+    def ability_list(self, p):
+        """The non-mana activated abilities in a permanent's text: [(cost, effect, modes)]. A modal one ("{2}, Sacrifice this
+        artifact: Choose one —") has its modes on the "• ..." lines that follow it; modes is [] for any other."""
         out = []
-        for line in ("" if p.face_down else (p.card.get("text") or "")).split("\n"):
+        lines = ("" if p.face_down else (p.card.get("text") or "")).split("\n")
+        for i, line in enumerate(lines):
             m = ACT_LINE.match(line.strip())
             if m and "Add {" not in line and "add {" not in line and "Add one mana" not in line:
-                out.append((m.group(1), m.group(2)))
+                modes = []
+                if re.match(r"choose one\b", m.group(2).strip(), re.I):
+                    for nxt in lines[i + 1:]:
+                        if not nxt.strip().startswith("•"):
+                            break
+                        modes.append(nxt.strip().lstrip("•").strip())
+                out.append((m.group(1), m.group(2), modes))
         return out
+
+    def abilities(self, p):
+        """The non-mana activated abilities in a permanent's text: [(cost, effect)]."""
+        return [(c, e) for c, e, _ in self.ability_list(p)]
 
     def clear_until_eot(self):
         for p in self.battlefield:
             p.temp, p.base_override = (0, 0), None
 
-    def activate(self, ref, x=0, index=None, target=None, pick=None, put=None, bottom=None):
+    def activate(self, ref, x=0, index=None, target=None, pick=None, put=None, bottom=None, mode=None, sac_ref=None):
         """Pay and run one activated ability of a permanent. Everything is checked BEFORE anything is paid: an ability the table
-        cannot run yet is refused whole, never half-done. `target` is a Perm (the caller resolved it, any seat's)."""
+        cannot run yet is refused whole, never half-done. `target` is a Perm (the caller resolved it, any seat's).
+        `mode`: for a modal ability ("Choose one —"), which of its modes (0-based, in the card's order).
+        `sac_ref`: for a cost that sacrifices ANOTHER permanent ("Sacrifice another creature", "Sacrifice a Spirit"), which one
+        ('#id' or name, on this player's own battlefield, of the type the cost names)."""
         src = self.perm(ref)
         if src.face_down:
             raise IllegalAction("a face-down permanent has no abilities: turn it face up first")
-        abs_ = self.abilities(src)
+        abs_ = self.ability_list(src)
         if not abs_:
             raise IllegalAction(f"{src.name} has no activated ability the table knows (its text: {(src.card.get('text') or '')[:140]})")
         if index is None:
             if len(abs_) > 1:
                 raise IllegalAction(f"{src.name} has {len(abs_)} abilities: say which with --index 0..{len(abs_) - 1}: "
-                                    + " | ".join(f"{i}: {c}: {e[:50]}" for i, (c, e) in enumerate(abs_)))
+                                    + " | ".join(f"{i}: {c}: {e[:50]}" for i, (c, e, _) in enumerate(abs_)))
             index = 0
         if not 0 <= index < len(abs_):
             raise IllegalAction(f"{src.name} has abilities 0..{len(abs_) - 1}")
-        cost, eff = abs_[index]
+        cost, eff, modes = abs_[index]
+        if modes:
+            if mode is None:
+                raise IllegalAction(f"{src.name}: choose one — say which with --mode 0..{len(modes) - 1}: "
+                                    + " | ".join(f"{i}: {m_}" for i, m_ in enumerate(modes)))
+            if not 0 <= int(mode) < len(modes):
+                raise IllegalAction(f"{src.name} has modes 0..{len(modes) - 1}: "
+                                    + " | ".join(f"{i}: {m_}" for i, m_ in enumerate(modes)))
+            eff = modes[int(mode)]
+        elif mode is not None:
+            raise IllegalAction(f"{src.name}'s ability is not modal ({eff[:60]}): leave out --mode")
         parts = [c.strip() for c in re.split(r",\s*(?![^{]*\})", cost)]
         tap = sac = False
         mana = ""
+        sac_req = None                                     # ("another" or "", what): "Sacrifice another creature", "Sacrifice a Spirit"
         for c in parts:
             if c == "{T}":
                 tap = True
             elif re.fullmatch(r"Sacrifice (this \w+|CARDNAME|" + re.escape(src.name) + ")", c, re.I):
                 sac = True
+            elif re.fullmatch(r"Sacrifice (?:(another)|a|an|one) ([A-Za-z'-]+)", c, re.I):
+                mm_ = re.fullmatch(r"Sacrifice (?:(another)|a|an|one) ([A-Za-z'-]+)", c, re.I)
+                sac_req = (bool(mm_.group(1)), mm_.group(2))
             elif re.fullmatch(r"(\{[^}]+\})+", c):
                 mana += c
             else:
-                raise IllegalAction(f"the table can't pay '{c}' yet (sacrificing another permanent, life, discarding)")
+                raise IllegalAction(f"the table can't pay '{c}' yet (life, discarding, more than one permanent)")
+        victim = None
+        if sac_req:
+            another, what = sac_req
+            art = "an" if what[0].lower() in "aeiou" else "a"
+            a_ = "another" if another else art
+            fits = [p_ for p_ in self.battlefield if _sacrifice_fits(p_, what) and not (another and p_ is src)]
+            if not sac_ref:
+                raise IllegalAction(f"{src.name}'s cost sacrifices {a_} {what}: say which with --sac REF ("
+                                    + (", ".join(f"#{p_.id} {self.shown(p_)}" for p_ in fits) or f"you have no {what} to sacrifice")
+                                    + "). Nothing was paid")
+            victim = self.perm(str(sac_ref))               # yours: a permanent on someone else's battlefield is "not on your battlefield"
+            if another and victim is src:
+                raise IllegalAction(f"{src.name} says ANOTHER {what}: it can't sacrifice itself for this")
+            if not _sacrifice_fits(victim, what):
+                raise IllegalAction(f"#{victim.id} {self.shown(victim)} is not {art} {what}: "
+                                    + (f"you can sacrifice {', '.join(f'#{p_.id} {self.shown(p_)}' for p_ in fits)}" if fits
+                                       else f"you have no {what} to sacrifice") + ". Nothing was paid")
+        elif sac_ref:
+            raise IllegalAction(f"{src.name}'s cost sacrifices no other permanent: leave out --sac")
         if tap and src.tapped:
             raise IllegalAction(f"{src.name} is tapped")
         if tap and src.is_("Creature") and src.sick and "Haste" not in (src.card.get("keywords") or []):
@@ -1304,6 +1386,11 @@ def _manual(cls):
                     if c_.is_("Creature"):
                         c_.base_override = (int(x), int(x))
                 return [f"{src.name}: my creatures are {int(x)}/{int(x)} until end of turn."]
+        elif re.match(r"(cloak|manifest) the top card of your library\.?$", e):
+            word_ = re.match(r"(cloak|manifest)", e).group(1)
+            if not self.library:
+                raise IllegalAction(f"your library is empty: there is nothing to {word_}")
+            run = lambda: [f"{src.name}: " + s for s in self.manifest(1, cloak=word_ == "cloak")]
         if run is None:
             raise IllegalAction(f"the table can't run this ability yet ({eff[:80]}): nothing was paid. "
                                 f"Use `say` to tell the table what you do, or ask the host")
@@ -1316,12 +1403,16 @@ def _manual(cls):
                                 f"(untapped sources: {', '.join(p.name for p, _ in self.sources()) or 'none'})")
         for pm in {id(x_): x_ for x_ in pay}.values():
             pm.tapped = True
-        said = [f"{src.name}: I activate it" + (f" with X={x}" if mana.count("{X}") else "") + "."]
+        said = [f"{src.name}: I activate it" + (f" with X={x}" if mana.count("{X}") else "")
+                + (f", choosing: {eff.rstrip('.')}" if modes else "") + "."]
+        if victim is not None:
+            self.move(f"#{victim.id}", "graveyard")
+            said.append(f"I sacrifice {self.shown(victim)}" + (" (a token: it's gone)." if victim.token else "."))
         if sac:
             said += self.move(f"#{src.id}", "graveyard")
         return said + run()
 
-    for f in (hand_card, perm, abilities, clear_until_eot, activate, begin_turn, upkeep, manual_land, manual_cast, manual_attack, attack_triggers,
+    for f in (hand_card, perm, ability_list, abilities, clear_until_eot, activate, begin_turn, upkeep, manual_land, manual_cast, manual_attack, attack_triggers,
               combat_damage, move, search_library, make_token, make_tokens, discard, mill, peek, topdeck, bottom,
               shuffle_library, mulligan, put, blink, cast_face_down, manifest, turn_up):
         setattr(cls, f.__name__, f)

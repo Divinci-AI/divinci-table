@@ -103,6 +103,9 @@ def act(action, **body):
     if SEAT:
         body["seat"] = SEAT
     payload = {k: v for k, v in body.items() if v not in (None, [], False)}
+    for k in ("index", "mode"):                         # 0 is a real choice here (`v not in (..., False)` drops it: 0 == False)
+        if type(body.get(k)) is int:
+            payload[k] = body[k]
     d = req("POST", f"/api/brain/{action}", payload)
     if d.get("waiting"):                                 # my turn walks its steps: wait for the others' passes
         print(f"…waiting on passes: {d['waiting']}", flush=True)
@@ -269,6 +272,8 @@ def main():
     s = sub.add_parser("say"); s.add_argument("text"); s.add_argument("--force", action="store_true")
     sub.add_parser("begin").add_argument("--quiet", action="store_true")
     x = sub.add_parser("land"); x.add_argument("name"); x.add_argument("--quiet", action="store_true")
+    x.add_argument("--bounce", help="a bounce land (Azorius Chancery, Gruul Turf): which land of yours it returns to your hand "
+                                    "(#id or name; 'self' for the bounce land itself)")
     c = sub.add_parser("cast"); c.add_argument("name"); c.add_argument("--on"); c.add_argument("--role-on")
     c.add_argument("--mode", action="append", type=int); c.add_argument("--targets"); c.add_argument("--x", type=int, default=0)
     c.add_argument("--discount", type=int, default=0, help="generic cost reduction you know applies")
@@ -286,8 +291,10 @@ def main():
     dm.add_argument("hits", nargs="*", help="optional for a remote seat: the table deals blocked and unblocked damage itself")
     dm.add_argument("--no-life", action="store_true", help="triggers only: the players already said their life")
     ac = sub.add_parser("activate", help="pay and run an activated ability of a permanent (cost checked; abilities the table can't run are refused before anything is paid): "
-                                         "activate SOURCE [--index N] [--x X] [--target REF [--at SEAT]] [--pick LAND ...] [--bottom CARD ...]")
+                                         "activate SOURCE [--index N] [--mode N] [--sac REF] [--x X] [--target REF [--at SEAT]] [--pick LAND ...] [--bottom CARD ...]")
+    ac.add_argument("--sac", help="a cost that sacrifices ANOTHER permanent ('Sacrifice another creature', 'Sacrifice a Spirit'): which one of yours (#id or name)")
     ac.add_argument("source"); ac.add_argument("--index", type=int); ac.add_argument("--x", type=int, default=0)
+    ac.add_argument("--mode", type=int, help="a modal ability ('Choose one —'): which mode, 0-based in the card's order (a refusal lists them)")
     ac.add_argument("--target"); ac.add_argument("--at"); ac.add_argument("--pick", nargs="*"); ac.add_argument("--bottom", nargs="*")
     ef = sub.add_parser("effect", help="a trigger/ability the table does not model, allowed only when the SOURCE card's text says it: "
                                        "effect SOURCE draw|surveil|scry|manifest|destroy|exile|bounce [--n N] [--put top|bottom|graveyard] [--target REF --at SEAT]")
@@ -370,7 +377,7 @@ def main():
     if a.cmd == "begin":
         return act("begin", quiet=q)
     if a.cmd == "land":
-        return act("land", name=a.name, quiet=q)
+        return act("land", name=a.name, bounce=a.bounce, quiet=q)
     if a.cmd == "cast":
         if a.face_down:
             return act("cast", name=a.name, face_down=True)
@@ -390,7 +397,8 @@ def main():
             hits[ref] = [who, int(n) if n else None]
         return act("damage", hits=hits, no_life=a.no_life)
     if a.cmd == "activate":
-        return act("activate", source=a.source, index=a.index, x=a.x, target=a.target, at=a.at, pick=a.pick, bottom=a.bottom)
+        return act("activate", source=a.source, index=a.index, mode=a.mode, sac=a.sac, x=a.x, target=a.target, at=a.at,
+                   pick=a.pick, bottom=a.bottom)
     if a.cmd == "effect":
         return act("effect", source=a.source, kind=a.kind, n=a.n, put=a.put, target=a.target, at=a.at)
     if a.cmd == "role":

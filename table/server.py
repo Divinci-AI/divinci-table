@@ -731,6 +731,23 @@ def combat_flush(attacker_seat: str | None = None):
             COMBAT["hits"].append({"attacker": e["attacker"], "ref": e["ref"], "defender": d.name, "amount": life0 - d.life})
 
 
+def combat_step_after_block(attacker_seat: str):
+    """A pilot's block resolves its attacker's damage at once (resolve_block), so the attacker's turn must not go on saying
+    'declare attackers' (dogfood run 2: damage was applied while the phase still read declare attackers). After a block:
+    declare blockers while some of that attacker's creatures are still unanswered, combat damage once none is. Only ever
+    forward, only inside combat, only on the attacker's own turn. PHASE_LOCK is the caller's."""
+    if PHASE["player"] != attacker_seat:
+        return
+    lo, mid, hi = (STEPS.index(s) for s in ("declare attackers", "declare blockers", "combat damage"))
+    if not lo <= PHASE["step"] < hi:
+        return
+    goal = mid if any(e["attacker"] == attacker_seat for e in COMBAT["pending"]) else hi
+    while PHASE["step"] < goal:
+        PRIORITY.update(waiting=[], seats=[])
+        PHASE["step"] += 1
+        emit("phase", player=attacker_seat, step=STEPS[PHASE["step"]], index=PHASE["step"], by="block")
+
+
 def combat_incoming(seat_name: str) -> list:
     return [{"attacker": e["attacker"], "creature": e["name"], "ref": e.get("ref"), "power": e["power"], "trample": e["trample"]}
             for e in COMBAT["pending"] if e["defender"] == seat_name]
@@ -3304,7 +3321,7 @@ class H(BaseHTTPRequestHandler):
                     said, drew = VP.begin_turn(skip_draw=on_the_play)
                     private["drew"] = drew
                 elif action == "land":
-                    said = VP.manual_land(b["name"])
+                    said = VP.manual_land(b["name"], bounce=b.get("bounce"))
                 elif action == "cast" and b.get("face_down"):
                     said = VP.cast_face_down(b["name"])
                 elif action == "turn-up":
@@ -3350,6 +3367,8 @@ class H(BaseHTTPRequestHandler):
                         COMBAT["hits"].append({"attacker": entry["attacker"], "ref": entry["ref"], "defender": VP.name,
                                                "amount": life0 - VP.life})
                     forget_dead(res)
+                    if entry is not None:                            # blocks and damage are one event here: the step says so
+                        combat_step_after_block(entry["attacker"])
                     if entry is not None and entry.get("ref") and res.get("attacker_died") and entry["attacker"] in VPS:
                         with VP_LOCK:                                 # the attacker that died to the block leaves ITS owner's board
                             try:
@@ -3401,9 +3420,17 @@ class H(BaseHTTPRequestHandler):
                         if owner is None:
                             raise IllegalAction(f"no seat '{b.get('at')}'")
                         tgt = VPS[owner].perm(str(b["target"]))
+                    mode = b.get("mode")
+                    if mode not in (None, ""):
+                        if not str(mode).strip().isdigit():
+                            raise IllegalAction("mode is the number of the mode (0, 1, 2…), as the refusal lists them")
+                        mode = int(str(mode).strip())
+                    else:
+                        mode = None
                     said = VP.activate(str(b.get("source", "")), x=int(b.get("x") or 0),
                                        index=None if b.get("index") in (None, "") else int(b["index"]), target=tgt,
-                                       pick=b.get("pick"), put=b.get("put"), bottom=b.get("bottom"))
+                                       pick=b.get("pick"), put=b.get("put"), bottom=b.get("bottom"), mode=mode,
+                                       sac_ref=str(b["sac"]) if b.get("sac") not in (None, "") else None)
                     if getattr(VP, "last_peek", None):
                         private["top"], VP.last_peek = VP.last_peek, None
                 elif action == "effect":                  # a trigger or ability the engine does not model: allowed only when the SOURCE card says so
