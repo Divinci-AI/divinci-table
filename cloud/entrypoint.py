@@ -52,7 +52,8 @@ for h in cfg.get("humans", []):
     args += ["--human", h if "|" in h else f"{h}|"]
 if cfg.get("order"):
     args += ["--order", cfg["order"]]
-env = dict(os.environ, TABLE_CLOUD="1", NO_GEMMA="1", ROUTER="code", REPLIES="code")
+env = dict(os.environ, TABLE_CLOUD="1", NO_GEMMA="1", ROUTER="code", REPLIES="code",
+           TABLE_AI_PASS_SECS=os.environ.get("TABLE_AI_PASS_SECS", "120"))   # a virtual-deck seat (a person on /hand, or a model) thinks for longer than 30 s
 if os.environ.get("OPENMIC_ROOM") == "1":            # the Worker turned on the Clef-judged open mic for this room
     env.update(OPENMIC_V2="1", OPENMIC_BACKEND="room")
 procs = [subprocess.Popen(args, cwd=ROOT, env=env)]
