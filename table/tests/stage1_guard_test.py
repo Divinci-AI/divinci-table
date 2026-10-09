@@ -308,12 +308,20 @@ def item4():
     with Server() as S:                                        # Claude (a pilot) goes first
         S.claim_all()
         S.start_game()
+        for seat in ("Claude", "Fusion"):                       # the opening hand is random: the host may draw until there is a land to work with (the host's token keeps `draw`)
+            for _ in range(30):
+                if any(h.get("land") for h in S.state(seat)["hand"]):
+                    break
+                S.host_brain(seat, "draw", n=1)
         lands = [h["name"] for h in S.state("Claude")["hand"] if h.get("land")]
         flands = [h["name"] for h in S.state("Fusion")["hand"] if h.get("land")]
         check("(both pilots hold a land to work with)", bool(lands) and bool(flands), (lands, flands))
-        S.brain("Claude", "land", name=lands[0])
-        S.brain("Fusion", "land", name=flands[0])
+        c1, d1 = S.brain("Claude", "land", name=lands[0])
+        c2, d2 = S.brain("Fusion", "land", name=flands[0])
         cl, fl = perm_of(S, "Claude", lands[0]), perm_of(S, "Fusion", flands[0])
+        check("(both lands were played onto the battlefield)", bool(cl) and bool(fl), (c1, str(d1)[:120], c2, str(d2)[:120]))
+        if not (cl and fl):
+            return
         c, d = S.brain("Claude", "tap", ref="#%d" % cl["id"])
         check("tap is legal (Claude taps its land at its own untap step)", c == 200 and perm_of(S, "Claude", lands[0])["tapped"], (c, d))
         c, d = S.brain("Claude", "untap", ref="#%d" % cl["id"])
