@@ -3401,9 +3401,16 @@ class H(BaseHTTPRequestHandler):
                         if owner is None:
                             raise IllegalAction(f"no seat '{b.get('at')}'")
                         tgt = VPS[owner].perm(str(b["target"]))
+                    mode = b.get("mode")
+                    if mode not in (None, ""):
+                        if not str(mode).strip().isdigit():
+                            raise IllegalAction("mode is the number of the mode (0, 1, 2…), as the refusal lists them")
+                        mode = int(str(mode).strip())
+                    else:
+                        mode = None
                     said = VP.activate(str(b.get("source", "")), x=int(b.get("x") or 0),
                                        index=None if b.get("index") in (None, "") else int(b["index"]), target=tgt,
-                                       pick=b.get("pick"), put=b.get("put"), bottom=b.get("bottom"))
+                                       pick=b.get("pick"), put=b.get("put"), bottom=b.get("bottom"), mode=mode)
                     if getattr(VP, "last_peek", None):
                         private["top"], VP.last_peek = VP.last_peek, None
                 elif action == "effect":                  # a trigger or ability the engine does not model: allowed only when the SOURCE card says so

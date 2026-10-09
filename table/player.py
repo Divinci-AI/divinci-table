@@ -1187,36 +1187,59 @@ def _manual(cls):
     # ── activated abilities: the table checks the cost and runs the ones it understands ──
     ACT_LINE = re.compile(r"^((?:(?:\{[^}]+\})+|Sacrifice [^:,]+)(?:, ?(?:(?:\{[^}]+\})+|Sacrifice [^:,]+))*): (.+)$")
 
-    def abilities(self, p):
-        """The non-mana activated abilities in a permanent's text: [(cost, effect)]."""
+    def ability_list(self, p):
+        """The non-mana activated abilities in a permanent's text: [(cost, effect, modes)]. A modal one ("{2}, Sacrifice this
+        artifact: Choose one —") has its modes on the "• ..." lines that follow it; modes is [] for any other."""
         out = []
-        for line in ("" if p.face_down else (p.card.get("text") or "")).split("\n"):
+        lines = ("" if p.face_down else (p.card.get("text") or "")).split("\n")
+        for i, line in enumerate(lines):
             m = ACT_LINE.match(line.strip())
             if m and "Add {" not in line and "add {" not in line and "Add one mana" not in line:
-                out.append((m.group(1), m.group(2)))
+                modes = []
+                if re.match(r"choose one\b", m.group(2).strip(), re.I):
+                    for nxt in lines[i + 1:]:
+                        if not nxt.strip().startswith("•"):
+                            break
+                        modes.append(nxt.strip().lstrip("•").strip())
+                out.append((m.group(1), m.group(2), modes))
         return out
+
+    def abilities(self, p):
+        """The non-mana activated abilities in a permanent's text: [(cost, effect)]."""
+        return [(c, e) for c, e, _ in self.ability_list(p)]
 
     def clear_until_eot(self):
         for p in self.battlefield:
             p.temp, p.base_override = (0, 0), None
 
-    def activate(self, ref, x=0, index=None, target=None, pick=None, put=None, bottom=None):
+    def activate(self, ref, x=0, index=None, target=None, pick=None, put=None, bottom=None, mode=None):
         """Pay and run one activated ability of a permanent. Everything is checked BEFORE anything is paid: an ability the table
-        cannot run yet is refused whole, never half-done. `target` is a Perm (the caller resolved it, any seat's)."""
+        cannot run yet is refused whole, never half-done. `target` is a Perm (the caller resolved it, any seat's).
+        `mode`: for a modal ability ("Choose one —"), which of its modes (0-based, in the card's order)."""
         src = self.perm(ref)
         if src.face_down:
             raise IllegalAction("a face-down permanent has no abilities: turn it face up first")
-        abs_ = self.abilities(src)
+        abs_ = self.ability_list(src)
         if not abs_:
             raise IllegalAction(f"{src.name} has no activated ability the table knows (its text: {(src.card.get('text') or '')[:140]})")
         if index is None:
             if len(abs_) > 1:
                 raise IllegalAction(f"{src.name} has {len(abs_)} abilities: say which with --index 0..{len(abs_) - 1}: "
-                                    + " | ".join(f"{i}: {c}: {e[:50]}" for i, (c, e) in enumerate(abs_)))
+                                    + " | ".join(f"{i}: {c}: {e[:50]}" for i, (c, e, _) in enumerate(abs_)))
             index = 0
         if not 0 <= index < len(abs_):
             raise IllegalAction(f"{src.name} has abilities 0..{len(abs_) - 1}")
-        cost, eff = abs_[index]
+        cost, eff, modes = abs_[index]
+        if modes:
+            if mode is None:
+                raise IllegalAction(f"{src.name}: choose one — say which with --mode 0..{len(modes) - 1}: "
+                                    + " | ".join(f"{i}: {m_}" for i, m_ in enumerate(modes)))
+            if not 0 <= int(mode) < len(modes):
+                raise IllegalAction(f"{src.name} has modes 0..{len(modes) - 1}: "
+                                    + " | ".join(f"{i}: {m_}" for i, m_ in enumerate(modes)))
+            eff = modes[int(mode)]
+        elif mode is not None:
+            raise IllegalAction(f"{src.name}'s ability is not modal ({eff[:60]}): leave out --mode")
         parts = [c.strip() for c in re.split(r",\s*(?![^{]*\})", cost)]
         tap = sac = False
         mana = ""
@@ -1304,6 +1327,11 @@ def _manual(cls):
                     if c_.is_("Creature"):
                         c_.base_override = (int(x), int(x))
                 return [f"{src.name}: my creatures are {int(x)}/{int(x)} until end of turn."]
+        elif re.match(r"(cloak|manifest) the top card of your library\.?$", e):
+            word_ = re.match(r"(cloak|manifest)", e).group(1)
+            if not self.library:
+                raise IllegalAction(f"your library is empty: there is nothing to {word_}")
+            run = lambda: [f"{src.name}: " + s for s in self.manifest(1, cloak=word_ == "cloak")]
         if run is None:
             raise IllegalAction(f"the table can't run this ability yet ({eff[:80]}): nothing was paid. "
                                 f"Use `say` to tell the table what you do, or ask the host")
@@ -1316,12 +1344,13 @@ def _manual(cls):
                                 f"(untapped sources: {', '.join(p.name for p, _ in self.sources()) or 'none'})")
         for pm in {id(x_): x_ for x_ in pay}.values():
             pm.tapped = True
-        said = [f"{src.name}: I activate it" + (f" with X={x}" if mana.count("{X}") else "") + "."]
+        said = [f"{src.name}: I activate it" + (f" with X={x}" if mana.count("{X}") else "")
+                + (f", choosing: {eff.rstrip('.')}" if modes else "") + "."]
         if sac:
             said += self.move(f"#{src.id}", "graveyard")
         return said + run()
 
-    for f in (hand_card, perm, abilities, clear_until_eot, activate, begin_turn, upkeep, manual_land, manual_cast, manual_attack, attack_triggers,
+    for f in (hand_card, perm, ability_list, abilities, clear_until_eot, activate, begin_turn, upkeep, manual_land, manual_cast, manual_attack, attack_triggers,
               combat_damage, move, search_library, make_token, make_tokens, discard, mill, peek, topdeck, bottom,
               shuffle_library, mulligan, put, blink, cast_face_down, manifest, turn_up):
         setattr(cls, f.__name__, f)

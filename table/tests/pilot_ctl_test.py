@@ -29,7 +29,34 @@ def check(name, cond, detail=""):
         FAILED.append(name)
 
 
+def sent(*argv):
+    """What tablectl puts in the request body for these arguments (in-process, the request is captured, nothing is sent)."""
+    sys.path.insert(0, str(TABLE))
+    import tablectl
+    got = []
+    real, old_argv = tablectl.req, sys.argv
+    tablectl.req = lambda method, path, body=None, brain=True: (got.append((path, body)), {"said": [], "public": {}})[1]
+    sys.argv = ["tablectl.py", *argv]
+    try:
+        import contextlib
+        import io
+        with contextlib.redirect_stdout(io.StringIO()):
+            tablectl.main()
+    finally:
+        tablectl.req, sys.argv = real, old_argv
+    return got[-1] if got else (None, None)
+
+
+def payload_checks():
+    path, body = sent("activate", "Ransom Note", "--mode", "0", "--index", "0")
+    check("tablectl activate --mode 0 --index 0 sends mode 0 and index 0 (0 is a choice, not 'unset')",
+          path == "/api/brain/activate" and body.get("mode") == 0 and body.get("index") == 0, body)
+    path, body = sent("activate", "Ransom Note", "--mode", "2")
+    check("…--mode 2 sends 2, and no index when none was given", body.get("mode") == 2 and "index" not in body, body)
+
+
 def main():
+    payload_checks()
     tmp = Path(tempfile.mkdtemp(prefix="pilot-test-"))
     cmd = [sys.executable, str(TABLE / "server.py"), "--any-card", "--port", str(PORT), "--brain", "external",
            "--token-file", str(tmp / "token"), "--ai", "Claude|Kaust, Eyes of the Glade|", "--ai-deck", str(REPO / "decks/kaust.json"),

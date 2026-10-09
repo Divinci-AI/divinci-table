@@ -95,8 +95,56 @@ r = refuses(lambda: k3.activate("Mirror Entity"), "no permanent")
 check(r[0], "an ability of a permanent you do not have is refused")
 op = fresh("kaust.json")
 put(op, "Ransom Note")
-r = refuses(lambda: op.activate("Ransom Note"), "can't run this ability yet")
-check(r[0] and "nothing was paid" in r[1], "an ability the table cannot run (a modal one) is refused with 'nothing was paid'")
+r = refuses(lambda: op.activate("Ransom Note", mode=1), "can't run this ability yet")
+check(r[0] and "nothing was paid" in r[1], "an ability the table cannot run (Ransom Note's goad mode) is refused with 'nothing was paid'")
+
+# ── modal abilities: Ransom Note "{2}, Sacrifice this artifact: Choose one — • Cloak … • Goad … • Draw a card." ──
+def note_board():
+    p = fresh("kaust.json")
+    n_ = put(p, "Ransom Note")
+    lands(p, 2, "Forest")
+    return p, n_
+
+
+def untouched(p, n_):
+    return n_ in p.battlefield and not any(x.tapped for x in p.battlefield) and not p.graveyard
+
+
+rn, note = note_board()
+r = refuses(lambda: rn.activate("Ransom Note"), "--mode")
+check(r[0] and all(w in r[1] for w in ("0: Cloak", "1: Goad", "2: Draw")), f"no mode named: refused, listing the three modes ({r[1][:90]})")
+check(untouched(rn, note), "…nothing was paid: Ransom Note is still there and no land is tapped")
+r = refuses(lambda: rn.activate("Ransom Note", mode=1), "nothing was paid")
+check(r[0] and untouched(rn, note), "the goad mode (not modelled) is refused before anything is paid")
+r = refuses(lambda: rn.activate("Ransom Note", mode=3), "modes 0..2")
+check(r[0] and untouched(rn, note), "a mode the card does not have is refused")
+h0, lib0 = len(rn.hand), len(rn.library)
+said = rn.activate("Ransom Note", mode=2)
+check(len(rn.hand) == h0 + 1 and len(rn.library) == lib0 - 1, f"mode 2, draw a card: one card drawn ({said})")
+check(note not in rn.battlefield and any(c["name"] == "Ransom Note" for c in rn.graveyard), "…Ransom Note was sacrificed to the graveyard")
+check(sum(x.tapped for x in rn.battlefield if x.name == "Forest") == 2, "…and it cost {2}")
+check(any("Draw a card" in s for s in said), "…and the table hears which mode was chosen")
+rc, note2 = note_board()
+lib0 = len(rc.library)
+said = rc.activate("Ransom Note", mode=0)
+fd = [x for x in rc.battlefield if x.face_down]
+check(len(fd) == 1 and fd[0].how == "cloak" and fd[0].ward2 and len(rc.library) == lib0 - 1,
+      f"mode 0, cloak: the top card is a face-down 2/2 with ward 2 ({said})")
+check(note2 not in rc.battlefield, "…and Ransom Note is gone")
+rp, note3 = note_board()
+rp.library = []
+r = refuses(lambda: rp.activate("Ransom Note", mode=0), "library is empty")
+check(r[0] and untouched(rp, note3), "cloak with an empty library is refused before paying")
+rr = fresh("kaust.json")
+put(rr, "Ransom Note")
+lands(rr, 1, "Forest")
+r = refuses(lambda: rr.activate("Ransom Note", mode=2), "can't pay")
+check(r[0] and any(x.name == "Ransom Note" for x in rr.battlefield), "one land for {2}: refused, and Ransom Note is not sacrificed")
+ms = fresh("aminatou.json")
+put(ms, "Mind Stone")
+lands(ms, 1, "Island")
+r = refuses(lambda: ms.activate("Mind Stone", mode=0), "not modal")
+check(r[0] and any(x.name == "Mind Stone" for x in ms.battlefield), "--mode on an ability that is not modal is refused")
 
 # ── Aminatou's deck: a draw and a scry, and the tap/sacrifice costs ──
 a = fresh("aminatou.json")

@@ -170,6 +170,24 @@ def main():
         c, r = S.brain("Claude", "activate", source=f"#{me_['id']}", x=2)
         check("…and a second activation with no mana left is refused", c == 400, (c, r.get("error")))
 
+        print("a modal ability: the pilot names the mode")
+        for land in ("Mountain", "Plains"):
+            onto_battlefield(S, "Claude", land)
+        st0 = S.state("Claude")
+        c, r = S.brain("Claude", "activate", source=f"#{note['id']}")
+        check("Ransom Note with no mode: refused, the modes listed", c == 400 and "--mode" in str(r.get("error")) and "2: Draw" in str(r.get("error")), (c, r))
+        c, r = S.brain("Claude", "activate", source=f"#{note['id']}", mode="draw")
+        check("…a mode that is not a number is refused (not a server error)", c == 400 and "number" in str(r.get("error")), (c, r))
+        c, r = S.brain("Claude", "activate", source=f"#{note['id']}", mode=1)
+        st1 = S.state("Claude")
+        check("…the goad mode is refused before paying: Ransom Note stays, nothing tapped",
+              c == 400 and "nothing was paid" in str(r.get("error")) and any(p["id"] == note["id"] for p in st1["permanents"])
+              and sum(p["tapped"] for p in st1["permanents"]) == sum(p["tapped"] for p in st0["permanents"]), (c, r.get("error")))
+        c, r = S.brain("Claude", "activate", source=f"#{note['id']}", mode=2)
+        st2 = S.state("Claude")
+        check("…mode 2 draws a card and sacrifices Ransom Note", c == 200 and len(st2["hand"]) == len(st0["hand"]) + 1
+              and not any(p["id"] == note["id"] for p in st2["permanents"]) and "Ransom Note" in st2["graveyard"], (c, r.get("error")))
+
         print("a remote pilot reaches its own journal and nobody else's")
         c, r = S.call("GET", "/api/journal/due?seat=Claude", key=S.claim("Claude"))
         check("journal-due for your own seat answers from a remote device", c == 200 and "due" in r, (c, r))

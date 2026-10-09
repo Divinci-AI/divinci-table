@@ -103,6 +103,9 @@ def act(action, **body):
     if SEAT:
         body["seat"] = SEAT
     payload = {k: v for k, v in body.items() if v not in (None, [], False)}
+    for k in ("index", "mode"):                         # 0 is a real choice here (`v not in (..., False)` drops it: 0 == False)
+        if type(body.get(k)) is int:
+            payload[k] = body[k]
     d = req("POST", f"/api/brain/{action}", payload)
     if d.get("waiting"):                                 # my turn walks its steps: wait for the others' passes
         print(f"…waiting on passes: {d['waiting']}", flush=True)
@@ -286,8 +289,9 @@ def main():
     dm.add_argument("hits", nargs="*", help="optional for a remote seat: the table deals blocked and unblocked damage itself")
     dm.add_argument("--no-life", action="store_true", help="triggers only: the players already said their life")
     ac = sub.add_parser("activate", help="pay and run an activated ability of a permanent (cost checked; abilities the table can't run are refused before anything is paid): "
-                                         "activate SOURCE [--index N] [--x X] [--target REF [--at SEAT]] [--pick LAND ...] [--bottom CARD ...]")
+                                         "activate SOURCE [--index N] [--mode N] [--x X] [--target REF [--at SEAT]] [--pick LAND ...] [--bottom CARD ...]")
     ac.add_argument("source"); ac.add_argument("--index", type=int); ac.add_argument("--x", type=int, default=0)
+    ac.add_argument("--mode", type=int, help="a modal ability ('Choose one —'): which mode, 0-based in the card's order (a refusal lists them)")
     ac.add_argument("--target"); ac.add_argument("--at"); ac.add_argument("--pick", nargs="*"); ac.add_argument("--bottom", nargs="*")
     ef = sub.add_parser("effect", help="a trigger/ability the table does not model, allowed only when the SOURCE card's text says it: "
                                        "effect SOURCE draw|surveil|scry|manifest|destroy|exile|bounce [--n N] [--put top|bottom|graveyard] [--target REF --at SEAT]")
@@ -390,7 +394,8 @@ def main():
             hits[ref] = [who, int(n) if n else None]
         return act("damage", hits=hits, no_life=a.no_life)
     if a.cmd == "activate":
-        return act("activate", source=a.source, index=a.index, x=a.x, target=a.target, at=a.at, pick=a.pick, bottom=a.bottom)
+        return act("activate", source=a.source, index=a.index, mode=a.mode, x=a.x, target=a.target, at=a.at, pick=a.pick,
+                   bottom=a.bottom)
     if a.cmd == "effect":
         return act("effect", source=a.source, kind=a.kind, n=a.n, put=a.put, target=a.target, at=a.at)
     if a.cmd == "role":
