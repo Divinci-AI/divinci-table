@@ -52,6 +52,16 @@ def perm(S, seat, name):
     return next(p for p in S.state(seat)["permanents"] if p["name"].startswith(name))
 
 
+def onto_battlefield(S, seat, name):
+    """The host puts a card from the seat's deck onto its battlefield: from the library, or from the hand when the shuffle
+    (unseeded: --fair-seed off) already dealt it there. Returns that permanent."""
+    c, r = S.host_brain(seat, "search", name=name, to="battlefield")
+    if c != 200:
+        c, r = S.host_brain(seat, "put", name=name)
+    assert c == 200, (name, c, r)
+    return [p for p in S.state(seat)["permanents"] if p["name"] == name][-1]
+
+
 def main():
     with Server() as S:
         S.claim_all()
@@ -133,8 +143,7 @@ def main():
         check("a pass in your own turn names who moves it on, not 'waiting on None'", c == 409 and "None" not in str(r.get("error")), (c, r))
 
         print("effects the engine does not model: only when the source card says so")
-        c, r = S.host_brain("Claude", "search", name="Ransom Note", to="battlefield")
-        note = perm(S, "Claude", "Ransom Note")
+        note = onto_battlefield(S, "Claude", "Ransom Note")
         lib0, gy0 = S.state("Claude")["library"], len(S.state("Claude")["graveyard"])
         c, r = S.brain("Claude", "effect", source=f"#{note['id']}", kind="surveil", put="graveyard")
         st = S.state("Claude")
@@ -150,11 +159,9 @@ def main():
         check("a source that is not on your battlefield is refused", c == 400, (c, r))
 
         print("activated abilities through the pilot's own key")
-        c0, r0 = S.host_brain("Claude", "search", name="Mirror Entity", to="battlefield")
-        assert c0 == 200, (c0, r0)
+        me_ = onto_battlefield(S, "Claude", "Mirror Entity")
         for _ in range(3):
-            S.host_brain("Claude", "search", name="Forest", to="battlefield")
-        me_ = perm(S, "Claude", "Mirror Entity")
+            onto_battlefield(S, "Claude", "Forest")
         c, r = S.brain("Claude", "activate", source=f"#{me_['id']}", x=9)
         check("Mirror Entity X=9 with three Forests: refused, with the reason", c == 400 and "can't pay" in str(r.get("error")), (c, r.get("error")))
         c, r = S.brain("Claude", "activate", source=f"#{me_['id']}", x=2)
