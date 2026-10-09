@@ -216,6 +216,26 @@ board, power supply or switch.
 5. Clip the leads to the bracket with two **printed lead clips**, leaving a loop of slack between the clip and the
    magnet so the swivel can turn a quarter for a tap; two more along the carriage.
 
+## Step 5b — Bench-test the magnet (before it ever moves a card)
+
+About 20 minutes, **printer's own screen only: no USB, no Mac, nothing under the nozzle, no print running.** Needs the multimeter, a kitchen scale (to the gram), a washer inside a sleeve with a card (as in Step 8) and the spare swivel's magnet
+already wired through its diode (Step 5). **Unplug the printer from the wall before touching any wire**; the 24 V side is low voltage, the mains side is not.
+Write each number in the Results line at the end: they replace guesses that `fit_check.py` and the design currently rest on.
+
+1. **Header voltage (fan unplugged, nothing connected).** Printer on. Multimeter on DC volts across the two pins of the part-fan connector. Set the fan to 100% from the printer's menu (normally under Prepare or Control, fan speed), read it; set it
+   to 0, read it again. Expect about **24 V** at 100% and about 0 V at 0 on the switched side. Measure each pin to the printer's frame as well, to see which one is switched. **Not 24 V (12 V, 5 V, or nothing): stop.** This is not the output we assumed.
+2. **Coil resistance (printer off and unplugged, magnet disconnected).** Measure across the magnet's two leads. Expect roughly **80 to 110 ohms** (24 V at 0.25 A is 96 ohms: derived from the listing, not measured). Near 0 means a short, open means a break: stop.
+3. **Diode.** Stripe (cathode) to **+**, across the coil, insulated. Check with the multimeter's diode range that it conducts one way only.
+4. **Current, with steel on the face.** Connect the magnet to the fan connector with the multimeter in series on the **mA/10 A range** in the + lead. Put a washer or steel plate on the magnet's face *before* switching on: the listing warns that running it unloaded cooks the coil.
+   Fan to 100% for **no more than 15 seconds**, read the current, fan to 0. Expect about **0.25 A**. Compare it with the board's fan output rating (Step 5, item 4); much above 0.5 A: stop.
+5. **Pull on a real card.** Tare the scale with the sleeved card and washer on it. Hold the magnet's face on the card over the washer, fan to 100%, and slowly lift the magnet away: the scale goes negative by the force pulling the card up until it lets go. Write
+   the biggest reading (grams-force). The card and washer weigh about 3.6 g; a carry needs about **13 g** with a safety factor of 3; the design assumed about **300 g (3 N)**. **Under about 40 g: stop** and try the thin steel discs (BOM) instead of a washer. Over 100 g is comfortable.
+6. **Letting go.** Fan to 0: the card should drop at once. If it clings for more than a second, the magnet has residual magnetism (the listing claims none): note it.
+7. **Heat.** Hold a card for **60 seconds** with the magnet, fan to 0, and touch the magnet's body and the swivel. Warm is fine; too hot to hold for 5 seconds: stop and tell me, because it will soften the swivel over a session.
+8. **The cut-off.** Do not let the Mac switch the magnet until the hardware cut-off from Safety first exists (thermal fuse in series with the coil, or the Uno watchdog on the fan line). The software timer cannot help if the cable is pulled.
+
+**Results (fill in):** header ___ V at 100%, ___ V at 0 | coil ___ ohms | current ___ A | pull ___ g (card + washer) | release ___ | body temperature after 60 s ___ | date ___
+
 ## Step 6 — USB: make it safe, then connect
 
 1. Read the version printed on the control board. v4.5.3 has Creality's fix; v4.5.2 and earlier are affected.

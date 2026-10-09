@@ -525,7 +525,7 @@ const MAGNET_STEPS = [
   { title: "Two more clips along the carriage", ref: "Step 5, item 5", intro: ["clipC", "clipD"], focus: ["clipC", "clipD"], cam: [[-35, 25 + YB, 52], 260, [0.2, 1, 0.5]],
     text: "Two more printed lead clips go along the carriage, so the wire follows the head without snagging." },
   { title: "Done: wire it up", ref: "Steps 5-6", intro: [], noDims: true, focus: ["magnet", "swivel", "angle", "wing", "wire", "carriage"], cam: [[-10, 0, 50], 420, [0.9, -1.2, 0.5]],
-    text: "Next: connect the leads to the part-fan output (the leads end here, headed for the fan connector), put a 1N4007 diode across them (striped end to +), and do the USB safety checks in Step 6 before the printer's cable touches the Mac." },
+    text: "Before the Mac ever switches the magnet, run the bench test (README Step 5b): header voltage, coil resistance, current, and how many grams it really pulls on a sleeved card. Next: connect the leads to the part-fan output (the leads end here, headed for the fan connector), put a 1N4007 diode across them (striped end to +), and do the USB safety checks in Step 6 before the printer's cable touches the Mac." },
 ];
 const stepIdx = prefix => { const i = MAGNET_STEPS.findIndex(st => st.title.startsWith(prefix)); if (i < 0) console.error("manual: no step starts with", prefix); return i; };   // the animation is tied to a step by its title, so adding a step cannot shift it
 let STEPS = MAGNET_STEPS;
