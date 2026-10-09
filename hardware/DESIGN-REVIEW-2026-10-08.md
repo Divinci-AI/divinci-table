@@ -64,3 +64,19 @@ Open risks (nothing here is proven physically):
 3. **Landing accuracy.** A toppled card lands within a few mm at best; the design relies on rails and a re-pick of the washer to register it. Static, two stuck cards, and cards bent from long storage are not modelled.
 
 Collisions and reach pass (the head swept along the path clears the fence, deck box, rack, chute and bed, also grown 1 mm; the negative controls fail as they should).
+
+
+## Swivel plug: first print failed, v3 after an Opus 5.5 review (2026-10-09)
+
+The bolt can slide back out of the swivel along the open side it went in by; nothing but spring preload held it. A T-shaped plug closes it (`parts/swivel_plug_lib.scad`). **v1** (three fits, two crush ribs on the neck) would not go into the printed swivel:
+the digital sweep had left the ribs out, so it could not see the bind. **v2** removed the ribs and added five fits. The Opus review of v2 found: (1) a press fit alone cannot hold it (a knock moves it outward and nothing pushes it back), (2) the uncertain
+axis is Z, not Y (the ceiling over the channel is two unsupported ledges that droop; the channel faces sit on layer mid-planes) and the grades scaled Z with Y, (3) the insertion sweep only tested the seated position, (4) a missing STL read as "no collision",
+(5) the "sliver" rule used a bounding box, (6) the ear overhung and was the weakest feature, (7) the 0.9 mm grade pits would not print legibly, (8) the plate's rows were too close.
+
+**v3 fixes:** Z clearance fixed at about 0.3 per side with faces on 0.2 mm layer boundaries and only the Y width graded (0.30 / 0.22 / 0.15 / 0.08 / 0.00); a 0.6 mm relief chamfer under the ledges, a 0.4 mm chamfer under the base, a 0.5 mm lead-in; the handle is a full-height block
+that prints from the bed up; the grade is 1-5 vertical notches in the handle's outer face; the neck reaches in to x = 3.5 beside the thread (it centres the bolt, and the neck is split so its inner part sits above the bolt head: the check caught my first version
+touching the head); a **1.9 mm pin hole** through the plug and a matching blind hole in the swivel's channel floor take a 1.75 mm filament pin: that is the lock. `fit_check.py` now sweeps the whole insertion path, models the droop, checks the pin, has a control that an
+oversized plug does NOT fit, fails on a missing file, and judges collisions by overlap volume.
+
+**Not done / still open:** printed holes are an estimate (about 0.3 mm small in total; no calipers yet); whether grades 3-4 grip well enough for the pin to be a backup rather than the only lock; the ear/handle clearance inside the hinged head (section 6 models the swivel as a plain
+cylinder); the magnet's leads (if they leave the back face the swivel's solid floor has no notch for them); threadlocker on the M3 screw (re-snugging it later means taking the plug and bolt out).

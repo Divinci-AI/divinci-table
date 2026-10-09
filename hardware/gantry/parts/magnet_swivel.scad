@@ -6,6 +6,7 @@
 // Assembly: drop the M3 x 6 screw in through the top hole, screw it down into the magnet's M3 thread
 // (screwdriver through the top hole), then slide the bolt, head first and thread up, in from the side: the hex channel takes the
 // head and the keyhole slot in the ceiling takes the thread.
+// A swivel plug closes the open side after the bolt is in (swivel_plug_lib.scad); a blind pin hole in the channel's floor takes its pin.
 // Print: 100% infill, upright (top hole up), PLA+. Units: mm.
 
 body_d      = 24;      // a little over the magnet's 20 mm
@@ -39,4 +40,6 @@ difference() {
     // ceiling to reach the round hole (found 2026-10-08 on the first printed swivel). The head (12.8 mm across the corners)
     // is still wider than the slot, so the ceiling holds it down.
     translate([0, -top_hole / 2, floor_t + m3_head_h]) cube([body_d, top_hole, h]);
+    // A blind pilot hole in the channel's floor for the swivel plug's 1.75 mm filament pin (swivel_plug_lib.scad pin_x / pin_d). Optional: a swivel printed without it can be drilled through the plug.
+    translate([9.8, 0, floor_t + m3_head_h - 3.3]) cylinder(d = 1.9, h = 3.4, $fn = 24);
 }

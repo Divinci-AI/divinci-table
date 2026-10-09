@@ -1,6 +1,5 @@
-// Ten plugs for one small plate (v2): two each of five grades, fit 0.45 (1 pit, loosest) .. 0.05 (5 pits, tightest). Print, try them in a swivel,
-// keep the grade that goes in with a firm push and stays put when you tilt the swivel.
+// Ten plugs for one plate (v3): two each of five widths, fy = 0.30 (1 notch, loosest) .. 0.00 (5 notches, tightest). Z clearance is the same on all. Print, try them in a swivel,
+// keep the one that goes in with a firm push, then pin it (README Step 4).
 include <swivel_plug_lib.scad>
-grades = [0.45, 0.35, 0.25, 0.15, 0.05];
-for (i = [0 : 4], j = [0 : 1])
-    translate([i * 18, j * 14, 0]) translate([-(head_corner + plug_gap), 0, -(z0 + grades[i])]) plug(grades[i], false, i + 1);
+grades = [0.30, 0.22, 0.15, 0.08, 0.00];
+for (i = [0 : 4], j = [0 : 1]) translate([i * 17, j * 18, 0]) translate([-xn, 0, -zb0]) plug(grades[i], i + 1);

@@ -297,37 +297,47 @@ report("FAIL" if fh else "ok", "after release, the card can fall without landing
        f"the head is on the face the card is turning toward: the card meets it at {fh} deg of its 180; the head must retreat BEFORE or AS the card falls, along the face normal and clear of the card's arc" if fh else "clear", id="flip-release-clearance")
 report("ok" if fall_hit(shift_y=-150.0) is None else "FAIL", "negative control: a head 150 mm away from the falling card is not hit", "" if fall_hit(shift_y=-150.0) is None else "the check always fires, so it means nothing")
 
-# 7.3 the swivel plug (parts/swivel_plug_lib.scad): it must slide in the way the bolt did, close the side the bolt would escape by, and stay clear of the bolt
-PLUG_LIB = HERE / "parts" / "swivel_plug_lib.scad"; SWIVEL = STL / "magnet_swivel.stl"; GRADES = {"1 (0.45, loosest)": 0.45, "2 (0.35)": 0.35, "3 (0.25)": 0.25, "4 (0.15)": 0.15, "5 (0.05, tightest)": 0.05}
-def plug_hits(fit, d=0.0, ribs=False):
-    return collides(f'include <{PLUG_LIB}>\nintersection(){{ import("{SWIVEL}"); translate([{d},0,0]) plug({fit}, {str(ribs).lower()}); }}')
+# 7.3 the swivel plug (parts/swivel_plug_lib.scad, v3): it must slide in the way the bolt did (the WHOLE path, not just the seated end), close the side the bolt would escape by, clear the bolt, and take its pin
+PLUG_LIB = HERE / "parts" / "swivel_plug_lib.scad"; SWIVEL = STL / "magnet_swivel.stl"
+xo = 12.0; lip = 2.2; zt = 15.0                      # the lib's handle (swivel_plug_lib.scad); only used in a message here
+GRADES = {"1 (fy 0.30, loosest)": 0.30, "2 (fy 0.22)": 0.22, "3 (fy 0.15)": 0.15, "4 (fy 0.08)": 0.08, "5 (fy 0.00, tightest)": 0.00}
+SHIFTS = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 8, 12]            # how far the plug is out along +X; its inner end clears the body only past ~5.5
+GROW_Z_TOP, GROW_Z_BOT = 0.2, 0.1       # the ceiling over the channel is two unsupported ledges that droop (0.2), and the floor's layer rounds up (0.1): the channel is that much shorter
+def plug_hits(fy, d=0.0, gzt=0.0, gzb=0.0):
+    return collides(f'include <{PLUG_LIB}>\nintersection(){{ import("{SWIVEL}"); translate([{d},0,0]) plug({fy}, 0, {gzt}, {gzb}); }}')
 if PLUG_LIB.exists():
-    for name, fit in GRADES.items():
-        bad = [d for d in (24, 18, 12, 6, 0) if plug_hits(fit, d)]                          # nominal swivel
-        bad_g = [d for d in (24, 18, 12, 6, 0) if plug_hits(fit - GROW / 2, d)]    # printed holes ~GROW small in total: GROW/2 per wall (touching faces have no volume, so exact zero clearance is not a collision)
+    for name, fy in GRADES.items():
+        bad = [d for d in SHIFTS if plug_hits(fy, d)]                                                 # the nominal swivel
+        bad_g = [d for d in SHIFTS if plug_hits(fy - GROW / 2, d, GROW_Z_TOP, GROW_Z_BOT)]            # holes ~GROW small in total (GROW/2 per wall) and the Z error above
         if bad: report("FAIL", f"swivel plug {name}: slides into the swivel from +X (nominal)", f"collides at x shift {bad}", id=f"plug-insert-{name[0]}")
-        elif bad_g and fit >= 0.25: report("FAIL", f"swivel plug {name}: still slides in when the holes print {GROW:g} mm small", f"collides at x shift {bad_g}", id=f"plug-insert-grown-{name[0]}")
-        else: report("ok", f"swivel plug {name}: slides in (nominal" + ("" if bad_g else " and holes printed 0.3 small") + ")", "" if not bad_g else "when the holes print 0.3 small it binds: a tight grade, it will need a push")
-    mid = GRADES["3 (0.25)"]
-    head_hits = [g for g in (0, GROW) if collides(f'include <{PLUG_LIB}>\nintersection(){{ {bolt(0, g)}; plug({mid}, false); }}')]
-    report("FAIL" if head_hits else "ok", "swivel plug (grade 3) does not touch the seated bolt (nominal, and the bolt grown 0.3)", "the plug hits the bolt head" if head_hits else "clear of head and thread", id="plug-vs-bolt")
-    out_free = [x for x in (2, 4, 6, 8, 12, 18) if not collides(f'include <{PLUG_LIB}>\nintersection(){{ {bolt(x, 0)}; plug({mid}, false); }}')]
+        elif bad_g and fy >= 0.22: report("FAIL", f"swivel plug {name}: still slides in when the holes print {GROW:g} mm small and the ledges droop", f"collides at x shift {bad_g}", id=f"plug-insert-grown-{name[0]}")
+        else: report("ok", f"swivel plug {name}: slides in (nominal" + ("" if bad_g else ", and with the holes 0.3 small and the ledges drooped") + ")", "" if not bad_g else "with printed holes 0.3 small it binds: a snug grade, it will need a push")
+    over = plug_hits(-0.5, 0)
+    report("ok" if over else "FAIL", "negative control: a plug 0.5 mm too wide per side does NOT fit the swivel (the insertion sweep can fail)")
+    mid = GRADES["3 (fy 0.15)"]
+    head_hits = [g for g in (0, GROW) if collides(f'include <{PLUG_LIB}>\nintersection(){{ {bolt(0, g)}; plug({mid}); }}')]
+    report("FAIL" if head_hits else "ok", "swivel plug (grade 3) does not touch the seated bolt (nominal, and the bolt grown 0.3)", "the plug hits the bolt head or thread" if head_hits else "clear of head and thread (the neck reaches in beside the thread)", id="plug-vs-bolt")
+    out_free = [x for x in (1, 2, 4, 6, 8, 12, 18) if not collides(f'include <{PLUG_LIB}>\nintersection(){{ {bolt(x, 0)}; plug({mid}); }}')]
     report("FAIL" if out_free else "ok", "with the plug in, the bolt cannot slide out along the keyhole slot",
-           f"the bolt still passes at x={out_free}" if out_free else "blocked from 2 mm on: the head meets the base, the thread meets the neck", id="plug-retains")
-    retained = not out_free
-    # the assembled head: nylon washer (12.7 OD, 6.5 bore, NYLON thick) on top of the swivel and the bracket's leg (BRACKET thick, 1" wide) on that. The plug is flush on top and its ear stands out
-    # past the body, and it TURNS with the swivel (the bolt does) under the bracket: sweep a full turn in 15 degree steps (nominal, and grown 0.3).
+           f"the bolt still passes at x={out_free}" if out_free else "blocked from 1 mm on: the head meets the base (a plain slide, held by the pin and the fit)", id="plug-retains")
+    # the lock: a 1.75 mm filament pin through the plug's hole and into the swivel's floor hole must not touch either (and the hole must really be there)
+    pin = 'translate([9.8, 0, 3.2]) cylinder(d = 1.75, h = 12, $fn = 24);'
+    pin_hits = collides(f'include <{PLUG_LIB}>\nintersection(){{ {pin} union(){{ import("{SWIVEL}"); plug({mid}); }} }}')
+    no_hole = collides(f'include <{PLUG_LIB}>\nintersection(){{ translate([9.8, 0, 5.0]) cylinder(d = 1.75, h = 1.2, $fn = 24); import("{SWIVEL}"); }}')
+    report("FAIL" if (pin_hits or no_hole) else "ok", "the 1.75 mm pin goes down through the plug's hole and into the swivel's floor hole without touching either",
+           ("the pin hits the plug or swivel" if pin_hits else "the swivel has no pilot hole at x=9.8 (re-render parts/stl/magnet_swivel.stl)") if (pin_hits or no_hole) else "clear: plug hole 1.9 mm, floor hole 1.9 mm x 3.3 deep, pin 1.75 mm", id="plug-pin")
+    # the assembled head: nylon washer (12.7 OD, 6.5 bore) on the swivel, the bracket leg (1" wide, hole 1" from its end ON the axis) on that; the plug and its handle TURN with the swivel
     top = SWIVEL_TOP; nyl_z, brk_z = top, top + NYLON
-    def stack_at(bz):                    # ONE union: a bare { A B } inside intersection() is flattened by OpenSCAD into intersect(plug, A, B), which is always empty (found by the negative control)
+    def stack_at(bz):                    # ONE union: a bare { A B } inside intersection() is flattened by OpenSCAD into intersect(plug, A, B), which is always empty (the negative control caught it)
         return (f'union(){{ translate([0,0,{nyl_z}]) difference(){{ cylinder(d=12.7, h={NYLON}, $fn=48); translate([0,0,-1]) cylinder(d=6.5, h={NYLON + 2}, $fn=32); }}'
-                f' translate([-12.7,-25.4,{bz}]) difference(){{ cube([25.4, 76, {BRACKET}]); translate([12.7, 25.4, -1]) cylinder(d=6.6, h={BRACKET + 2}, $fn=32); }} }}')   # the 1/4" hole 1" from the bracket's end sits on the swivel's axis
+                f' translate([-12.7,-25.4,{bz}]) difference(){{ cube([25.4, 76, {BRACKET}]); translate([12.7, 25.4, -1]) cylinder(d=6.6, h={BRACKET + 2}, $fn=32); }} }}')
     stack = stack_at(brk_z)
-    turned = [a for a in range(0, 360, 15) for g in (0, GROW)
-              if collides(f'include <{PLUG_LIB}>\nintersection(){{ rotate([0,0,{a}]) translate([0,0,{g/2}]) plug({mid - g/2}, false); {stack}; }}')]
-    ctl = collides(f'include <{PLUG_LIB}>\nintersection(){{ plug({mid}, false); {stack_at(top - 2)}; }}')               # control: the bracket 2 mm INTO the plug's top
+    turned = [a for a in range(0, 360, 15) if collides(f'include <{PLUG_LIB}>\nintersection(){{ rotate([0,0,{a}]) plug({mid}); {stack}; }}')]
+    ctl = collides(f'include <{PLUG_LIB}>\nintersection(){{ plug({mid}); {stack_at(top - 2)}; }}')
     report("ok" if ctl else "FAIL", "negative control: a bracket sunk 2 mm into the plug's top DOES collide (the stack check can fail)")
     report("FAIL" if turned else "ok", "swivel plug in the assembled head clears the nylon washer and the bracket, turning a full circle",
-           f"touches at {sorted(set(turned))[:6]} degrees" if turned else f"clear all the way round; the plug's top is flush with the swivel, the bracket's underside is {NYLON:g} mm above it", id="plug-vs-stack")
+           f"touches at {sorted(set(turned))[:6]} degrees" if turned else f"clear all the way round (handle radius {xo + lip:.1f} mm, top {zt:g}; the bracket's underside is {brk_z:g})", id="plug-vs-stack")
+    retained = not out_free
 else:
     retained = False
     report("WARN", "swivel: nothing but friction keeps it from sliding off the bolt along the keyhole slot", "no plug part yet (parts/swivel_plug_lib.scad)", id="swivel-retention")

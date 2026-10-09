@@ -1,4 +1,3 @@
-// One swivel plug, in print orientation (base on the bed, neck up). Change `fit` for another grade (see swivel_plug_lib.scad); `mark` = the grade's pits.
+// One swivel plug (grade 3), in print orientation (base on the bed, neck and handle up). See swivel_plug_lib.scad.
 include <swivel_plug_lib.scad>
-fit = 0.25;
-translate([-(head_corner + plug_gap), 0, -(z0 + fit)]) plug(fit, false, 3);
+translate([-xn, 0, -zb0]) plug(0.15, 3);
