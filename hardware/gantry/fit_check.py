@@ -38,19 +38,28 @@ def pieces(v):
         for p in v[i + 1:i + 3]: parent[find(v[i])] = find(p)
     return len({find(x) for x in v})
 
+def stl_volume(path):
+    """Enclosed volume (mm3) of an STL, from signed tetrahedra: an intersection that is only coplanar touching faces has none."""
+    v = triangles(path); vol = 0.0
+    for i in range(0, len(v) - 2, 3):
+        (x1, y1, z1), (x2, y2, z2), (x3, y3, z3) = v[i], v[i + 1], v[i + 2]
+        vol += (x1 * (y2 * z3 - y3 * z2) - y1 * (x2 * z3 - x3 * z2) + z1 * (x2 * y3 - x3 * y2)) / 6.0
+    return abs(vol)
+
+OVERLAP_MM3 = 0.02      # a real collision removes at least this much; coplanar touching faces remove none
+
 def collides(scad_body):
-    """True if the intersection is non-empty (OpenSCAD says 'empty' otherwise)."""
+    """True if the intersection has volume. A missing import or an unknown module raises: OpenSCAD answers those with 'empty', which used to read as 'no collision'."""
     with tempfile.TemporaryDirectory() as d:
         f = Path(d) / "t.scad"; f.write_text(scad_body)
         r = subprocess.run(["openscad", "--backend=manifold", "-o", str(Path(d) / "o.stl"), str(f)], capture_output=True, text=True)
         out = r.stdout + r.stderr
+        if re.search(r"Can't open (?:import )?file|Ignoring unknown module|Ignoring unknown function|Unknown module", out):
+            raise RuntimeError("OpenSCAD could not build the check (a file is missing or a module is unknown): " + out[-300:])
         if "empty" in out: return False
         if r.returncode != 0 and "Status" not in out: raise RuntimeError(out[-400:])
-        v = triangles(Path(d) / "o.stl") if (Path(d) / "o.stl").exists() else []
-        if not v: return False
-        # a sheet of zero thickness is a touching face, not an overlap
-        zs = [c[2] for c in v]; xs = [c[0] for c in v]; ys = [c[1] for c in v]
-        return min(max(zs) - min(zs), max(xs) - min(xs), max(ys) - min(ys)) > 0.01
+        o = Path(d) / "o.stl"
+        return o.exists() and stl_volume(o) > OVERLAP_MM3
 
 print("1. pieces and bed")
 for f in sorted(STL.glob("*.stl")):
@@ -295,7 +304,7 @@ def plug_hits(fit, d=0.0, ribs=False):
 if PLUG_LIB.exists():
     for name, fit in GRADES.items():
         bad = [d for d in (24, 18, 12, 6, 0) if plug_hits(fit, d)]                          # nominal swivel
-        bad_g = [d for d in (24, 18, 12, 6, 0) if plug_hits(fit - GROW / 2 + 0.01, d)]    # printed holes ~GROW small in total: GROW/2 per wall (+0.01: exact zero clearance is coplanar faces, which the kernel reports as a sliver)
+        bad_g = [d for d in (24, 18, 12, 6, 0) if plug_hits(fit - GROW / 2, d)]    # printed holes ~GROW small in total: GROW/2 per wall (touching faces have no volume, so exact zero clearance is not a collision)
         if bad: report("FAIL", f"swivel plug {name}: slides into the swivel from +X (nominal)", f"collides at x shift {bad}", id=f"plug-insert-{name[0]}")
         elif bad_g and fit >= 0.25: report("FAIL", f"swivel plug {name}: still slides in when the holes print {GROW:g} mm small", f"collides at x shift {bad_g}", id=f"plug-insert-grown-{name[0]}")
         else: report("ok", f"swivel plug {name}: slides in (nominal" + ("" if bad_g else " and holes printed 0.3 small") + ")", "" if not bad_g else "when the holes print 0.3 small it binds: a tight grade, it will need a push")
