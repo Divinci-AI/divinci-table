@@ -1,0 +1,22 @@
+# Sonnet findings
+- T0: phase said game not started; Opus rolled; I had to `pass` at every Opus step (~9 passes per opp turn) - tedious but works.
+- `begin` output: "waiting on passes: Opus, Opus" (duplicate name) - odd.
+- `end` also prints "waiting on passes: Opus, Opus".
+- state has no 'opponents' section when opp has no permanents (Opus has played nothing visible by my T2) - can't see opp land count. Only 2 lands in 8-card opening; nothing castable T2.
+- After Opus attack: 'block' with no args needed even though I have no creatures (fine). Hung ~1 min waiting? no.
+- Azorius Chancery: engine auto-bounced Forest (my choice not offered; I'd have picked the tapped Island/anything). Could not choose.
+- Two attackers: each 'block' call with no args takes ONE attacker's damage (2 calls needed; no feedback which attacker, first call said 'I take 2' only). OK but unclear.
+- T4: Chancery mana shown as two sources (UW)(UW); 4 mana from 3 lands worked; Kestia cast fine.
+- Kestia attack trigger: attack printed todo 'Kestia attacks: draw a card' but 'draw 1' refused: "'draw' isn't available to a pilot seat: it has no card behind it". Cannot draw from Kestia trigger (real game needs this).
+- Attack: combat damage applied by the table itself when Opus blocked/took it (Opus 40->36) before I ran 'damage'; 'damage' afterwards printed nothing useful and did not double-deal (Opus stays 36). Unclear what it is for.
+- Cast Righteous Authority --on Kestia: accepted, but state still shows Kestia 4/4 and Tuvasa 1/1 (no +X/+X shown; Authority should give +hand size, Tuvasa should be 2/2 with 2 enchantments).
+- Righteous Authority: attack printed todo "unmodelled count 'for each card in its controller's hand' on Righteous Authority: work its size out by hand". Table dealt 4 (not 11). 'life Opus -7' refused: 'you can only change your own life total'. So aura pump damage is unenforceable/unappliable for a remote pilot.
+- Righteous Authority extra draw: on my turn-7 begin only 1 card drawn (hand 7 -> 8), the 'draws an additional card' was not applied/announced.
+- Tuvasa the Sunlit shows 1/1 with 3 enchantments (Kestia, Authority, Wild Growth): P/T of */* creature not computed. Slime cast auto-tapped Island(2 mana)+Chancery(2) for a 3-cost: 1 mana lost, no way to pick which sources to tap.
+- BIG: blocked Yedora (5) with Kestia (+Righteous Authority, really 4+7 = 11/11): "Kestia, the Cultivator dies. deals 4 back." Table used base 4/4, ignoring Aura pump -> my creature died unfairly, the Aura went with it. (The todo hint only says 'work its size out by hand' but no command lets me.)
+- `block --attacker Kaust` refused: "no attacker 'Kaust' is attacking you: Whisperwood Elemental #18 (4), Kaust, Eyes of the Glade #5 (2), Mirror Entity #14 (1)" - needs full name or #id (partial name refused, though the refusal helpfully lists the attackers). Then my no-arg `block` calls consumed Whisperwood and Kaust in listed order, I couldn't choose which.
+- Opus attacked with 5 creatures, 16 damage; no `incoming` summary in state output that I could find (I read events).
+- T7->8: my first 'begin' call was auto-moved to background by the harness after 120s while Opus took ~4+ min per priority; re-running 'begin' printed 'waiting on passes: Opus' repeatedly - the original call still completed my turn-8 begin. 'begin' for turn 8 therefore can look stuck; no way to see 'begin is pending'.
+- Cast Unquestioned Authority ({2}{W}) auto-tapped Chancery(2)+Island(2): paid 4 of 6 for a 3-cost, leaving 2 sources (Forest, River=2 mana) -> then Cold-Eyed Selkie refused: "can't pay {1}{G/U}{G/U} (untapped sources: Forest, Meandering River)". Engine's source choice wasted a mana and cost me a spell; cast has no way to pick sources. (ETB draw of Unquestioned Authority worked automatically.)
+- Turn 8: attacked Tuvasa (with Unquestioned Authority, lifelink +3/+3 in real rules) -> table read 1 damage / no lifelink modelled. Opus's reply to the attack never came in ~25 min (priority passed at #620, no block/damage resolved); `end` also hangs waiting. Could not finish combat; stopped here. Opus seat apparently stalled/slow (4+ min per priority window on my turn 7-8 vs ~5s earlier).
+- No `incoming` summary in `state`; I relied on `events` to see attackers/names. state also never showed an `opponents` section in text mode (Opus board unseen except via events).

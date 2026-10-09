@@ -43,6 +43,8 @@ def call(base, method, path, body=None, headers=None):
 
 
 def start(a):
+    if a.swap_decks:                                     # the same two decks, the other way round (run 2)
+        k = list(SEATS); SEATS[k[0]], SEATS[k[1]] = SEATS[k[1]], SEATS[k[0]]
     run = Path(a.run or tempfile.mkdtemp(prefix="dogfood-")).resolve(); run.mkdir(parents=True, exist_ok=True)
     base = f"http://127.0.0.1:{a.port}"
     order = ",".join([a.first] + [s for s in SEATS if s != a.first])
@@ -99,6 +101,6 @@ def stop(a):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); sub = ap.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("start"); s.add_argument("--run"); s.add_argument("--port", type=int, default=8841); s.add_argument("--first", choices=list(SEATS), default="Sonnet"); s.add_argument("--turns", type=int, default=3)
+    s = sub.add_parser("start"); s.add_argument("--run"); s.add_argument("--port", type=int, default=8841); s.add_argument("--first", choices=list(SEATS), default="Sonnet"); s.add_argument("--turns", type=int, default=3); s.add_argument("--swap-decks", action="store_true")
     t = sub.add_parser("stop"); t.add_argument("--run", required=True)
     a = ap.parse_args(); start(a) if a.cmd == "start" else stop(a)
