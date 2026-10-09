@@ -718,6 +718,23 @@ def _match(name: str, candidates, key):
     return None
 
 
+CARD_TYPES = ("creature", "artifact", "land", "enchantment", "planeswalker", "battle")
+
+
+def _sacrifice_fits(p: Perm, what: str) -> bool:
+    """Is this permanent what a "Sacrifice a/another <what>" cost asks for? A card type (creature, artifact…), 'permanent', or
+    a subtype (Spirit, Goblin…). A face-down permanent is a nameless 2/2 creature with no subtypes. A token made by the
+    table carries only its name ("Spirit token"), so a subtype also matches a token named after it."""
+    w = what.lower()
+    if w == "permanent":
+        return True
+    types = ["Creature"] if p.face_down else p.types
+    if w in CARD_TYPES:
+        return w.capitalize() in types
+    subs = [] if p.face_down else [s.lower() for s in (p.card.get("subtypes") or [])]
+    return w in subs or (p.token and not p.face_down and p.name.lower().split(" ")[0] == w)
+
+
 def _manual(cls):
     def hand_card(self, name):
         c = _match(name, self.hand, lambda c: c["name"])
@@ -1212,10 +1229,12 @@ def _manual(cls):
         for p in self.battlefield:
             p.temp, p.base_override = (0, 0), None
 
-    def activate(self, ref, x=0, index=None, target=None, pick=None, put=None, bottom=None, mode=None):
+    def activate(self, ref, x=0, index=None, target=None, pick=None, put=None, bottom=None, mode=None, sac_ref=None):
         """Pay and run one activated ability of a permanent. Everything is checked BEFORE anything is paid: an ability the table
         cannot run yet is refused whole, never half-done. `target` is a Perm (the caller resolved it, any seat's).
-        `mode`: for a modal ability ("Choose one —"), which of its modes (0-based, in the card's order)."""
+        `mode`: for a modal ability ("Choose one —"), which of its modes (0-based, in the card's order).
+        `sac_ref`: for a cost that sacrifices ANOTHER permanent ("Sacrifice another creature", "Sacrifice a Spirit"), which one
+        ('#id' or name, on this player's own battlefield, of the type the cost names)."""
         src = self.perm(ref)
         if src.face_down:
             raise IllegalAction("a face-down permanent has no abilities: turn it face up first")
@@ -1243,15 +1262,38 @@ def _manual(cls):
         parts = [c.strip() for c in re.split(r",\s*(?![^{]*\})", cost)]
         tap = sac = False
         mana = ""
+        sac_req = None                                     # ("another" or "", what): "Sacrifice another creature", "Sacrifice a Spirit"
         for c in parts:
             if c == "{T}":
                 tap = True
             elif re.fullmatch(r"Sacrifice (this \w+|CARDNAME|" + re.escape(src.name) + ")", c, re.I):
                 sac = True
+            elif re.fullmatch(r"Sacrifice (?:(another)|a|an|one) ([A-Za-z'-]+)", c, re.I):
+                mm_ = re.fullmatch(r"Sacrifice (?:(another)|a|an|one) ([A-Za-z'-]+)", c, re.I)
+                sac_req = (bool(mm_.group(1)), mm_.group(2))
             elif re.fullmatch(r"(\{[^}]+\})+", c):
                 mana += c
             else:
-                raise IllegalAction(f"the table can't pay '{c}' yet (sacrificing another permanent, life, discarding)")
+                raise IllegalAction(f"the table can't pay '{c}' yet (life, discarding, more than one permanent)")
+        victim = None
+        if sac_req:
+            another, what = sac_req
+            art = "an" if what[0].lower() in "aeiou" else "a"
+            a_ = "another" if another else art
+            fits = [p_ for p_ in self.battlefield if _sacrifice_fits(p_, what) and not (another and p_ is src)]
+            if not sac_ref:
+                raise IllegalAction(f"{src.name}'s cost sacrifices {a_} {what}: say which with --sac REF ("
+                                    + (", ".join(f"#{p_.id} {self.shown(p_)}" for p_ in fits) or f"you have no {what} to sacrifice")
+                                    + "). Nothing was paid")
+            victim = self.perm(str(sac_ref))               # yours: a permanent on someone else's battlefield is "not on your battlefield"
+            if another and victim is src:
+                raise IllegalAction(f"{src.name} says ANOTHER {what}: it can't sacrifice itself for this")
+            if not _sacrifice_fits(victim, what):
+                raise IllegalAction(f"#{victim.id} {self.shown(victim)} is not {art} {what}: "
+                                    + (f"you can sacrifice {', '.join(f'#{p_.id} {self.shown(p_)}' for p_ in fits)}" if fits
+                                       else f"you have no {what} to sacrifice") + ". Nothing was paid")
+        elif sac_ref:
+            raise IllegalAction(f"{src.name}'s cost sacrifices no other permanent: leave out --sac")
         if tap and src.tapped:
             raise IllegalAction(f"{src.name} is tapped")
         if tap and src.is_("Creature") and src.sick and "Haste" not in (src.card.get("keywords") or []):
@@ -1346,6 +1388,9 @@ def _manual(cls):
             pm.tapped = True
         said = [f"{src.name}: I activate it" + (f" with X={x}" if mana.count("{X}") else "")
                 + (f", choosing: {eff.rstrip('.')}" if modes else "") + "."]
+        if victim is not None:
+            self.move(f"#{victim.id}", "graveyard")
+            said.append(f"I sacrifice {self.shown(victim)}" + (" (a token: it's gone)." if victim.token else "."))
         if sac:
             said += self.move(f"#{src.id}", "graveyard")
         return said + run()

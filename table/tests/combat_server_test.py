@@ -212,6 +212,32 @@ def main():
         c, r = go(S2, "Fusion", "begin")
         check("…and the second player does draw (eight cards)", c == 200 and len(S2.state("Fusion")["hand"]) == 8, (c, len(S2.state("Fusion")["hand"])))
 
+    print("a cost that sacrifices ANOTHER permanent: the pilot names it (--sac)")
+    nyx = ["--ai", "Nyx|Captain N'ghathrod|", "--ai-deck", str(G.REPO / "decks/nghathrod.json"), "--pilot", "Nyx"]
+    with Server(order="Claude,Fusion,Nyx", humans=False, extra=nyx) as S4:
+        S4.claim_all()
+        S4.claim("Nyx")
+        S4.start_game()
+        strider = onto_battlefield(S4, "Nyx", "Woe Strider")
+        c, r = S4.host_brain("Nyx", "token", name="Goat", power=0, toughness=1)
+        assert c == 200, (c, r)
+        goat = perm(S4, "Nyx", "Goat")
+        c, r = S4.host_brain("Claude", "token", name="Bear", power=2, toughness=2)
+        bear = perm(S4, "Claude", "Bear")
+        lib0 = S4.state("Nyx")["library"]
+        c, r = S4.brain("Nyx", "activate", source=f"#{strider['id']}")
+        check("Woe Strider with no --sac: refused, and the Goat is offered", c == 400 and f"#{goat['id']}" in str(r.get("error")), (c, r))
+        c, r = S4.brain("Nyx", "activate", source=f"#{strider['id']}", sac=f"#{bear['id']}")
+        check("…Claude's Bear is not Nyx's to sacrifice: refused, and the Bear is still on Claude's board",
+              c == 400 and any(p["id"] == bear["id"] for p in S4.state("Claude")["permanents"]), (c, r))
+        c, r = S4.brain("Nyx", "activate", source=f"#{strider['id']}", sac=f"#{strider['id']}")
+        check("…nor Woe Strider itself ('another')", c == 400 and "ANOTHER" in str(r.get("error")), (c, r))
+        c, r = S4.brain("Nyx", "activate", source=f"#{strider['id']}", sac=f"#{goat['id']}")
+        st = S4.state("Nyx")
+        check("…--sac the Goat: the Goat is gone, Woe Strider stays, and Nyx privately sees the card it scried",
+              c == 200 and not any(p["id"] == goat["id"] for p in st["permanents"]) and any(p["id"] == strider["id"] for p in st["permanents"])
+              and r.get("private", {}).get("top") and st["library"] == lib0, (c, r.get("error"), r.get("private")))
+
     os.environ["TABLE_AI_PASS_SECS"] = "3"                                         # a silent seat: the clock is short here
     with Server(order="Claude,Fusion", humans=False) as S3:
         S3.claim_all()

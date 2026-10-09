@@ -53,6 +53,8 @@ def payload_checks():
           path == "/api/brain/activate" and body.get("mode") == 0 and body.get("index") == 0, body)
     path, body = sent("activate", "Ransom Note", "--mode", "2")
     check("…--mode 2 sends 2, and no index when none was given", body.get("mode") == 2 and "index" not in body, body)
+    path, body = sent("activate", "Woe Strider", "--sac", "#12")
+    check("tablectl activate --sac REF sends which permanent to sacrifice", body.get("sac") == "#12" and "mode" not in body, body)
 
 
 def main():

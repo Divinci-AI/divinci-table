@@ -176,5 +176,60 @@ hw.sick = False
 i.activate("Hangarback Walker")
 check(hw.counters == 1 and hw.tapped, "Hangarback Walker {1},{T}: a +1/+1 counter, and it tapped")
 
+# ── costs that sacrifice ANOTHER permanent: the caller names which (--sac), the table checks it before paying ──
+ws = fresh("nghathrod.json")
+strider = put(ws, "Woe Strider")
+goat = (ws.make_tokens("Goat", 0, 1), ws.battlefield[-1])[1]
+swamp = put(ws, "Swamp")
+board0 = list(ws.battlefield)
+r = refuses(lambda: ws.activate("Woe Strider"), "--sac")
+check(r[0] and f"#{goat.id}" in r[1] and f"#{swamp.id}" not in r[1] and f"#{strider.id}" not in r[1],
+      f"Woe Strider with no --sac: refused, naming the creatures it could sacrifice (the Goat, not the Swamp or itself) ({r[1][:110]})")
+r = refuses(lambda: ws.activate("Woe Strider", sac_ref=f"#{strider.id}"), "ANOTHER")
+check(r[0], "…it cannot sacrifice itself ('another creature')")
+r = refuses(lambda: ws.activate("Woe Strider", sac_ref="Swamp"), "is not a creature")
+check(r[0], "…a land is not a creature: refused")
+other = fresh("nghathrod.json")
+their = put(other, "Woe Strider")
+r = refuses(lambda: ws.activate("Woe Strider", sac_ref=f"#{their.id}"), "on your battlefield")
+check(r[0], f"…another player's creature is refused ({r[1][:60]})")
+check(ws.battlefield == board0 and not ws.graveyard, "…and none of those refusals changed anything")
+top = ws.peek(1)
+said = ws.activate("Woe Strider", sac_ref=f"#{goat.id}")
+check(goat not in ws.battlefield and strider in ws.battlefield and ws.last_peek == top,
+      f"--sac the Goat: the Goat is gone, Woe Strider stays, and it scries 1 ({said})")
+check(any("sacrifice Goat" in s for s in said), "…and the table hears what was sacrificed")
+
+th = fresh("inspirit.json")
+hulk = put(th, "Threefold Thunderhulk")
+walker = put(th, "Hangarback Walker")
+plains = put(th, "Plains")
+r = refuses(lambda: th.activate("Threefold Thunderhulk", sac_ref="Hangarback Walker"), "can't pay")
+check(r[0] and walker in th.battlefield and not plains.tapped, "Thunderhulk with one land for {2}: refused, and the Hangarback is NOT sacrificed")
+put(th, "Plains")
+r = refuses(lambda: th.activate("Threefold Thunderhulk", sac_ref="Plains"), "is not an artifact")
+check(r[0], "…a Plains is not an artifact: refused")
+r = refuses(lambda: th.activate("Threefold Thunderhulk", sac_ref="Threefold Thunderhulk"), "ANOTHER")
+check(r[0], "…nor can it sacrifice itself")
+th.activate("Threefold Thunderhulk", sac_ref="Hangarback Walker")
+check(hulk.counters == 1 and walker not in th.battlefield and any(c["name"] == "Hangarback Walker" for c in th.graveyard)
+      and sum(x.tapped for x in th.battlefield if x.name == "Plains") == 2,
+      "--sac the Hangarback (an artifact): a +1/+1 counter, the Hangarback in the graveyard, {2} paid")
+
+tg = fresh("elsha.json")
+put(tg, "Thalia's Geistcaller")
+spirit = (tg.make_tokens("Spirit", 1, 1, ["Flying"]), tg.battlefield[-1])[1]
+bear = (tg.make_tokens("Bear", 2, 2), tg.battlefield[-1])[1]
+r = refuses(lambda: tg.activate("Thalia's Geistcaller", sac_ref=f"#{bear.id}"), "is not a Spirit")
+check(r[0] and f"#{spirit.id}" in r[1], f"Geistcaller: a Bear is not a Spirit, and the refusal names the Spirit it could use ({r[1][:100]})")
+r = refuses(lambda: tg.activate("Thalia's Geistcaller", sac_ref=f"#{spirit.id}"), "nothing was paid")
+check(r[0] and spirit in tg.battlefield, "…with the Spirit, the effect (indestructible) is not one the table runs: refused, and the Spirit is NOT sacrificed")
+
+mz = fresh("aminatou.json")
+put(mz, "Mind Stone")
+isl = put(mz, "Island")
+r = refuses(lambda: mz.activate("Mind Stone", sac_ref="Island"), "sacrifices no other permanent")
+check(r[0] and isl in mz.battlefield and not isl.tapped, "--sac on an ability whose cost sacrifices nothing else is refused")
+
 print(f"\n{sum(results)}/{len(results)} activated-ability checks passed")
 sys.exit(0 if all(results) else 1)

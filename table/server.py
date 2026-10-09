@@ -3410,7 +3410,8 @@ class H(BaseHTTPRequestHandler):
                         mode = None
                     said = VP.activate(str(b.get("source", "")), x=int(b.get("x") or 0),
                                        index=None if b.get("index") in (None, "") else int(b["index"]), target=tgt,
-                                       pick=b.get("pick"), put=b.get("put"), bottom=b.get("bottom"), mode=mode)
+                                       pick=b.get("pick"), put=b.get("put"), bottom=b.get("bottom"), mode=mode,
+                                       sac_ref=str(b["sac"]) if b.get("sac") not in (None, "") else None)
                     if getattr(VP, "last_peek", None):
                         private["top"], VP.last_peek = VP.last_peek, None
                 elif action == "effect":                  # a trigger or ability the engine does not model: allowed only when the SOURCE card says so

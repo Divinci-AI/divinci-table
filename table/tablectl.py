@@ -289,7 +289,8 @@ def main():
     dm.add_argument("hits", nargs="*", help="optional for a remote seat: the table deals blocked and unblocked damage itself")
     dm.add_argument("--no-life", action="store_true", help="triggers only: the players already said their life")
     ac = sub.add_parser("activate", help="pay and run an activated ability of a permanent (cost checked; abilities the table can't run are refused before anything is paid): "
-                                         "activate SOURCE [--index N] [--mode N] [--x X] [--target REF [--at SEAT]] [--pick LAND ...] [--bottom CARD ...]")
+                                         "activate SOURCE [--index N] [--mode N] [--sac REF] [--x X] [--target REF [--at SEAT]] [--pick LAND ...] [--bottom CARD ...]")
+    ac.add_argument("--sac", help="a cost that sacrifices ANOTHER permanent ('Sacrifice another creature', 'Sacrifice a Spirit'): which one of yours (#id or name)")
     ac.add_argument("source"); ac.add_argument("--index", type=int); ac.add_argument("--x", type=int, default=0)
     ac.add_argument("--mode", type=int, help="a modal ability ('Choose one —'): which mode, 0-based in the card's order (a refusal lists them)")
     ac.add_argument("--target"); ac.add_argument("--at"); ac.add_argument("--pick", nargs="*"); ac.add_argument("--bottom", nargs="*")
@@ -394,8 +395,8 @@ def main():
             hits[ref] = [who, int(n) if n else None]
         return act("damage", hits=hits, no_life=a.no_life)
     if a.cmd == "activate":
-        return act("activate", source=a.source, index=a.index, mode=a.mode, x=a.x, target=a.target, at=a.at, pick=a.pick,
-                   bottom=a.bottom)
+        return act("activate", source=a.source, index=a.index, mode=a.mode, sac=a.sac, x=a.x, target=a.target, at=a.at,
+                   pick=a.pick, bottom=a.bottom)
     if a.cmd == "effect":
         return act("effect", source=a.source, kind=a.kind, n=a.n, put=a.put, target=a.target, at=a.at)
     if a.cmd == "role":
