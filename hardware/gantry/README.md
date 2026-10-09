@@ -14,7 +14,7 @@ disagree. **Status (2026-10-05): designed from the parts' specs, not yet assembl
 decides whether the printer is the hand or the SO-101 arm is ([docs/ARM-GANTRY-GOAL.md](../../docs/ARM-GANTRY-GOAL.md),
 section M). The suction design this replaced is in git history.
 
-**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head, and two animated step-by-step guides (the magnet head, 13 steps; sleeving a card with its washer, 8 steps) with a scrubbable timeline. Your place is saved in the browser, and every view has a link you can share or bookmark: `?view=steps&guide=sleeve&step=5` (also `view=head&explode=0.6`, `view=all&part=swivel`, `labels=all|current|off`, `follow=0`).
+**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head, and two animated step-by-step guides (the magnet head, 14 steps, starting with cutting and drilling the bracket; sleeving a card with its washer, 8 steps) with a scrubbable timeline. Your place is saved in the browser, and every view has a link you can share or bookmark: `?view=steps&guide=sleeve&step=5` (also `view=head&explode=0.6`, `view=all&part=swivel`, `labels=all|current|off`, `follow=0`).
 
 ![The whole rig](img/overview.svg)
 
