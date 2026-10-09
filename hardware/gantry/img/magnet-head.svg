@@ -7,21 +7,21 @@
   <text x="300" y="104" fill="#555" font-size="12">the hotend stays cold: gantry.py never sends a heater command</text>
   <path d="M120 170 L140 170 L140 250 L330 250 L330 266 L120 266 Z" fill="#cfcfcf" stroke="#444" stroke-width="2"/>
   <rect x="112" y="176" width="8" height="70" fill="#e85d75"/>
-  <text x="350" y="236" fill="#1a1a1a">3" aluminium angle: mounting tape + zip ties to the carriage</text>
+  <text x="350" y="236" fill="#1a1a1a">3" (76 mm) aluminium angle, 1 x 1 x 1/8 in: mounting tape + zip ties to the carriage</text>
   <!-- wing nut + spring above bracket -->
   <path d="M250 200 L300 200 L292 214 L258 214 Z" fill="#7d7d7d"/>
   <text x="350" y="208" fill="#1a1a1a">wing nut: sets the swivel's drag</text>
   <path d="M262 216 l26 6 l-26 6 l26 6 l-26 6 l26 6" fill="none" stroke="#b07a2e" stroke-width="3"/>
   <text x="350" y="182" fill="#b07a2e" font-size="12">spring (from the assortment)</text>
   <rect x="270" y="196" width="10" height="110" fill="#9a9a9a"/>
-  <text x="24" y="292" fill="#555" font-size="12">1/4"-20 bolt turns in the bracket's hole</text>
+  <text x="24" y="292" fill="#555" font-size="12">1/4"-20 x 1" bolt turns in the 1/4" hole</text>
   <!-- nylon washer -->
   <rect x="252" y="266" width="46" height="8" fill="#f3efe0" stroke="#999"/>
   <text x="350" y="276" fill="#1a1a1a" font-size="12">nylon spacer, cut to ~6 mm: low-friction washer</text>
   <!-- swivel -->
   <rect x="240" y="274" width="70" height="56" rx="6" fill="#e9c46a" stroke="#8a6d1f" stroke-width="2"/>
   <rect x="258" y="296" width="34" height="12" fill="#6d6d6d"/>
-  <text x="350" y="304" fill="#1a1a1a">printed swivel: the bolt's head sits in a sideways hex slot</text>
+  <text x="350" y="304" fill="#1a1a1a">printed swivel, 24 x 24 x 15 mm: the bolt's head sits in a sideways hex slot</text>
   <rect x="270" y="314" width="10" height="20" fill="#444"/>
   <text x="350" y="326" fill="#1a1a1a" font-size="12">M3 × 6 mm screw down through the floor into the magnet</text>
   <!-- magnet -->

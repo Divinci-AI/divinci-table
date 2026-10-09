@@ -40,12 +40,17 @@
   #steps li button{width:100%;display:flex;gap:9px;align-items:center;text-align:left;margin:0 0 5px;padding:7px 9px}
   #steps .num{background:var(--accent)} #steps li.done .num{background:#4caf7d} #steps li button[aria-current=step]{background:#14344d;border-color:var(--accent)}
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);background:#14171c;cursor:pointer;color:var(--text)}
-  .slabel{position:absolute;pointer-events:auto;cursor:pointer;display:flex;gap:6px;align-items:flex-start;white-space:nowrap;transform:translate(16px,-50%);transition:opacity .2s}
-  .slabel .dot{width:11px;height:11px;border-radius:50%;border:2px solid #10141a;margin:4px 0 0 -22px;background:var(--hw)}
+  .slabel{position:absolute;width:0;height:0;pointer-events:none;transition:opacity .2s}
+  .slabel .dot{position:absolute;left:-6px;top:-6px;width:11px;height:11px;border-radius:50%;border:2px solid #10141a;background:var(--hw);pointer-events:auto;cursor:pointer;box-sizing:content-box}
   .slabel.printed .dot{background:var(--print)}
-  .slabel .box{background:rgba(20,23,28,.9);border:1px solid var(--line);border-radius:7px;padding:3px 9px;line-height:1.25}
+  .slabel .box{position:absolute;left:0;top:0;white-space:nowrap;background:rgba(20,23,28,.92);border:1px solid var(--line);border-radius:7px;padding:3px 9px;line-height:1.25;pointer-events:auto;cursor:pointer;transform:translate(14px,-50%)}
+  .slabel .lead{position:absolute;left:0;top:0;height:0;border-top:1px solid rgba(159,196,228,.75);transform-origin:0 0;pointer-events:none;display:none}
   .slabel .nm{font-size:13px;font-weight:600} .slabel .rl{font-size:11.5px;color:var(--dim)}
   .slabel.cur .box{border-color:var(--accent);background:#14344d} .slabel.rest{opacity:.62} .slabel.rest .rl{display:none}
+  .slabel .dm{font:10.5px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;color:#9fc4e4} .slabel.rest .dm,.slabel.compact .dm{display:none}
+  .dimtag{font:10.5px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;color:#ffc65a;background:rgba(20,23,28,.8);padding:1px 5px;border-radius:3px;white-space:nowrap;pointer-events:none}
+  .dims{margin:8px 0 2px;font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;color:var(--dim)} .dims b{color:var(--text,#e8edf3);font-weight:600} .dims .tbd{color:#e0b060}
+  .speakrow{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-top:8px;font-size:12px;color:var(--dim)} .speakrow input[type=range]{width:80px}
   .slabel.hide{display:none} .slabel.compact .rl{display:none}
   #part-card{background:#14171c;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-top:10px}
   #part-card b{display:block;margin-bottom:2px}
@@ -248,7 +253,11 @@ const err = document.getElementById("err");
 const loader = new STLLoader();
 async function loadStl(url) { return new Promise((res, rej) => loader.load(url, res, undefined, rej)); }
 
-function bboxOf(o) { return new THREE.Box3().setFromObject(o); }
+function bboxOf(o) {                                // geometry only: dimension rulers and labels never count
+  const b = new THREE.Box3(); o.updateWorldMatrix(true, true);
+  o.traverse(c => { if (c.userData.ruler || !c.geometry) return; if (!c.geometry.boundingBox) c.geometry.computeBoundingBox(); b.union(c.geometry.boundingBox.clone().applyMatrix4(c.matrixWorld)); });
+  return b;
+}
 function register(def, obj, kind, home) {
   obj.userData.id = def.id; world.add(obj); obj.traverse(c => c.userData.id = def.id);
   const box = bboxOf(obj); const size = box.getSize(new THREE.Vector3());
@@ -275,6 +284,7 @@ async function build() {
   const loose = Object.fromEntries(order.map((id, i) => [id, [-70 + i * 55, -60 - (i % 2) * 38]]));
   for (const def of HARDWARE) { const o = hw[def.id]; const [x, y] = loose[def.id]; o.position.set(x, y, def.id === "m3" ? 1.5 : 0); register(def, o, "hw", o.position); }
   Object.values(entries).forEach(placeAnchor);
+  for (const [id, e] of Object.entries(entries)) attachDims(id, e.obj);
   updateLabelsVisibility();
 }
 
@@ -329,7 +339,7 @@ function frame(target, dist, dir) {
 }
 function select(id) {
   if (mode === "steps") return partCard(id);
-  focusId = id; syncUrl(); const e = entries[id]; if (!e) return;
+  focusId = id; syncUrl(); const e = entries[id]; if (!e) return; showRulersFor(id);
   for (const o of Object.values(entries)) o.el.classList.toggle("on", o === e);
   document.querySelectorAll("li button.item").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === id));
   const box = bboxOf(e.obj); const c = box.getCenter(new THREE.Vector3()); const r = Math.max(60, box.getSize(new THREE.Vector3()).length());
@@ -346,6 +356,7 @@ function partCard(id) {
   const pane = document.getElementById("detail"); pane.querySelector("#part-card")?.remove();
   const c = document.createElement("div"); c.id = "part-card"; const b = document.createElement("b"); b.textContent = nm; c.append(b);
   const t = document.createElement("div"); t.style.color = "var(--dim)"; t.textContent = [d?.qty && "Qty " + d.qty, d?.size && "Size " + d.size, ROLE[id]].filter(Boolean).join("   "); c.append(t);
+  if (DIMS[id]) { const dm = document.createElement("div"); dm.className = "dims"; dm.textContent = DIMS[id]; c.append(dm); }
   if (d?.text) { const x = document.createElement("p"); x.style.margin = "6px 0 0"; x.textContent = d.text; c.append(x); }
   pane.append(c);
   for (const [k, sl] of Object.entries(stepLabels)) sl.el.classList.toggle("cur", k === id || STEPS[shownStep].focus.includes(k));
@@ -377,17 +388,86 @@ document.getElementById("explode").oninput = applyPose;
 document.getElementById("reset").onclick = () => setMode(mode);
 
 
+// ---------- measurement rulers: CAD-style dimension lines drawn outside a part, parented to it so they follow its pose ----------
+const dimsOf = {};               // part id -> [ruler groups]
+let dimsOn = (() => { try { return localStorage.getItem("divinci-manual-dims") !== "0"; } catch { return true; } })();
+const RULER_COLOR = 0xffc65a;
+function addDimension(id, obj, from, to, dir, text, off = 10) {
+  const A = new THREE.Vector3(...from), B = new THREE.Vector3(...to), D = new THREE.Vector3(...dir).normalize(), o = D.clone().multiplyScalar(off);
+  const A2 = A.clone().add(o), B2 = B.clone().add(o), ext = D.clone().multiplyScalar(2.5), u = B.clone().sub(A).normalize(), len = A.distanceTo(B), ah = Math.min(3.2, len / 5);
+  const pts = [A2, B2, A, A2.clone().add(ext), B, B2.clone().add(ext)];
+  for (const [P, sgn] of [[A2, 1], [B2, -1]]) { const back = u.clone().multiplyScalar(sgn * ah); pts.push(P, P.clone().add(back).add(D.clone().multiplyScalar(ah * 0.45)), P, P.clone().add(back).sub(D.clone().multiplyScalar(ah * 0.45))); }
+  const mat = new THREE.LineBasicMaterial({ color: RULER_COLOR, transparent: true, depthTest: false, depthWrite: false });
+  const line = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), mat); line.renderOrder = 999; line.raycast = () => {};
+  const el = document.createElement("div"); el.className = "dimtag"; el.textContent = text; const tag = new CSS2DObject(el); tag.position.copy(A2.clone().add(B2).multiplyScalar(0.5)).add(D.clone().multiplyScalar(2));
+  const g = new THREE.Group(); g.add(line, tag); g.visible = false; tag.visible = false; g.userData = { mats: [mat], tag, ruler: true };
+  g.traverse(c => c.userData.ruler = true); obj.add(g); (dimsOf[id] ??= []).push(g); return g;
+}
+function setRulers(id, a) {
+  for (const g of dimsOf[id] || []) { const on = a > 0.02 && dimsOn; g.visible = on; g.userData.tag.visible = on; g.userData.mats[0].opacity = a; g.userData.tag.element.style.opacity = a; }
+}
+function hideRulers() { for (const id of Object.keys(dimsOf)) setRulers(id, 0); }
+const CUT_AT = 50.8;
+const DIMDEFS = {                // local coordinates of each part; values are the models' own (README / .scad); "TBD" marks a value nobody has measured
+  angle: [[[12.7, -25.4, 0], [12.7, 50.8, 0], [1, 0, 0], "76 mm \u00b7 3 in"], [[-12.7, -25.4, 0], [12.7, -25.4, 0], [0, -1, 0], "25.4 mm \u00b7 1 in"], [[12.7, -25.4, 0], [12.7, -25.4, 3.2], [1, 0, 0], "3.2 mm \u00b7 1/8 in", 8],
+          [[-3.175, 0, 3.2], [3.175, 0, 3.2], [0, -1, 0], "hole \u00d86.35 mm \u00b7 1/4 in", 12], [[-12.7, -25.4, 0], [-12.7, 0, 0], [-1, 0, 0], "25.4 mm \u00b7 1 in to hole"]],
+  angleBlank: [[[12.7, -25.4, 0], [12.7, 50.8, 0], [1, 0, 0], "76 mm \u00b7 3 in (cut here)"], [[-12.7, -25.4, 0], [12.7, -25.4, 0], [0, -1, 0], "25.4 mm \u00b7 1 in"], [[12.7, -25.4, 0], [12.7, -25.4, 3.2], [1, 0, 0], "3.2 mm \u00b7 1/8 in", 8]],
+  offcut: [[[12.7, CUT_AT, 0], [12.7, CUT_AT + 73.8, 0], [1, 0, 0], "about 74 mm left; stock about 150 mm (TBD)"]],
+  bolt: [[[8, 0, 4.2], [8, 0, 29.6], [1, 0, 0], "25.4 mm \u00b7 1 in", 6], [[0, -3.175, 29.6], [0, 3.175, 29.6], [-1, 0, 0], "\u00d86.35 mm \u00b7 1/4 in", 9]],
+  nylon: [[[-6.35, 0, 6], [6.35, 0, 6], [0, -1, 0], "OD 12.7 mm \u00b7 1/2 in", 9], [[6.35, 0, 0], [6.35, 0, 6], [1, 0, 0], "6 mm", 8], [[-3.25, 0, 6], [3.25, 0, 6], [0, 1, 0], "bore 6.5 mm \u00b7 0.257 in", 9]],
+  washer: [[[-5.55, 0, 0.6], [5.55, 0, 0.6], [0, -1, 0], "OD 11.1 mm \u00b7 0.438 in", 8], [[-2.6, 0, 0.6], [2.6, 0, 0.6], [0, 1, 0], "ID about 5.2 mm (TBD)", 8]],
+  magnet: [[[10, 0, 0], [10, 0, 15], [1, 0, 0], "15 mm", 6], [[-10, 0, 15], [10, 0, 15], [0, -1, 0], "\u00d820 mm", 8]],
+  m3: [[[4.5, 0, -4.5], [4.5, 0, 1.5], [1, 0, 0], "M3 x 6 mm", 5]],
+  tape2: [], inner: [], outer: [],
+};
+const BOXDIMS = {                // printed parts and the card: overall size from the STL bounds / the .scad, drawn along the bounding box
+  swivel: [["x", "24 mm"], ["z", "15.1 mm"]], clip: [["x", "14 mm"], ["y", "16 mm"], ["z", "7.8 mm"]], jig: [["x", "72.9 mm"], ["y", "98.9 mm"], ["z", "9.6 mm"]], bridge: [["x", "72.9 mm"], ["y", "24 mm"], ["z", "5 mm"]],
+  deck: [["x", "73.3 mm"], ["y", "99.3 mm"], ["z", "117.8 mm"]], follower: [["x", "67.5 mm"], ["y", "93.5 mm"]], chute: [["x", "74.5 mm"], ["y", "90.1 mm"], ["z", "52.4 mm"]],
+  rack: [["x", "349.3 mm"], ["y", "40 mm"], ["z", "111.3 mm"]], card: [["x", "63 mm"], ["y", "88 mm"]],
+};
+function attachDims(id, obj) {
+  for (const d of DIMDEFS[id] || []) addDimension(id, obj, d[0], d[1], d[2], d[3], d[4] ?? 10);
+  if (BOXDIMS[id]) {
+    obj.updateWorldMatrix(true, true); const wb = bboxOf(obj), inv = obj.matrixWorld.clone().invert(), mn = wb.min.clone().applyMatrix4(inv), mx = wb.max.clone().applyMatrix4(inv);
+    const lo = new THREE.Vector3(Math.min(mn.x, mx.x), Math.min(mn.y, mx.y), Math.min(mn.z, mx.z)), hi = new THREE.Vector3(Math.max(mn.x, mx.x), Math.max(mn.y, mx.y), Math.max(mn.z, mx.z));
+    for (const [ax, text] of BOXDIMS[id]) {
+      if (ax === "x") addDimension(id, obj, [lo.x, lo.y, lo.z], [hi.x, lo.y, lo.z], [0, -1, 0], text);
+      else if (ax === "y") addDimension(id, obj, [hi.x, lo.y, lo.z], [hi.x, hi.y, lo.z], [1, 0, 0], text);
+      else addDimension(id, obj, [hi.x, lo.y, lo.z], [hi.x, lo.y, hi.z], [1, 0, 0], text);
+    }
+  }
+}
+function showRulersFor(id) { for (const k of Object.keys(dimsOf)) setRulers(k, k === id ? 1 : 0); }
+
 // ---------- step-by-step assembly (hardware/gantry/README.md, Steps 4 and 5) ----------
 const ROLE = { angleBlank: "the 3 in magnet piece", offcut: "kept: the longer piece is for the camera mount", saw: "teeth face away from you; cut on the push stroke", drill: "1/4 in (6.35 mm); pilot with a small bit first", card: "63 x 88 mm", inner: "the card goes in first", outer: "slides over the card, washer and tape", washer: "about 1/2 inch across, 1.2 mm: the magnet's grip", tape2: "keeps the washer from wandering", jig: "holds the sleeved card face-down", bridge: "its hole puts the washer at the card's centre", swivel: "printed: holds the magnet and bolt", magnet: "24 V, 20 x 15 mm", m3: "flat-head, M3 x 6", bolt: "1/4\"-20 x 1\"", nylon: "6 mm low-friction washer", angle: "drilled leg sticks out under the carriage", spring: "short compression spring", wing: "wing nut: sets the drag",
   carriage: "the printer's X carriage", tape: "holds the bracket to the carriage", nozzle: "magnet face stays 5 mm or more below it", wire: "22 AWG two-core leads (+ / -)", clipA: "printed lead clip", clipB: "printed lead clip", clipC: "printed lead clip", clipD: "printed lead clip" };
 const NAME = { angleBlank: "Aluminium angle", offcut: "Offcut", saw: "Hacksaw", drill: "Drill bit", card: "Card", inner: "Inner sleeve", outer: "Outer sleeve", washer: "#10 zinc washer", tape2: "Clear tape", carriage: "X carriage", tape: "Mounting tape", nozzle: "Nozzle", wire: "Magnet leads", clipA: "Lead clip", clipB: "Lead clip", clipC: "Lead clip", clipD: "Lead clip" };
+// Dimensions, taken from the models and the README (printed parts: STL bounding boxes + the .scad parameters). "TBD" = not measured yet.
+const DIMS = {
+  swivel: "24 x 24 x 15.1 mm; hex slot 11.6 mm AF; top hole 7 mm; M3 hole 3.2 mm", clip: "14 x 16 x 7.8 mm; holds 5 mm wire",
+  deck: "73.3 x 99.3 x 117.8 mm; for 66.5 x 92.5 mm sleeved cards; card_t 1.6 mm TBD (measure 10 cards)", follower: "67.5 x 93.5 x 3.0 mm",
+  chute: "74.5 x 90.1 x 52.4 mm; 35 deg ramp; bed_t 6 mm TBD (measure your bed)", rack: "349.3 x 40.0 x 111.3 mm; 7 slots, 46 mm pitch; card_t 1.6 mm TBD",
+  jig: "72.9 x 98.9 x 9.6 mm; card pocket 68.1 x 94.1 mm", bridge: "72.9 x 24.0 x 5.0 mm; washer hole for 11.1 mm OD",
+  magnet: "20 mm dia x 15 mm; M3 thread in the back", m3: "M3 x 6 mm, flat head", bolt: "1/4\"-20 x 1 in (6.35 x 25.4 mm); head 7/16 in (11.1 mm) across flats",
+  nylon: "cut to 6 mm; 1/2 in (12.7 mm) OD; 0.257 in (6.5 mm) bore", angle: "1 x 1 x 1/8 in (25.4 x 25.4 x 3.2 mm), 3 in (76 mm) long; 1/4 in (6.35 mm) hole, 1 in (25.4 mm) from one end",
+  angleBlank: "1 x 1 x 1/8 in (25.4 x 25.4 x 3.2 mm), cut to 3 in (76 mm); not yet drilled", offcut: "about 74 mm left of a ~150 mm stock piece (the ~6 in camera piece is cut separately)",
+  saw: "12 in (300 mm) blade; frame about 330 mm (drawn, not measured)", drill: "1/4 in (6.35 mm) bit; size of the pilot bit TBD",
+  spring: "about 8 mm wide (assortment; length TBD)", wing: "1/4\"-20 (6.35 mm thread)", carriage: "block drawn 72 x 72 x 62 mm: a stand-in, not measured",
+  tape: "1 in (25.4 mm) wide roll", nozzle: "magnet face at least 5 mm below it", wire: "22 AWG two-core, about 1 m",
+  clipA: "14 x 16 x 7.8 mm", clipB: "14 x 16 x 7.8 mm", clipC: "14 x 16 x 7.8 mm", clipD: "14 x 16 x 7.8 mm",
+  card: "63 x 88 mm (sleeve pocket 66.5 x 92.5 mm)", inner: "about 66.5 x 92.5 mm (measure yours)", outer: "a little larger than the inner sleeve (measure yours)",
+  washer: "#10: 0.438 in (11.1 mm) OD; bore and thickness drawn, TBD", tape2: "about 18 mm square patch (drawn)",
+};
+const SHORT = { angle: "76 x 25.4 x 3.2 mm", angleBlank: "76 x 25.4 x 3.2 mm", offcut: "about 74 mm", magnet: "20 dia x 15 mm", swivel: "24 x 24 x 15 mm", bolt: "1/4-20 x 25.4 mm", nylon: "12.7 OD x 6 mm", saw: "300 mm blade", drill: "6.35 mm bit",
+  jig: "73 x 99 x 9.6 mm", bridge: "73 x 24 x 5 mm", card: "63 x 88 mm", washer: "11.1 mm OD", m3: "M3 x 6 mm", wing: "1/4-20", clipA: "14 x 16 x 8 mm", clipB: "14 x 16 x 8 mm", clipC: "14 x 16 x 8 mm", clipD: "14 x 16 x 8 mm" };
 let labelMode = "current";   // all | current | off
 const stepLabels = {};
 function makeStepLabel(id, obj, local) {
   const printed = !!PRINTED.find(d => d.id === id) || id.startsWith("clip");
   const el = document.createElement("div"); el.className = "slabel " + (printed ? "printed" : "hw");
-  el.innerHTML = '<span class="dot"></span><span class="box"><div class="nm"></div><div class="rl"></div></span>';
-  el.querySelector(".nm").textContent = entries[id]?.def.name || NAME[id] || id; el.querySelector(".rl").textContent = ROLE[id] || "";
+  el.innerHTML = '<span class="lead"></span><span class="dot"></span><span class="box"><div class="nm"></div><div class="rl"></div><div class="dm"></div></span>';
+  el.querySelector(".nm").textContent = entries[id]?.def.name || NAME[id] || id; el.querySelector(".rl").textContent = ROLE[id] || ""; el.querySelector(".dm").textContent = SHORT[id] || "";   // one short line; the rulers carry the real dimensions
   el.addEventListener("click", () => select(id));
   const l = new CSS2DObject(el); obj.add(l); l.position.copy(local); stepLabels[id] = { el, l };
 }
@@ -400,7 +480,7 @@ const SUBIDS = new Set(["magnet", "swivel", "m3", "bolt", "nylon"]);
 const FRAME = new Set(["carriage", "tape", "angle", "nozzle"]);
 const ghostMat = (m) => { const c = m.clone(); c.transparent = true; return c; };
 function addExtra(id, obj, intro, stageAbs, home, guide = "magnet") { obj.traverse(o => { if (o.isMesh) { o.material = ghostMat(o.material); } o.userData.id = id; }); groups[guide].add(obj); obj.updateMatrixWorld(true);
-  asms[guide][id] = { obj, intro, stage: stageAbs ? stageAbs.map((v, i) => v - home[i]) : null, extra: true }; }   // an extra's position is an offset from where its geometry was built
+  attachDims(id, obj); asms[guide][id] = { obj, intro, stage: stageAbs ? stageAbs.map((v, i) => v - home[i]) : null, extra: true }; }   // an extra's position is an offset from where its geometry was built
 const asms = { magnet: {}, sleeve: {} }, asm = asms.magnet;
 const MAGNET_STEPS = [
   { title: "Before you start", ref: "Step 3", intro: [], focus: ["magnet", "swivel", "m3", "bolt", "nylon", "spring", "wing", "angleBlank", "carriage"], cam: [[120, 0, 10], 340, [0.1, -0.55, 1.2]],
@@ -431,7 +511,7 @@ const MAGNET_STEPS = [
     text: "Extend the magnet's leads with 22 AWG two-core wire, and clip them to the bracket with two printed lead clips. Leave a loop of slack between the clip and the magnet so the swivel can turn a quarter for a tap." },
   { title: "Two more clips along the carriage", ref: "Step 5, item 5", intro: ["clipC", "clipD"], focus: ["clipC", "clipD"], cam: [[-35, 25 + YB, 52], 260, [0.2, 1, 0.5]],
     text: "Two more printed lead clips go along the carriage, so the wire follows the head without snagging." },
-  { title: "Done: wire it up", ref: "Steps 5-6", intro: [], focus: ["magnet", "swivel", "angle", "wing", "wire", "carriage"], cam: [[-10, 0, 50], 420, [0.9, -1.2, 0.5]],
+  { title: "Done: wire it up", ref: "Steps 5-6", intro: [], noDims: true, focus: ["magnet", "swivel", "angle", "wing", "wire", "carriage"], cam: [[-10, 0, 50], 420, [0.9, -1.2, 0.5]],
     text: "Next: connect the leads to the part-fan output (the leads end here, headed for the fan connector), put a 1N4007 diode across them (striped end to +), and do the USB safety checks in Step 6 before the printer's cable touches the Mac." },
 ];
 let STEPS = MAGNET_STEPS;
@@ -497,7 +577,7 @@ function setGuide(name, startStep = 0, instant = false) {
   shownStep = -1; step = Math.max(0, Math.min(STEPS.length - 1, startStep)); u = step;
   goStep(step, true);
 }
-function leaveSteps() { for (const sl of Object.values(stepLabels)) sl.el.classList.add("hide"); for (const g of Object.values(groups)) g.visible = false; for (const e of Object.values(PARTS || {})) { e.obj?.traverse?.(o => { if (o.isMesh) { o.material.opacity = 1; o.material.emissiveIntensity = 0; } }); } for (const e of Object.values(entries)) e.obj.traverse(o => { if (o.isMesh && o.material) { o.material.opacity = 1; o.material.emissiveIntensity = 0; } }); }
+function leaveSteps() { hideRulers(); for (const sl of Object.values(stepLabels)) sl.el.classList.add("hide"); for (const g of Object.values(groups)) g.visible = false; for (const e of Object.values(PARTS || {})) { e.obj?.traverse?.(o => { if (o.isMesh) { o.material.opacity = 1; o.material.emissiveIntensity = 0; } }); } for (const e of Object.values(entries)) e.obj.traverse(o => { if (o.isMesh && o.material) { o.material.opacity = 1; o.material.emissiveIntensity = 0; } }); }
 
 // The whole animation is one number, u: u = k means "the end of step k + 1 is done"; in between, every piece is interpolated.
 let u = 0, uTween = null, shownStep = -1;
@@ -520,6 +600,7 @@ function applyU(uu, driveCamera) {
     e.obj.visible = (f === 0 ? A.vis : (A.vis || B.vis)) && mul > 0.001;
     const op = (A.op + (B.op - A.op) * f) * mul, hi = (f === 0 ? STEPS[k] : nextSt);
     const glow = hi.focus.includes(id) || hi.intro.includes(id) ? 0.4 : 0;
+    if (dimsOf[id]) { const fA = !STEPS[k].noDims && (STEPS[k].focus.includes(id) || STEPS[k].intro.includes(id)) ? 1 : 0, fB = !nextSt.noDims && (nextSt.focus.includes(id) || nextSt.intro.includes(id)) ? 1 : 0; setRulers(id, e.obj.visible ? op * (fA + (fB - fA) * f) : 0); }
     e.obj.traverse(o => { if (o.isMesh && o.material) { o.material.transparent = true; o.material.opacity = op; if (o.material.emissive) { o.material.emissive.set(0x0b4f8a); o.material.emissiveIntensity = glow; } } });
   }
   if (driveCamera && document.getElementById("follow").checked) {
@@ -548,7 +629,10 @@ function showStepText(i) {
   const r = document.createElement("p"); r.className = "step"; r.textContent = st.ref + " of the assembly manual"; pane.append(r);
   const t = document.createElement("p"); t.textContent = st.text; pane.append(t);
   const ids = st.focus.filter(id => entries[id]?.def.name || NAME[id]);
-  if (ids.length) { const c = document.createElement("div"); c.className = "chips"; for (const id of ids) { const x = document.createElement("span"); x.className = "chip"; x.textContent = entries[id]?.def.name || NAME[id]; c.append(x); } pane.append(c); }
+  if (ids.length) { const c = document.createElement("div"); c.className = "chips"; for (const id of ids) { const x = document.createElement("span"); x.className = "chip"; x.textContent = entries[id]?.def.name || NAME[id]; c.append(x); } pane.append(c);
+    if (ids.some(id => /TBD|not measured|stand-in/.test(DIMS[id] || ""))) { const n = document.createElement("div"); n.className = "dims tbd"; n.textContent = "Amber rulers show sizes in the 3D view. Values marked TBD are not measured yet."; pane.append(n); }
+    else if (ids.some(id => dimsOf[id]?.length)) { const n = document.createElement("div"); n.className = "dims"; n.textContent = "Amber rulers in the 3D view show the sizes."; pane.append(n); }
+  }
   const row = document.createElement("div"); row.className = "prog";
   const lab = document.createElement("label"), cb = document.createElement("input"); cb.type = "checkbox"; cb.id = "done-cb"; cb.checked = isDone(G, i);
   cb.addEventListener("change", () => { setDone(G, i, cb.checked); showStepText(i); });
@@ -556,9 +640,53 @@ function showStepText(i) {
   const n = (progress.guides?.[G]?.done || []).filter(Boolean).length, sum = document.createElement("span"); sum.className = "sum"; sum.textContent = `${n} of ${STEPS.length} steps done`; row.append(sum);
   const cp = document.createElement("button"); cp.id = "copy"; cp.textContent = "Copy link to this step"; cp.addEventListener("click", copyLink); row.append(cp);
   const rs = document.createElement("button"); rs.id = "reset-progress"; rs.textContent = "Reset progress"; rs.addEventListener("click", () => { if (progress.guides) progress.guides[G] = { done: [], last: 0 }; saveStore(); showStepText(shownStep); }); row.append(rs);
-  pane.append(row); progress.guides ??= {}; progress.guides[G] ??= { done: [], last: 0 }; progress.guides[G].last = i; progress.guide = G; saveStore(); syncUrl(); updateResume();
+  pane.append(row); pane.append(speakRow(i)); progress.guides ??= {}; progress.guides[G] ??= { done: [], last: 0 }; progress.guides[G].last = i; progress.guide = G; saveStore(); syncUrl(); updateResume();
 }
+// ---------- read a step aloud: the browser's own Web Speech API only (no network, no cloud voices) ----------
+const speechOK = "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
+let speakPrefs = (() => { try { return { auto: false, rate: 1, ...JSON.parse(localStorage.getItem("divinci-manual-speak") || "{}") }; } catch { return { auto: false, rate: 1 }; } })();
+function saveSpeakPrefs() { try { localStorage.setItem("divinci-manual-speak", JSON.stringify(speakPrefs)); } catch {} }
+let speaking = false, speechToken = 0, gesture = false, speechKey = "";
+addEventListener("pointerdown", () => { gesture = true; }, true); addEventListener("keydown", () => { gesture = true; }, true);
+function localVoice() {
+  const vs = speechSynthesis.getVoices(), en = vs.filter(v => /^en([-_]|$)/i.test(v.lang)), pref = /samantha|daniel|ava|karen|moira|allison|serena/i;
+  return en.find(v => v.localService && pref.test(v.name)) || en.find(v => v.localService) || vs.find(v => v.localService && v.default) || null;
+}
+if (speechOK) speechSynthesis.addEventListener?.("voiceschanged", () => {});   // voices load asynchronously: localVoice() reads the list at speak time
+function speechChunks(text) {                     // by sentence, joined up to ~180 characters: Chrome drops long utterances
+  const out = []; let cur = "";
+  for (const sen of text.match(/[^.!?;]+[.!?;]+["')\]]*\s*|[^.!?;]+$/g) || [text]) { if (cur && (cur + sen).length > 180) { out.push(cur.trim()); cur = ""; } cur += sen; }
+  if (cur.trim()) out.push(cur.trim()); return out;
+}
+function stepSpeech(i) {
+  const st = STEPS[i], names = st.focus.map(id => entries[id]?.def.name || NAME[id]).filter(Boolean);
+  const body = (st.title + ". " + st.text + (names.length ? " Parts: " + names.join(", ") + "." : "")).replace(/<[^>]*>/g, "").replace(/\s+/g, " ");
+  return body.replace(/(\d) x (\d)/g, "$1 by $2");
+}
+function setSpeakUi() { const b = document.getElementById("speak"); if (!b) return; b.setAttribute("aria-pressed", String(speaking)); b.innerHTML = speaking ? "&#9632; Stop" : "&#128266; Speak"; b.setAttribute("aria-label", speaking ? "Stop reading aloud" : "Read this step aloud"); }
+function stopSpeak() { if (!speechOK) return; speechToken++; try { speechSynthesis.cancel(); } catch {} speaking = false; setSpeakUi(); }
+function speakStep(i) {
+  if (!speechOK) return; stopSpeak(); const token = speechToken, v = localVoice(), chunks = speechChunks(stepSpeech(i)); speaking = true; setSpeakUi();
+  chunks.forEach((c, n) => { const u = new SpeechSynthesisUtterance(c); if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "en-US"; u.rate = speakPrefs.rate;
+    const done = () => { if (token === speechToken && n === chunks.length - 1) { speaking = false; setSpeakUi(); } }; u.onend = done; u.onerror = done; speechSynthesis.speak(u); });
+}
+function speakRow(i) {
+  const row = document.createElement("div"); row.className = "speakrow";
+  const dl = document.createElement("label"), dc = document.createElement("input"); dc.type = "checkbox"; dc.id = "dims-cb"; dc.checked = dimsOn;
+  dc.addEventListener("change", () => { dimsOn = dc.checked; try { localStorage.setItem("divinci-manual-dims", dimsOn ? "1" : "0"); } catch {} applyU(u, false); }); dl.append(dc, " Dimensions"); row.append(dl);
+  if (!speechOK) return row;
+  const b = document.createElement("button"); b.id = "speak"; b.type = "button"; b.addEventListener("click", () => { if (speaking) stopSpeak(); else speakStep(shownStep); }); row.append(b);
+  const al = document.createElement("label"), ac = document.createElement("input"); ac.type = "checkbox"; ac.id = "autoread"; ac.checked = speakPrefs.auto;
+  ac.addEventListener("change", () => { speakPrefs.auto = ac.checked; saveSpeakPrefs(); }); al.append(ac, " Auto-read"); row.append(al);
+  const rl = document.createElement("label"), rg = document.createElement("input"); rg.type = "range"; rg.id = "speak-rate"; rg.min = "0.8"; rg.max = "1.3"; rg.step = "0.1"; rg.value = String(speakPrefs.rate); rg.setAttribute("aria-label", "Reading speed");
+  rg.addEventListener("input", () => { speakPrefs.rate = parseFloat(rg.value); saveSpeakPrefs(); }); rl.append("Speed ", rg); row.append(rl);
+  const key = G + ":" + i; if (key !== speechKey) { speechKey = key; stopSpeak(); if (speakPrefs.auto && gesture) speakStep(i); }
+  setTimeout(setSpeakUi, 0); return row;
+}
+addEventListener("pagehide", () => { if (speechOK) try { speechSynthesis.cancel(); } catch {} });
+addEventListener("keydown", ev => { if (mode !== "steps" || !speechOK || ev.ctrlKey || ev.metaKey || ev.altKey || (ev.key !== "s" && ev.key !== "S")) return; if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) return; if (speaking) stopSpeak(); else speakStep(shownStep); });
 function goStep(k, instant = false) {
+  if (speaking && Math.max(0, Math.min(STEPS.length - 1, k)) !== shownStep) stopSpeak();   // leaving a step ends its reading at once
   tween = null;                                   // a view change from the other modes must not fight the step camera
   step = Math.max(0, Math.min(STEPS.length - 1, k));
   if (reduce || instant) { uTween = null; u = step; applyU(u, true); return; }
@@ -573,7 +701,7 @@ function tickStep(dt) {
 function stopPlay() { clearInterval(playTimer); playTimer = null; const b = document.getElementById("play"); if (b) { b.setAttribute("aria-pressed", "false"); b.innerHTML = "&#9654; Play"; } }
 document.getElementById("m-steps").onclick = () => setMode("steps");
 document.getElementById("labels").onclick = () => { labelMode = { all: "current", current: "off", off: "all" }[labelMode]; document.getElementById("labels").textContent = "Labels: " + labelMode; applyU(u, false); };
-document.getElementById("scrub").addEventListener("input", ev => { stopPlay(); uTween = null; u = parseFloat(ev.target.value); step = Math.round(u); applyU(u, true); });
+document.getElementById("scrub").addEventListener("input", ev => { stopPlay(); if (speaking) stopSpeak(); uTween = null; u = parseFloat(ev.target.value); step = Math.round(u); applyU(u, true); });
 document.getElementById("next").onclick = () => { stopPlay(); goStep(step + 1); };
 document.getElementById("prev").onclick = () => { stopPlay(); goStep(step - 1); };
 document.getElementById("play").onclick = () => { if (playTimer) return stopPlay(); const b = document.getElementById("play"); b.setAttribute("aria-pressed", "true"); b.innerHTML = "&#10074;&#10074; Pause"; if (step >= STEPS.length - 1) goStep(0); playTimer = setInterval(() => { if (step >= STEPS.length - 1) return stopPlay(); goStep(step + 1); }, 4500); };
@@ -674,10 +802,41 @@ function applyUrl() {
 // ---------- loop ----------
 function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); labelRenderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
 addEventListener("resize", resize); resize();
+// Labels sit beside their part, never on it: each is pushed out along the first free direction (screen space) with a leader line back to its dot.
+const boxDir = new Map(), lboxes = {};
+function layoutLabels() {
+  const W = view.clientWidth, H = view.clientHeight, placed = [], items = [];
+  const proj = (v) => { const p = v.clone().project(camera); return [(p.x * 0.5 + 0.5) * W, (-p.y * 0.5 + 0.5) * H, p.z]; };
+  for (const [id, sl] of Object.entries(stepLabels)) {
+    if (sl.el.classList.contains("hide")) continue; const e = PARTS?.[id]; if (!e?.obj) continue;
+    const P = proj(sl.l.getWorldPosition(new THREE.Vector3())); if (P[2] > 1) continue;
+    if (!lboxes[id]) { const wb = bboxOf(e.obj), inv = e.obj.matrixWorld.clone().invert(); const a = wb.min.clone().applyMatrix4(inv), b = wb.max.clone().applyMatrix4(inv); lboxes[id] = new THREE.Box3(a.clone().min(b), a.clone().max(b)); }
+    const lb = lboxes[id]; let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (let c = 0; c < 8; c++) { const q = proj(new THREE.Vector3(c & 1 ? lb.max.x : lb.min.x, c & 2 ? lb.max.y : lb.min.y, c & 4 ? lb.max.z : lb.min.z).applyMatrix4(e.obj.matrixWorld)); x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); }
+    items.push({ id, sl, P, part: [x0 - 4, y0 - 4, x1 + 4, y1 + 4], cur: sl.el.classList.contains("cur") });
+  }
+  items.sort((a, b) => b.cur - a.cur);
+  const hit = (r, q) => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1];
+  for (const it of items) {
+    const box = it.sl.el.querySelector(".box"), w = box.offsetWidth + 8, h = box.offsetHeight + 6, [px, py] = it.P;
+    const dirs = [-50, 0, -130, 180, 40, 140, -90, 90].map(d => d * Math.PI / 180); const prev = boxDir.get(it.id); if (prev !== undefined) dirs.unshift(prev);
+    let best = null;
+    search: for (const a of dirs) for (let t = 30; t < 520; t += 18) {
+      const cx = px + Math.cos(a) * (t + w / 2 * Math.abs(Math.cos(a))), cy = py + Math.sin(a) * (t + h / 2 * Math.abs(Math.sin(a))), r = [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2];
+      if (r[0] < 4 || r[2] > W - 4 || r[1] < 4 || r[3] > H - 175) continue; if (hit(r, it.part) || placed.some(q => hit(r, q))) continue; best = { r, a }; break search;
+    }
+    if (!best) { const a = -0.9; best = { r: [px + 30, py - 60 - h / 2, px + 30 + w, py - 60 + h / 2], a }; }
+    boxDir.set(it.id, best.a); placed.push(best.r);
+    const r = best.r, qx = Math.max(r[0] + 4, Math.min(px, r[2] - 4)), qy = Math.max(r[1] + 3, Math.min(py, r[3] - 3)), lx = px < r[0] ? r[0] : px > r[2] ? r[2] : qx, ly = py < r[1] ? r[1] : py > r[3] ? r[3] : qy;
+    box.style.transform = `translate(${r[0] + 4 - px}px,${r[1] + 3 - py}px)`;
+    const lead = it.sl.el.querySelector(".lead"), dx = lx - px, dy = ly - py, len = Math.hypot(dx, dy);
+    lead.style.display = len > 8 ? "block" : "none"; lead.style.width = len + "px"; lead.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+  }
+}
 function tick() {
   if (tween) { tween.t = reduce ? 1 : Math.min(1, tween.t + 0.045); const k = 1 - Math.pow(1 - tween.t, 3);
     camera.position.lerpVectors(tween.fromPos, tween.toPos, k); controls.target.lerpVectors(tween.fromTgt, tween.toTgt, k); if (tween.t >= 1) tween = null; }
-  if (mode === "steps") tickStep(1 / 60); controls.update(); renderer.render(scene, camera); labelRenderer.render(scene, camera); requestAnimationFrame(tick);
+  if (mode === "steps") tickStep(1 / 60); controls.update(); renderer.render(scene, camera); labelRenderer.render(scene, camera); if (mode === "steps" && PARTS) layoutLabels(); requestAnimationFrame(tick);
 }
 try { await build(); setMode("all"); window.__manual = { select, setMode, entries, camera, renderer }; tick(); applyUrl(); }
 catch (e) { err.style.display = "grid"; err.textContent = "Could not load the part files (" + (e.message || e) + "). Serve this folder over http: scripts/serve-manual3d.sh"; console.error(e); }

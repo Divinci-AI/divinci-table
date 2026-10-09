@@ -14,7 +14,7 @@ disagree. **Status (2026-10-05): designed from the parts' specs, not yet assembl
 decides whether the printer is the hand or the SO-101 arm is ([docs/ARM-GANTRY-GOAL.md](../../docs/ARM-GANTRY-GOAL.md),
 section M). The suction design this replaced is in git history.
 
-**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head, and two animated step-by-step guides (the magnet head, 15 steps, starting with sawing and drilling the bracket; sleeving a card with its washer, 8 steps) with a scrubbable timeline. Your place is saved in the browser, and every view has a link you can share or bookmark: `?view=steps&guide=sleeve&step=5` (also `view=head&explode=0.6`, `view=all&part=swivel`, `labels=all|current|off`, `follow=0`).
+**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head, and two animated step-by-step guides (the magnet head, 15 steps, starting with sawing and drilling the bracket; sleeving a card with its washer, 8 steps) with a scrubbable timeline. Labels carry each part's size, and a Speak button (or `S`, plus an Auto-read option) reads the current step aloud using the browser's own offline voices. Your place is saved in the browser, and every view has a link you can share or bookmark: `?view=steps&guide=sleeve&step=5` (also `view=head&explode=0.6`, `view=all&part=swivel`, `labels=all|current|off`, `follow=0`).
 
 ![The whole rig](img/overview.svg)
 
@@ -52,16 +52,16 @@ Prices as seen on 2026-10-04; any equivalent part works.
 
 **Printed (Step 3, before the printer becomes the gantry)**
 
-| Part | Qty | Used for |
-|---|---|---|
-| Printed magnet swivel | 1 (+1 spare) | holds the magnet and turns in its bracket |
-| Printed deck box with a one-card exit slot | 1 | the AI's shuffled deck, face-up and covered; one card out at a time |
-| Printed deck box follower plate | 1 | rides on four springs, keeping the top card at the exit slot |
-| Printed discard chute | 1 | graveyard and exile go off the bed's edge into a tray |
-| Printed hand rack | 1 | the AI's hand: seven cards in a staircase on the bed's back edge, faces hidden by its fence |
-| Printed sleeving jig tray | 1 | holds a card while its washer goes on |
-| Printed sleeving jig bridge | 1 | drops every washer at the card's centre |
-| Printed lead clip | 4 | the magnet's leads, with slack for the swivel |
+| Part | Qty | Size (from the .scad / STL; TBD = measure yours) | Used for |
+|---|---|---|---|
+| Printed magnet swivel | 1 (+1 spare) | 24 × 24 × 15.1 mm; hex slot 11.6 mm AF; top hole 7 mm | holds the magnet and turns in its bracket |
+| Printed deck box with a one-card exit slot | 1 | 73.3 × 99.3 × 117.8 mm; `card_t` 1.6 mm TBD | the AI's shuffled deck, face-up and covered; one card out at a time |
+| Printed deck box follower plate | 1 | 67.5 × 93.5 × 3.0 mm | rides on four springs, keeping the top card at the exit slot |
+| Printed discard chute | 1 | 74.5 × 90.1 × 52.4 mm; 35° ramp; `bed_t` 6 mm TBD | graveyard and exile go off the bed's edge into a tray |
+| Printed hand rack | 1 | 349.3 × 40.0 × 111.3 mm; 7 slots, 46 mm pitch; `card_t` 1.6 mm TBD | the AI's hand: seven cards in a staircase on the bed's back edge, faces hidden by its fence |
+| Printed sleeving jig tray | 1 | 72.9 × 98.9 × 9.6 mm; card pocket 68.1 × 94.1 mm | holds a card while its washer goes on |
+| Printed sleeving jig bridge | 1 | 72.9 × 24.0 × 5.0 mm; hole for an 11.1 mm washer | drops every washer at the card's centre |
+| Printed lead clip | 4 | 14 × 16 × 7.8 mm; holds 5 mm wire | the magnet's leads, with slack for the swivel |
 
 **Check you have these (buy only if missing)**
 
@@ -79,16 +79,16 @@ Prices as seen on 2026-10-04; any equivalent part works.
 
 | Part | Qty | Used for |
 |---|---|---|
-| Everbilt aluminium angle 1" × 3 ft × 1/8" | 1 | camera bracket (~6") and magnet bracket (~3") |
-| Everbilt 1/4"-20 × 1" zinc hex bolt | 4 | camera bracket; the swivel's axle; spares |
-| Everbilt 1/4"-20 wing nut (4-pack) | 1 | setting the swivel's drag |
-| Everbilt nylon spacer 1/2" × 1" (0.257" bore) | 2 | cut down: a low-friction washer under the bracket |
+| Everbilt aluminium angle 1" × 3 ft × 1/8" | 1 | camera bracket (~6" / 152 mm) and magnet bracket (3" / 76 mm; 1/4" / 6.35 mm hole 1" / 25.4 mm from one end) |
+| Everbilt 1/4"-20 × 1" (6.35 × 25.4 mm) zinc hex bolt | 4 | camera bracket; the swivel's axle; spares |
+| Everbilt 1/4"-20 (6.35 mm) wing nut (4-pack) | 1 | setting the swivel's drag |
+| Everbilt nylon spacer 1/2" (12.7 mm) × 1" (0.257" / 6.5 mm bore) | 2 | cut down to 6 mm: a low-friction washer under the bracket |
 | Everbilt 1/4" rubber flat washers (10-pack) | 1 | damping under the ball head; the tap station's grippy foot |
-| Everbilt spring assortment kit (84-pack) | 1 | one compression spring for the swivel's drag |
+| Everbilt spring assortment kit (84-pack) | 1 | one compression spring for the swivel's drag (about 8 mm wide; length TBD) |
 | Scotch Extreme double-sided mounting tape 1" × 48" | 1 | brackets to the beam and the carriage (no drilling into the printer) |
 | Everbilt M3 × 6 mm zinc flat head machine screws (4-pack) | 1 | magnet to the printed swivel (the magnet has an M3 thread in its back) |
 | Commercial Electric 4" heat-shrink tubing assortment (8-pack) | 1 | insulating the diode and the lead splices |
-| Everbilt #10 zinc flat washers (100-pack) | 1 | one per AI card, inside the sleeve (zinc-plated steel is magnetic; stainless mostly isn't) |
+| Everbilt #10 zinc flat washers (100-pack; 0.438" / 11.1 mm OD) | 1 | one per AI card, inside the sleeve (zinc-plated steel is magnetic; stainless mostly isn't) |
 
 **Online (Amazon) — the exact parts.** Only the first two are in the cart ($13.18): the M1 test kit. The rest
 are in *Save for later* until the deck-stack test in Step 9 passes 19 times out of 20; M1 uses the table's
