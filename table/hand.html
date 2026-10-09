@@ -42,7 +42,7 @@ select{padding:7px;border-radius:8px;background:#071820;color:var(--ink);border:
     <div class="sub" id="phase">—</div></div>
     <div id="startrow" style="display:none;margin-top:8px"><button class="gold" id="start">Start the game</button>
       <span class="sub">or roll for who goes first on the stage</span></div>
-    <div style="margin-top:8px"><button class="gold" id="begin">Begin my turn (untap, draw)</button><button id="pass">Pass</button>
+    <div style="margin-top:8px"><button class="gold" id="begin" disabled>Begin my turn (untap, draw)</button><button id="pass">Pass</button>
       <button id="end">End my turn</button></div>
     <div class="sub" id="mana" style="margin-top:6px"></div>
     <div id="err" role="alert"></div></div>
@@ -54,7 +54,7 @@ select{padding:7px;border-radius:8px;background:#071820;color:var(--ink);border:
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-let S = null, since = "latest", attackers = new Set(), lastAttack = [], alert = null;
+let S = null, PH = null, since = "latest", attackers = new Set(), lastAttack = [], alert = null;
 const me = () => (window.TableSeat && TableSeat.name()) || "";
 const key = () => (window.TableSeat && TableSeat.body().key) || "";
 async function call(method, path, body) {
@@ -70,7 +70,7 @@ async function act(action, body = {}) {
     if (code === 409 && d.waiting) { $("err").textContent = `waiting on ${d.waiting.join(", ")}…`; await new Promise(r => setTimeout(r, 2000)); continue; }
     if (!ok) { $("err").textContent = d.error || "refused"; return null; }
     (d.said || []).forEach(x => logLine(x)); $("err").textContent = "";
-    await load(); return d;
+    await load(); refreshPhase(); return d;
   }
 }
 function logLine(t) { $("log").insertAdjacentHTML("afterbegin", `<div>${esc(t)}</div>`); }
@@ -159,9 +159,19 @@ async function poll() {
   } catch {}
   setTimeout(poll, 1200);
 }
-async function phase() {
-  try { const p = await (await fetch("/api/phase")).json(); $("phase").textContent = p.player ? `${p.player} · ${p.step}` : "game not started";
+// What the server will accept, mirrored here only to grey buttons out: the server refuses the rest (and says why).
+function canBegin() { return !!PH && !!me() && PH.player === me() && !PH.begun && PH.index < (PH.steps || []).indexOf("main 1"); }
+function buttons() {
+  const b = canBegin(); $("begin").disabled = !b;
+  $("begin").title = b ? "" : !PH || !PH.player ? "the game has not started" : PH.player !== me() ? `it is ${PH.player}'s turn` : PH.begun ? "you already began this turn" : "begin is for the start of your turn";
+}
+async function refreshPhase() {
+  try { const p = await (await fetch("/api/phase")).json(); PH = p; $("phase").textContent = p.player ? `${p.player} · ${p.step}` : "game not started";
     $("startrow").style.display = p.player || !me() ? "none" : ""; } catch {}
+  buttons();
+}
+async function phase() {
+  await refreshPhase();
   if (!S && me()) load();                                // a seat just claimed (seat.js has no event for it)
   setTimeout(phase, 2000);
 }

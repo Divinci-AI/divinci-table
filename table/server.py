@@ -23,7 +23,7 @@ import os
 import secrets
 import sys
 import threading
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import time
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -575,6 +575,25 @@ def priority_reset(why: str):
                          text=f"{active}: {step}. Something new happened — you may respond, or pass.", step=step, active=active)
 
 
+BEGIN_LOCK = threading.Lock()                        # one begin at a time: a double tap must not untap and draw twice
+
+
+def begin_refusal(seat_name: str, host: bool = False) -> str | None:
+    """Why `begin` (untap, draw, reset the land drop) is not legal for this seat right now, or None. Only the ACTIVE seat,
+    before main 1 (its own walk through upkeep and draw is a retry of the same begin), and once per turn. PHASE_LOCK/BEGIN_LOCK
+    are the caller's. Before the game starts only the host's brain may begin (a solo engine game with no turn order, as
+    brain_e2e plays); a pilot doing so would make itself the first player and skip the high roll."""
+    if PHASE["player"] is None:
+        return None if host else "the game hasn't started"
+    if PHASE["player"] != seat_name:
+        return f"it's {PHASE['player']}'s turn, not {seat_name}'s: begin is for the start of your own turn"
+    if PHASE.get("begun"):
+        return f"{seat_name} already began this turn"
+    if PHASE["step"] >= STEPS.index("main 1"):
+        return f"begin is for the start of the turn (untap); {seat_name}'s turn is already at {STEPS[PHASE['step']]}"
+    return None
+
+
 AI_STEP_OF = {"begin": "main 1", "attack": "declare attackers", "damage": "combat damage", "end": "end step"}
 AI_MAIN_ACTIONS = {"land", "cast", "turn-up", "manifest", "put", "blink", "token"}
 AI_OPENED: dict = {"key": None}                      # (player, step) whose round has been announced
@@ -790,6 +809,7 @@ def phase_public() -> dict:
         if is_open:
             left = PRIORITY["beat_until"] - now if now < PRIORITY["beat_until"] else PRIORITY["deadline"] - now
         return {"player": PHASE["player"], "step": STEPS[PHASE["step"]], "index": PHASE["step"], "steps": STEPS,
+                "begun": bool(PHASE.get("begun")),
                 "order": turn_order(), "waiting": list(PRIORITY["seats"]) if is_open else [],
                 "seconds_left": round(max(0.0, left), 1), "ai": list(VPS),
                 "windows": WINDOWS["on"], "window_secs": args.priority_window, "hold": HOLD["on"],
@@ -2878,13 +2898,22 @@ class H(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "you can only change your own life total"})
                 if pilot and act == "damage":
                     b["no_life"] = True                     # the players hit say their own life; only my lifelink counts
-                with PHASE_LOCK:
-                    blocked = ai_advance(sn, act)
-                if blocked:
-                    return self._send(409, {**phase_public(), "waiting": blocked,
-                                            "error": f"waiting on passes: {blocked} (retry)"})
-                with acting(sn):
-                    out = self._brain(act, b)
+                if pilot and act == "fair-reveal":           # it publishes every deck's seed and shuffled order
+                    return self._send(403, {"error": "only the table's host can publish the fairness proof: it shows every deck's order"})
+                with (BEGIN_LOCK if act == "begin" else nullcontext()):
+                    if act == "begin":
+                        with PHASE_LOCK:
+                            why = begin_refusal(sn, host=not pilot)
+                        if why:
+                            self._refused(act, "not-your-begin", why)
+                            return self._send(409, {**phase_public(), "error": why})
+                    with PHASE_LOCK:
+                        blocked = ai_advance(sn, act)
+                    if blocked:
+                        return self._send(409, {**phase_public(), "waiting": blocked,
+                                                "error": f"waiting on passes: {blocked} (retry)"})
+                    with acting(sn):
+                        out = self._brain(act, b)
                 if act in ("cast", "turn-up", "manifest") and PHASE["player"] != sn:
                     priority_reset(f"{sn} responded ({act})")   # an AI answered in a person's step: round again
                     ai_passed(sn)                               # …and it has had its say in the new round
