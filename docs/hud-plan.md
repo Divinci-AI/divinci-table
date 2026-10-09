@@ -58,6 +58,30 @@ assert on game state (tapped permanents, library count, land played, hand size);
 
 Still open for the owner: which actions a pilot may take with no card behind them (`draw`/`search`/`put` for effects the engine does not model yet: allow with a stated card and log it, or refuse?).
 
+## Revision 2 (after the Hermes review, 2026-10-09: it also ran `phase_test.py` and `pass_ui_e2e.cjs`, both green)
+
+Hermes agreed with Opus on the live-game breakers and added these. Items 1-4 join the first patch set.
+
+1. **Untap has two server paths, not one.** `/api/brain/untap` (pilots) AND `/api/card-action` `tap`/`untap` (`server.py` ~2465, offered by `/board`: real-deck players). One rule for both: untap only in your own untap step; tap stays legal whenever you hold priority.
+   There is no tap history anywhere, so "undo my last tap" is NEW work and a later feature, not part of the first patch.
+2. **BACK / HOLD / WINDOWS authority** is decided BEFORE the dock ships (the dock multiplies the button). Proposed: BACK within your own turn = active player only; crossing into the previous player's turn = host/room creator only. HOLD = any seated
+   player, but visible and logged. WINDOWS = active player or host. (`REMOTE_SEAT_POSTS` ~1069 marks all three "any valid seat key"; on a keyless LAN game they are open to the whole Wi-Fi: document, do not fix now.)
+3. **The active player's turn has no timeout** (`_human_timer_applies` excludes them), so a stalled or disconnected active player freezes the table, and the only remedies are host-laptop-only. Needs a server-side answer for remote rooms
+   (a visible "turn clock" with a stated consequence the table agrees to, e.g. auto-pass to end step; not a silent forfeit). The pass timer today passes FOR a player with no penalty.
+4. **Seat keys:** the picker prints a key-bearing link (`seat.js` ~41) and hand-off links are shown in the same sheet: any screen share or pasted chat is a seat takeover, and release drops ALL of a seat's keys. Same-device key minting is unlimited.
+   The cross-room case is still last-writer-wins: the room-2 tab overwrites the shared `localStorage` key, the room-1 tab adopts it through the storage event, and room-1's server answers `need_seat`. **My 2026-10-08 `seat.js` fix is real for same-room
+   tabs and premature for two rooms**; test 5 must assert "the room-1 tab can still pass in room 1", not only "no popup on load". Fix: store keys per room (the page learns its room id from the server), not one global entry.
+5. **Auto-pass facts that contradict the plan:** `autopass_round` checks neither Hold nor open questions (only `next_step`'s 409s hide that; the `ai_passed` path auto-passes humans during a hold); `/api/autopass` applies immediately
+   (`autopass_round()` runs inside the handler), so "toggling mid-step takes effect on the next window only" FAILS on current code: decide which behaviour is wanted, then make code and test agree. "No-combat" cannot be computed for real decks
+   (the board is self-declared: not declaring creatures gets you passed through combat). Today's all-four-combat-steps stop is the safer end: define the stop set explicitly and accept both over- and under-asking.
+6. **The dock's NEXT/PASS label is chosen by seat kind**, not by server state: a pilot's own turn is driven by engine actions (begin, land, cast, attack, damage, end), NEXT refuses them, so "advance" means pass-in-window or end-of-turn only for pilots.
+7. **Smaller:** a real-deck hand is validated against the seat's own deck file first (`seat_deck_names`), the whole `oracle.json` second; the "say it" path is first-class, not a photo fallback; dual-faced cards store both names.
+
+**Test plan additions:** test 3 (untap) must also drive `/api/card-action`; test 4 must assert on the `ai_passed` path during a hold; test 5 as in item 4; the full-round test must press BACK, HOLD and WINDOWS and assert who may; order (test 2) is already green
+today, so the dock can pass it with wrong labels: assert the labels per seat kind.
+
+**Build order (unchanged by Hermes, amended):** (1) the patches including both untap paths and the BACK/HOLD/WINDOWS authority, test-first; (2) turn state machine + stale-step token; (3) buttons-only dock; (4) pilot hand arc; (5) typed real-deck hand; (6) photos last.
+
 ## What exists today (read, not assumed)
 
 - `table/assets/tablebar.js`: a bar at the TOP of six pages (`/me /stage /xr /board /log /hand`). It already knows "whose turn / who must pass"
