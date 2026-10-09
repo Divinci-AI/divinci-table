@@ -72,7 +72,7 @@
       <button id="m-steps" aria-pressed="false">Step by step</button>
     </div>
     <button id="resume" style="display:none;width:100%;margin:0 0 10px"></button>
-    <div id="guide-row" style="display:none;margin:0 0 8px;color:var(--dim)">Guide <select id="guide" style="margin-left:8px;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px"><option value="magnet">Magnet head</option><option value="sleeve">Sleeve a card</option></select></div>
+    <div id="guide-row" style="display:none;margin:0 0 8px;color:var(--dim)">Guide <select id="guide" style="margin-left:8px;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px"><option value="magnet">Magnet head</option><option value="sleeve">Sleeve a card</option><option value="flip">Flip a card (design)</option></select></div>
     <div id="detail" aria-live="polite"><h3>Pick a part</h3><p class="meta">Click anything in the list or in the 3D view to see where it goes, how many, and how big it is.</p></div>
     <ol id="steps" style="display:none;margin:10px 0 0;padding:0;list-style:none"></ol>
     <div id="lists"><h2>Printed parts</h2><ul id="list-print"></ul>
@@ -419,6 +419,8 @@ const DIMDEFS = {                // local coordinates of each part; values are t
   magnet: [[[10, 0, 0], [10, 0, 15], [1, 0, 0], "15 mm", 6], [[-10, 0, 15], [10, 0, 15], [0, -1, 0], "\u00d820 mm", 8]],
   m3: [[[4.5, 0, -4.5], [4.5, 0, 1.5], [1, 0, 0], "M3 x 6 mm", 5]],
   tape2: [], inner: [], outer: [],
+  fence: [[[-61.65, -51, 0], [61.65, -51, 0], [0, -1, 0], "123.3 mm", 8], [[61.65, -51, 0], [61.65, 0.5, 0], [1, 0, 0], "51.5 mm", 8], [[61.65, 0, 0], [61.65, 0, 3.5], [1, 0, 0], "lip 3.5 mm", 22], [[-47.25, -30, 3.5], [47.25, -30, 3.5], [0, 0, 1], "rails 94.5 mm apart", 8]],
+  flipCard: [[[-46.25, 0, 0], [46.25, 0, 0], [0, -1, 0], "92.5 mm (long edge)", 8], [[-46.25, 0, 0], [-46.25, 66.5, 0], [-1, 0, 0], "66.5 mm", 8]],
 };
 const BOXDIMS = {                // printed parts and the card: overall size from the STL bounds / the .scad, drawn along the bounding box
   swivel: [["x", "24 mm"], ["z", "15.1 mm"]], clip: [["x", "14 mm"], ["y", "16 mm"], ["z", "7.8 mm"]], jig: [["x", "72.9 mm"], ["y", "98.9 mm"], ["z", "9.6 mm"]], bridge: [["x", "72.9 mm"], ["y", "24 mm"], ["z", "5 mm"]],
@@ -440,11 +442,12 @@ function attachDims(id, obj) {
 function showRulersFor(id) { for (const k of Object.keys(dimsOf)) setRulers(k, k === id ? 1 : 0); }
 
 // ---------- step-by-step assembly (hardware/gantry/README.md, Steps 4 and 5) ----------
-const ROLE = { angleBlank: "the 3 in magnet piece", offcut: "kept: the longer piece is for the camera mount", saw: "teeth face away from you; cut on the push stroke", drill: "1/4 in (6.35 mm); pilot with a small bit first", card: "63 x 88 mm", inner: "the card goes in first", outer: "slides over the card, washer and tape", washer: "about 1/2 inch across, 1.2 mm: the magnet's grip", tape2: "keeps the washer from wandering", jig: "holds the sleeved card face-down", bridge: "its hole puts the washer at the card's centre", swivel: "printed: holds the magnet and bolt", magnet: "24 V, 20 x 15 mm", m3: "flat-head, M3 x 6", bolt: "1/4\"-20 x 1\"", nylon: "6 mm low-friction washer", angle: "drilled leg sticks out under the carriage", spring: "short compression spring", wing: "wing nut: sets the drag",
+const ROLE = { fence: "catches one long edge of the card", grip: "silicone or grip tape in the face groove", zone: "bed area kept clear for the flip", flipCard: "turns over like a page about the caught edge", flipHead: "design requirement: the head must tilt with the card", flipPath: "where the washer travels", angleBlank: "the 3 in magnet piece", offcut: "kept: the longer piece is for the camera mount", saw: "teeth face away from you; cut on the push stroke", drill: "1/4 in (6.35 mm); pilot with a small bit first", card: "63 x 88 mm", inner: "the card goes in first", outer: "slides over the card, washer and tape", washer: "about 1/2 inch across, 1.2 mm: the magnet's grip", tape2: "keeps the washer from wandering", jig: "holds the sleeved card face-down", bridge: "its hole puts the washer at the card's centre", swivel: "printed: holds the magnet and bolt", magnet: "24 V, 20 x 15 mm", m3: "flat-head, M3 x 6", bolt: "1/4\"-20 x 1\"", nylon: "6 mm low-friction washer", angle: "drilled leg sticks out under the carriage", spring: "short compression spring", wing: "wing nut: sets the drag",
   carriage: "the printer's X carriage", tape: "holds the bracket to the carriage", nozzle: "magnet face stays 5 mm or more below it", wire: "22 AWG two-core leads (+ / -)", clipA: "printed lead clip", clipB: "printed lead clip", clipC: "printed lead clip", clipD: "printed lead clip" };
-const NAME = { angleBlank: "Aluminium angle", offcut: "Offcut", saw: "Hacksaw", drill: "Drill bit", card: "Card", inner: "Inner sleeve", outer: "Outer sleeve", washer: "#10 zinc washer", tape2: "Clear tape", carriage: "X carriage", tape: "Mounting tape", nozzle: "Nozzle", wire: "Magnet leads", clipA: "Lead clip", clipB: "Lead clip", clipC: "Lead clip", clipD: "Lead clip" };
+const NAME = { fence: "Flip fence", grip: "Grip strip", zone: "Station area", flipCard: "Card (sleeved, washer behind)", flipHead: "Magnet head on a pitch hinge", flipPath: "Washer path", angleBlank: "Aluminium angle", offcut: "Offcut", saw: "Hacksaw", drill: "Drill bit", card: "Card", inner: "Inner sleeve", outer: "Outer sleeve", washer: "#10 zinc washer", tape2: "Clear tape", carriage: "X carriage", tape: "Mounting tape", nozzle: "Nozzle", wire: "Magnet leads", clipA: "Lead clip", clipB: "Lead clip", clipC: "Lead clip", clipD: "Lead clip" };
 // Dimensions, taken from the models and the README (printed parts: STL bounding boxes + the .scad parameters). "TBD" = not measured yet.
 const DIMS = {
+  fence: "123.3 x 51.5 x 3.5 mm; rails 94.5 mm apart (card 92.5 + 2); face leans 8 deg; groove 1.5 mm for a grip strip", flipCard: "92.5 x 66.5 mm; card_t 1.6 mm TBD; washer 33.25 mm from the pivot edge",
   swivel: "24 x 24 x 15.1 mm; hex slot 11.6 mm AF; top hole 7 mm; M3 hole 3.2 mm", clip: "14 x 16 x 7.8 mm; holds 5 mm wire",
   deck: "73.3 x 99.3 x 117.8 mm; for 66.5 x 92.5 mm sleeved cards; card_t 1.6 mm TBD (measure 10 cards)", follower: "67.5 x 93.5 x 3.0 mm",
   chute: "74.5 x 90.1 x 52.4 mm; 35 deg ramp; bed_t 6 mm TBD (measure your bed)", rack: "349.3 x 40.0 x 111.3 mm; 7 slots, 46 mm pitch; card_t 1.6 mm TBD",
@@ -459,7 +462,7 @@ const DIMS = {
   card: "63 x 88 mm (sleeve pocket 66.5 x 92.5 mm)", inner: "about 66.5 x 92.5 mm (measure yours)", outer: "a little larger than the inner sleeve (measure yours)",
   washer: "#10: 0.438 in (11.1 mm) OD; bore and thickness drawn, TBD", tape2: "about 18 mm square patch (drawn)",
 };
-const SHORT = { angle: "76 x 25.4 x 3.2 mm", angleBlank: "76 x 25.4 x 3.2 mm", offcut: "about 74 mm", magnet: "20 dia x 15 mm", swivel: "24 x 24 x 15 mm", bolt: "1/4-20 x 25.4 mm", nylon: "12.7 OD x 6 mm", saw: "300 mm blade", drill: "6.35 mm bit",
+const SHORT = { fence: "123 x 52 x 3.5 mm", flipCard: "92.5 x 66.5 mm", flipHead: "hinge 20 mm above the face",  angle: "76 x 25.4 x 3.2 mm", angleBlank: "76 x 25.4 x 3.2 mm", offcut: "about 74 mm", magnet: "20 dia x 15 mm", swivel: "24 x 24 x 15 mm", bolt: "1/4-20 x 25.4 mm", nylon: "12.7 OD x 6 mm", saw: "300 mm blade", drill: "6.35 mm bit",
   jig: "73 x 99 x 9.6 mm", bridge: "73 x 24 x 5 mm", card: "63 x 88 mm", washer: "11.1 mm OD", m3: "M3 x 6 mm", wing: "1/4-20", clipA: "14 x 16 x 8 mm", clipB: "14 x 16 x 8 mm", clipC: "14 x 16 x 8 mm", clipD: "14 x 16 x 8 mm" };
 let labelMode = "current";   // all | current | off
 const stepLabels = {};
@@ -472,7 +475,7 @@ function makeStepLabel(id, obj, local) {
   const l = new CSS2DObject(el); obj.add(l); l.position.copy(local); stepLabels[id] = { el, l };
 }
 function labelPoint(obj) { const b = bboxOf(obj), c = b.getCenter(new THREE.Vector3()); const top = new THREE.Vector3(c.x, c.y, b.max.z); obj.worldToLocal(top); return top; }
-const groups = { magnet: new THREE.Group(), sleeve: new THREE.Group() }; for (const g of Object.values(groups)) { g.visible = false; world.add(g); }
+const groups = { magnet: new THREE.Group(), sleeve: new THREE.Group(), flip: new THREE.Group() }; for (const g of Object.values(groups)) { g.visible = false; world.add(g); }
 let G = "magnet";                // the active guide
 const L = 34;                     // the frame (carriage, bracket) hangs this far up until step 7 lowers it onto the bolt
 const STEP_LOWER = 8;
@@ -481,7 +484,7 @@ const FRAME = new Set(["carriage", "tape", "angle", "nozzle"]);
 const ghostMat = (m) => { const c = m.clone(); c.transparent = true; return c; };
 function addExtra(id, obj, intro, stageAbs, home, guide = "magnet") { obj.traverse(o => { if (o.isMesh) { o.material = ghostMat(o.material); } o.userData.id = id; }); groups[guide].add(obj); obj.updateMatrixWorld(true);
   attachDims(id, obj); asms[guide][id] = { obj, intro, stage: stageAbs ? stageAbs.map((v, i) => v - home[i]) : null, extra: true }; }   // an extra's position is an offset from where its geometry was built
-const asms = { magnet: {}, sleeve: {} }, asm = asms.magnet;
+const asms = { magnet: {}, sleeve: {}, flip: {} }, asm = asms.magnet;
 const MAGNET_STEPS = [
   { title: "Before you start", ref: "Step 3", intro: [], focus: ["magnet", "swivel", "m3", "bolt", "nylon", "spring", "wing", "angleBlank", "carriage"], cam: [[120, 0, 10], 340, [0.1, -0.55, 1.2]],
     text: "Print the swivel (and a spare) and four lead clips first, while the printer is still a printer. On the table: the 24 V magnet, M3 x 6 flat-head screw, 1/4\"-20 bolt, nylon spacer, spring, wing nut and the 3\" aluminium angle. The grey block is the printer's X carriage." },
@@ -546,20 +549,21 @@ function magnetParts() {
   parts.angle.pose = k => k <= 1 ? { p: TRAY.angle, r: [0, 0, 0], op: 0, vis: false } : k === 2 ? { p: TRAY.angle, r: [0, 0, 0], op: 1, vis: true } : { p: finalPose("angle", k), r: [0, 0, 0], op: 1, vis: true };
   return { ...parts, ...asm };
 }
-function partsFor() { return G === "sleeve" ? sleeveParts() : magnetParts(); }
+function partsFor() { return G === "sleeve" ? sleeveParts() : G === "flip" ? { ...asms.flip } : magnetParts(); }
 let PARTS = null, step = 0, stepTween = null, playTimer = null;
 function finalPose(id, k) {
   const fin = headPose(0), p = (fin[id]?.p || [0, 0, 0]).slice();
   if (FRAME.has(id) && k < STEP_LOWER) p[2] += L;                  // the angle's headPose is its final height; the others are built in place
   return p;
 }
-const GUIDE_INFO = { magnet: { title: "Magnet head", entryIds: () => Object.keys(TRAY) }, sleeve: { title: "Sleeve a card", entryIds: () => ["jig", "bridge"] } };
+const GUIDE_INFO = { magnet: { title: "Magnet head", entryIds: () => Object.keys(TRAY) }, sleeve: { title: "Sleeve a card", entryIds: () => ["jig", "bridge"] }, flip: { title: "Flip a card (design)", entryIds: () => [] } };
 function ghostEntries() { for (const e of Object.values(entries)) e.obj.traverse(o => { if (o.isMesh && !o.userData.ghosted) { o.material = ghostMat(o.material); o.userData.ghosted = true; } }); }   // the printed parts share one material: give each its own before fading one
 function enterSteps() { setGuide(G, step, true); }
 function setGuide(name, startStep = 0, instant = false) {
-  stopPlay(); G = name; STEPS = name === "sleeve" ? SLEEVE_STEPS : MAGNET_STEPS;
+  stopPlay(); G = name; STEPS = name === "sleeve" ? SLEEVE_STEPS : name === "flip" ? FLIP_STEPS : MAGNET_STEPS;
   if (!asms.magnet.carriage) buildExtras();
   if (!asms.sleeve.card) buildSleeve();
+  if (!asms.flip.fence) buildFlip();
   ghostEntries(); PARTS = partsFor();
   for (const id of Object.keys(TRAY)) if (!stepLabels[id]) makeStepLabel(id, entries[id].obj, labelPoint(entries[id].obj));
   for (const id of ["jig", "bridge"]) if (!stepLabels[id]) makeStepLabel(id, entries[id].obj, labelPoint(entries[id].obj));
@@ -595,10 +599,11 @@ function applyU(uu, driveCamera) {
     if (id === "__init") continue; const A = stateAt(id, k), B = stateAt(id, k2);
     e.obj.position.set(...A.p.map((v, i) => v + (B.p[i] - v) * f));
     if (id === "saw" && uu < 2) { const w = Math.sin(Math.PI * (uu - Math.floor(uu))); e.obj.position.x += 45 * w * Math.sin(uu * 56); e.obj.position.z -= 20 * w; }   // the stroke is driven by the timeline position; idle (u a whole number) the blade rests just above the cut
-    e.obj.rotation.set(...A.r.map((v, i) => v + (B.r[i] - v) * f)); if (id === "wing" && e.intro === k2 && f < 1) e.obj.rotation.z = (1 - f) * Math.PI * 6;
+    e.obj.rotation.set(...A.r.map((v, i) => v + (B.r[i] - v) * f)); const dq = e.dyn ? e.dyn(uu) : null; if (dq) { e.obj.position.set(...dq.p); e.obj.rotation.set(...dq.r); }   // a part whose motion follows the timeline continuously (the card turning)
+    if (id === "wing" && e.intro === k2 && f < 1) e.obj.rotation.z = (1 - f) * Math.PI * 6;
     const mA = !STEPS[k].only || STEPS[k].only.includes(id) ? 1 : 0, mB = !nextSt.only || nextSt.only.includes(id) ? 1 : 0, mul = mA + (mB - mA) * f;   // a step's `only` list fades every other piece out (and back in when you leave)
-    e.obj.visible = (f === 0 ? A.vis : (A.vis || B.vis)) && mul > 0.001;
-    const op = (A.op + (B.op - A.op) * f) * mul, hi = (f === 0 ? STEPS[k] : nextSt);
+    e.obj.visible = (dq ? dq.vis : (f === 0 ? A.vis : (A.vis || B.vis))) && mul > 0.001;
+    const op = (dq ? dq.op : (A.op + (B.op - A.op) * f)) * mul, hi = (f === 0 ? STEPS[k] : nextSt);
     const glow = hi.focus.includes(id) || hi.intro.includes(id) ? 0.4 : 0;
     if (dimsOf[id]) { const fA = !STEPS[k].noDims && (STEPS[k].focus.includes(id) || STEPS[k].intro.includes(id)) ? 1 : 0, fB = !nextSt.noDims && (nextSt.focus.includes(id) || nextSt.intro.includes(id)) ? 1 : 0; setRulers(id, e.obj.visible ? op * (fA + (fB - fA) * f) : 0); }
     e.obj.traverse(o => { if (o.isMesh && o.material) { o.material.transparent = true; o.material.opacity = op; if (o.material.emissive) { o.material.emissive.set(0x0b4f8a); o.material.emissiveIntensity = glow; } } });
@@ -755,6 +760,75 @@ function sleeveParts() {
            bridge: { obj: entries.bridge.obj, intro: 3, pose: k => ({ p: k === 3 || k === 4 ? on : aside, r: [0, 0, 0] }) }, ...asms.sleeve };
 }
 
+// ---------- guide 3: the flip station (DESIGN: hardware/gantry/README.md "Flipping a card"; numbers from flip_path.py / flip_fence.scad) ----------
+// FLIP_TABLE: [card angle (deg), y, z] of the card's underside end corner relative to the fence face's foot, from flip_path.edge_at (a rigid card wedged against the fence).
+const FLIP_TABLE = [[0,0.221,0],[5,0.359,0],[10,0.499,0],[15,0.608,0],[20,0.75,0],[25,0.85,0],[30,0.972,0],[35,1.1,0],[40,1.2,0],[45,1.285,0],[50,1.355,0],[55,1.415,0],[60,1.475,0],[65,1.537,0],[70,1.566,0],[75,1.601,0],[80,1.612,0],[85,1.792,0],[90,2.092,0],[95,2.392,0.139],[100,2.685,0.278],[105,2.975,0.414],[110,3.269,0.547]];
+const FL = { W: 66.5, L: 92.5, T: 1.6, D: 33.25, H: 3.5, REAR: 11, APPROACH: 8, PUSH: 0.5, REL: 110, GAP: 25, HINGE: 20 };
+function flipEdge(th) { const t = Math.max(0, Math.min(FL.REL, th)) / 5, i = Math.min(FLIP_TABLE.length - 2, Math.floor(t)), f = t - i, a = FLIP_TABLE[i], b = FLIP_TABLE[i + 1]; return [a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]; }
+function flipWasher(th) { const [by, bz] = flipEdge(th), r = th * Math.PI / 180; return [by + FL.D * Math.cos(r) - FL.T * Math.sin(r), bz + FL.D * Math.sin(r) + FL.T * Math.cos(r)]; }
+const mixv = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+function flipState(s) {                           // s in 0..1: one whole flip. Returns the head's face (y, z) and pitch, and the card's end corner (y, z) and angle (deg)
+  const y0 = FL.APPROACH + FL.D, zt = FL.T + FL.GAP, home = [y0, zt], rel = flipWasher(FL.REL), n110 = [-Math.sin(FL.REL * Math.PI / 180), Math.cos(FL.REL * Math.PI / 180)];
+  const e0 = flipEdge(0), eR = flipEdge(FL.REL); let head, card;
+  if (s < 0.12) { const a = ease(s / 0.12); head = { f: [y0, zt + (FL.T - zt) * a], th: 0 }; card = { b: [FL.APPROACH, 0], th: 0 }; }
+  else if (s < 0.22) { const a = (s - 0.12) / 0.1; head = { f: [y0 + (FL.D - FL.PUSH - y0) * a, FL.T], th: 0 }; card = { b: [FL.APPROACH + (e0[0] - FL.APPROACH) * a, 0], th: 0 }; }
+  else if (s < 0.72) { const th = (s - 0.22) / 0.5 * FL.REL; head = { f: flipWasher(th), th }; const e = flipEdge(th); card = { b: e, th }; }
+  else { head = { f: rel, th: FL.REL }; card = { b: eR, th: FL.REL }; }
+  if (s >= 0.72) { const a = ease(Math.min(1, (s - 0.72) / 0.18)); card = { b: mixv(eR, [-FL.REAR, FL.T], a), th: FL.REL + (180 - FL.REL) * a }; }
+  if (s >= 0.8) {                                  // the carriage rises 35 mm straight up while the head's light spring levels it, then it comes home
+    const a = ease(Math.min(1, (s - 0.8) / 0.15)), ax = [rel[0] + FL.HINGE * n110[0], rel[1] + FL.HINGE * n110[1]], th = FL.REL * (1 - a), n = [-Math.sin(th * Math.PI / 180), Math.cos(th * Math.PI / 180)];
+    head = { f: [ax[0] - FL.HINGE * n[0], ax[1] + 35 * a - FL.HINGE * n[1]], th };
+    if (s >= 0.95) { const b = ease((s - 0.95) / 0.05); head = { f: mixv(head.f, home, b), th: 0 }; }
+  }
+  if (s >= 1) head = { f: home, th: 0 };
+  return { head, card };
+}
+function buildFlip() {
+  const m = (c, o = 1) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.6, transparent: o < 1, opacity: o });
+  const tot = FL.L + 2 + 4.8, uc = FL.H * Math.tan(8 * Math.PI / 180);
+  const prof = new THREE.Shape([new THREE.Vector2(-FL.REAR, 0), new THREE.Vector2(0, 0), new THREE.Vector2(uc, FL.H), new THREE.Vector2(-5, FL.H)]);
+  const lip = new THREE.ExtrudeGeometry(prof, { depth: tot, bevelEnabled: false }).applyMatrix4(new THREE.Matrix4().set(0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1)).translate(-tot / 2, 0, 0);
+  const fence = group(mesh(lip, mat.print), ...[-1, 1].map(sg => mesh(new THREE.BoxGeometry(2.4, 51, FL.H), mat.print, sg * (FL.L / 2 + 1 + 1.2), -25.5, FL.H / 2)),
+    ...[-1, 1].map(sg => mesh(new THREE.BoxGeometry(12, FL.REAR, 1), mat.print, sg * (tot / 2 + 6), -FL.REAR / 2, 0.5)));
+  const grip = group(mesh(new THREE.BoxGeometry(FL.L + 2, 1.0, 1.5), m(0x23262b), 0, 0.25, FL.H / 2));
+  const zone = group(mesh(new THREE.BoxGeometry(153, 161, 0.3), m(0x3a4658, 0.5), 0, 9.5, -0.15));
+  const card = group(mesh(new THREE.BoxGeometry(FL.L, FL.W, 1.0), m(0xf3efe6), 0, FL.W / 2, 1.1));
+  { const top = new THREE.Mesh(new THREE.PlaneGeometry(FL.W, FL.L).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ map: cardTex(true), roughness: 0.6 })), bot = new THREE.Mesh(new THREE.PlaneGeometry(FL.W, FL.L).rotateZ(Math.PI / 2).rotateX(Math.PI), new THREE.MeshStandardMaterial({ map: cardTex(false), roughness: 0.6 }));
+    top.position.set(0, FL.W / 2, FL.T + 0.01); bot.position.set(0, FL.W / 2, 0.59); card.add(top, bot);
+    const ring = new THREE.Shape(); ring.absarc(0, 0, 5.55, 0, Math.PI * 2, false); const hole = new THREE.Path(); hole.absarc(0, 0, 2.6, 0, Math.PI * 2, true); ring.holes.push(hole);
+    card.add(mesh(new THREE.ExtrudeGeometry(ring, { depth: 0.58, bevelEnabled: false, curveSegments: 28 }), mat.steel, 0, FL.D, 0)); }
+  const head = group(mesh(cyl(10, 10, 15, 36), mat.magnet, 0, 0, 7.5), mesh(cyl(12, 12, 15, 36), mat.print, 0, 0, 22.5), mesh(new THREE.CylinderGeometry(2.5, 2.5, 44, 16).rotateZ(Math.PI / 2), mat.steel, 0, 0, FL.HINGE));
+  const pathPts = []; for (let t = 0; t <= FL.REL; t += 5) { const w = flipWasher(t); pathPts.push(new THREE.Vector3(0, w[0], w[1])); }
+  const path = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pathPts), new THREE.LineBasicMaterial({ color: 0xffc65a, depthTest: false })); path.renderOrder = 998; path.userData.id = "flipPath";
+  const G3 = "flip", ext = (id, obj, intro, pose) => { addExtra(id, obj, intro, null, null, G3); asms.flip[id].pose = pose; };
+  const away = [-150, -35, 0], ghost = k => k === 0;
+  ext("zone", zone, 3, k => ({ p: [0, 0, 0], r: [0, 0, 0], op: k >= 3 ? 0.55 : 0, vis: k >= 3 }));
+  ext("fence", fence, 1, k => k === 0 ? { p: [0, 0, 0], r: [0, 0, 0], op: 0.3, vis: true } : k < 3 ? { p: away, r: [0, 0, 0], op: 1, vis: true } : { p: [0, 0, 0], r: [0, 0, 0], op: 1, vis: true });
+  ext("grip", grip, 2, k => k < 2 ? { p: k === 0 ? [0, 0, 0] : away, r: [0, 0, 0], op: 0, vis: false } : { p: k === 2 ? away : [0, 0, 0], r: [0, 0, 0], op: 1, vis: true });
+  ext("flipPath", group(path), 4, k => ({ p: [0, 0, 0], r: [0, 0, 0], op: 1, vis: k >= 3 }));
+  const st = u => (u <= 3 ? { s: 0, on: false } : u <= 4 ? { s: u - 3, on: true } : u < 5 ? { s: u - 4, on: true } : { s: 1, on: true });
+  ext("flipHead", head, 4, k => ({ p: [0, FL.APPROACH + FL.D, FL.T + FL.GAP], r: [0, 0, 0], op: 1, vis: k >= 4 }));
+  asms.flip.flipHead.dyn = u => { const { s, on } = st(u), q = flipState(s).head; return { p: [0, q.f[0], q.f[1]], r: [q.th * Math.PI / 180, 0, 0], vis: on, op: u <= 3 ? 0 : Math.min(1, (u - 3) * 6) }; };
+  ext("flipCard", card, 5, k => ({ p: [0, FL.APPROACH, 0], r: [0, 0, 0], op: 1, vis: k >= 5 }));
+  asms.flip.flipCard.dyn = u => { const { s } = st(u), c = flipState(s).card, on = u > 4; return { p: [0, c.b[0], c.b[1]], r: [c.th * Math.PI / 180, 0, 0], vis: on, op: Math.min(1, Math.max(0, (u - 4) * 8)) }; };
+  makeStepLabel("zone", asms.flip.zone.obj, new THREE.Vector3(70, 80, 0)); makeStepLabel("fence", asms.flip.fence.obj, new THREE.Vector3(0, -2, FL.H));
+  makeStepLabel("grip", asms.flip.grip.obj, new THREE.Vector3(30, 0.8, 3)); makeStepLabel("flipHead", asms.flip.flipHead.obj, new THREE.Vector3(0, 0, 38)); makeStepLabel("flipCard", asms.flip.flipCard.obj, new THREE.Vector3(30, FL.W - 4, 2));
+}
+const FLIP_STEPS = [
+  { title: "Before you start", ref: "Flipping a card", intro: [], focus: ["fence", "flipCard", "flipHead"], cam: [[0, 10, 12], 380, [0.55, -1, 0.75]],
+    text: "The flip station turns one of the AI's cards over like a page. A low printed fence catches one long edge of the card, the magnet lifts the card by its washer in an arc, and past vertical it lets go: the card topples over the fence, back face up. This is a DESIGN: nothing here has been built, and the checks only prove collisions and reach. It also needs the magnet head to tilt with the card (a passive pitch hinge), which the current head does not do. Bench-test first." },
+  { title: "Print the flip fence", ref: "Flipping a card", intro: ["fence"], focus: ["fence"], cam: [[-150, -30, 4], 230, [0.4, -1, 0.7]],
+    text: "Print flip_fence in PLA+ before the printer becomes the gantry: one low piece, 123 x 52 x 3.5 mm, no supports needed. It has a lip with a face that leans 8 degrees over the card, two guide rails for the landing side, and two tape-down tabs." },
+  { title: "Stick the grip strip on", ref: "Flipping a card", intro: ["grip"], focus: ["grip", "fence"], cam: [[-150, -20, 4], 190, [0.5, -1, 0.5]],
+    text: "Press a strip of self-adhesive silicone or fine grip tape (about 1.5 mm wide stock, trimmed to 94 mm) into the groove in the catching face. The face grips the card's edge so it pivots instead of slipping. Press it flat: a raised strip changes the lip height." },
+  { title: "Place it at the marked spot", ref: "Flipping a card", intro: ["zone"], focus: ["fence", "zone"], cam: [[0, 10, 8], 420, [0.55, -1, 0.8]],
+    text: "Tape the fence down by its end tabs with the catching face at bed Y = 140 mm and its middle at X = 150 mm, in the battlefield area on the card side, clear of the deck box, hand rack and discard chute. Keep the 153 x 161 mm station area free of other cards and out of the camera's way (the fence is only 3.5 mm tall)." },
+  { title: "Teach the first flip (dry run, no cards)", ref: "Flipping a card", intro: ["flipHead"], focus: ["flipHead", "flipPath"], cam: [[0, 5, 22], 330, [1, 0.12, 0.35]],
+    text: "With NO card and the magnet unplugged, run the waypoint list from flip_path.py slowly (20 % feed). Watch the head tilt through the arc, check it clears the fence and the bed, and check the nozzle never goes under the camera floor. The amber line is where the washer should travel." },
+  { title: "Flip test with a paper card and washer", ref: "Flipping a card", intro: ["flipCard"], focus: ["flipCard", "flipHead", "fence"], cam: [[0, 0, 25], 330, [1, 0.12, 0.35]],
+    text: "Use a paper card in a sleeve with a washer behind it (never a real card), magnet on. Drag the edge to the fence, lift the washer in the arc, let go at 110 degrees. Repeat 20 times and count successes, as in the README's bench protocol. Landing target: back up, washer on top, within 8 mm, 3 mm in X and 5 degrees." },
+];
+
 // ---------- saved progress and deep links ----------
 const LS_KEY = "divinci-manual-v1";
 let progress = (() => { try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}") || {}; } catch { return {}; } })();   // {guide, guides: {magnet: {done: [bool], last}}}
@@ -779,7 +853,7 @@ async function copyLink() {
 function updateResume() {
   const b = document.getElementById("resume"), g = progress.guide, info = progress.guides?.[g];
   if (!b || !info || !GUIDE_INFO[g] || (mode === "steps" && G === g)) { if (b) b.style.display = "none"; return; }
-  const n = g === "sleeve" ? SLEEVE_STEPS.length : MAGNET_STEPS.length;
+  const n = g === "sleeve" ? SLEEVE_STEPS.length : g === "flip" ? FLIP_STEPS.length : MAGNET_STEPS.length;
   b.textContent = `Resume: ${GUIDE_INFO[g].title}, step ${(info.last || 0) + 1} of ${n}`; b.style.display = "";
 }
 document.getElementById("resume").onclick = () => { G = progress.guide; step = progress.guides?.[G]?.last || 0; setMode("steps"); };
@@ -789,7 +863,7 @@ function applyUrl() {
   const q = new URLSearchParams(START_QUERY), view = q.get("view");
   urlReady = true;
   if (view === "steps") {
-    G = q.get("guide") === "sleeve" ? "sleeve" : "magnet"; const n = parseInt(q.get("step") || "1", 10); step = Math.max(0, (isNaN(n) ? 1 : n) - 1);
+    G = ["sleeve", "flip"].includes(q.get("guide")) ? q.get("guide") : "magnet"; const n = parseInt(q.get("step") || "1", 10); step = Math.max(0, (isNaN(n) ? 1 : n) - 1);
     const lm = q.get("labels"); if (["all", "current", "off"].includes(lm)) { labelMode = lm; document.getElementById("labels").textContent = "Labels: " + lm; }
     if (q.get("follow") === "0") document.getElementById("follow").checked = false;
     setMode("steps");

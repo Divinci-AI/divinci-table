@@ -14,7 +14,7 @@ disagree. **Status (2026-10-05): designed from the parts' specs, not yet assembl
 decides whether the printer is the hand or the SO-101 arm is ([docs/ARM-GANTRY-GOAL.md](../../docs/ARM-GANTRY-GOAL.md),
 section M). The suction design this replaced is in git history.
 
-**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head, and two animated step-by-step guides (the magnet head, 15 steps, starting with sawing and drilling the bracket; sleeving a card with its washer, 8 steps) with a scrubbable timeline. Labels carry each part's size, and a Speak button (or `S`, plus an Auto-read option) reads the current step aloud using the browser's own offline voices. Your place is saved in the browser, and every view has a link you can share or bookmark: `?view=steps&guide=sleeve&step=5` (also `view=head&explode=0.6`, `view=all&part=swivel`, `labels=all|current|off`, `follow=0`).
+**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head, and three animated step-by-step guides (the magnet head, 15 steps, starting with sawing and drilling the bracket; sleeving a card with its washer, 8 steps; and the flip station design, 6 steps: `guide=flip`) with a scrubbable timeline. Labels carry each part's size, and a Speak button (or `S`, plus an Auto-read option) reads the current step aloud using the browser's own offline voices. Your place is saved in the browser, and every view has a link you can share or bookmark: `?view=steps&guide=sleeve&step=5` (also `view=head&explode=0.6`, `view=all&part=swivel`, `labels=all|current|off`, `follow=0`).
 
 ![The whole rig](img/overview.svg)
 
@@ -280,6 +280,59 @@ M1 uses the table's existing fixed camera; the Canon on the beam waits until the
    (`pick(**p.rack_slot(k))`, `place(**p.rack_slot(k))`). Pass: no card drags the one above or below it along, and
    every card goes back fully into its slot.
 5. Record the numbers in the goal doc's section M. Nothing else gets ordered until the doubles test passes.
+
+## Flipping a card (edge flip) — DESIGN ONLY, not built, not bench-tested
+
+The arm has to turn the AI's real cards over (face-up to face-down and back). Only the AI's cards carry a washer; a person's card is never touched.
+Everything below is a design plus digital checks (`python3 hardware/gantry/fit_check.py`, section 6). **The checks prove that nothing collides, that
+every waypoint is in reach, and that a rigid card can pivot this way. They do not prove that a sleeved card grips a rubber lip, that it topples
+cleanly, or that the magnet holds through the arc. The bench test below decides that.**
+
+**What the numbers said about the first idea.** A fence that catches a card edge while the magnet lifts the washer in an arc is right, but the
+magnet head as built cannot do it: its face is flat and does not pitch. Held by a level face, a card can tilt only about 20 degrees (the washer's
+edge lifts off, and the pull falls with the square of the gap); the page turn needs 110. So **the head needs a passive pitch hinge, axis parallel
+to the fence, placed about at the head's centre of mass** (assumed 20 mm above the face). A hinge higher up (34 mm) fails the torque check: the card's
+tiny pull cannot swing a 45 g head against gravity. The washer is also at the card's *centre* (Step 8), not at an end, so the card pivots about its
+LONG edge and the washer is only 33.25 mm from it; the lift is then just 33 mm.
+
+**Parts.** `parts/flip_fence.scad` (STL in `parts/stl/`): 123.3 x 51.5 x 3.5 mm, one piece, no supports. A lip whose face leans 8 degrees over the
+card; a groove in the face for a self-adhesive silicone or grip strip; two rails 94.5 mm apart (card 92.5 + 2) that guide the card as it lands; two
+tape-down tabs. Fence at bed Y = 140, X = 150 (the middle of the face); a 153 x 161 mm station area, clear of the deck box, hand rack and chute.
+`flip_path.py` generates the waypoints and exports JSON and G-code (`flip_path.json`, `flip_path.gcode`: reference output, never run).
+
+**Sequence.** (1) Over the card, magnet off. (2) Down onto the washer; magnet on, hold 0.3 s. (3) Drag 8 mm so the card's long edge seats against the
+fence face. (4) Arc: the washer rises along the card's pivot circle (33 mm radius) to about 33 mm up at vertical, 900 mm/min, the head tilting with
+the card; the card's end corner is wedged between bed and face, then the card rests on the lip's top corner past vertical. (5) At 110 degrees the card's centre
+of mass is 8.6 mm beyond the lip: magnet off, wait 0.6 s, and it topples onto the far side, back face up, washer on top. (6) Rise 35 mm straight up while the
+head's light return spring levels it, then back over the card side. The flipped card is then picked normally by its washer (`pick` / `place`), which
+re-registers it exactly. Landing target: washer at Y = 95.8 +/- 8 mm, X +/- 3 mm, skew +/- 5 degrees.
+
+**Z.** The CR-6's Z moves the whole X beam; the magnet hangs from the carriage below the nozzle (5 mm with the present head; about 28 mm with a hinge,
+a design number). The flip needs about 38 mm of lift of 400 and the lowest nozzle height is 29.6 mm, above the camera floor (`min_z`).
+
+**Assumptions to bench-test (all in `fit_check.py`):** the magnet pulls about 3 N on a #10 washer through the sleeve at 0.5 mm (TBD); card + washer 3.6 g;
+`card_t` 1.6 mm (TBD, measure ten); head 45 g, centre of mass 20 mm above the face; hinge friction plus return spring 1.5 mN m; the face lags the card by 3 degrees.
+
+**Failure modes and the mitigation built in**
+
+| Failure | Mitigation |
+|---|---|
+| The edge slips instead of pivoting | Leaning (undercut) face; a groove for a silicone or grip strip; the drag seats the edge first; `fit_check` says the edge only slides about 3 mm when it grips |
+| The card flexes and slides off the washer | The washer is at the centre, so the card's bend is symmetric; slow arc (900 mm/min); if it slips, shorten the arc or release earlier |
+| Sleeve static | Silicone strip, not bare plastic; a little anti-static spray on the sleeves |
+| Two cards stuck together | The flip starts from a pick of one washer; check one card per pick (the deck box does the same) |
+| The card lands on the lip | Rear slope on the fence, a margin of 8.6 mm beyond the corner at release |
+| The card lands skewed | Rails 94.5 mm apart; the next pick re-registers it |
+| The head swings into the bed or card on release | Head springs level only while the carriage rises; swept volume checked to clear the bed, fence, deck box, rack and chute, also with the head 1 mm bigger |
+
+**Bench test you can do TODAY, with no electronics.** (1) Print the fence, or cut a 3.5 mm strip of cardboard or foam board and tape it down; stick a strip of
+rubber or silicone on its face. (2) Sleeve one of your own *spare* cards with a #10 washer exactly as in Step 8. (3) Hold a fridge magnet or the 24 V magnet
+(unpowered, on a handle, with a small hinge you can feel: a bent paper clip is enough) on the washer; stand the card's long edge against the fence face. (4) Lift
+the magnet in an arc so the card pivots about the edge; at about 110 degrees pull the magnet away and let go. (5) Repeat 20 times. Record for each flip: success
+(landed back up, washer on top, inside the rails), the edge slid or not (and how far in mm), the washer height needed to get past the fence, the card
+slipped off the washer, landing skew in degrees. Success threshold: 18 of 20 with no card damage. If the edge slips, add grip or a steeper face; if the card
+flexes off the washer, release earlier; if it will not topple, raise the release angle; if it only works with a hinged magnet and never without, the
+hinge is confirmed as a requirement. Do not build the hinged head until this passes.
 
 ## Game rules on the magnet route
 

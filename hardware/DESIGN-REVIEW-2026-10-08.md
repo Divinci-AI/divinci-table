@@ -46,3 +46,21 @@ head lifts. I have not chosen. An earlier note here and in the README said "stac
   piece, the steps are solid blocks, and a failure at hour 15 loses everything. Consider two halves (4 + 3 slots) and a lower infill.
 - **Lead clip:** its mouth is 3.5 mm for a 5 mm lead, so it snaps by flexing a 1.6 mm PLA arm. Test with the real wire; widen the mouth if it cracks.
 - **Plate C (jig tray) was sliced before fix 3**: the tray in that plate prints as two pieces. Re-slice with the new STL.
+
+## Edge flip of real cards: design and decision (added later the same day)
+
+The user wants the arm to flip the AI's real, washered cards. Decision: **design an edge flip with a printed flip fence**, check it digitally, and bench-test it
+by hand before building any electronics. Written up in `hardware/gantry/README.md` ("Flipping a card (edge flip)"), checked in `fit_check.py` section 6, with
+waypoints in `flip_path.py` and a 6-step guide in the 3D manual (`guide=flip`).
+
+What the numbers changed in the first idea: the magnet's flat, non-pitching face holds a card to only about 20 degrees of tilt, so the page turn (110 degrees) **needs a
+passive pitch hinge at the head's centre of mass**; a hinge at 34 mm fails the torque check. The washer sits at the card's centre, so the pivot is a LONG edge (33.25 mm arm,
+33 mm lift). The fixed head's path is deliberately rejected by the checks.
+
+Open risks (nothing here is proven physically):
+1. **The friction pivot is unproven.** Whether a sleeved card's edge grips the lip and wedges instead of slipping, and whether it topples cleanly at 110 degrees, only a bench test shows.
+2. **The hinged head does not exist.** It changes the head (balanced hinge, light return spring), hangs the face about 28 mm below the nozzle, and the assumed head mass, centre of mass and
+   spring torque are guesses. The magnet's pull through the sleeve (3 N, TBD) and `card_t` are also unmeasured.
+3. **Landing accuracy.** A toppled card lands within a few mm at best; the design relies on rails and a re-pick of the washer to register it. Static, two stuck cards, and cards bent from long storage are not modelled.
+
+Collisions and reach pass (the head swept along the path clears the fence, deck box, rack, chute and bed, also grown 1 mm; the negative controls fail as they should).

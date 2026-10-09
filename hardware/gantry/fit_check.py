@@ -128,6 +128,93 @@ report("FAIL" if bad_in else "ok", "card slides into each slot from the left", f
 report("FAIL" if bad_out else "ok", "card slides out one pitch to the left over the lower card", f"blocked at slots {bad_out}" if bad_out else "slots 1..6")
 report("FAIL" if bad_mag else "ok", "magnet (20 mm, and grown) rests on each card's washer", f"blocked at slots {bad_mag}" if bad_mag else "all slots")
 
+
+print("6. flip station (README 'Flipping a card'): DESIGN checks. These prove collisions, reach and rigid-body geometry only; whether the friction pivot works is for the bench test")
+sys.path.insert(0, str(HERE))
+import flip_path as fp
+P = fp.Params(); W = fp.waypoints(P); FENCE = STL / "flip_fence.stl"
+# --- assumptions that nobody has measured (change them here, and bench-test them) ---
+A_F0, A_G0 = 3.0, 0.5          # N the magnet pulls on a #10 washer through the sleeve at gap A_G0 mm (TBD; F falls as (g0/(g0+gap))^2)
+A_M_CARD, A_M_HEAD = 0.0036, 0.045   # kg: sleeved card with washer; the tilting head (magnet + swivel)
+A_COM = 20.0                   # mm: the head's centre of mass above the magnet face
+A_FRIC = 1.5e-3                # N m: return spring + hinge friction torque on the head
+A_LAG, A_ACC, A_SF = 3.0, 2.0, 3.0   # degrees the face lags the card; m/s^2 of the carriage; safety factor
+WASHER_R = 5.55
+def pull(gap_mm): return A_F0 * (A_G0 / (A_G0 + gap_mm)) ** 2
+need_N = A_M_CARD * (9.81 + A_ACC) * A_SF
+max_tilt = math.degrees(math.asin(min(1.0, A_G0 * (math.sqrt(A_F0 / need_N) - 1) / WASHER_R)))
+report("ok", "assumption: pull on a #10 washer", f"F0={A_F0} N at {A_G0} mm (TBD, bench-test); card+washer {A_M_CARD*1000:.1f} g; needs {need_N:.2f} N with SF {A_SF:g}")
+report("ok" if max_tilt < 30 else "WARN", "a FIXED flat face holds the card only to a small tilt", f"{max_tilt:.0f} deg; the flip needs {P.release_deg:g}: the head needs a pitch hinge")
+def hinge_ok(h):                                       # torque: the washer's pull (lever = its radius) against gravity on the head + friction, at the lagged tilt
+    cap = pull(WASHER_R * math.sin(math.radians(A_LAG))) * WASHER_R / 1000
+    grav = A_M_HEAD * 9.81 * abs(A_COM - h) / 1000
+    return cap, grav, cap >= A_SF * (grav + A_FRIC)
+cap, grav, ok_h = hinge_ok(P.hinge_h)
+report("ok" if ok_h else "FAIL", f"balanced hinge ({P.hinge_h:g} mm above the face, head CoM {A_COM:g}): the card can turn the head", f"pull torque {cap*1000:.1f} mN m vs {A_SF:g} x ({grav*1000:.1f} gravity + {A_FRIC*1000:.1f} friction)")
+cap, grav, ok_34 = hinge_ok(34.0)
+report("ok" if not ok_34 else "FAIL", "negative control: a hinge at 34 mm (above the head) is too heavy for the card to turn", f"needs {A_SF*(grav+A_FRIC)*1000:.1f} mN m, the pull gives {cap*1000:.1f}")
+
+# --- (b) reach ---
+lo_z = min(w.z for w in W); hi_z = max(w.z for w in W)
+inside = all(14 <= w.x <= P.travel[0] - 14 and 14 <= w.y <= P.travel[1] - 14 and 0 <= w.z <= P.travel[2] for w in W)
+report("ok" if inside else "FAIL", "every waypoint is inside X/Y/Z travel (head footprint 12 mm clear of the bed edge)", f"X {min(w.x for w in W):.0f}..{max(w.x for w in W):.0f}, Y {min(w.y for w in W):.0f}..{max(w.y for w in W):.0f}, nozzle Z {lo_z:.1f}..{hi_z:.1f} of {P.travel[2]:.0f}")
+report("ok" if lo_z >= 12 else "WARN", "lowest nozzle height is above the camera floor (min_z; the README's example is 12)", f"{lo_z:.1f} mm")
+report("ok", "Z axis", "the CR-6's Z lifts the whole X beam; the face hangs %.0f mm below the nozzle with the hinge (fixed head: 5 mm); lift needed %.0f mm of %.0f" % (P.hinge_h + P.nozzle_above_axis, hi_z - lo_z, P.travel[2]))
+
+# --- (c) the card as a rigid rectangle pivoting about the caught edge ---
+import math as _m
+u_, h_ = P.top_corner
+slides = [fp.edge_at(P, t / 2)[0] for t in range(0, int(P.release_deg * 2) + 1)]
+worst = max(fp.penetration(P, fp.edge_at(P, t / 2)[0] + 1e-4, fp.edge_at(P, t / 2)[1], t / 2, 1e-3) for t in range(0, int(P.release_deg * 2) + 1))
+report("ok" if worst == 0 else "FAIL", "a rigid card pivoting about the fence has a pose at every angle with no fence point inside it (0.5 degree steps)", f"{worst} fence points inside")
+sl = max(slides) - min(slides)
+report("ok" if sl <= 6 else "WARN", "the card's end corner barely slides along the bed while it turns (it is wedged, not dragged)", f"{sl:.1f} mm over 0..{P.release_deg:g} deg; if it slides more on the bench, the face needs more grip")
+ey, _ = fp.edge_at(P, 90.0); wy90, wz90 = fp.washer_top(P, 90.0)
+report("ok" if wz90 >= P.fence_h + 5 else "FAIL", "the washer end is high enough at vertical to clear the fence", f"{wz90:.1f} mm up at 90 deg, fence {P.fence_h:g} mm (it is the washer's distance from the edge: {P.d:g} mm)")
+ey, _ = fp.edge_at(P, P.release_deg); com_y = ey + (P.card_w / 2) * _m.cos(_m.radians(P.release_deg))
+report("ok" if com_y <= u_ - 5 else "FAIL", "at the release angle the card's centre of mass is beyond the fence's top corner (it topples forward)", f"{u_ - com_y:.1f} mm beyond at {P.release_deg:g} deg")
+ly = P.fence_y - P.rear_d - P.d
+report("ok" if (_m.cos(_m.pi) < 0 and ly < P.fence_y) else "FAIL", "it ends on the far side with its back face up (washer on top)", f"landing washer target y = {ly:.1f} (fence at {P.fence_y:g}), tolerance +/-{fp.landing(P)['tol_y_mm']:g} mm, +/-{fp.landing(P)['tol_x_mm']:g} mm in X, {fp.landing(P)['tol_skew_deg']:g} deg skew")
+def rect(x0, y0, x1, y1): return (min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1))
+def overlap(a, b): return a[0] < b[2] and a[2] > b[0] and a[1] < b[3] and a[3] > b[1]
+zone = rect(P.fence_x - 61.65 - 15, P.fence_y - 51.5 - 20, P.fence_x + 61.65 + 15, P.fence_y + 8 + P.card_w + 15)      # fence, rails, tabs, the waiting card and the landing card, with 15 mm to spare
+others = {"deck box": rect(316.7, 10, 316.7 + 73.3, 10 + 99.3), "hand rack": rect(25, 288.7, 374.3, 400), "discard chute": rect(10, -80, 84.5, 10)}
+clash = [n for n, r in others.items() if overlap(zone, r)]
+report("ok" if not clash and zone[0] >= 0 and zone[2] <= 400 and zone[1] >= 0 and zone[3] <= 400 else "FAIL", "the station zone (%.0f x %.0f mm) is on the bed and clear of the deck box, hand rack and chute" % (zone[2] - zone[0], zone[3] - zone[1]),
+       ("overlaps " + ", ".join(clash)) if clash else f"X {zone[0]:.0f}..{zone[2]:.0f}, Y {zone[1]:.0f}..{zone[3]:.0f}; the fence is 123 x 52 x 3.5 mm")
+
+# --- (a) swept volume of the head along the whole path ---
+def head_scad(x, yc, zn, tilt, grow=0.0):
+    ax = zn - P.nozzle_above_axis                      # hinge axis height
+    g = grow
+    tilting = (f"translate([{x},{yc},{ax}]) rotate([{tilt},0,0]) translate([0,0,-{P.hinge_h}]) {{ translate([0,0,-{g}]) cylinder(d=20+{2*g}, h=15+{g}, $fn=40); translate([0,0,15]) cylinder(d=24+{2*g}, h=15.1+{g}, $fn=40); }}")
+    fixed = (f"translate([{x},{yc},{ax}]) {{ for (s=[-1,1]) translate([s*16-2,-7,-8]) cube([4,14,30]); translate([-25,-15,22]) cube([50,30,4]); }}")
+    return tilting + "; " + fixed + ";"
+def samples(grow=0.0, path=None):
+    pw = path or W; out = []
+    for a, b in zip(pw, pw[1:]):
+        n = max(1, min(8, int(max(abs(b.x - a.x), abs(b.y - a.y), abs(b.z - a.z)) // 6) + 1))
+        for k in range(n):
+            t = k / n; out.append(head_scad(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t, a.tilt + (b.tilt - a.tilt) * t, grow))
+    out.append(head_scad(pw[-1].x, pw[-1].y, pw[-1].z, pw[-1].tilt, grow)); return out
+LAYOUT = {"deck": (316.7, 10.0), "rack_x": (25.0, 374.3), "rack_y": (400 - 111.3, 400.0)}       # README bed layout: deck front right, rack along the back
+obstacles = {
+    "flip fence": f'translate([{P.fence_x},{P.fence_y},0]) import("{FENCE}")',
+    "deck box": f'translate([{LAYOUT["deck"][0]},{LAYOUT["deck"][1]},0]) import("{STL/"deck_box.stl"}")',
+    "hand rack (its bounding box, 45 mm tall)": f'translate([{LAYOUT["rack_x"][0]},{LAYOUT["rack_y"][0]},0]) cube([{LAYOUT["rack_x"][1]-LAYOUT["rack_x"][0]},{LAYOUT["rack_y"][1]-LAYOUT["rack_y"][0]},45])',
+    "discard chute (its bounding box)": 'translate([10,-80,0]) cube([74.5,90,52.4])',
+    "the bed surface (nothing below Z=0)": 'translate([-300,-300,-60]) cube([1000,1000,60])',
+}
+for name, obst in obstacles.items():
+    sw = "union(){" + " ".join(samples()) + "}"
+    hit = collides(f"intersection(){{ {sw}; {obst}; }}")
+    near = (not hit) and collides(f"intersection(){{ union(){{ {' '.join(samples(1.0))} }}; {obst}; }}")
+    report("FAIL" if hit else ("WARN" if near else "ok"), f"head swept along the whole flip path clears {name}", "collides" if hit else ("within 1 mm" if near else "clear, also with the head grown 1 mm"))
+bad = fp.Waypoint("dip", P.fence_x, P.fence_y + 3, 2 + P.hinge_h + P.nozzle_above_axis, True, 100, 0.0)
+report("ok" if collides(f"intersection(){{ union(){{ {head_scad(bad.x, bad.y, bad.z, 0)} }} {obstacles['flip fence']}; }}") else "FAIL", "negative control: a head that dips onto the fence DOES collide (the sweep can fail)")
+fixed_head = fp.Params(hinge_h=None)
+report("ok", "the fixed head's path (no hinge) is only listed, not accepted", f"it would need the face at {fp.washer_top(fixed_head, 90)[1]:.0f} mm and tilted {P.release_deg:g} deg against a level face")
+
 print()
 print("FAIL" if "FAIL" in results else ("WARN" if "WARN" in results else "ALL OK"), f"({results.count('ok')} ok, {results.count('WARN')} warn, {results.count('FAIL')} fail)")
 sys.exit(1 if "FAIL" in results else 0)

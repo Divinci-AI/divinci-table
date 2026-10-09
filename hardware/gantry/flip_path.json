@@ -1,0 +1,284 @@
+{
+ "params": {
+  "card_l": 92.5,
+  "card_w": 66.5,
+  "card_t": 1.6,
+  "washer_off": null,
+  "fence_h": 3.5,
+  "undercut_deg": 8.0,
+  "rear_d": 11.0,
+  "fence_x": 150.0,
+  "fence_y": 140.0,
+  "hinge_h": 20.0,
+  "nozzle_above_axis": 8.0,
+  "face_below_nozzle_fixed": 5.0,
+  "release_deg": 110.0,
+  "step_deg": 10.0,
+  "approach": 8.0,
+  "push": 0.5,
+  "travel_gap": 25.0,
+  "travel": [
+   400.0,
+   400.0,
+   400.0
+  ],
+  "feeds": {
+   "travel": 3000,
+   "lower": 300,
+   "drag": 600,
+   "arc": 900,
+   "retreat": 1500
+  },
+  "hold_ms": 300,
+  "release_ms": 600
+ },
+ "waypoints": [
+  {
+   "name": "over the card, magnet off",
+   "x": 150.0,
+   "y": 181.25,
+   "z": 54.6,
+   "magnet": false,
+   "feed": 3000,
+   "tilt": 0.0,
+   "dwell_ms": 0,
+   "face": [
+    181.25,
+    26.6
+   ]
+  },
+  {
+   "name": "down onto the washer",
+   "x": 150.0,
+   "y": 181.25,
+   "z": 29.6,
+   "magnet": false,
+   "feed": 300,
+   "tilt": 0.0,
+   "dwell_ms": 0,
+   "face": [
+    181.25,
+    1.6
+   ]
+  },
+  {
+   "name": "magnet on, hold",
+   "x": 150.0,
+   "y": 181.25,
+   "z": 29.6,
+   "magnet": true,
+   "feed": 300,
+   "tilt": 0.0,
+   "dwell_ms": 300,
+   "face": [
+    181.25,
+    1.6
+   ]
+  },
+  {
+   "name": "drag the edge into the fence face",
+   "x": 150.0,
+   "y": 172.75,
+   "z": 29.6,
+   "magnet": true,
+   "feed": 600,
+   "tilt": 0.0,
+   "dwell_ms": 0,
+   "face": [
+    172.75,
+    1.6
+   ]
+  },
+  {
+   "name": "arc 10 deg",
+   "x": 150.0,
+   "y": 169.49,
+   "z": 35.05,
+   "magnet": true,
+   "feed": 900,
+   "tilt": 10.0,
+   "dwell_ms": 0,
+   "face": [
+    172.97,
+    7.35
+   ]
+  },
+  {
+   "name": "arc 20 deg",
+   "x": 150.0,
+   "y": 164.61,
+   "z": 39.67,
+   "magnet": true,
+   "feed": 900,
+   "tilt": 20.0,
+   "dwell_ms": 0,
+   "face": [
+    171.45,
+    12.88
+   ]
+  },
+  {
+   "name": "arc 30 deg",
+   "x": 150.0,
+   "y": 158.97,
+   "z": 43.33,
+   "magnet": true,
+   "feed": 900,
+   "tilt": 30.0,
+   "dwell_ms": 0,
+   "face": [
+    168.97,
+    18.01
+   ]
+  },
+  {
+   "name": "arc 40 deg",
+   "x": 150.0,
+   "y": 152.79,
+   "z": 45.92,
+   "magnet": true,
+   "feed": 900,
+   "tilt": 40.0,
+   "dwell_ms": 0,
+   "face": [
+    165.64,
+    22.6
+   ]
+  },
+  {
+   "name": "arc 50 deg",
+   "x": 150.0,
+   "y": 146.18,
+   "z": 47.36,
+   "magnet": true,
+   "feed": 900,
+   "tilt": 50.0,
+   "dwell_ms": 0,
+   "face": [
+    161.5,
+    26.5
+   ]
+  },
+  {
+   "name": "arc 60 deg",
+   "x": 150.0,
+   "y": 139.39,
+   "z": 47.6,
+   "magnet": true,
+   "feed": 900,
+   "tilt": 60.0,
+   "dwell_ms": 0,
+   "face": [
+    156.71,
+    29.6
+   ]
+  },
+  {
+   "name": "arc 70 deg",
+   "x": 150.0,
+   "y": 132.64,
+   "z": 46.63,
+   "magnet": true,
+   "feed": 900,
+   "tilt": 70.0,
+   "dwell_ms": 0,
+   "face": [
+    151.43,
+    31.79
+   ]
+  },
+  {
+   "name": "arc 80 deg",
+   "x": 150.0,
+   "y": 126.11,
+   "z": 44.5,
+   "magnet": true,
+   "feed": 900,
+   "tilt": 80.0,
+   "dwell_ms": 0,
+   "face": [
+    145.81,
+    33.02
+   ]
+  },
+  {
+   "name": "arc 90 deg",
+   "x": 150.0,
+   "y": 120.49,
+   "z": 41.25,
+   "magnet": true,
+   "feed": 900,
+   "tilt": 90.0,
+   "dwell_ms": 0,
+   "face": [
+    140.49,
+    33.25
+   ]
+  },
+  {
+   "name": "arc 100 deg",
+   "x": 150.0,
+   "y": 115.64,
+   "z": 37.27,
+   "magnet": true,
+   "feed": 900,
+   "tilt": 100.0,
+   "dwell_ms": 0,
+   "face": [
+    135.34,
+    32.74
+   ]
+  },
+  {
+   "name": "arc 110 deg, magnet off",
+   "x": 150.0,
+   "y": 111.6,
+   "z": 32.4,
+   "magnet": false,
+   "feed": 900,
+   "tilt": 110.0,
+   "dwell_ms": 600,
+   "face": [
+    130.39,
+    31.24
+   ]
+  },
+  {
+   "name": "rise straight up; the head springs level",
+   "x": 150.0,
+   "y": 111.6,
+   "z": 67.4,
+   "magnet": false,
+   "feed": 1500,
+   "tilt": 0.0,
+   "dwell_ms": 0,
+   "face": [
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "clear: back over the card side",
+   "x": 150.0,
+   "y": 156.6,
+   "z": 67.4,
+   "magnet": false,
+   "feed": 3000,
+   "tilt": 0.0,
+   "dwell_ms": 0,
+   "face": [
+    0.0,
+    0.0
+   ]
+  }
+ ],
+ "landing": {
+  "x": 150.0,
+  "y": 95.8,
+  "tol_y_mm": 8.0,
+  "tol_x_mm": 3.0,
+  "tol_skew_deg": 5.0,
+  "face": "back up, washer on top",
+  "next": "pick the washer here, then place it exactly (gantry.pick / place)"
+ }
+}
