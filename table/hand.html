@@ -186,7 +186,8 @@ function buttons() {
   $("begin").title = b ? "" : !PH || !PH.player ? "the game has not started" : PH.player !== me() ? `it is ${PH.player}'s turn` : PH.begun ? "you already began this turn" : "begin is for the start of your turn";
 }
 async function refreshPhase() {
-  try { const p = await (await fetch("/api/phase")).json(); PH = p; $("phase").textContent = p.player ? `${p.player} · ${p.step}` : "game not started";
+  try { const p = await (await fetch("/api/phase")).json(); PH = p; const ps = p.passes || {}, mine = ps.next && ps.next.toLowerCase() === me().toLowerCase();
+    $("phase").textContent = p.player ? `${p.player} · ${p.step}` + (ps.next ? ` · waiting on ${ps.next}${ps.seconds_left != null ? ` (${Math.ceil(ps.seconds_left)}s${mine ? " — then the table passes for you" : ""})` : ""}` : "") : "game not started";
     $("startrow").style.display = p.player || !me() ? "none" : ""; } catch {}
   buttons();
   if (canUntap() !== uiUntap) { uiUntap = canUntap(); if (S) draw(); }   // Untap appears / goes away with the step

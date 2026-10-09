@@ -12,6 +12,7 @@ is touched. One server on port 8831 (as stage1_guard_test), two pilots (Claude a
 """
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -146,6 +147,22 @@ def main():
         time.sleep(1.5)
         c, r = go(S2, "Fusion", "begin")
         check("…and the second player does draw (eight cards)", c == 200 and len(S2.state("Fusion")["hand"]) == 8, (c, len(S2.state("Fusion")["hand"])))
+
+    os.environ["TABLE_AI_PASS_SECS"] = "3"                                         # a silent seat: the clock is short here
+    with Server(order="Claude,Fusion", humans=False) as S3:
+        S3.claim_all()
+        S3.start_game()
+        c, r = S3.brain("Claude", "begin")
+        pas = S3.phase().get("passes", {})
+        check("Fusion has not answered: the table shows its clock (seconds left) to everyone",
+              c == 409 and pas.get("next") == "Fusion" and 0 < (pas.get("seconds_left") or 0) <= 3, (c, pas))
+        time.sleep(3.5)
+        c, r = S3.brain("Claude", "begin")
+        evs = S3.call("GET", "/api/events?since=0")[1].get("events", [])
+        auto = [e for e in evs if e.get("type") == "pass" and e.get("by") == "Fusion" and e.get("auto")]
+        check("after the clock the table passes for Fusion, and the log marks it as automatic (not an answer)",
+              c in (200, 409) and auto and auto[0].get("timeout") and auto[0].get("secs") == 3.0, (c, auto[:1]))
+    del os.environ["TABLE_AI_PASS_SECS"]
 
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)

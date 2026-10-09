@@ -140,6 +140,11 @@ def fmt_event(e):
         return f"[{t}] #{e['id']} ⚑ {who} ({e['kind']}): \"{e['text']}\"{extra}"
     if k == "shown":
         return f"[{t}] #{e['id']} SHOWN {e['card']} (by {e['by']})"
+    if k == "pass":
+        if e.get("kind") == "reset":
+            return f"[{t}] #{e['id']} PASS round reset: {e.get('why')}"
+        how = f"AUTO-PASSED after {e.get('secs', '?')}s (did not answer)" if e.get("timeout") or e.get("auto") else "passed"
+        return f"[{t}] #{e['id']} {e.get('by')} {how} in {e.get('player')}'s {e.get('step')}"
     if k == "say":
         return f"[{t}] #{e['id']} SAID ({e['speaker']}): {e['text']}"
     if k == "life":

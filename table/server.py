@@ -499,7 +499,7 @@ def passes_state() -> dict:
         PASS.update(waiting_on=nxt, since=time.time())
     elif nxt in VPS and time.time() - PASS.get("since", time.time()) > AI_PASS_TIMEOUT:
         PASS["passed"].append(nxt)                # an AI seat that didn't answer: pass for it, say so
-        emit("pass", by=nxt, ai=True, timeout=True, player=PHASE["player"], step=STEPS[PHASE["step"]])
+        emit("pass", by=nxt, ai=True, auto=True, timeout=True, secs=AI_PASS_TIMEOUT, player=PHASE["player"], step=STEPS[PHASE["step"]])
         _append("brain.jsonl", {"ts": round(time.time(), 2), "ai_pass_timeout": nxt, "step": STEPS[PHASE["step"]]})
         return passes_state()
     if HUMAN_PASS_SECS and nxt and nxt not in VPS and (HOLD["on"] or any(t.get("kind") == "question" and not t["done"] for t in TODOS)):
@@ -509,6 +509,9 @@ def passes_state() -> dict:
         emit("pass", by=nxt, human=True, timeout=True, player=PHASE["player"], step=STEPS[PHASE["step"]])
         return passes_state()
     out = {"need": need, "passed": passed, "next": nxt}
+    if nxt in VPS and PHASE["player"] is not None:   # a virtual-deck seat has a clock too, and everyone can see it
+        out.update(deadline=round(PASS["since"] + AI_PASS_TIMEOUT, 2), secs=AI_PASS_TIMEOUT, now=round(time.time(), 2),
+                   seconds_left=round(max(0.0, PASS["since"] + AI_PASS_TIMEOUT - time.time()), 1))
     if _human_timer_applies(nxt):                 # the page shows a countdown and goes red as it runs out
         out.update(deadline=round(PASS["since"] + HUMAN_PASS_SECS, 2), secs=HUMAN_PASS_SECS, now=round(time.time(), 2))
     return out

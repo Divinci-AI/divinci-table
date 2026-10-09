@@ -313,8 +313,14 @@ def item4():
                 if any(h.get("land") for h in S.state(seat)["hand"]):
                     break
                 S.host_brain(seat, "draw", n=1)
-        lands = [h["name"] for h in S.state("Claude")["hand"] if h.get("land")]
-        flands = [h["name"] for h in S.state("Fusion")["hand"] if h.get("land")]
+        plain = lambda seat: [h["name"] for h in S.state(seat)["hand"] if h.get("land") and "return a land you control" not in (h.get("text") or "").lower()
+                              and "returns" not in (h.get("text") or "").lower()]       # a bounce land sends itself back: it would not stay on the battlefield
+        for seat in ("Claude", "Fusion"):
+            for _ in range(40):
+                if plain(seat):
+                    break
+                S.host_brain(seat, "draw", n=1)
+        lands, flands = plain("Claude"), plain("Fusion")
         check("(both pilots hold a land to work with)", bool(lands) and bool(flands), (lands, flands))
         c1, d1 = S.brain("Claude", "land", name=lands[0])
         c2, d2 = S.brain("Fusion", "land", name=flands[0])
