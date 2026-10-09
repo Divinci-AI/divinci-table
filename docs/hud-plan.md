@@ -10,6 +10,54 @@ his words condensed:
 3. **No honor system.** Turns, phases and passing are enforced by the server and TESTED by playing games through the real UI: each turn passes
    between players and phases in order, and the auto-pass toggle really works.
 
+## Revision 1 (after the Opus 5.5 review, 2026-10-09: it read the code, it ran nothing)
+
+The review found the plan right in direction and wrong in order and in how much it trusted the current server. **The first four items are exploitable in a live remote game today**
+(any seated player's key + a browser console), so they are patched before any UI work. Each gets a failing test first.
+
+**Patches first (live-game breakers):**
+1. `POST /api/brain/begin` never checks whose turn it is (`server.py` ~3052, `VP.begin_turn()` in `player.py`): it untaps, draws and resets the land drop, and `hand.html` shows "Begin my turn" all the time.
+   One misclick during someone else's turn takes their turn. Guard: only the active seat, only at the untap step, only once per turn.
+2. `fair-reveal` is not blocked for pilots (`server.py` ~3176): it publishes every virtual deck's seed and shuffled order through `GET /api/fair`. Pilots: refused.
+3. The pilot action list is open: `draw n`, `search`, `peek`/`topdown`, `put` (free battlefield), `token`/`counter`/`animate` with any values, `cast` with a client-supplied `discount`.
+   Replace with an allowlist per seat kind, applied in the shared code path so the old alias endpoints are covered too. Untap joins this list.
+4. A pilot cannot pass priority from most of the UI: pilots are in `VPS`, so the 30 s AI timeout passes for them (and ignores Hold and open questions); `/api/autopass` is human-only; the red Pass bar posts to
+   `/api/phase/next`, which refuses a pilot; the `/hand` priority alert's "Pass" only closes the alert. Give pilots a real pass path.
+5. `/me` presses NEXT by itself when a request fails (`checklistFirst` returns true on `c.error || !c.items`, then `sendPass()`): a network blip moves your own step on. Remove.
+
+**Design changes:**
+- **Stale-step token.** Every advance request carries `{player, step, round}` as the client saw it; the server answers 409 if it is stale. One fix for double taps, a second tab, replays, and item 5.
+- **One turn state machine first.** Today human turns run on `PASS` + `finish_step`, while pilot turns are walked forward as side effects of actions (`ai_advance`). A pilot on its own turn is not in the pass round. Give every seat a kind
+  (ai, pilot, phone, real-deck), take pilots out of the `VPS` turn path, and make each response say what it did: passed, stepped, or waiting. `ai_passed` must also check that it is that seat's turn to pass (it only checks membership).
+- **BACK in a remote game:** active player only, within their own turn, one step at a time, only if nothing has been logged in that step (no land, cast, attack); back into the previous player's turn needs that player's
+  confirmation within ~15 s; anyone else gets "request BACK"; never back past a pilot's `begin`; rate-limited so it cannot stall. Likewise Hold, Windows and question-answering must stop accepting any seat's key
+  (`REMOTE_SEAT_POSTS`): the owner, or the seat the question was asked of.
+- **Auto-pass `others-no-combat`** today stops in all four combat steps whether or not you are involved. The narrower version needs the board, which a real-deck board (self-reported, stale) cannot supply.
+  It must also stop for anything new to respond to, and at every end step while the player holds an instant or flash card. The engine has no stack: a human's spoken/typed cast never restarts the priority round
+  (`priority_reset` is called from two places only), so auto-pass can pass straight through a spell you wanted to answer. Fix the reset first.
+- **Seats shared by accident.** The device fingerprint is a hash of IP + User-Agent; two identical phones behind one router share a seat, and `seat.js` auto-claims when `this_device` holds exactly one seat. Needs a per-browser nonce
+  in the claim, and an unclaimed seat must not go to whoever claims first without the person at the table confirming.
+- **Hide toggle and the shared stage:** all pages share one `localStorage`, so "hide the hand" set on `/me` would show it on the host's `/stage`. Store the setting per page, and the hand never renders on `/stage` or `/xr` unless that page is the seat's own.
+- **Rooms share one cookie**: opening a second room in the same browser silently moves the first tab. The HUD must show the room id and refuse to act if the page's room differs from the cookie's.
+- **Real-deck hand:** a typed list first; photo last. The photo route must not be `/api/chat/photo` (it posts a public chat event with a publicly served URL). The private vision route is `/api/xr/vision` on the Worker; on a laptop table there is none.
+  `HAND_N` (player-set, default 7) and a declared list can disagree: the list replaces it for that seat. The judge's "that isn't in your hand" must not be said in public chat (it leaks information), and a declared hand goes stale after every draw,
+  so the check can only be a private nudge to that player, never a refusal. When the judge is unsure it says "unsure" and lets the player correct; no vision output goes to chat or events.
+- **Human untaps are open too** (`/api/card-action untap`, `/api/my-board` replaces the whole board incl. tapped state). For a real deck this is honor by nature: say so, and enforce what the server can see (order of play), not what the player does.
+
+**Corrections to "what exists":** the step list has 11 entries (it ends with `cleanup`); the stage also has Hold, step timeouts, BACK and NEXT, `/me` also has step timeouts, and `urgent.js` already puts a Pass button on all six pages;
+the human pass timer is one global value (`HUMAN_PASS_SECS`), pilots get the separate 30 s AI timeout; order is already enforced for humans in `next_step` (not for pilots/AI).
+
+**Revised build order:** (1) the patches above, each test-first; (2) one turn state machine + the stale-step token + old endpoints routed through it; (3) a buttons-only dock on all six pages, shipped alone;
+(4) the pilot hand arc (reads `/api/brain/state`); (5) real-deck hand from a typed list; (6) photos, only after a private vision route exists.
+
+**Test plan corrections:** (a) every e2e request currently comes from 127.0.0.1, so `_is_local()` is true and the seat guard and LAN block are skipped: give each browser context its own `X-Forwarded-For`; (b) "UI matches `/api/phase`" is circular:
+assert on game state (tapped permanents, library count, land played, hand size); (c) driving the game only through the dock never tests the bypasses: each alias and each action above needs a "refused" test; (d) timeouts can stand in for the feature: assert
+`auto: true` in the events, not `timeout: true` (the existing check at `pass_ui_e2e.cjs:99` has `|| after.step !== before.step`, and `:131` can never fail: fix both); (e) run WebKit as well as Chromium (the players are on iPhones);
+(f) two rooms on two ports are two origins and cannot reproduce the shared cookie and shared `localStorage`: serve both from one origin; (g) count visits per step incl. cleanup so combat windows cannot be "passed" by never reaching them;
+(h) hand privacy must also cover `/api/events`, chat photos, judge speech and `/api/board3d`, not just the hand endpoint.
+
+Still open for the owner: which actions a pilot may take with no card behind them (`draw`/`search`/`put` for effects the engine does not model yet: allow with a stated card and log it, or refuse?).
+
 ## What exists today (read, not assumed)
 
 - `table/assets/tablebar.js`: a bar at the TOP of six pages (`/me /stage /xr /board /log /hand`). It already knows "whose turn / who must pass"
