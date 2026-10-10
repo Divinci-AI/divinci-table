@@ -170,6 +170,18 @@ def pilot_records():
         c, d = eff("Fusion", kind="opponent-token", source="Murder")
         check("(and a seat cannot take tokens from its own card)", c == 400, (c, d))
 
+        print("a commander marked as cast in error goes back to the command zone")
+        pb({"seat": "Sam", "permanents": ["Sol Ring"], "commander_out": True}, key=S.claim("Claude"))
+        c, d = S.call("GET", "/api/board3d")
+        c, d = pb({"seat": "Sam", "commander_out": False}, key=S.claim("Claude"))
+        c2, d2 = S.call("GET", "/api/board3d")
+        samb = next(x for x in d2["seats"] if x["name"] == "Sam")
+        ev = S.call("GET", "/api/events?since=0")[1]["events"]
+        check("…and put it back (the log says so)", c == 200 and any("back in the command zone" in e.get("text", "") for e in ev), (c, d))
+        c, d = pb({"seat": "Sam", "commander_out": False}, key=S.claim("Michael"))
+        check("a person's key cannot use that route", c == 403, (c, d))
+        pb({"seat": "Sam", "remove": ["Sol Ring"]}, key=S.claim("Claude"))        # leave Sam's board as it was for the checks below
+
         print("a wipe aimed at me: I apply it to MY board, once")
         c, d = eff("Claude", kind="apply-removal")
         check("with no removal aimed at Claude nothing is applied", c == 400 and "no unapplied removal" in str(d.get("error")), (c, d))

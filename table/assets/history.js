@@ -82,12 +82,13 @@
   }
   const phone = () => innerWidth < 640;                // a phone: open = full screen, filters folded away
   let showFilters = false;
+  const belowBar = () => { const tb = document.querySelector(".tb"); return Math.ceil((tb ? tb.getBoundingClientRect().bottom : 0)) + 8 + "px"; };   // the tab bar sits above everything: never put the log's buttons under it
   function place() {                                   // compact (bottom-right), tall (full-height right), or the page
     const s = box.style;
     if (PAGE) { Object.assign(s, { top: "0", bottom: "0", right: "0", left: "0", width: "auto", borderRadius: "0", border: "0" }); return; }
-    if (open && phone()) { Object.assign(s, { top: "0", bottom: "0", right: "0", left: "0", width: "auto", borderRadius: "0", zIndex: "95" }); return; }
+    if (open && phone()) { Object.assign(s, { top: belowBar(), bottom: "0", right: "0", left: "0", width: "auto", borderRadius: "0", zIndex: "95" }); return; }
     Object.assign(s, { left: "auto", right: "12px", zIndex: "50" });
-    if (open && tall) Object.assign(s, { top: "12px", bottom: "12px", width: "min(460px,calc(100vw - 24px))" });
+    if (open && tall) Object.assign(s, { top: belowBar(), bottom: "12px", width: "min(460px,calc(100vw - 24px))" });
     else Object.assign(s, { top: "auto", bottom: "12px" });
   }
   function render() {

@@ -231,6 +231,22 @@ const humansPass = async keys => {                     // whichever person is ne
     });
   });
 
+  // ───────── the game log's own buttons are never hidden under the tab bar ─────────
+  await withServer("Claude,Michael,Sam", async ({ ctx, keys }) => {
+    await section("/log panel clear of the tab bar", async () => {
+      for (const [w, h, label] of [[1400, 800, "desktop"], [390, 780, "phone"]]) {
+        const c2 = await ctx.browser().newContext({ viewport: { width: w, height: h }, extraHTTPHeaders: XFF });
+        await c2.addInitScript(k => { try { localStorage.setItem("table.seat", k); localStorage.setItem("history.open", "1"); localStorage.setItem("history.tall", "1"); } catch {} },
+          JSON.stringify({ name: "Michael", key: keys.Michael }));
+        const p = await c2.newPage(); await p.goto(BASE + "/me?player=Michael"); await sleep(2500);
+        const r = await p.evaluate(() => { const tb = document.querySelector(".tb"), b = document.querySelector('[data-act="close"]');
+          return { bar: tb ? tb.getBoundingClientRect().bottom : null, btn: b ? b.getBoundingClientRect().top : null }; });
+        check(`${label}: the log's close button is below the tab bar (bar ${r.bar}, button ${r.btn})`, r.bar != null && r.btn != null && r.btn >= r.bar, JSON.stringify(r));
+        await c2.close();
+      }
+    });
+  });
+
   console.log(failed.length ? `\n${failed.length} FAILED: ${failed.join("; ")}` : "\nALL PASS");
   process.exit(failed.length ? 1 : 0);
 })();

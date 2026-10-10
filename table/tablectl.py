@@ -314,6 +314,7 @@ def main():
     pb = sub.add_parser("public-board", help="record a HUMAN's board for the 3D view (from photos / what they said)")
     pb.add_argument("seat"); pb.add_argument("cards", nargs="*", help='"Swamp" "Mountain:tapped" "Centaur:token:3/3" "Nihilith:suspended:5"')
     pb.add_argument("--graveyard", default="", help="oldest first; comma-separated, or semicolon-separated when a name has a comma"); pb.add_argument("--commander-out", action="store_true")
+    pb.add_argument("--commander-in", action="store_true", help="a pilot's correction: that person's commander is still in the command zone")
     pb.add_argument("--remove", nargs="*", help="a pilot's correction: take cards off that THIS pilot recorded in error (never a person's own entries)")
     pb.add_argument("--from", dest="from_", default="", help="a pilot with its seat key: what it read the cards from (photo, chat); it ADDS to the person's board")
     nx = sub.add_parser("next", help="press NEXT for the active human (testing / remote play)"); nx.add_argument("--by")
@@ -463,7 +464,7 @@ def main():
             perms.append(p)
         gy = [x.strip() for x in a.graveyard.split(";" if ";" in a.graveyard else ",") if x.strip()]   # ";" keeps "Zellix, Sanity Flayer" whole
         print(json.dumps(req("POST", "/api/public-board", {"seat": a.seat, "permanents": perms, "graveyard": gy,
-                                                            "commander_out": a.commander_out,
+                                                            "commander_out": (False if getattr(a, "commander_in", False) else a.commander_out),
                                                             **({"from": a.from_} if a.from_ else {}),
                                                             **({"remove": a.remove} if getattr(a, "remove", None) else {})}))); return
     if a.cmd == "next":

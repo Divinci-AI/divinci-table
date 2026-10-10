@@ -887,11 +887,16 @@ def pilot_records_board(pilot: str, who: str, b: dict) -> tuple[int, dict]:
                 break
             grave.append(g)
             gy_added.append(g)
-        if not added and not gy_added and not removed and not b.get("commander_out"):
+        cmd_back = b.get("commander_out") is False and bool(prev.get("commander_out"))     # a correction: the commander is still in the command zone
+        if not added and not gy_added and not removed and not b.get("commander_out") and not cmd_back:
             return 200, {"ok": True, "seat": who, "added": [], "graveyard_added": [], "removed": [], "permanents": len(perms)}
         PUBLIC_BOARD[who] = {**prev, "permanents": perms, "graveyard": grave,
-                             "commander_out": bool(prev.get("commander_out")) or bool(b.get("commander_out")),
+                             "commander_out": (False if cmd_back else bool(prev.get("commander_out")) or bool(b.get("commander_out"))),
                              "updated": round(time.time(), 2)}
+    if cmd_back and not added and not gy_added and not removed:
+        emit("chat", by=pilot, text=f"{pilot} put {who}'s commander back in the command zone (it had marked it as cast in error)", recorded_for=who)
+        emit("board3d", seat=who, n=len(perms), by=pilot)
+        return 200, {"ok": True, "seat": who, "by": pilot, "added": [], "removed": [], "graveyard_added": [], "commander_out": False, "permanents": len(perms)}
     if removed and not added and not gy_added:
         emit("chat", by=pilot, text=f"{pilot} took {', '.join(removed)} off {who}'s board (it had recorded it in error)", recorded_for=who, removed=removed)
         emit("board3d", seat=who, n=len(perms), by=pilot)
