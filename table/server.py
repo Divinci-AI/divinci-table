@@ -789,6 +789,93 @@ def board_from_body(b: dict) -> tuple[list, list]:
     return perms, grave
 
 
+ANNOUNCE_LOCK = threading.Lock()
+ANNOUNCED_AT: dict = {}        # (seat, the line, normalised) → when it last put cards on that seat's board
+LAST_ANNOUNCED = {"seat": None, "names": [], "at": 0.0}   # what the latest announcement added, for "No, I said …"
+_PERMANENT_TYPES = ("Land", "Creature", "Artifact", "Enchantment", "Planeswalker", "Battle")
+
+
+def stays_on_battlefield(name: str) -> bool:
+    """A card that is a permanent when played: a land, creature, artifact, enchantment, planeswalker or battle, by its
+    type in the card file (the FRONT face for a two-faced card). Instants and sorceries are not; neither is a card the
+    file doesn't know."""
+    import oracle
+    front = ((oracle.card(name) or {}).get("type") or "").split(" // ")[0]
+    if not front or re.search(r"\b(Instant|Sorcery)\b", front):
+        return False
+    return any(re.search(rf"\b{t}\b", front) for t in _PERMANENT_TYPES)
+
+
+def record_announced(who: str | None, text: str, cards: list[str]) -> list[str]:
+    """A person's play, said aloud or typed at the table ("I play Silverbluff Bridge and pass"), goes on THAT person's
+    public board — a cloud room has no brain to write it there for them, so the line was the only record. Only cards the
+    speaker named as the thing they played (the words after "I play/cast", not a target: "Path to Exile on your Llanowar
+    Elves" adds nothing), only permanents, only for a person's own seat (a pilot's board is the engine's), only once the
+    game has started. Commander is singleton, so a card already on that board isn't added again; a basic land is, unless
+    the same line was just recorded (said twice, or said and typed). Returns the names added."""
+    if not who or who in VPS or who not in [h["name"] for h in HUMANS] or PHASE.get("player") is None or not cards:
+        return []
+    from match import name_phrase, norm
+    phrase = name_phrase(text)
+    if not phrase:
+        return []
+    ph = norm(phrase)
+    named = [c for c in cards if norm(c.split(" // ")[0]) in ph and stays_on_battlefield(c)]
+    if not named:
+        return []
+    import oracle
+    now = time.time()
+    line = (who, norm(text))
+    commander = next((h.get("commander") for h in HUMANS if h["name"] == who), None)
+    with ANNOUNCE_LOCK:
+        if now - ANNOUNCED_AT.get(line, 0) < 120:
+            return []
+        prev = PUBLIC_BOARD.get(who) or {}
+        perms = [dict(p) for p in prev.get("permanents", [])]
+        added = []
+        for c in named:
+            basic = "Basic" in ((oracle.card(c) or {}).get("type") or "")
+            if not basic and any(p.get("name") == c and not p.get("face_down") for p in perms):
+                continue                                   # already on the board: one copy of each card in Commander
+            if len(perms) >= 120:
+                break
+            perms.append({"name": c[:80], "tapped": False})
+            added.append(c)
+        if not added:
+            return []
+        ANNOUNCED_AT[line] = now
+        for k in [k for k, t in ANNOUNCED_AT.items() if now - t > 600]:
+            del ANNOUNCED_AT[k]
+        LAST_ANNOUNCED.update(seat=who, names=list(added), at=now)
+        PUBLIC_BOARD[who] = {**prev, "permanents": perms, "graveyard": list(prev.get("graveyard", [])),
+                             "commander_out": bool(prev.get("commander_out")) or (commander in added),
+                             "updated": round(now, 2)}
+    emit("board3d", seat=who, n=len(perms), announced=added)
+    return added
+
+
+def unrecord_announced(who: str | None) -> list[str]:
+    """ "No, I said Sol Talisman.": take the misheard cards the latest announcement put on that person's board off it
+    again (the last copy of each), so the correction replaces them instead of adding beside them."""
+    with ANNOUNCE_LOCK:
+        if not who or LAST_ANNOUNCED["seat"] != who or time.time() - LAST_ANNOUNCED["at"] > 120:
+            return []
+        prev = PUBLIC_BOARD.get(who) or {}
+        perms = [dict(p) for p in prev.get("permanents", [])]
+        gone = []
+        for c in LAST_ANNOUNCED["names"]:
+            i = next((i for i in range(len(perms) - 1, -1, -1) if perms[i].get("name") == c), None)
+            if i is not None:
+                perms.pop(i)
+                gone.append(c)
+        LAST_ANNOUNCED.update(seat=None, names=[], at=0.0)
+        for k in [k for k in ANNOUNCED_AT if k[0] == who]:
+            del ANNOUNCED_AT[k]                            # the corrected line may be said again
+        if gone:
+            PUBLIC_BOARD[who] = {**prev, "permanents": perms, "updated": round(time.time(), 2)}
+    return gone
+
+
 def seat_deck_names(name: str) -> list[str]:
     """The card names a seat's deck can show on the table — a pilot's virtual deck, or the deck file whose commander is
     the person's commander — so a board photo is read against real candidates. Empty when unknown."""
@@ -1518,6 +1605,8 @@ def respond_text(text: str, who: str | None, t0: float, t_stt: int = 0):
                 CONVO["announced"] += new
             emit("heard", text=text, kind="correction", addressee=None, cards=new, replaced=LAST_PLAY["cards"], by=who)
             LAST_PLAY.update(cards=new, at=time.time())
+            if unrecord_announced(who):                # the misheard card came off this person's board: the right one goes on
+                record_announced(who, "I cast " + fix, new)
             return {"heard": text, "cards": new, "corrected": True, "reply": None, "speaker_id": who, "stt_ms": t_stt}
 
     with CONVO_LOCK:
@@ -1555,6 +1644,7 @@ def respond_text(text: str, who: str | None, t0: float, t_stt: int = 0):
             CONVO["announced"] += cards
         if cards:
             LAST_PLAY.update(cards=list(cards), at=time.time())
+            record_announced(who, expanded, cards)    # a person's own play goes on their public board
     speaker, reply = voice.decide_reply(r, [p["name"] for p in AI_PLAYERS])
     side_talk = False
     if mic_d is not None and r["kind"] != "play":
