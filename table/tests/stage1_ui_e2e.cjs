@@ -241,6 +241,12 @@ const humansPass = async keys => {                     // whichever person is ne
         const p = await c2.newPage(); await p.goto(BASE + "/me?player=Michael"); await sleep(2500);
         const r = await p.evaluate(() => { const tb = document.querySelector(".tb"), b = document.querySelector('[data-act="close"]');
           return { bar: tb ? tb.getBoundingClientRect().bottom : null, btn: b ? b.getBoundingClientRect().top : null }; });
+        const rd = await p.evaluate(() => { const tb = document.querySelector(".tb"), b = [...document.querySelectorAll("button")].find(x => /Declare attack/.test(x.textContent));
+          if (!b) return null; b.style.display = "block"; return { bar: tb ? tb.getBoundingClientRect().bottom : 0, btn: b.getBoundingClientRect().top }; });
+        await sleep(1200);
+        const rd2 = await p.evaluate(() => { const tb = document.querySelector(".tb"), b = [...document.querySelectorAll("button")].find(x => /Declare attack/.test(x.textContent));
+          return b ? { bar: tb ? tb.getBoundingClientRect().bottom : 0, btn: b.getBoundingClientRect().top } : null; });
+        check(`${label}: the Declare attack button is below the tab bar`, rd2 && rd2.btn >= rd2.bar, JSON.stringify([rd, rd2]));
         check(`${label}: the log's close button is below the tab bar (bar ${r.bar}, button ${r.btn})`, r.bar != null && r.btn != null && r.btn >= r.bar, JSON.stringify(r));
         await c2.close();
       }
