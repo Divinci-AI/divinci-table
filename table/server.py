@@ -3700,6 +3700,32 @@ class H(BaseHTTPRequestHandler):
                         victims = [VP.perm(tgt)]
                     said = [f"{spell or 'The removal'}: " + ("; ".join(VP.move(f"#{p.id}", zone)[0] for p in victims if p in VP.battlefield) or "nothing of mine is hit") + "."]
                     REMOVAL_APPLIED.add(ev["id"])
+                elif action == "effect" and str(b.get("kind", "")).lower() == "opponent-mill":
+                    # "Whenever a Horror you control deals combat damage to a player, that player mills that many cards" (Captain N'ghathrod),
+                    # "defending player mills ten cards" (Nemesis of Reason): the card is on ANOTHER seat's recorded board and its text says so.
+                    # A fixed number comes from the text; "that many" / X comes from `n` (at most 30). Once per card per ten minutes.
+                    import oracle
+                    srcname = str(b.get("source", "")).strip()
+                    holder = next((h for h, bd in PUBLIC_BOARD.items() if h != VP.name and any(p.get("name", "").lower() == srcname.lower() for p in bd.get("permanents", []))), None)
+                    if holder is None:
+                        raise IllegalAction(f"{srcname} is not on another player's board (say who played it, or have a pilot record it first)")
+                    text = (oracle.card(srcname) or {}).get("text") or ""
+                    m = re.search(r"mills? (that many|an? |one|two|three|four|five|six|seven|eight|nine|ten|x|\d+)", text, re.I)
+                    if not m:
+                        raise IllegalAction(f"{srcname} doesn't say anything that mills. Its text: {text[:140]}")
+                    word = m.group(1).strip().lower()
+                    words = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+                    if word in words or word.isdigit():
+                        n = words.get(word) or int(word)
+                    else:
+                        n = int(b.get("n") or 0)
+                        if not 1 <= n <= 30:
+                            raise IllegalAction(f"{srcname} mills 'that many' / X: say how many with --n (1 to 30)")
+                    use = ("opp-mill", VP.name, srcname.lower())
+                    if time.time() - EFFECT_USES.get(use, 0) < 600:
+                        raise IllegalAction(f"you already milled for {srcname} in the last ten minutes")
+                    EFFECT_USES[use] = time.time()
+                    said = [f"{holder}'s {srcname}: " + VP.mill(n)[0]]
                 elif action == "effect" and str(b.get("kind", "")).lower() == "opponent-token":
                     # "When this creature enters, target opponent creates two 3/3 Centaur tokens" (Hunted Horror): the card is on ANOTHER
                     # seat's recorded board, its text must say so, and the tokens are made on this seat once per card per ten minutes.

@@ -182,6 +182,21 @@ def pilot_records():
         check("a person's key cannot use that route", c == 403, (c, d))
         pb({"seat": "Sam", "remove": ["Sol Ring"]}, key=S.claim("Claude"))        # leave Sam's board as it was for the checks below
 
+        print("an opponent's card mills me (Captain N'ghathrod: that player mills that many cards)")
+        pb({"seat": "Sam", "permanents": ["Captain N'ghathrod"]}, key=S.claim("Claude"))
+        lib0, gy0 = S.state("Claude")["library"], len(S.state("Claude")["graveyard"])
+        c, d = eff("Claude", kind="opponent-mill", source="Captain N'ghathrod")
+        check("'that many' needs a number: refused without one", c == 400 and "--n" in str(d.get("error")), (c, d))
+        c, d = eff("Claude", kind="opponent-mill", source="Captain N'ghathrod", n=5)
+        st = S.state("Claude")
+        check("mill 5: library -5, graveyard +5", c == 200 and st["library"] == lib0 - 5 and len(st["graveyard"]) == gy0 + 5, (c, d.get("error"), lib0, st["library"]))
+        c, d = eff("Claude", kind="opponent-mill", source="Captain N'ghathrod", n=5)
+        check("…once per card per ten minutes", c == 400 and "ten minutes" in str(d.get("error")), (c, d))
+        c, d = eff("Claude", kind="opponent-mill", source="Hunted Horror", n=5)
+        check("a card that does not mill gives nothing", c == 400, (c, d))
+        c, d = eff("Claude", kind="opponent-mill", source="Captain N'ghathrod", n=99)
+        check("(and the number is capped)", c == 400, (c, d))
+
         print("a wipe aimed at me: I apply it to MY board, once")
         c, d = eff("Claude", kind="apply-removal")
         check("with no removal aimed at Claude nothing is applied", c == 400 and "no unapplied removal" in str(d.get("error")), (c, d))
