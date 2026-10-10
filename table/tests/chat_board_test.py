@@ -155,6 +155,21 @@ def pilot_records():
         c, d = pb({"seat": "Sam", "remove": ["River of Tears"]}, key=S.claim("Michael"))
         check("a person's key cannot use the removal route", c == 403, (c, d))
 
+        print("an opponent's card gives me tokens (Hunted Horror: target opponent creates two 3/3 Centaurs)")
+        eff = lambda seat, **kw: S.call("POST", "/api/brain/effect", {"seat": seat, **kw}, key=S.claim(seat))
+        c, d = eff("Claude", kind="opponent-token", source="Hunted Horror")
+        check("before Hunted Horror is on anyone's board, nothing is created", c == 400 and "not on another player's board" in str(d.get("error")), (c, d))
+        pb({"seat": "Sam", "permanents": ["Hunted Horror", "Murder"]}, key=S.claim("Claude"))
+        c, d = eff("Claude", kind="opponent-token", source="Hunted Horror")
+        toks = [p for p in S.state("Claude")["permanents"] if "Centaur" in p["name"]]
+        check("with it on Sam's board, Claude gets two 3/3 Centaur tokens", c == 200 and len(toks) == 2 and all(t["pt"] == "3/3" for t in toks), (c, d.get("error"), toks))
+        c, d = eff("Claude", kind="opponent-token", source="Hunted Horror")
+        check("…once: asking again is refused", c == 400 and "ten minutes" in str(d.get("error")), (c, d))
+        c, d = eff("Claude", kind="opponent-token", source="Murder")
+        check("a card that does not say 'target opponent creates tokens' gives nothing", c == 400 and "doesn't say" in str(d.get("error")), (c, d))
+        c, d = eff("Fusion", kind="opponent-token", source="Murder")
+        check("(and a seat cannot take tokens from its own card)", c == 400, (c, d))
+
         print("…only a person's board, only with a pilot's key")
         claude0, fusion0 = board(S, "Claude"), board(S, "Fusion")
         c, d = pb({"seat": "Fusion", "permanents": ["Sol Ring"]}, key=S.claim("Claude"))

@@ -3658,6 +3658,26 @@ class H(BaseHTTPRequestHandler):
                                        sac_ref=str(b["sac"]) if b.get("sac") not in (None, "") else None)
                     if getattr(VP, "last_peek", None):
                         private["top"], VP.last_peek = VP.last_peek, None
+                elif action == "effect" and str(b.get("kind", "")).lower() == "opponent-token":
+                    # "When this creature enters, target opponent creates two 3/3 Centaur tokens" (Hunted Horror): the card is on ANOTHER
+                    # seat's recorded board, its text must say so, and the tokens are made on this seat once per card per ten minutes.
+                    import oracle
+                    srcname = str(b.get("source", "")).strip()
+                    holder = next((h for h, bd in PUBLIC_BOARD.items() if h != VP.name and any(p.get("name", "").lower() == srcname.lower() for p in bd.get("permanents", []))), None)
+                    if holder is None:
+                        raise IllegalAction(f"{srcname} is not on another player's board (say who played it, or have a pilot record it first)")
+                    text = (oracle.card(srcname) or {}).get("text") or ""
+                    m = re.search(r"target opponent creates (an?|one|two|three|four|\d+) (\d+)/(\d+) ([\w -]+?) creature tokens?", text)
+                    if not m:
+                        raise IllegalAction(f"{srcname} doesn't say 'target opponent creates … tokens'. Its text: {text[:140]}")
+                    n = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4}.get(m.group(1)) or int(m.group(1))
+                    use = ("opp-token", VP.name, srcname.lower())
+                    if time.time() - EFFECT_USES.get(use, 0) < 600:
+                        raise IllegalAction(f"you already took {srcname}'s tokens in the last ten minutes")
+                    EFFECT_USES[use] = time.time()
+                    kws = ["Protection"] if "protection from" in text else []
+                    said = [f"{holder}'s {srcname}: I create {n} {m.group(2)}/{m.group(3)} {m.group(4).strip().title()} tokens."]
+                    VP.make_tokens(m.group(4).strip().split()[-1].title(), int(m.group(2)), int(m.group(3)), kws, n=n)
                 elif action == "effect":                  # a trigger or ability the engine does not model: allowed only when the SOURCE card says so
                     kind = str(b.get("kind", "")).lower()
                     if kind not in EFFECT_WORDS:
