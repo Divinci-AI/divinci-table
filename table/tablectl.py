@@ -319,6 +319,8 @@ def main():
     nx = sub.add_parser("next", help="press NEXT for the active human (testing / remote play)"); nx.add_argument("--by")
     for verb in ("destroy", "exile", "bounce", "tap", "untap"):
         v = sub.add_parser(verb); v.add_argument("ref"); v.add_argument("--quiet", action="store_true")
+    tl = sub.add_parser("to-library", help="your permanent into your library (Chaos Warp): top | bottom | shuffle")
+    tl.add_argument("ref"); tl.add_argument("where", choices=["top", "bottom", "shuffle"]); tl.add_argument("--quiet", action="store_true")
     co = sub.add_parser("counter"); co.add_argument("ref"); co.add_argument("n", type=int)
     t = sub.add_parser("animate"); t.add_argument("ref"); t.add_argument("power"); t.add_argument("toughness"); t.add_argument("keywords", nargs="*")
     t = sub.add_parser("take"); t.add_argument("name"); t.add_argument("--from", dest="from_", required=True)
@@ -470,6 +472,8 @@ def main():
         print(json.dumps(req("POST", "/api/phase/next", {"by": a.by} if a.by else {}, brain=False), indent=1)); return
     if a.cmd in ("destroy", "exile", "bounce", "tap", "untap"):
         return act(a.cmd, ref=a.ref, quiet=q, announce=not q)
+    if a.cmd == "to-library":
+        return act("to-library", ref=a.ref, where=a.where, quiet=q)
     if a.cmd == "counter":
         return act("counter", ref=a.ref, n=a.n)
     if a.cmd == "animate":

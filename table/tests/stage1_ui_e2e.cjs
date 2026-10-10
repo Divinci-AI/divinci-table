@@ -214,6 +214,57 @@ const humansPass = async keys => {                     // whichever person is ne
     check("…and the server refuses it with a reason if sent anyway", c === 409 && /untap step/.test(d.error || ""), JSON.stringify([c, d]));
     await board.evaluate(async () => { const r = await fetch("/api/card-action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ seat: "Michael", index: 0, name: "Forest", action: "untap" }) }); window.__why = (await r.json()).error; });
     check("(the page sees the same reason)", /untap step/.test(await board.evaluate(() => window.__why)));
+
+    await section("To deck on /board (Chaos Warp)", async () => {
+      console.log("To deck: Shuffle in / Top / Bottom from the card menu");
+      await j("POST", "/api/my-board", { by: "Michael", key: keys.Michael, permanents: ["Hunted Horror", "Island", "Sol Ring"], graveyard: [] }, mk);
+      await j("POST", "/api/my-board", { by: "Sam", key: keys.Sam, permanents: ["Llanowar Elves"], graveyard: [] }, { "X-Seat-Key": keys.Sam });
+      const sent = [];
+      board.on("request", r => { if (r.url().endsWith("/api/card-action") && r.method() === "POST") sent.push(JSON.parse(r.postData() || "{}")); });
+      const openOn = async (seatName, re) => {
+        await board.evaluate(() => { closeMenu(); last = ""; return refresh(); });
+        await sleep(400);
+        for (const s of await board.$$(".seat")) {
+          if (!(await s.innerText()).includes(seatName)) continue;
+          for (const c of await s.$$(".card")) { if (re.test(await c.innerText())) { await c.click(); await sleep(300); return true; } }
+        }
+        return false;
+      };
+      const mine = async () => (await j("GET", "/api/board3d"))[1].seats.find(s => s.name === "Michael").permanents.map(p => p.name);
+      const log = async () => JSON.stringify((await j("GET", "/api/history"))[1]);
+      check("Hunted Horror is on Michael's board", await openOn("Michael", /Hunted Horror/), "no card");
+      const deck = await board.evaluate(() => [...document.querySelectorAll("#menu [data-deck] button[data-act]")].map(b => [b.textContent.trim(), b.dataset.act]));
+      check("the menu has a To deck row with Shuffle in / Top / Bottom",
+        JSON.stringify(deck) === JSON.stringify([["Shuffle in", "library-shuffle"], ["Top", "library-top"], ["Bottom", "library-bottom"]]), JSON.stringify(deck));
+      check("…next to the existing moves", (await board.evaluate(() => !!document.querySelector('#menu [data-act="graveyard"]'))));
+      const bb = await board.evaluate(() => { const r = document.querySelector('#menu [data-deck]').getBoundingClientRect(); return [r.right, innerWidth]; });
+      check("…and it fits a phone-width menu", bb[0] <= bb[1], JSON.stringify(bb));
+      for (const [card, re, act, label, words] of [["Hunted Horror", /Hunted Horror/, "library-shuffle", "Shuffle in", "into Michael's library (shuffled in)"],
+                                                  ["Island", /Island/, "library-top", "Top", "on top of Michael's library"],
+                                                  ["Sol Ring", /Sol Ring/, "library-bottom", "Bottom", "on the bottom of Michael's library"]]) {
+        if (card !== "Hunted Horror") await openOn("Michael", re);
+        await board.click(`#menu [data-act="${act}"]`);
+        await sleep(900);
+        const last_ = sent[sent.length - 1] || {};
+        check(`${label}: the page calls /api/card-action with ${act} for ${card}`, last_.action === act && last_.name === card && last_.seat === "Michael", JSON.stringify(last_));
+        check(`${label}: ${card} leaves the board and the menu closes`, !(await mine()).includes(card) && await board.evaluate(() => getComputedStyle(document.getElementById("menu")).display === "none"), JSON.stringify(await mine()));
+        check(`${label}: the log says "${words}"`, (await log()).includes(`Michael puts ${card} ${words}`), "");
+      }
+      // Someone else's card: the page shows the same menu it shows for To graveyard (it opens on any person's card) and the
+      // SERVER refuses Michael's key for Sam's seat — the same refusal, shown the same way.
+      await openOn("Sam", /Llanowar Elves/);
+      const rows = await board.evaluate(() => [!!document.querySelector('#menu [data-act="graveyard"]'), !!document.querySelector('#menu [data-act="library-top"]')]);
+      check("on Sam's card the To deck row appears exactly where To graveyard does", rows[0] === rows[1], JSON.stringify(rows));
+      await board.click('#menu [data-act="library-top"]');
+      await sleep(700);
+      const whyDeck = await board.evaluate(() => document.querySelector("#menu [data-msg]").textContent);
+      await board.click('#menu [data-act="graveyard"]');
+      await sleep(700);
+      const whyGy = await board.evaluate(() => document.querySelector("#menu [data-msg]").textContent);
+      const sam = (await j("GET", "/api/board3d"))[1].seats.find(s => s.name === "Sam").permanents.map(p => p.name);
+      check("Top on Sam's card from Michael's page is refused with the same reason as To graveyard, and the card stays",
+        whyDeck && whyDeck === whyGy && /own seat/.test(whyDeck) && sam.includes("Llanowar Elves"), JSON.stringify([whyDeck, whyGy, sam]));
+    });
   });
 
   // ───────── /me without ?player=: the device already told the table who it is ─────────

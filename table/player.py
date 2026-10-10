@@ -1012,11 +1012,16 @@ def _manual(cls):
                 said.append(f"Lifelink: I gain {n}.")
         return said, life
 
-    def move(self, ref, to):
-        """Your permanent leaves the battlefield: to graveyard / exile / hand. Attached Auras and Roles
-        fall off; tokens cease to exist; your commander goes to the command zone."""
+    def move(self, ref, to, where=None):
+        """Your permanent leaves the battlefield: to graveyard / exile / hand / library. Attached Auras and Roles
+        fall off; tokens cease to exist; your commander goes to the command zone. `to="library"` takes `where`:
+        "top" (library.pop() draws from the END, so the end is the top), "bottom" (index 0), or "shuffle"
+        (Chaos Warp: in, then the library is shuffled with the deck's own seeded rng)."""
+        if to == "library" and where not in ("top", "bottom", "shuffle"):
+            raise IllegalAction("to the library: where is top | bottom | shuffle")
         p = self.perm(ref)
         gone = [p] + [a for a in self.battlefield if a.attached_to == p.id]
+        tucked = False
         for x in gone:
             self.battlefield.remove(x)
             if x.token:
@@ -1025,12 +1030,24 @@ def _manual(cls):
                 self.cmdr_in_zone = True
             elif to == "hand" and x is p:
                 self.hand.append(x.card)
+            elif to == "library" and x is p:
+                if where == "bottom":
+                    self.library.insert(0, x.card)
+                else:
+                    self.library.append(x.card)
+                tucked = True
             elif to == "exile":
                 self.on_their_cards.append(f"{x.name} (exiled)")
             else:
                 self.graveyard.append(x.card)
-        where = {"graveyard": "is destroyed", "exile": "is exiled", "hand": "returns to my hand"}[to]
-        return [f"{p.name} {where}" + (" (commander to the command zone)" if p.card["name"] == self.commander["name"] else "") + "."]
+        if to == "library" and where == "shuffle" and tucked:
+            self.rng.shuffle(self.library)
+        where_txt = {"graveyard": "is destroyed", "exile": "is exiled", "hand": "returns to my hand",
+                     "library": {"top": "goes on top of my library", "bottom": "goes on the bottom of my library",
+                                 "shuffle": "is shuffled into my library"}.get(where, "")}[to]
+        if p.token and to == "library":
+            where_txt = "leaves the battlefield (a token: it's gone)"
+        return [f"{p.name} {where_txt}" + (" (commander to the command zone)" if p.card["name"] == self.commander["name"] else "") + "."]
 
     def search_library(self, name, to="hand", tapped=False):
         c = _match(name, self.library, lambda c: c["name"])
