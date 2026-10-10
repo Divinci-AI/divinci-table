@@ -146,6 +146,10 @@ function openMenu(c, ev) {
       ${c.tapped && !(lastData && lastData.turn === c._seat && lastData.step === "untap") ? `<span style="opacity:.6;font-size:12px;align-self:center">untaps in ${esc(c._seat)}'s untap step</span>` : btn(c.tapped ? "untap" : "tap", c.tapped ? "Untap" : "Tap")} ${btn("counter+", "+1 counter")} ${btn("counter-", "−1 counter")}
       ${btn("graveyard", "To graveyard")} ${btn("exile", "Exile")} ${btn("hand", "To hand")}
     </div>
+    <div data-deck style="margin-top:6px;display:flex;gap:6px;align-items:center"><span style="opacity:.7;font-size:11.5px">To deck</span>
+      <span style="display:inline-flex">${[["library-shuffle", "Shuffle in"], ["library-top", "Top"], ["library-bottom", "Bottom"]].map(([a, l], k, all) =>
+        `<button data-act="${a}" style="border:1px solid #3a3f4a;${k ? "border-left:0;" : ""}background:#23262e;color:#eee;padding:4px 9px;cursor:pointer;font:inherit;font-size:12.5px;border-radius:${k === 0 ? "7px 0 0 7px" : k === all.length - 1 ? "0 7px 7px 0" : "0"}">${l}</button>`).join("")}</span>
+    </div>
     <div data-msg style="margin-top:6px;min-height:1em;color:#ffb3b3;font-size:12px"></div>`;
   menu._c = c; menu._abil = abil;
   menu.style.display = "block";

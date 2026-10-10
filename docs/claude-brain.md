@@ -77,7 +77,7 @@ table/tablectl.py state          # private: hand with rules text, board with #id
 | `turn` | `begin` → `land X` → `cast …` → `attack "A=Sam" …` → `damage "A=Sam"` → `end` |
 | `question` / `deal` | `say "…"` (keep it short; `say` refuses to name a card still in hand) |
 | `attacked` → *X for N* | `block REF --amount N --attacker X`, or `block --amount N` to take it |
-| `removal` → *spell (effect) on target* | `exile REF` / `destroy REF` / `bounce REF`; for effect `counter`, the target is the spell Claude just cast |
+| `removal` → *spell (effect) on target* | `exile REF` / `destroy REF` / `bounce REF` / `to-library REF top\|bottom\|shuffle` (Chaos Warp: "shuffle"); for effect `counter`, the target is the spell Claude just cast |
 | `hold` | someone said "wait, hold on": stop, and act only when asked again |
 
 **What code handles without asking the brain.** Each item came out of a failing test:

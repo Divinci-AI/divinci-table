@@ -2878,6 +2878,12 @@ class H(BaseHTTPRequestHandler):
                     if action == "graveyard" and not p.get("token"):
                         board.setdefault("graveyard", []).append(p.get("name", ""))
                     text = f"{owner} moves {nm} to {'their graveyard' if action == 'graveyard' else action}" + (" (a token: it's gone)." if p.get("token") else ".")
+                elif action in ("library-shuffle", "library-top", "library-bottom"):   # Chaos Warp: into the OWNER's library
+                    perms.pop(i)                           # (no library count is kept for people: nothing to bump)
+                    spot = {"library-shuffle": f"into {owner}'s library (shuffled in)",
+                            "library-top": f"on top of {owner}'s library",
+                            "library-bottom": f"on the bottom of {owner}'s library"}[action]
+                    text = f"{owner} puts {nm} {spot}" + (" (a token: it's gone)." if p.get("token") else ".")
                 else:
                     return self._send(400, {"error": "unknown action"})
                 board["updated"] = round(time.time(), 2)
@@ -3764,6 +3770,8 @@ class H(BaseHTTPRequestHandler):
                     said = [b.get("text") or "That's my turn."]
                 elif action in ("destroy", "exile", "bounce"):
                     said = VP.move(b["ref"], {"destroy": "graveyard", "exile": "exile", "bounce": "hand"}[action])
+                elif action == "to-library":               # its own permanent into its library (Chaos Warp): top | bottom | shuffle
+                    said = VP.move(b["ref"], "library", where=str(b.get("where") or ""))
                 elif action in ("tap", "untap"):
                     p = VP.perm(b["ref"])
                     p.tapped = action == "tap"
