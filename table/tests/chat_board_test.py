@@ -102,7 +102,79 @@ def main():
         check("'No, I said Exotic Orchard' takes Command Tower off and puts Exotic Orchard on",
               "Command Tower" not in b and "Exotic Orchard" in b and b.count("Silverbluff Bridge") == 1, (c, d, b))
 
+    pilot_records()
     print(f"\n{PASS} passed, {FAIL} failed")
+
+
+def tablectl(S, key_file, *argv):
+    """tablectl as the cloud pilot runs it: its seat key, NO host token file, looking like a remote device."""
+    import subprocess
+    env = {**os.environ, "TABLE_URL": "http://127.0.0.1:8831", "TABLE_SEAT": "Claude", "TABLE_SEAT_KEY_FILE": str(key_file),
+           "TABLE_TOKEN_FILE": str(S.tmp / "no-such-token"), "TABLE_FORWARD_FOR": "203.0.113.9"}
+    p = subprocess.run([sys.executable, str(Path(__file__).resolve().parent.parent / "tablectl.py"), *argv],
+                       env=env, capture_output=True, text=True, timeout=60)
+    return p.returncode, (p.stdout + p.stderr).strip()
+
+
+def pilot_records():
+    """The second live case: Sam posted a photo of River of Tears and typed 'played a land' (no name). A cloud room has no
+    vision; a pilot seat can read the photo and record the card on Sam's board with its own seat key."""
+    print("a pilot records a person's board")
+    with Server() as S:
+        S.claim_all()
+        S.start_game()
+        pb = lambda body, key=None, **kw: S.call("POST", "/api/public-board", body, key=key, **kw)
+
+        key_file = S.tmp / "claude-seat-key"
+        key_file.write_text(S.claim("Claude"))
+        code, out = tablectl(S, key_file, "public-board", "Sam", "River of Tears", "--from", "photo")
+        check("tablectl public-board with a PILOT's seat key and no host token file is accepted", code == 0 and '"ok": true' in out, out)
+        check("River of Tears is on Sam's board (/api/board3d)", board(S, "Sam") == ["River of Tears"], board(S, "Sam"))
+        c, d = S.call("GET", "/api/board3d")
+        sam = next(x for x in d["seats"] if x["name"] == "Sam")
+        check("…marked as Claude's record, from a photo", sam["permanents"][0].get("by") == "Claude" and sam["permanents"][0].get("from") == "photo",
+              sam["permanents"])
+        ev = S.call("GET", "/api/events?since=0")[1]["events"]
+        line = [e for e in ev if e.get("type") == "chat" and e.get("recorded_for") == "Sam"]
+        check("the game log says so: 'Claude recorded Sam's River of Tears from Sam's photo'",
+              line and "Claude recorded Sam's River of Tears from Sam's photo" in line[-1]["text"] and line[-1]["by"] == "Claude", line)
+        c, d = pb({"seat": "Sam", "permanents": ["River of Tears"]}, key=S.claim("Claude"))
+        check("the same card again is not added twice", c == 200 and board(S, "Sam") == ["River of Tears"], (c, d, board(S, "Sam")))
+        c, d = pb({"seat": "Sam", "permanents": ["Swamp"], "graveyard": ["Murder"]}, key=S.claim("Fusion"))
+        check("a pilot ADDS (never replaces): Fusion's Swamp goes beside River of Tears, Murder to the graveyard",
+              c == 200 and board(S, "Sam") == ["River of Tears", "Swamp"] and sam_gy(S) == ["Murder"], (c, d, board(S, "Sam"), sam_gy(S)))
+
+        print("…only a person's board, only with a pilot's key")
+        claude0, fusion0 = board(S, "Claude"), board(S, "Fusion")
+        c, d = pb({"seat": "Fusion", "permanents": ["Sol Ring"]}, key=S.claim("Claude"))
+        check("a pilot cannot write ANOTHER pilot's board", c == 403 and board(S, "Fusion") == fusion0, (c, d))
+        c, d = pb({"seat": "Claude", "permanents": ["Sol Ring"]}, key=S.claim("Claude"))
+        check("…nor its own (the engine owns it)", c == 403 and board(S, "Claude") == claude0, (c, d))
+        mich0 = board(S, "Michael")
+        c, d = pb({"seat": "Michael", "permanents": ["Sol Ring"]}, key=S.claim("Sam"))
+        check("a PERSON's key cannot use the pilot route for someone else", c == 403 and board(S, "Michael") == mich0, (c, d))
+        c, d = pb({"seat": "Sam", "permanents": ["Sol Ring"]}, key=S.claim("Sam"))
+        check("…nor for their own board (that is /api/my-board)", c == 403 and "Sol Ring" not in board(S, "Sam"), (c, d))
+        c, d = pb({"seat": "Sam", "permanents": ["Sol Ring"]})
+        check("no key, no token: 403", c == 403 and "Sol Ring" not in board(S, "Sam"), (c, d))
+        c, d = pb({"seat": "Sam", "permanents": ["Sol Ring"], "key": "not-a-real-key"})
+        check("a made-up key: 403", c == 403 and "Sol Ring" not in board(S, "Sam"), (c, d))
+        c, d = pb({"seat": "Sam", "permanents": ["Sol Ring"]}, host=True)
+        check("the host's brain token still REPLACES a board, as before", c == 200 and board(S, "Sam") == ["Sol Ring"], (c, d, board(S, "Sam")))
+        pb({"seat": "Sam", "permanents": ["River of Tears"]}, key=S.claim("Claude"))
+
+        print("the person's own board wins")
+        c, d = S.call("POST", "/api/my-board", {"by": "Sam", "key": S.claim("Sam"), "permanents": ["Watery Grave"], "graveyard": []},
+                      key=S.claim("Sam"))
+        c2, d2 = S.call("GET", "/api/board3d")
+        sam = next(x for x in d2["seats"] if x["name"] == "Sam")
+        check("Sam's /api/my-board overwrite replaces the pilot's record", c == 200 and [p["name"] for p in sam["permanents"]] == ["Watery Grave"]
+              and not sam["permanents"][0].get("by"), (c, d, sam["permanents"]))
+
+
+def sam_gy(S):
+    c, d = S.call("GET", "/api/board3d")
+    return next(x for x in d["seats"] if x["name"] == "Sam")["graveyard"]
     sys.exit(1 if FAIL else 0)
 
 

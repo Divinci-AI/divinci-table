@@ -302,7 +302,7 @@ def board3d() -> dict:
     for h in HUMANS:
         b = PUBLIC_BOARD.get(h["name"], {})
         perms = [_card_view(p.get("name") if not p.get("face_down") else None,
-                            **{k: p[k] for k in ("tapped", "token", "counters", "note", "pt", "zone") if k in p})
+                            **{k: p[k] for k in ("tapped", "token", "counters", "note", "pt", "zone", "by", "from") if k in p})
                  for p in b.get("permanents", [])]
         seats.append({"name": h["name"], "kind": "human", "commander": h["commander"],
                       "commander_card": _card_view(h["commander"]) if h.get("commander") else None, "life": lt.get(h["name"]),
@@ -852,6 +852,45 @@ def record_announced(who: str | None, text: str, cards: list[str]) -> list[str]:
                              "updated": round(now, 2)}
     emit("board3d", seat=who, n=len(perms), announced=added)
     return added
+
+
+def pilot_records_board(pilot: str, who: str, b: dict) -> tuple[int, dict]:
+    """A pilot (an AI seat playing over the API with its own key) ADDS what it read from a person's photo or words to
+    that person's board. It never replaces or removes anything — the person's own /api/my-board does that, and wins. Each
+    card it adds carries who recorded it and from what; a non-basic card already on the board isn't added again (one copy
+    of each card in Commander); 120 permanents / 200 graveyard cards, as everywhere. The game log says what was recorded,
+    so the person can see it and correct it."""
+    import oracle
+    perms_in, grave_in = board_from_body(b)
+    src = " ".join(str(b.get("from") or "photo or chat").split())[:40]
+    with ANNOUNCE_LOCK:
+        prev = PUBLIC_BOARD.get(who) or {}
+        perms = [dict(p) for p in prev.get("permanents", [])]
+        grave = list(prev.get("graveyard", []))
+        added, gy_added = [], []
+        for p in perms_in:
+            basic = "Basic" in ((oracle.card(p["name"]) or {}).get("type") or "")
+            if not p.get("face_down") and not basic and any(q.get("name") == p["name"] and not q.get("face_down") for q in perms):
+                continue
+            if len(perms) >= 120:
+                break
+            perms.append({**p, "by": pilot, "from": src})
+            added.append("a face-down card" if p.get("face_down") else p["name"])
+        for g in grave_in:
+            if len(grave) >= 200:
+                break
+            grave.append(g)
+            gy_added.append(g)
+        if not added and not gy_added and not b.get("commander_out"):
+            return 200, {"ok": True, "seat": who, "added": [], "graveyard_added": [], "permanents": len(perms)}
+        PUBLIC_BOARD[who] = {**prev, "permanents": perms, "graveyard": grave,
+                             "commander_out": bool(prev.get("commander_out")) or bool(b.get("commander_out")),
+                             "updated": round(time.time(), 2)}
+    what = ", ".join(added) + (("; to the graveyard: " + ", ".join(gy_added)) if gy_added else "")
+    emit("chat", by=pilot, text=f"{pilot} recorded {who}'s {what or 'commander as cast'} from {who}'s {src} — "
+                                f"{who}, fix your board if that's wrong", recorded_for=who, recorded=added, recorded_from=src)
+    emit("board3d", seat=who, n=len(perms), by=pilot)
+    return 200, {"ok": True, "seat": who, "by": pilot, "added": added, "graveyard_added": gy_added, "permanents": len(perms)}
 
 
 def unrecord_announced(who: str | None) -> list[str]:
@@ -1405,7 +1444,7 @@ STRICT_SEATS = CLOUD or os.environ.get("STRICT_SEATS") == "1"
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"), ("POST", "/api/seat/check"),
-          ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("POST", "/api/ready"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/openmic/rate"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("POST", "/api/ready"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/public-board"), ("POST", "/api/openmic/rate"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/api/journal/due"), ("GET", "/api/journal"), ("POST", "/api/journal"), ("POST", "/api/identity"),   # a pilot's own journal and identity: the handlers need that seat's key
@@ -2985,10 +3024,18 @@ class H(BaseHTTPRequestHandler):
                 emit("board3d", seat=who, n=len(perms))
                 return self._send(200, {"ok": True, "seat": who, "permanents": len(perms)})
             if self.path == "/api/public-board":           # the brain records a human's board (from photos/speech)
-                if not secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN):
-                    return self._send(403, {"error": "brain token required"})
                 b = self._json()
                 who = str(b.get("seat", ""))
+                if not secrets.compare_digest(self.headers.get("X-Brain-Token", ""), TOKEN):
+                    # a cloud room has no vision for the people: a PILOT (an AI seat with its own key) may read a person's
+                    # photo or words and ADD what it saw to that person's board — marked as its record, said in the log
+                    key = self._seat_key(b)
+                    pilot = next((n for n in sorted(PILOTS) if key and seat_key_ok(n, key)), None)
+                    if not pilot:
+                        return self._send(403, {"error": "brain token or a pilot seat's key required"})
+                    if who not in [h["name"] for h in HUMANS] or who in VPS or who in PILOTS or who == pilot:
+                        return self._send(403, {"error": "a pilot records only a PERSON's board; AI boards come from the engine"})
+                    return self._send(*pilot_records_board(pilot, who, b))
                 if who not in [h["name"] for h in HUMANS]:
                     return self._send(400, {"error": "public-board is for human seats; AI boards come from the engine"})
                 perms, grave = board_from_body(b)
