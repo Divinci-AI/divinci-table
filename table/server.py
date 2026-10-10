@@ -506,7 +506,7 @@ def passes_state() -> dict:
         PASS["since"] = time.time()               # a hold or an open question pauses the timer: the full time again afterwards
     if _human_timer_applies(nxt) and time.time() - PASS.get("since", time.time()) > HUMAN_PASS_SECS:
         PASS["passed"].append(nxt)                # a person who didn't pass in time: pass for them, and say so in the log
-        emit("pass", by=nxt, human=True, timeout=True, player=PHASE["player"], step=STEPS[PHASE["step"]])
+        emit("pass", by=nxt, human=True, auto=True, timeout=True, secs=HUMAN_PASS_SECS, player=PHASE["player"], step=STEPS[PHASE["step"]])
         return passes_state()
     out = {"need": need, "passed": passed, "next": nxt}
     if nxt in VPS and PHASE["player"] is not None:   # a virtual-deck seat has a clock too, and everyone can see it
@@ -825,7 +825,7 @@ HIGHROLL: dict = {"mode": None}   # who goes first: {"mode", "sides", "round", "
 
 
 def highroll_public() -> dict:
-    h = dict(HIGHROLL)
+    h = {k: v for k, v in HIGHROLL.items() if not str(k).startswith("_")}
     if h.get("mode") == "physical" and not h.get("winner"):     # a die not yet rolled shows as waiting
         h["waiting_on"] = [n for n in h.get("contenders", []) if n not in h["rolls"].get(str(h["round"]), {})]
     return h
@@ -876,7 +876,8 @@ def highroll_start(mode: str, sides: int, by: str) -> tuple[int, dict]:
             r = str(HIGHROLL["round"])
             HIGHROLL["rolls"][r] = {n: fair.die_roll(src, f"highroll|{r}|{n}", sides) for n in HIGHROLL["contenders"]}
             _highroll_settle()
-    emit("highroll", **{k: v for k, v in highroll_public().items() if k != "started_turn"})
+    if not HIGHROLL.pop("_emitted", False):
+        emit("highroll", **{k: v for k, v in highroll_public().items() if k != "started_turn"})
     return 200, highroll_public()
 
 
@@ -898,6 +899,8 @@ def _highroll_settle():
     HIGHROLL.update(winner=win, order=order)
     _append("fair-highroll.jsonl", {k: v for k, v in HIGHROLL.items()})
     HIGHROLL["started_turn"] = True                   # the roll decides who's first, so start that turn now
+    emit("highroll", **{k: v for k, v in highroll_public().items() if k != "started_turn"})   # the log shows the roll BEFORE the first turn it decided
+    HIGHROLL["_emitted"] = True
     start_turn(win)                                   # (as START would; an AI winner begins playing)
 
 
@@ -919,7 +922,8 @@ def highroll_enter(name: str, value, by: str) -> tuple[int, dict]:
     HIGHROLL["rolls"].setdefault(r, {})[who] = v
     HIGHROLL.setdefault("entered_by", {}).setdefault(r, {})[who] = by[:30] or who
     _highroll_settle()
-    emit("highroll", **highroll_public())
+    if not HIGHROLL.pop("_emitted", False):
+        emit("highroll", **highroll_public())
     return 200, highroll_public()
 
 

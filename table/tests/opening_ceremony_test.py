@@ -62,6 +62,8 @@ with Server() as S:                                    # Claude (pilot), Fusion 
     evs = S.call("GET", "/api/events?since=0")[1].get("events", [])
     hrs = [e for e in evs if e.get("type") == "highroll" and e.get("winner")]
     check("the roll is in the game log as one event with every die", len(hrs) == 1 and hrs[0].get("rolls") == hr["rolls"], len(hrs))
+    first_turn = next((e for e in evs if e.get("type") == "phase" and e.get("index") == 0), None)
+    check("the log shows the roll BEFORE the first turn it decided", first_turn and hrs[0]["id"] < first_turn["id"], (hrs[0]["id"], first_turn and first_turn["id"]))
     c2, d2 = S.next("Sam")
     check("a second START does not roll again", S.phase().get("player") == hr["winner"] and len([e for e in S.call("GET", "/api/events?since=0")[1]["events"]
           if e.get("type") == "highroll" and e.get("winner")]) == 1, (c2, str(d2)[:100]))
