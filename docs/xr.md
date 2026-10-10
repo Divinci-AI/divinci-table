@@ -36,3 +36,12 @@ cards, so the brain records them from photos and what people announce
 (`tablectl public-board Sam "Swamp" "Mountain:tapped" "Centaur:token:3/3" "Nihilith:suspended:5" --graveyard "Hunted Horror" --commander-out`).
 They're public information only and survive a restore. Data: `GET /api/board3d` (phones and remote
 visitors can read it); recording a human board is `POST /api/public-board` with the brain token.
+
+A person's own play goes on their board by itself: a typed or spoken "I play Silverbluff Bridge" puts the
+named permanent (never an instant or sorcery, never a target named after "on …") on the speaker's board once
+the game has started; one copy per non-basic card; "No, I said …" swaps the misheard card. In a cloud room,
+where nothing can read a person's photo, a **pilot** seat may record what it read with its own seat key
+(`TABLE_SEAT_KEY_FILE=… tablectl public-board Sam "River of Tears" --from photo`): it only ADDS, only to a
+person's board (never a pilot's, never its own), each card marked with who recorded it, and the game log says
+"Claude recorded Sam's River of Tears from Sam's photo" so the person can check it. The person's own
+`/api/my-board` (the board page) overwrites it.
