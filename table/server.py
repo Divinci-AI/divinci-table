@@ -867,7 +867,12 @@ def pilot_records_board(pilot: str, who: str, b: dict) -> tuple[int, dict]:
         prev = PUBLIC_BOARD.get(who) or {}
         perms = [dict(p) for p in prev.get("permanents", [])]
         grave = list(prev.get("graveyard", []))
-        added, gy_added = [], []
+        added, gy_added, removed = [], [], []
+        for name in [str(x)[:80] for x in (b.get("remove") or [])][:20]:     # a correction: only what THIS pilot recorded, the last copy of each
+            i = next((i for i in range(len(perms) - 1, -1, -1) if perms[i].get("name") == name and perms[i].get("by") == pilot), None)
+            if i is not None:
+                perms.pop(i)
+                removed.append(name)
         for p in perms_in:
             basic = "Basic" in ((oracle.card(p["name"]) or {}).get("type") or "")
             if not p.get("face_down") and not basic and any(q.get("name") == p["name"] and not q.get("face_down") for q in perms):
@@ -881,16 +886,20 @@ def pilot_records_board(pilot: str, who: str, b: dict) -> tuple[int, dict]:
                 break
             grave.append(g)
             gy_added.append(g)
-        if not added and not gy_added and not b.get("commander_out"):
-            return 200, {"ok": True, "seat": who, "added": [], "graveyard_added": [], "permanents": len(perms)}
+        if not added and not gy_added and not removed and not b.get("commander_out"):
+            return 200, {"ok": True, "seat": who, "added": [], "graveyard_added": [], "removed": [], "permanents": len(perms)}
         PUBLIC_BOARD[who] = {**prev, "permanents": perms, "graveyard": grave,
                              "commander_out": bool(prev.get("commander_out")) or bool(b.get("commander_out")),
                              "updated": round(time.time(), 2)}
+    if removed and not added and not gy_added:
+        emit("chat", by=pilot, text=f"{pilot} took {', '.join(removed)} off {who}'s board (it had recorded it in error)", recorded_for=who, removed=removed)
+        emit("board3d", seat=who, n=len(perms), by=pilot)
+        return 200, {"ok": True, "seat": who, "by": pilot, "added": [], "removed": removed, "graveyard_added": [], "permanents": len(perms)}
     what = ", ".join(added) + (("; to the graveyard: " + ", ".join(gy_added)) if gy_added else "")
     emit("chat", by=pilot, text=f"{pilot} recorded {who}'s {what or 'commander as cast'} from {who}'s {src} — "
                                 f"{who}, fix your board if that's wrong", recorded_for=who, recorded=added, recorded_from=src)
     emit("board3d", seat=who, n=len(perms), by=pilot)
-    return 200, {"ok": True, "seat": who, "by": pilot, "added": added, "graveyard_added": gy_added, "permanents": len(perms)}
+    return 200, {"ok": True, "seat": who, "by": pilot, "added": added, "removed": removed, "graveyard_added": gy_added, "permanents": len(perms)}
 
 
 def unrecord_announced(who: str | None) -> list[str]:

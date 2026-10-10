@@ -144,6 +144,17 @@ def pilot_records():
         check("a pilot ADDS (never replaces): Fusion's Swamp goes beside River of Tears, Murder to the graveyard",
               c == 200 and board(S, "Sam") == ["River of Tears", "Swamp"] and sam_gy(S) == ["Murder"], (c, d, board(S, "Sam"), sam_gy(S)))
 
+        print("corrections: a pilot can take back what IT recorded")
+        c, d = pb({"seat": "Sam", "remove": ["Swamp"]}, key=S.claim("Claude"))
+        check("Claude cannot remove Swamp: Fusion recorded it, not Claude", c == 200 and board(S, "Sam") == ["River of Tears", "Swamp"], (c, d, board(S, "Sam")))
+        c, d = pb({"seat": "Sam", "remove": ["River of Tears"]}, key=S.claim("Claude"))
+        check("Claude removes its own River of Tears (recorded in error)", c == 200 and board(S, "Sam") == ["Swamp"] and d.get("removed") == ["River of Tears"], (c, d, board(S, "Sam")))
+        ev = S.call("GET", "/api/events?since=0")[1]["events"]
+        check("…and the log says it took it off", any(e.get("removed") == ["River of Tears"] and "off Sam's board" in e.get("text", "") for e in ev), [e.get("text") for e in ev if e.get("type") == "chat"][-3:])
+        pb({"seat": "Sam", "permanents": ["River of Tears"]}, key=S.claim("Claude"))
+        c, d = pb({"seat": "Sam", "remove": ["River of Tears"]}, key=S.claim("Michael"))
+        check("a person's key cannot use the removal route", c == 403, (c, d))
+
         print("…only a person's board, only with a pilot's key")
         claude0, fusion0 = board(S, "Claude"), board(S, "Fusion")
         c, d = pb({"seat": "Fusion", "permanents": ["Sol Ring"]}, key=S.claim("Claude"))
