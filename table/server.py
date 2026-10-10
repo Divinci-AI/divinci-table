@@ -372,7 +372,7 @@ def snapshot():
         with VP_LOCK, PHASE_LOCK:
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
                                  "ORDER": turn_order(), "EVENTS": list(EVENTS[-1500:]), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
-                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "SEAT_PROXY": SEAT_PROXY, "SEAT_INVITES": SEAT_INVITES, "ev_id": _ev_id[0], "saved": time.time()})
+                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "SEAT_PROXY": SEAT_PROXY, "SEAT_INVITES": SEAT_INVITES, "DECKDECL": DECKDECL, "ev_id": _ev_id[0], "saved": time.time()})
         p = research_dir() / "snapshot.pkl"
         tmp = p.with_suffix(".tmp")
         tmp.write_bytes(blob)
@@ -395,6 +395,12 @@ def restore(path: str):
     AUTOPASS.update(d.get("AUTOPASS") or {})
     SEAT_PROXY.update(d.get("SEAT_PROXY") or {})
     SEAT_INVITES.update(d.get("SEAT_INVITES") or {})
+    DECKDECL.update(d.get("DECKDECL") or {})          # declared commanders and deck lists (the check-in), and the seats' commanders with them
+    for h in HUMANS:
+        c = (DECKDECL.get(h["name"]) or {}).get("commander")
+        if c:
+            h["commander"] = c
+            NICKNAMES[c.split(",")[0]] = c
     if d.get("ORDER") and (not ORDER or HIGHROLL.get("winner")):
         ORDER[:] = d["ORDER"]                         # a high roll's order beats the --order the table was started with
     EVENTS.extend(d.get("EVENTS") or [])              # the visible log survives a restart or a sleep (it did not until 2026-10-07)
@@ -934,6 +940,9 @@ def seat_deck_names(name: str) -> list[str]:
     """The card names a seat's deck can show on the table — a pilot's virtual deck, or the deck file whose commander is
     the person's commander — so a board photo is read against real candidates. Empty when unknown."""
     path = DECK_OF.get(name)
+    declared = [c["name"] for c in (DECKDECL.get(name) or {}).get("cards", []) if c.get("known")]
+    if not path and declared:                          # the list this person declared at the check-in
+        return sorted(set(declared))[:200]
     commander = next((h["commander"] for h in HUMANS if h["name"] == name), None)
     if not path and commander:
         for f in sorted((HERE.parent / "decks").glob("*.json")):
@@ -1080,8 +1089,109 @@ def checkin_public() -> dict:
     for n in turn_order():
         kind = "pilot" if n in PILOTS else "ai" if n in VPS else "human"
         claimed = n in SEAT_KEYS or kind == "ai"
-        seats.append({"name": n, "kind": kind, "claimed": bool(claimed), "ready": kind == "ai" or n in READY})
-    return {"seats": seats, "all_ready": all(x["ready"] for x in seats), "waiting": [x["name"] for x in seats if not x["ready"]]}
+        seats.append({"name": n, "kind": kind, "claimed": bool(claimed), "ready": kind == "ai" or n in READY, **seat_declaration(n)})
+    return {"seats": seats, "all_ready": all(x["ready"] for x in seats), "waiting": [x["name"] for x in seats if not x["ready"]],
+            "undeclared": [x["name"] for x in seats if not x["declared"]]}
+
+
+# ── the commander and deck list each seat declares at the check-in (deckdecl.py) ──────────────────────────────────────────
+# name → {"commander", "cards": [{"count", "name", "known"}], "total", "recognised", "url", "ts"}. A person's seat declares its
+# commander (required to press Ready when the check-in is required) and may add a deck list or a link to one; a virtual-deck
+# seat (pilot or table AI) is declared by its deck file. Public: deck lists are public in Commander once declared. Kept in the
+# snapshot, so a room that restarts keeps it.
+DECKDECL: dict[str, dict] = {}
+DECL_LOCK = threading.Lock()
+
+
+def _deck_file_list(n: str) -> dict:
+    """A virtual-deck seat's list from its deck file: {"cards", "total", "recognised", "deck_name"}; {} if unreadable."""
+    path = DECK_OF.get(n)
+    if not path:
+        return {}
+    try:
+        d = json.loads(Path(path if Path(path).is_absolute() else HERE.parent / path).read_text())
+        cards = [{"count": int(c.get("count", 1)), "name": c["name"], "known": True}
+                 for c in (d.get("commander") or []) + (d.get("mainBoard") or []) if c.get("name")]
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+    total = sum(c["count"] for c in cards)
+    return {"cards": cards, "total": total, "recognised": total, "deck_name": d.get("name")}
+
+
+def seat_declaration(n: str) -> dict:
+    """What the check-in shows for a seat: its commander, how many cards its declared list has, its list link, declared or not."""
+    decl = DECKDECL.get(n) or {}
+    if n in VPS:
+        auto = {} if decl.get("cards") or decl.get("url") else _deck_file_list(n)
+        return {"commander": VPS[n].commander.get("name"), "deck_cards": decl.get("total") or auto.get("total") or 0,
+                "deck_url": decl.get("url"), "deck_name": getattr(VPS[n], "deck_name", None), "declared": True, "auto": not decl}
+    commander = next((h.get("commander") for h in HUMANS if h["name"] == n), None)
+    return {"commander": commander, "deck_cards": decl.get("total") or 0, "deck_url": decl.get("url"),
+            "declared": bool(commander), "auto": bool(commander) and not decl.get("commander")}
+
+
+def deckdecl_public(n: str) -> dict:
+    """GET /api/deckdecl?seat=Name: the seat's declared commander and deck list (card names) or link. Public."""
+    decl = DECKDECL.get(n) or {}
+    out = {"seat": n, **seat_declaration(n)}
+    if decl.get("url"):
+        out["url"] = decl["url"]
+    elif decl.get("cards"):
+        out.update(cards=decl["cards"], total=decl["total"], recognised=decl["recognised"])
+    elif n in VPS:
+        f = _deck_file_list(n)
+        out.update(cards=f.get("cards", []), total=f.get("total", 0), recognised=f.get("recognised", 0), from_deck_file=True)
+    return out
+
+
+def declare_deck(nm: str, b: dict) -> tuple[int, dict]:
+    """A seat declares (or changes, before the game starts) its commander and/or deck list. b: {"commander"?, "decklist"?}.
+    The commander is matched against the card file and becomes the seat's commander everywhere (board, 3D board, nicknames),
+    exactly as --human 'Name|Commander' would have. Each change is one public line in the game log."""
+    import oracle
+    import deckdecl as D
+    if PHASE["player"] is not None:
+        return 409, {"error": "the game has already started: commanders and deck lists are declared before it"}
+    has_cmd = str(b.get("commander") or "").strip() != ""
+    has_list = "decklist" in b and b.get("decklist") is not None
+    if not has_cmd and not has_list:
+        return 400, {"error": "name your commander (and, if you like, your deck list)"}
+    try:
+        canon = D.match_commander(b["commander"], oracle.db()) if has_cmd else None
+        if canon and nm in VPS and canon != VPS[nm].commander.get("name"):
+            raise D.DeclareError(f"{nm} plays a virtual deck led by {VPS[nm].commander.get('name')}: its commander is fixed by the deck")
+        newlist = None
+        if has_list:
+            got = D.read_decklist(b.get("decklist"))
+            newlist = ({"url": got["url"]} if "url" in got else
+                       D.parse_list(got["list"], oracle.db()) if "list" in got else {})
+    except D.DeclareError as e:
+        return 400, {"error": str(e), "suggestions": e.suggestions}
+    with DECL_LOCK:
+        cur = DECKDECL.get(nm) or {}
+        before = (cur.get("commander"), cur.get("url"), cur.get("total"), cur.get("recognised"), [c["name"] for c in cur.get("cards", [])])
+        new = dict(cur)
+        if canon:
+            new["commander"] = canon
+        if has_list:
+            for k in ("cards", "total", "recognised", "url"):
+                new.pop(k, None)
+            new.update(newlist or {})
+        after = (new.get("commander"), new.get("url"), new.get("total"), new.get("recognised"), [c["name"] for c in new.get("cards", [])])
+        changed = before != after
+        new["ts"] = time.time()
+        DECKDECL[nm] = new
+        if canon and nm not in VPS:
+            for h in HUMANS:
+                if h["name"] == nm:
+                    h["commander"] = canon                    # the board, board3d and voice matching all read this
+            NICKNAMES[canon.split(",")[0]] = canon
+    if changed:
+        commander = new.get("commander") or seat_declaration(nm).get("commander")
+        text = (f"{nm} declares {commander} as commander" if commander else f"{nm} declares a deck list") + D.summary(new)
+        emit("chat", by=nm, text=text, deckdecl=nm)
+        snapshot()
+    return 200, {"declared": deckdecl_public(nm), "changed": changed, "checkin": checkin_public()}
 
 
 def checkin_required() -> bool:
@@ -1102,6 +1212,9 @@ def begin_game(by: str) -> tuple[int, dict]:
         if checkin_required() and not checkin_public()["all_ready"]:
             ci = checkin_public()
             return 409, {**phase_public(), "error": "waiting for " + ", ".join(ci["waiting"]) + " to check in (press Ready)", "checkin": ci}
+        if checkin_required() and checkin_public()["undeclared"]:
+            ci = checkin_public()
+            return 409, {**phase_public(), "error": "waiting for " + ", ".join(ci["undeclared"]) + " to declare a commander", "checkin": ci}
         if HIGHROLL.get("mode") == "physical" and not HIGHROLL.get("winner"):
             return 409, {**phase_public(), "highroll": highroll_public(), "error": "a real-dice roll is under way: enter the dice"}
         if CEREMONY["on"]:
@@ -1463,7 +1576,7 @@ STRICT_SEATS = CLOUD or os.environ.get("STRICT_SEATS") == "1"
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"), ("POST", "/api/seat/check"),
-          ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("POST", "/api/ready"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/public-board"), ("POST", "/api/openmic/rate"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
+          ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("POST", "/api/ready"), ("POST", "/api/declare-deck"), ("GET", "/api/deckdecl"), ("GET", "/api/cardnames"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/public-board"), ("POST", "/api/openmic/rate"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
                                                           # and AI-turn controls POST to routes still local-only
           ("GET", "/api/journal/due"), ("GET", "/api/journal"), ("POST", "/api/journal"), ("POST", "/api/identity"),   # a pilot's own journal and identity: the handlers need that seat's key
@@ -2517,6 +2630,21 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"sha": build_sha(), "game": "magic"})
         if self.path.split("?")[0] == "/me":               # a player's phone / glasses view (public info only)
             return self._send(200, body=(HERE / "me.html").read_bytes(), ctype="text/html; charset=utf-8")
+        if self.path.split("?")[0] == "/api/cardnames":    # name completion for the check-in's commander box (public, offline)
+            import oracle
+            import deckdecl as D
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query).get("q", [""])[0][:80]
+            return self._send(200, {"q": q, "names": D.suggest(q, oracle.db(), n=8) if len(q.strip()) >= 2 else []})
+        if self.path.split("?")[0] == "/api/deckdecl":     # a seat's declared commander and deck list (public, as in Commander)
+            from urllib.parse import parse_qs, urlparse
+            want = parse_qs(urlparse(self.path).query).get("seat", [""])[0].strip().lower()
+            if not want:
+                return self._send(200, {"seats": [deckdecl_public(n) for n in turn_order()]})
+            n = next((x for x in turn_order() if x.lower() == want), None)
+            if not n:
+                return self._send(404, {"error": f"no seat named '{want}'"})
+            return self._send(200, deckdecl_public(n))
         if self.path.startswith("/api/card"):              # Oracle text for one card, by name (public)
             import oracle
             from urllib.parse import parse_qs, urlparse
@@ -3157,10 +3285,28 @@ class H(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "claim your seat first (👤)", "need_seat": True})
                 if PHASE["player"] is not None:
                     return self._send(409, {"error": "the game has already started"})
+                declared = None
+                if str(b.get("commander") or "").strip() or b.get("decklist") is not None:   # {"commander", "decklist"}: declare with it
+                    code, declared = declare_deck(nm, b)
+                    if code != 200:
+                        return self._send(code, declared)
+                want = bool(b.get("ready", True))
+                if want and checkin_required() and nm not in VPS and not seat_declaration(nm)["declared"]:
+                    return self._send(409, {"error": f"{nm}: declare your commander before you press Ready", "need_commander": True,
+                                            "checkin": checkin_public()})
                 with PHASE_LOCK:
-                    (READY.add if b.get("ready", True) else READY.discard)(nm)
+                    (READY.add if want else READY.discard)(nm)
                 emit("checkin", seat=nm, ready=nm in READY, waiting=checkin_public()["waiting"])
-                return self._send(200, {"checkin": checkin_public()})
+                return self._send(200, {"checkin": checkin_public(), **({"declared": declared["declared"]} if declared else {})})
+            if self.path == "/api/declare-deck":           # {"by": "Michael", "key": …, "commander": "Inspirit", "decklist": "1 Sol Ring\n…" | "https://…"}
+                b = self._json()                           # the same seat rules as /api/ready: only your own seat, with its key
+                nm = next((n for n in turn_order() if n.lower() == str(b.get("by", "")).lower()), None)
+                if nm is None or nm in VPS and nm not in PILOTS:
+                    return self._send(400, {"error": "no seat of yours by that name"})
+                if not seat_key_ok(nm, str(b.get("key") or self.headers.get("X-Seat-Key", ""))):
+                    return self._send(403, {"error": "claim your seat first (👤)", "need_seat": True})
+                code, d = declare_deck(nm, b)
+                return self._send(code, d)
             if self.path == "/api/autopass":               # {"by": "Sam", "key": …, "mode": "off"|"others"|"others-no-combat"}
                 b = self._json()
                 person = next((h["name"] for h in HUMANS if h["name"].lower() == str(b.get("by", "")).lower()), None)

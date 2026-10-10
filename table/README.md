@@ -88,6 +88,23 @@ table/tablectl.py life Michael -5            # also: destroy/exile/bounce/tap/un
 - **Board changes caused by opponents' cards** (a human's removal spell on the AI's creature) are
   applied by the brain with `destroy`/`exile`/`bounce`, because the server cannot see the physical cards.
 
+## The check-in declares each commander and deck list
+
+Before START, the check-in panel (`assets/checkin.js`, on /me, /board, /hand, /stage) asks each **person** for their commander
+(completed from the offline card file, stored under its real name: "inspirit" → *Inspirit, Flagship Vessel*) and, optionally,
+a deck list: pasted (`1 Sol Ring`, `1x Sol Ring`, headers ignored, sideboard left out) or a link (kept as text, never fetched).
+The commander becomes the seat's commander everywhere, as `--human 'Name|Commander'` would. Virtual-deck seats (pilots, table
+AIs) are declared by their deck files. In a room that requires the check-in (cloud / `STRICT_SEATS`), Ready and START wait for
+every person's commander; at home the fields are offered but nothing waits.
+
+- `POST /api/declare-deck {by, key, commander?, decklist?}` declares without readying; `POST /api/ready` accepts the same fields.
+  Only your own seat (its key). Refused once the game has started.
+- Each change is one public log line: *Michael declares Inspirit, Flagship Vessel as commander (deck list: 99 cards, 97 recognised)*.
+- `GET /api/deckdecl?seat=Name` (or no seat: every seat) shows the declared list or link: public, as in Commander.
+- `GET /api/cardnames?q=Insp` is the commander box's name completion.
+- Kept in the room snapshot, so a restarted room keeps it. Pilots: `tablectl ready --commander 'Name' [--decklist FILE_OR_URL]`.
+- Tests: `tests/declare_deck_test.py`; the browser half is in `tests/dice_ui_e2e.cjs`.
+
 ## Run it offline
 
 Everything runs on the laptop: Whisper (mlx-whisper) hears, **Gemma 4 on Ollama** routes and
