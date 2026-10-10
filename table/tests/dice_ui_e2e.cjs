@@ -28,10 +28,20 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     const me = await ctx.newPage(); await me.goto(BASE + "/me?player=Michael"); await sleep(2500);
     check("the check-in panel is up before the game starts, listing the seats", await me.evaluate(() => { const c = document.getElementById("checkin"); return !!c && c.style.display !== "none" && /Claude/.test(c.textContent) && /Sam/.test(c.textContent); }));
     check("Start is disabled until everyone is ready", await me.evaluate(() => document.getElementById("ci-start").disabled));
-    const ready = (n, k) => fetch(BASE + "/api/ready", { method: "POST", headers: { "Content-Type": "application/json", "X-Seat-Key": k, ...XFF }, body: JSON.stringify({ by: n, key: k, ready: true }) });
-    await ready("Claude", keys.Claude); await ready("Sam", keys.Sam);
+    const ready = (n, k, extra = {}) => fetch(BASE + "/api/ready", { method: "POST", headers: { "Content-Type": "application/json", "X-Seat-Key": k, ...XFF }, body: JSON.stringify({ by: n, key: k, ready: true, ...extra }) });
+    await ready("Claude", keys.Claude); await ready("Sam", keys.Sam, { commander: "Krenko, Mob Boss" });
+    // declaring the commander is part of the check-in (declare_deck_test.py): the box is there, and Ready waits for it
+    check("my seat has a commander box and a deck list field", await me.evaluate(() => !!document.getElementById("ci-cmd") && !!document.getElementById("ci-deck")));
+    check("Ready is disabled until I name my commander, and says why", await me.evaluate(() => { const r = document.getElementById("ci-ready"); return r.disabled && /commander/i.test(r.textContent + r.title); }),
+      await me.evaluate(() => document.getElementById("ci-ready").outerHTML));
+    await me.fill("#ci-cmd", "inspirit"); await sleep(2300);                // (the panel refreshes every 2 s: Sam's declaration shows on the next)
+    check("…and enabled once a commander is typed", await me.evaluate(() => !document.getElementById("ci-ready").disabled));
+    check("the seat rows show each person's commander", await me.evaluate(() => /Sam · Krenko, Mob Boss/.test(document.getElementById("ci-rows").textContent)),
+      await me.evaluate(() => document.getElementById("ci-rows").textContent));
     await me.click("#ci-ready"); await sleep(2800);
     check("my Ready button checks me in, and Start wakes up", await me.evaluate(() => !document.getElementById("ci-start").disabled), await me.evaluate(() => document.getElementById("checkin").textContent));
+    check("…declaring my commander under its real name", await me.evaluate(() => /Michael · Inspirit, Flagship Vessel/.test(document.getElementById("ci-rows").textContent)),
+      await me.evaluate(() => document.getElementById("ci-rows").textContent));
     const watcher = await ctx.newPage(); await watcher.goto(BASE + "/stage"); await sleep(1500);
     const quiet = await ctx.newPage(); await quiet.goto(BASE + "/me?player=Michael&nodice=1"); await sleep(1500);
     const errors = []; watcher.on("pageerror", e => errors.push(String(e)));
