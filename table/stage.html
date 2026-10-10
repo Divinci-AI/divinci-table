@@ -65,6 +65,11 @@
 </head>
 <body data-brand="stage">
 <div id="bg"></div>
+<div id="lobby-title" style="position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none;z-index:5">
+  <div style="font:800 clamp(34px,7vw,92px) Cinzel,Georgia,serif;letter-spacing:.07em;color:#f4dc9b;text-shadow:0 4px 40px #d9b46a55">Divinci Table</div>
+  <div style="font:700 clamp(18px,3.4vw,44px) Cinzel,Georgia,serif;letter-spacing:.32em;color:#ece4cf;margin-top:.1em;text-transform:uppercase">Commander</div>
+  <div style="font:15px/1.5 system-ui,sans-serif;color:#9fb0b0;margin-top:1.6em;max-width:30em">Everyone checks in below. When all seats are ready, press Start: the dice decide who goes first.</div>
+</div>
 <div id="who"><div class="name">—</div><div class="cmdr"></div><div class="turn">their turn</div></div>
 <div id="life"><div class="n">40</div><div class="l">life</div></div>
 <div id="phase"></div>
@@ -759,5 +764,13 @@ refresh().then(poll);
 <script src="/assets/photo.js" defer></script>
 <script src="/assets/highroll.js" defer></script>
 <script src="/assets/sfx.js" defer></script>
+<script>
+// Before the game starts there is nobody on stage yet: say what this table is. Hidden the moment the first turn begins.
+(function lobbyTitle() {
+  const el = document.getElementById("lobby-title");
+  const tick = async () => { try { const p = await (await fetch("/api/phase")).json(); el.style.display = p.player ? "none" : "flex"; } catch {} setTimeout(tick, 2000); };
+  tick();
+})();
+</script>
 </body>
 </html>
