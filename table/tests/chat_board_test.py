@@ -170,6 +170,23 @@ def pilot_records():
         c, d = eff("Fusion", kind="opponent-token", source="Murder")
         check("(and a seat cannot take tokens from its own card)", c == 400, (c, d))
 
+        print("a wipe aimed at me: I apply it to MY board, once")
+        c, d = eff("Claude", kind="apply-removal")
+        check("with no removal aimed at Claude nothing is applied", c == 400 and "no unapplied removal" in str(d.get("error")), (c, d))
+        S.host_brain("Claude", "token", name="Bear", power=2, toughness=2, n=2)
+        n0 = len([p for p in S.state("Claude")["permanents"] if p.get("pt")])
+        say(S, "Michael", "I tap my lands to cast Fumigate")
+        ev = S.call("GET", "/api/events?since=0")[1]["events"]
+        rem = [e for e in ev if e.get("type") == "attention" and e.get("kind") == "removal" and e.get("addressee") == "Claude"]
+        check("Michael's Fumigate raised a removal attention for Claude", bool(rem), [e.get("text") for e in ev][-3:])
+        c, d = eff("Fusion", kind="apply-removal")
+        check("a seat the wipe was not aimed at cannot apply it", c == 400, (c, d))
+        c, d = eff("Claude", kind="apply-removal")
+        left = [p for p in S.state("Claude")["permanents"] if p.get("pt")]
+        check("Claude applies it: every creature of its own is destroyed", c == 200 and n0 >= 2 and not left, (c, d.get("error"), n0, left))
+        c, d = eff("Claude", kind="apply-removal")
+        check("…once: the same Fumigate cannot be applied twice", c == 400, (c, d))
+
         print("…only a person's board, only with a pilot's key")
         claude0, fusion0 = board(S, "Claude"), board(S, "Fusion")
         c, d = pb({"seat": "Fusion", "permanents": ["Sol Ring"]}, key=S.claim("Claude"))

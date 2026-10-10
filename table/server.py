@@ -704,6 +704,7 @@ START_HINT = ("the game hasn't started: start it with `highroll quantum` (tablec
 COMBAT: dict = {"pending": [], "hits": [], "human": [], "used": set()}
 EFFECT_WORDS = {"draw": r"\bdraws? ", "surveil": r"\bsurveil\b", "scry": r"\bscry\b", "manifest": r"\bmanifest",
                 "destroy": r"\bdestroy", "exile": r"\bexile", "bounce": r"(owner's hand|return target|return it to)"}
+REMOVAL_APPLIED: set = set()                         # removal attention events a seat has already applied to its board
 EFFECT_USES: dict = {}                               # (seat, turn, source, kind) -> times used this turn
 GAME_FIRST: dict = {"seat": None}                    # who took the first turn: in a two-player game that seat skips its first draw
 
@@ -3658,6 +3659,36 @@ class H(BaseHTTPRequestHandler):
                                        sac_ref=str(b["sac"]) if b.get("sac") not in (None, "") else None)
                     if getattr(VP, "last_peek", None):
                         private["top"], VP.last_peek = VP.last_peek, None
+                elif action == "effect" and str(b.get("kind", "")).lower() == "apply-removal":
+                    # Someone cast removal or a wipe at this seat (the table raised a 'removal' attention for it): this seat applies it to ITS
+                    # OWN permanents, exactly what the spell says, once per event, within 15 minutes. Nothing else can be destroyed this way.
+                    import oracle
+                    with EV_LOCK:
+                        evs = [e for e in EVENTS if e.get("type") == "attention" and e.get("kind") == "removal"
+                               and str(e.get("addressee", "")).lower() == VP.name.lower() and e["id"] not in REMOVAL_APPLIED
+                               and time.time() - e.get("ts", 0) < 900]
+                    if not evs:
+                        raise IllegalAction("no unapplied removal was aimed at you in the last 15 minutes")
+                    ev = evs[-1]
+                    eff, tgt, spell = ev.get("effect"), str(ev.get("target") or ""), ev.get("spell")
+                    if eff not in ("destroy", "exile", "bounce", "wipe"):
+                        raise IllegalAction(f"the table can't apply a '{eff}' effect yet ({spell}): do it by hand")
+                    wtext = ((oracle.card(spell) or {}).get("text") or "").lower() if spell else ""
+                    zone = {"destroy": "graveyard", "exile": "exile", "bounce": "hand"}.get(eff) or ("exile" if "exile all" in wtext else "graveyard")
+                    if tgt == "all":
+                        text = ((oracle.card(spell) or {}).get("text") or "").lower() if spell else ""
+                        if "all creatures" in text or "each creature" in text:
+                            victims = [p for p in VP.battlefield if p.is_("Creature")]
+                        elif "nonland permanents" in text:
+                            victims = [p for p in VP.battlefield if not p.is_("Land")]
+                        elif "all permanents" in text:
+                            victims = list(VP.battlefield)
+                        else:
+                            raise IllegalAction(f"{spell}: the table can't tell which of your permanents it hits: do it by hand")
+                    else:
+                        victims = [VP.perm(tgt)]
+                    said = [f"{spell or 'The removal'}: " + ("; ".join(VP.move(f"#{p.id}", zone)[0] for p in victims if p in VP.battlefield) or "nothing of mine is hit") + "."]
+                    REMOVAL_APPLIED.add(ev["id"])
                 elif action == "effect" and str(b.get("kind", "")).lower() == "opponent-token":
                     # "When this creature enters, target opponent creates two 3/3 Centaur tokens" (Hunted Horror): the card is on ANOTHER
                     # seat's recorded board, its text must say so, and the tokens are made on this seat once per card per ten minutes.
