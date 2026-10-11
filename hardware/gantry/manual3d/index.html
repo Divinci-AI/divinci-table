@@ -564,10 +564,11 @@ function buildExtras() {
   const pt = { carriage: [-48.7, YB, 104], tape: [-13.1, -30 + YB, 61], nozzle: [-50, YB, 27], wire: [-28, 40 + YB, 58] };
   for (const [id, v] of Object.entries(pt)) makeStepLabel(id, asm[id].obj, new THREE.Vector3(...v));
   const mk = () => new THREE.Mesh(clipGeo, mat.print);
-  const place = (id, intro, pos, rx, stage, home) => { const c = mk(); c.castShadow = c.receiveShadow = true; c.rotation.x = rx; c.position.set(...pos); addExtra(id, group(c), intro, stage, home); };
-  place("clipA", stepIdx("Clip the leads"), [2, -32 + YB, 39.3], 0, [90, -80, 0], [9, -24 + YB, 43]); place("clipB", stepIdx("Clip the leads"), [2, 16 + YB, 39.3], 0, [112, -80, 0], [9, 24 + YB, 43]);
+  const place = (id, intro, pos, rx, stage, home, rz = 0) => { const c = mk(); c.castShadow = c.receiveShadow = true; c.rotation.x = rx; c.rotation.z = rz; c.position.set(...pos); addExtra(id, group(c), intro, stage, home); };
+  // the clip is a 14 x 16 mm block whose wire channel runs along its x; the lead runs along y here, so the clip is turned 90 degrees about z (its origin is a corner: it then covers x -16..0, y 0..14 from its position) and centred on the wire at x = 9
+  place("clipA", stepIdx("Clip the leads"), [17, 5 - 7, 39.3], 0, [90, -80, 0], [9, 5, 43], Math.PI / 2); place("clipB", stepIdx("Clip the leads"), [17, 24 - 7, 39.3], 0, [112, -80, 0], [9, 24, 43], Math.PI / 2);
   place("clipC", stepIdx("Two more clips"), [-60, 36 + YB, 62], -Math.PI / 2, [134, -80, 0], [-53, 40 + YB, 54]); place("clipD", stepIdx("Two more clips"), [-35, 36 + YB, 62], -Math.PI / 2, [156, -80, 0], [-28, 40 + YB, 54]);
-  for (const [id, v] of Object.entries({ clipA: [9, -24 + YB, 50], clipB: [9, 24 + YB, 50], clipC: [-53, 44 + YB, 54], clipD: [-28, 44 + YB, 54] })) makeStepLabel(id, asm[id].obj, new THREE.Vector3(...v));
+  for (const [id, v] of Object.entries({ clipA: [9, 5, 52], clipB: [9, 24, 52], clipC: [-53, 44 + YB, 54], clipD: [-28, 44 + YB, 54] })) makeStepLabel(id, asm[id].obj, new THREE.Vector3(...v));
 }
 const TRAY = { magnet: [70, 70, 0], swivel: [70, 25, 0], m3: [70, -20, 3], bolt: [70, -65, 0], nylon: [140, 70, 0], spring: [140, 25, 0], wing: [140, -20, 0], plug: [140, -65, 0], pin: [215, -30, 0], angle: [215, 20, 0] };
 function magnetParts() {
