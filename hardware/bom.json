@@ -304,29 +304,31 @@
    "id": "m2-nylon",
    "name": "M2 nylon screws and standoffs",
    "qty": 1,
-   "source": "to choose",
+   "source": "amazon",
    "status": "to-buy",
    "route": [
     "magnet"
    ],
-   "role": "mount the head camera's 32 x 32 mm board (4 x M2 holes) so its ground and USB shield cannot touch the carriage (the CR-6's USB fault puts 20 V on the shell)",
+   "role": "mount the head camera's 32 x 32 mm board (4 x M2 holes) so its ground and USB shield cannot touch the carriage (the CR-6's USB fault puts 20 V on the shell). MCMASKE 380-piece kit in the Amazon cart (not ordered), $9.99.",
    "used_in": [
     {
      "doc": "manual",
      "step": "Step 2"
     }
-   ]
+   ],
+   "asin": "B0B5LST3PG",
+   "price": 9.99
   },
   {
    "id": "m12-lens-set",
-   "name": "M12 lens set (2.8, 3.6 and 6 mm)",
+   "name": "M12 lens (after the field-of-view test)",
    "qty": 1,
    "source": "to choose",
    "status": "to-buy",
    "route": [
     "magnet"
    ],
-   "role": "lets us choose the head camera's field of view if the stock 2.8 mm lens is too narrow or too wide; the lens needs a lock ring or low-strength threadlocker once focused",
+   "role": "BUY AFTER the field-of-view test, not before: which lens we need depends on the result (if the stock 2.8 mm lens sees only about 50 degrees across, we need a WIDER lens, around 2 mm or less, not 3.6 or 6 mm). Check the replacement has an infrared-cut filter: a reviewer says the stock lens has it attached, and a lens without one gives a pink cast. Candidates seen 2026-10-11: uxcell M12 2.8 mm 115 degree ($9.99, B00REFRRKK), uxcell 3.6 mm ($8.39, B07FRXKN2G). Lock it with a ring or low-strength threadlocker once focused.",
    "used_in": [
     {
      "doc": "manual",
@@ -715,7 +717,7 @@
    "route": [
     "magnet"
    ],
-   "role": "bonds the thermal fuse to the magnet's body (room-temperature cure; keep it under 55 C while curing). Priced $39.62 on 2026-10-11 (in the Amazon cart, not ordered); a cheaper plain epoxy is not thermally conductive. The larger 8329TCS kit is $115.91 and reviewers report curing trouble: do not buy that one. A cheaper way to couple the fuse is a thin thermal pad wrapped in Kapton (suggested by the Opus review, not tried).",
+   "role": "bonds the thermal fuse to the magnet's body (room-temperature cure; keep it under 55 C while curing). Priced $39.62 on 2026-10-11 (in the Amazon cart, not ordered); a cheaper plain epoxy is not thermally conductive. The larger 8329TCS kit is $115.91 and reviewers report curing trouble: do not buy that one. A cheaper way to couple the fuse is a thin thermal pad wrapped in Kapton (suggested by the Opus review, not tried). Ships from Tequipment, due Oct 20 (the rest arrives Oct 13).",
    "used_in": [
     {
      "doc": "manual",

@@ -137,8 +137,7 @@ Drill a **1/4" hole** about 1" from one end of the 3" piece, centred on one leg.
 A small camera rides on the print head beside the magnet, in place of the Canon: the **innomaker 1080p 32 × 32 mm UVC
 camera** (USB to the Mac; no battery, no tripod). Nothing is mounted yet: its mount is a printed part still to design,
 and its field of view must be measured first, because the listing says 103° across but one reviewer measured about 50°.
-Parts still to choose: a **USB 2.0 shielded extension cable, 2-3 m**, **M2 nylon screws and standoffs**, and an
-**M12 lens set (2.8, 3.6 and 6 mm)**.
+Parts still to choose: a **USB 2.0 shielded extension cable, 2-3 m** (the camera's own cable is short), **M2 nylon screws and standoffs** (a 380-piece kit is in the Amazon cart), and, only after the field-of-view test, an **M12 lens (after the field-of-view test)**: if the stock lens turns out too narrow we need a wider one with an infrared-cut filter.
 
 **Rules for the mount:**
 - Fix the board with the nylon M2 screws so its ground and USB shield cannot touch the carriage: the CR-6's USB fault
