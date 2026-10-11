@@ -693,18 +693,19 @@
    "name": "Thermally conductive epoxy (MG Chemicals 8329TCM, 6 mL)",
    "qty": 1,
    "source": "amazon",
-   "asin": "B06XDL1NRQ",
+   "asin": "B00HTV1TXA",
    "status": "check",
    "route": [
     "magnet"
    ],
-   "role": "bonds the thermal fuse to the magnet's body (room-temperature cure; keep it under 55 C while curing). Price not checked. The larger 8329TCS kit is $115.91 and reviewers report curing trouble: do not buy that one.",
+   "role": "bonds the thermal fuse to the magnet's body (room-temperature cure; keep it under 55 C while curing). Priced $39.62 on 2026-10-11 (in the Amazon cart, not ordered); a cheaper plain epoxy is not thermally conductive. The larger 8329TCS kit is $115.91 and reviewers report curing trouble: do not buy that one.",
    "used_in": [
     {
      "doc": "manual",
      "step": "Step 5"
     }
-   ]
+   ],
+   "price": 39.62
   },
   {
    "id": "butt-splices",
@@ -716,7 +717,7 @@
    "route": [
     "magnet"
    ],
-   "role": "crimped joints for the thermal fuse's leads instead of solder (the fuse is damaged by soldering heat); Home Depot item 202522490, model AMT-4120",
+   "role": "crimped joints for the thermal fuse's leads instead of solder (the fuse is damaged by soldering heat); Home Depot item 202522490, model AMT-4120; Amazon alternative in the cart (not ordered): AIRIC 22/20/18 AWG crimp-type heat-shrink butt connectors, 100 pcs, $8.99, B06XCQ7P8R. Avoid the 'solder seal' type: soldering heat can damage the fuse",
    "used_in": [
     {
      "doc": "manual",
