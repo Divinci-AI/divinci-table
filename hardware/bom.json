@@ -31,18 +31,13 @@
    "name": "Canon EOS Rebel T3i with 18–55 mm lens",
    "qty": 1,
    "source": "on-hand",
-   "status": "on-hand",
+   "status": "removed",
    "route": [
     "magnet",
     "arm"
    ],
    "role": "the eyes: photographs the bed from above",
-   "used_in": [
-    {
-     "doc": "manual",
-     "step": "Step 2"
-    }
-   ]
+   "reason": "the Canon rig is dropped: a small camera on the print head replaces it (2026-10-11)"
   },
   {
    "id": "cr6-max",
@@ -91,18 +86,13 @@
    "source": "amazon",
    "asin": "B01EMNB8P6",
    "price": 19.99,
-   "status": "saved",
+   "status": "removed",
    "route": [
     "magnet",
     "arm"
    ],
    "role": "mains power for the camera; Canon recommends the AC kit for tethered shooting; M1 uses the table's existing fixed camera, so this waits",
-   "used_in": [
-    {
-     "doc": "manual",
-     "step": "Step 2"
-    }
-   ]
+   "reason": "the Canon rig is dropped: a small camera on the print head replaces it (2026-10-11)"
   },
   {
    "id": "camera-cable",
@@ -111,18 +101,13 @@
    "source": "amazon",
    "asin": "B078SRKRLK",
    "price": 8.55,
-   "status": "saved",
+   "status": "removed",
    "route": [
     "magnet",
     "arm"
    ],
    "role": "camera to the Mac (the T3i's port is Mini-B); skip if the camera's own cable turns up",
-   "used_in": [
-    {
-     "doc": "manual",
-     "step": "Step 2"
-    }
-   ]
+   "reason": "the Canon rig is dropped: a small camera on the print head replaces it (2026-10-11)"
   },
   {
    "id": "ball-head",
@@ -131,18 +116,13 @@
    "source": "amazon",
    "asin": "B07D9JCP18",
    "price": 9.8,
-   "status": "saved",
+   "status": "removed",
    "route": [
     "magnet",
     "arm"
    ],
    "role": "aims the camera straight down (one used, one spare)",
-   "used_in": [
-    {
-     "doc": "manual",
-     "step": "Step 2"
-    }
-   ]
+   "reason": "the Canon rig is dropped: a small camera on the print head replaces it (2026-10-11)"
   },
   {
    "id": "electromagnet",
@@ -279,18 +259,23 @@
    ]
   },
   {
-   "id": "wrist-camera",
-   "name": "innomaker 1080p 32 × 32 mm UVC wrist camera",
+   "id": "head-camera",
+   "name": "innomaker 1080p 32 × 32 mm UVC camera",
    "qty": 1,
    "source": "amazon",
    "asin": "B0CNCSFQC1",
    "price": 18.99,
-   "status": "saved",
+   "status": "check",
    "route": [
+    "magnet",
     "arm"
    ],
-   "role": "close-up view from the arm's wrist",
+   "role": "the head camera: rides on the print head beside the magnet and replaces the Canon (USB to the Mac, no battery or tripod). In the Amazon cart, not ordered. Fixed M12 lens, 103 degree horizontal field of view claimed (one reviewer measured about 50): run the field-of-view test in Step 2 before printing a mount. Later also the SO-101's wrist camera.",
    "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 2"
+    },
     {
      "doc": "goal",
      "step": "G0"
@@ -327,15 +312,11 @@
     "magnet",
     "arm"
    ],
-   "role": "camera bracket (~6\") and magnet bracket (~3\")",
+   "role": "magnet bracket (~3\") and a spare ~6\" piece",
    "used_in": [
     {
      "doc": "manual",
      "step": "Step 1"
-    },
-    {
-     "doc": "manual",
-     "step": "Step 2"
     },
     {
      "doc": "manual",
@@ -354,12 +335,8 @@
     "magnet",
     "arm"
    ],
-   "role": "ball head to the camera bracket; the magnet swivel's axle",
+   "role": "the magnet swivel's axle; spares",
    "used_in": [
-    {
-     "doc": "manual",
-     "step": "Step 2"
-    },
     {
      "doc": "manual",
      "step": "Step 4"
@@ -415,12 +392,8 @@
     "magnet",
     "arm"
    ],
-   "role": "vibration damping under the ball head; the tap station's grippy foot",
+   "role": "the tap station's grippy foot",
    "used_in": [
-    {
-     "doc": "manual",
-     "step": "Step 2"
-    },
     {
      "doc": "manual",
      "step": "Step 9"

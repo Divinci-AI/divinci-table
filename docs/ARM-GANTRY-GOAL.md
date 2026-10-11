@@ -8,7 +8,7 @@ check has been run and its output read. Hardware steps need a person at the prin
 
 The AI player gets a body at the table: **eyes overhead and a hand at its own seat.**
 
-- **Eyes: the CR-6 Max gantry** carries the Canon T3i over the bed (`hardware/gantry/`). It photographs the whole
+- **Eyes: the CR-6 Max gantry** carries a small head camera (innomaker UVC, 2026-10-11, replacing the Canon T3i) over the bed (`hardware/gantry/`). It photographs the whole
   duel table, both players' battlefields, and feeds `/api/board` like the fixed camera does today.
 - **Hand: an SO-101 arm** (open source, Hugging Face LeRobot; we print its parts on the CR-6 Max) clamped at the AI's
   side of the bed, with a **suction cup** instead of the gripper (flat cards) and a 32 mm wrist camera. Its wrist roll
@@ -18,7 +18,7 @@ The AI player gets a body at the table: **eyes overhead and a hand at its own se
 
 ```
             ┌───────────────── CR-6 Max (top view) ─────────────────┐
-            │   X beam ═══════[Canon, on top of the beam]═══════    │
+            │   X beam ═══════[camera on the print head]═══════    │
             │   ┌───────────────── bed 400 × 400 ───────────────┐   │
             │   │  NORTH half: the person's battlefield         │   │   (bed moves in Y;
             │   │  ───────────────────────────────────────────  │   │    parked at a fixed Y
@@ -70,7 +70,7 @@ the manual and this doc in step. The cart history below is the record of how it 
 - [ ] Fix the manual first: on the CR-6 Max the carriage rides on the X beam's **front** face, so the camera bracket goes
       on **top of (or behind) the beam, outboard of the carriage's travel** — run the carriage end to end by hand
       before taping anything down.
-- [ ] Mount the Canon (dummy battery, tethered USB), measure the rig into `gantry.json`.
+- [ ] Run the head camera's field-of-view test (manual Step 2), print its mount, measure the camera-to-magnet offset into `gantry.json`.
 - [ ] `gantry.py`: `camera_on: "beam"` — snaps move only Z (and the bed in Y), never X; `snap` at the top of Z covers
       the bed; `--post` feeds `/api/board`.
 - [ ] **Check:** a stitched (or single) overhead frame of both halves; `/api/board` recognises the cards on each half;
@@ -187,7 +187,7 @@ Design notes for the printer-as-hand version:
 - [ ] 10 swivel-arc taps: within ±5° and ±3 mm?
 - [ ] Hand rack: slots 6, 0 and 3 out and back five times each; no card drags a neighbour, every card seats fully?
 - [ ] **Decision, with the numbers:** printer as the hand, arm + magnet, or keep suction. Only then change the carts.
-      M1 uses the table's fixed camera; the Canon mount parts wait in Save for later too.
+      M1 uses the table's fixed camera; the head camera waits too.
 
 ### Review by Hermes (2026-10-05)
 Hermes read the manual, the bom and this section. Taken: the USB shell fault isn't fixed by taping +5 V (measure the

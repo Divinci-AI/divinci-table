@@ -1,6 +1,6 @@
 # Camera gantry + magnet hand — assembly manual
 
-A Creality **CR-6 Max** 3D printer turned into eyes and a hand for the table. A **Canon EOS Rebel T3i** looks straight
+A Creality **CR-6 Max** 3D printer turned into eyes and a hand for the table. A small **camera on the print head** looks
 down at the cards on the bed, and a small **24 V electromagnet** on the print head picks up the AI's cards, which
 carry a steel washer inside the sleeve. The printer only *moves*: it never heats or extrudes (`table/gantry.py`
 refuses those G-codes). This is the first step toward the "Jumanji table" in [docs/roadmap.md](../../docs/roadmap.md):
@@ -62,7 +62,6 @@ Prices as seen on 2026-10-04; any equivalent part works.
 
 | Part | Qty | Used for |
 |---|---|---|
-| Canon EOS Rebel T3i with 18–55 mm lens | 1 | the eyes |
 | Creality CR-6 Max 3D printer | 1 | prints the Step 3 parts, then becomes the gantry |
 | PLA+ filament | — | the Step 3 parts |
 | Zip ties | ~10 | backing up the tape, tidying cables |
@@ -101,11 +100,11 @@ Prices as seen on 2026-10-04; any equivalent part works.
 
 | Part | Qty | Used for |
 |---|---|---|
-| Everbilt aluminium angle 1" × 3 ft × 1/8" | 1 | camera bracket (~6" / 152 mm) and magnet bracket (3" / 76 mm; 1/4" / 6.35 mm hole 1" / 25.4 mm from one end) |
-| Everbilt 1/4"-20 × 1" (6.35 × 25.4 mm) zinc hex bolt | 4 | camera bracket; the swivel's axle; spares |
+| Everbilt aluminium angle 1" × 3 ft × 1/8" | 1 | magnet bracket (3" / 76 mm; 1/4" / 6.35 mm hole 1" / 25.4 mm from one end) and a spare ~6" piece |
+| Everbilt 1/4"-20 × 1" (6.35 × 25.4 mm) zinc hex bolt | 4 | the swivel's axle; spares |
 | Everbilt 1/4"-20 (6.35 mm) wing nut (4-pack) | 1 | setting the swivel's drag |
 | Everbilt nylon spacer 1/2" (12.7 mm) × 1" (0.257" / 6.5 mm bore) | 2 | cut down to 6 mm: a low-friction washer under the bracket |
-| Everbilt 1/4" rubber flat washers (10-pack) | 1 | damping under the ball head; the tap station's grippy foot |
+| Everbilt 1/4" rubber flat washers (10-pack) | 1 | the tap station's grippy foot |
 | Everbilt spring assortment kit (84-pack) | 1 | one compression spring for the swivel's drag (about 8 mm wide; length TBD) |
 | Scotch Extreme double-sided mounting tape 1" × 48" | 1 | brackets to the beam and the carriage (no drilling into the printer) |
 | Everbilt M3 × 6 mm zinc flat head machine screws (4-pack) | 1 | magnet to the printed swivel (the magnet has an M3 thread in its back) |
@@ -114,47 +113,42 @@ Prices as seen on 2026-10-04; any equivalent part works.
 
 **Online (Amazon) — the exact parts.** The first two are ordered and confirmed ($13.18): the M1 test kit. The rest
 are in *Save for later* until the deck-stack test in Step 9 passes 19 times out of 20; M1 uses the table's
-existing fixed camera, so the Canon mount waits too.
+existing fixed camera, so the head camera waits too.
 
 | Part | Link | Price |
 |---|---|---|
 | Heschen 24 V holding electromagnet HS-P20x15 | [amazon.com/dp/B078K3TKFZ](https://www.amazon.com/dp/B078K3TKFZ) | $7.19 |
 | 1N4007 rectifier diodes (125-pack) | [amazon.com/dp/B0FC2CQF24](https://www.amazon.com/dp/B0FC2CQF24) | $5.99 |
-| Gonine LP-E8 dummy battery / ACK-E8 AC kit | [amazon.com/dp/B01EMNB8P6](https://www.amazon.com/dp/B01EMNB8P6) | $19.99 |
-| SCOVEE 10 ft Mini-USB camera cable for Canon Rebel | [amazon.com/dp/B078SRKRLK](https://www.amazon.com/dp/B078SRKRLK) | $8.55 |
-| CAMVATE 1/4"-20 mini ball head (2-pack) | [amazon.com/dp/B07D9JCP18](https://www.amazon.com/dp/B07D9JCP18) | $9.80 |
+| innomaker 1080p 32 × 32 mm UVC camera | [amazon.com/dp/B0CNCSFQC1](https://www.amazon.com/dp/B0CNCSFQC1) | $18.99 |
 | RSHTECH 7-port powered USB hub (USB-C and USB-A) | [amazon.com/dp/B0CGX8LNMC](https://www.amazon.com/dp/B0CGX8LNMC) | $31.99 |
 
-The Amazon cart reads **$13.18**. Save for later holds the other four parts above ($70.33; the hub can be dropped if
-a USB-C adapter is on hand) and the SO-101 arm, its wrist camera and its kill switch ($226.96, listed in the goal
-doc), all waiting on Step 9's result.
+The Amazon order of $13.18 is confirmed. Save for later holds the USB hub ($31.99; it can be dropped if a USB-C adapter is on hand) and the SO-101 arm and its kill switch (listed in the goal doc), all waiting on Step 9's result.
 
 **Tools:** drill with a 1/4" bit, hacksaw, file, screwdrivers, multimeter, wire strippers, a lighter or heat gun for
 heat-shrink.
 
 ## Step 1 — Cut the brackets
 
-Cut the aluminium angle into a **~6" piece** (camera) and a **~3" piece** (magnet head). File the edges smooth.
-Drill a **1/4" hole** about 1" from one end of each piece, centred on one leg.
+Cut the aluminium angle into a **~3" piece** (magnet head) and keep the rest as a spare (the head camera's mount will be printed, Step 2). File the edges smooth.
+Drill a **1/4" hole** about 1" from one end of the 3" piece, centred on one leg.
 
-## Step 2 — Mount the camera on the X beam
+## Step 2 — Mount the head camera (design in progress)
 
-![Camera mount](img/camera-mount.svg)
+A small camera rides on the print head beside the magnet, in place of the Canon: the **innomaker 1080p 32 × 32 mm UVC
+camera** (USB to the Mac; no battery, no tripod). It is light enough for the carriage. Nothing is mounted yet: its
+mount is a printed part still to design, and its field of view must be measured first, because the listing says 103°
+across but one reviewer measured about 50°.
 
-1. **First, run the carriage from one end of the X beam to the other by hand** (printer off). On the CR-6 Max the
-   carriage rides on the beam's **front** face, so nothing may be stuck there. Stick the 6" angle's *undrilled* leg to
-   the **top (or back) of the X beam, outboard of the carriage's travel** (the left end), with mounting tape, the
-   drilled leg sticking out over the bed. Back it up with two zip ties around the beam, and run the carriage end to
-   end again: it must not touch the bracket, the ball head, the camera or its cable.
-2. From the top: **bolt** down through the hole → **rubber washer** → screw the bolt into the **ball head's
-   base**. Hand-tight.
-3. Screw the ball head's top screw into the camera's tripod socket. Fit the **dummy battery** and plug in its AC
-   adapter. Plug the **Mini-USB cable** into the camera, and route it along the left upright (it reaches the Mac
-   in Step 6).
-4. Set the lens to **18 mm**, autofocus off (manual focus on the bed), and point the camera straight down.
+**Field-of-view test (no printing):**
+1. Fix the camera facing straight down on a tripod or clamp, 1920 × 1080 MJPEG, focus set by hand at the middle height.
+   Lay a printed grid (or a ruler) on the bed.
+2. Take one frame at each of 150, 200, 250 and 300 mm above the bed, measured with a ruler.
+3. From each frame read the ground width and height in mm, the real field of view (2 × atan(width ÷ 2 ÷ height)),
+   pixels per mm and per card, and how much the edges bend (a card at the corner against one at the centre).
+4. Choose the scan height and the number of tiles that cover the bed.
 
-*Why the beam:* the camera and lens weigh ~800 g. On the X carriage they would shake and strain the X motor; on
-the beam they only ride up and down with Z.
+Then: print a mount, calibrate the lens and the camera-to-magnet offset into `gantry.json`, and use `gantry.py scan`,
+which already assumes the camera rides on the carriage.
 
 ## Step 3 — Print the parts (while it's still a printer)
 
@@ -319,7 +313,7 @@ card face-up through the card. Never put steel in a person's cards.
 
 ## Step 9 — First picks and the magnet test (M1)
 
-M1 uses the table's existing fixed camera; the Canon on the beam waits until the result says the printer is the hand.
+M1 uses the table's existing fixed camera; the head camera waits until the result says the printer is the hand.
 
 1. **Single picks:** place one sleeved card, move the magnet over its disc, lower to the touch-down height,
    `M106 S255`, raise 20 mm, move, pause, lower, `M107`. Repeat in different spots; note the reliable touch-down
