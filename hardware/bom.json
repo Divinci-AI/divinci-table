@@ -1,6 +1,6 @@
 {
  "about": "Bill of materials for the physical AI player (camera gantry + magnet hand, and the optional SO-101 arm). One entry per part, ordered or not. table/tests/bom_test.py checks it against the manual and the goal doc: every part is used by a step that exists, every Amazon link in those docs is listed here, removed parts stay out of the manual, and the cart totals add up.",
- "updated": "2026-10-05",
+ "updated": "2026-10-11",
  "docs": {
   "manual": "hardware/gantry/README.md",
   "goal": "docs/ARM-GANTRY-GOAL.md"
@@ -649,6 +649,23 @@
     {
      "doc": "manual",
      "step": "Step 6"
+    }
+   ]
+  },
+  {
+   "id": "thermal-fuse",
+   "name": "Thermal cut-off fuse, 60-70 C",
+   "qty": 1,
+   "source": "electronics supplier (not chosen yet)",
+   "status": "check",
+   "route": [
+    "magnet"
+   ],
+   "role": "hardware cut-off in series with the magnet's + lead, bonded to its body: the software timer cannot help if the cable is pulled; not bought, model and current rating to be chosen against the coil's measured current",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 5"
     }
    ]
   },

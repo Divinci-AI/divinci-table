@@ -72,7 +72,7 @@
       <button id="m-steps" aria-pressed="false">Step by step</button>
     </div>
     <button id="resume" style="display:none;width:100%;margin:0 0 10px"></button>
-    <div id="guide-row" style="display:none;margin:0 0 8px;color:var(--dim)">Guide <select id="guide" style="margin-left:8px;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px"><option value="magnet">Magnet head</option><option value="sleeve">Sleeve a card</option><option value="flip">Flip a card (design)</option></select></div>
+    <div id="guide-row" style="display:none;margin:0 0 8px;color:var(--dim)">Guide <select id="guide" style="margin-left:8px;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px"><option value="magnet">Magnet head</option><option value="sleeve">Sleeve a card</option><option value="flip">Flip a card (design)</option><option value="pigtail">Fan to magnet pigtail (proposal)</option></select></div>
     <div id="detail" aria-live="polite"><h3>Pick a part</h3><p class="meta">Click anything in the list or in the 3D view to see where it goes, how many, and how big it is.</p></div>
     <ol id="steps" style="display:none;margin:10px 0 0;padding:0;list-style:none"></ol>
     <div id="lists"><h2>Printed parts</h2><ul id="list-print"></ul>
@@ -139,6 +139,8 @@ const HARDWARE = [
     text: "Stuck to the side of the X carriage with mounting tape plus zip ties; the drilled leg sticks out horizontally under the carriage." },
   { id: "spring", name: "Short compression spring", qty: "1", step: "Step 4", size: "about 8 mm",
     text: "From the assortment. Sits between the bracket and the wing nut." },
+  { id: "diode", name: "1N4007 diode", qty: "1", step: "Step 5", size: "about 5 x 2.7 mm",
+    text: "Soldered across the magnet's two leads, striped end (cathode) to +, and insulated with heat-shrink. It absorbs the switch-off spike that could otherwise kill the board's fan transistor. Shown here on short leads beside the magnet; the magnet guide shows it on the real run of wire." },
   { id: "wing", name: "1/4\"-20 wing nut", qty: "1", step: "Step 4", size: "1/4\"-20",
     text: "Sets the swivel's drag: tight enough that a card doesn't spin while moving, loose enough that it turns when its corner is held." },
 ];
@@ -193,6 +195,12 @@ function helix(radius, pitch, turns, tube) {
 function mesh(geo, m, x = 0, y = 0, z = 0) { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; return o; }
 function group(...kids) { const g = new THREE.Group(); kids.forEach(k => g.add(k)); return g; }
 
+// A 1N4007 lying along +x (stripe toward +x, which is the + lead): body 5 mm, bent leads out to `span` mm overall, a solder blob at each end.
+function makeDiode(span) {
+  const M = (c, m, r) => new THREE.MeshStandardMaterial({ color: c, metalness: m, roughness: r }), blk = M(0x20242b, 0.1, 0.5), sil = M(0xc9ced6, 0.9, 0.3), lead = Math.max(0.5, (span - 5) / 2);
+  const side = sg => [mesh(new THREE.CylinderGeometry(0.4, 0.4, lead, 8).rotateZ(Math.PI / 2), sil, sg * (2.5 + lead / 2), 0, 0), mesh(new THREE.SphereGeometry(0.95, 12, 8), sil, sg * (2.5 + lead), 0, 0)];
+  return group(mesh(new THREE.CylinderGeometry(1.4, 1.4, 5, 16).rotateZ(Math.PI / 2), blk, 0, 0, 0), mesh(new THREE.CylinderGeometry(1.5, 1.5, 1.1, 16).rotateZ(Math.PI / 2), sil, 1.8, 0, 0), ...side(1), ...side(-1));
+}
 const hw = {};
 hw.magnet = group(mesh(cyl(10, 10, 15), mat.magnet, 0, 0, 7.5), mesh(cyl(8, 8, 0.4), mat.steel, 0, 0, 0.2), mesh(cyl(1.6, 1.6, 4), mat.steel, 0, 0, 16.2));
 { const shaft = mesh(cyl(1.5, 1.5, 4.5), mat.steel, 0, 0, -2.25), head = mesh(cyl(3.1, 1.5, 1.5), mat.steel, 0, 0, 0.75);
@@ -246,6 +254,9 @@ hw.offcut = makeAngle(false, 73.8, CUT_Y + 36.9);   // the rest of a ~150 mm sto
   hw.saw = group(blade, frame, handle, guard, pin(-151), pin(151), tab(-158, -150), tab(150, 166), stud, nut); }   // origin: the blade's teeth line, centred; the blade runs along x, teeth down
 hw.drill = group(mesh(cyl(3.175, 3.175, 40, 32), mat.steel, 0, 0, 22.4), mesh(new THREE.ConeGeometry(3.175, 2.4, 32).rotateX(-Math.PI / 2), mat.steel, 0, 0, 1.2));   // origin: the tip
 hw.spring = mesh(helix(5.2, 1.7, 4, 0.45), mat.spring);
+{ const lead = (pts, c) => mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(a => new THREE.Vector3(...a))), 60, 0.9, 8), new THREE.MeshStandardMaterial({ color: c, roughness: 0.5 }));
+  const d = makeDiode(12); d.position.set(0, -24, 1.4);   // the + (red) lead is at +x, so the stripe faces it
+  hw.diode = group(lead([[1.5, 0, 0], [2, -12, 0], [6, -24, 0], [6, -34, 0]], 0xd63a3a), lead([[-1.5, 0, 0], [-2, -12, 0], [-6, -24, 0], [-6, -34, 0]], 0x20242b), d); }   // origin: where the two leads leave the magnet; the diode bridges them
 { const nut = mesh(hexPrism(11.11, 5.6), mat.steel, 0, 0, 2.8);
   const wing = (s) => mesh(new THREE.BoxGeometry(9, 1.8, 12), mat.steel, s * 12, 0, 8.6);
   hw.wing = group(nut, wing(1), wing(-1)); }
@@ -285,9 +296,9 @@ async function build() {
     if (def.id === "clip") { clipSlots.slice(1).forEach(([cx, cy]) => { const c = new THREE.Mesh(obj.children[0].geometry, mat.print); c.castShadow = c.receiveShadow = true; c.position.set(cx - x, cy - y, 0); obj.add(c); }); obj.position.set(clipSlots[0][0], clipSlots[0][1], 0); entries.clip.home.copy(obj.position); }
   }
   // hardware: loose pieces beside the printed ones
-  const order = ["magnet", "m3", "bolt", "pin", "nylon", "angle", "spring", "wing"];
+  const order = ["magnet", "m3", "bolt", "pin", "nylon", "angle", "spring", "wing", "diode"];
   const loose = Object.fromEntries(order.map((id, i) => [id, [-70 + i * 55, -60 - (i % 2) * 38]]));
-  for (const def of HARDWARE) { const o = hw[def.id]; const [x, y] = loose[def.id]; o.position.set(x, y, def.id === "m3" ? 1.5 : 0); register(def, o, "hw", o.position); }
+  for (const def of HARDWARE) { const o = hw[def.id]; const [x, y] = loose[def.id]; o.position.set(x, y, def.id === "m3" ? 1.5 : def.id === "diode" ? 1 : 0); register(def, o, "hw", o.position); }
   Object.values(entries).forEach(placeAnchor);
   for (const [id, e] of Object.entries(entries)) attachDims(id, e.obj);
   updateLabelsVisibility();
@@ -309,6 +320,7 @@ function headPose(f) {
     angle:   { p: [0, 0, swivelZ + 15.1 + 6 + 105 * f] },
     spring:  { p: [0, 0, swivelZ + 15.1 + 6 + 3.2 + 140 * f] },
     wing:    { p: [0, 0, swivelZ + 15.1 + 6 + 3.2 + 6 + 175 * f] },
+    diode:   { p: [0, -9 - 30 * f, 7.5] },                                   // the leads leave the magnet's side; the diode is soldered across them
   };
   return pose;
 }
@@ -323,7 +335,7 @@ function setMode(m) {
   document.getElementById("labels").style.display = m === "steps" ? "" : "none";
   document.getElementById("steps").style.display = m === "steps" ? "block" : "none";
   document.getElementById("lists").style.display = m === "steps" ? "none" : "block";
-  const headIds = new Set(["magnet", "swivel", "m3", "bolt", "plug", "pin", "nylon", "angle", "spring", "wing"]);
+  const headIds = new Set(["magnet", "swivel", "m3", "bolt", "plug", "pin", "nylon", "angle", "spring", "wing", "diode"]);
   for (const [id, e] of Object.entries(entries)) e.obj.visible = m === "all" || (m !== "all" && headIds.has(id) && !(m === "steps" && false));
   if (m !== "steps") leaveSteps();
   if (m === "steps") { enterSteps(); return; }
@@ -385,7 +397,7 @@ for (const [list, defs, kind] of [["list-print", PRINTED, "print"], ["list-hw", 
   for (const d of defs) {
     const li = document.createElement("li"); const b = document.createElement("button"); b.className = "item"; b.dataset.id = d.id; b.setAttribute("aria-pressed", "false");
     b.innerHTML = `<span class="num ${kind}">${n++}</span><span></span><span class="qty"></span>`; b.children[1].textContent = d.name; b.children[2].textContent = "x" + d.qty.replace(/ \(.*\)/, "");
-    b.addEventListener("click", () => { if (mode === "head" && !["swivel", "magnet", "m3", "bolt", "plug", "pin", "nylon", "angle", "spring", "wing"].includes(d.id)) setMode("all"); select(d.id); });
+    b.addEventListener("click", () => { if (mode === "head" && !["swivel", "magnet", "m3", "bolt", "plug", "pin", "nylon", "angle", "spring", "wing", "diode"].includes(d.id)) setMode("all"); select(d.id); });
     li.append(b); ul.append(li);
   }
 }
@@ -482,7 +494,7 @@ function makeStepLabel(id, obj, local) {
   const l = new CSS2DObject(el); obj.add(l); l.position.copy(local); stepLabels[id] = { el, l };
 }
 function labelPoint(obj) { const b = bboxOf(obj), c = b.getCenter(new THREE.Vector3()); const top = new THREE.Vector3(c.x, c.y, b.max.z); obj.worldToLocal(top); return top; }
-const groups = { magnet: new THREE.Group(), sleeve: new THREE.Group(), flip: new THREE.Group() }; for (const g of Object.values(groups)) { g.visible = false; world.add(g); }
+const groups = { magnet: new THREE.Group(), sleeve: new THREE.Group(), flip: new THREE.Group(), pigtail: new THREE.Group() }; for (const g of Object.values(groups)) { g.visible = false; world.add(g); }
 let G = "magnet";                // the active guide
 const L = 34;                     // the frame (carriage, bracket) hangs this far up until step 7 lowers it onto the bolt
 const SUBIDS = new Set(["magnet", "swivel", "m3", "bolt", "plug", "pin", "nylon"]);
@@ -490,7 +502,7 @@ const FRAME = new Set(["carriage", "tape", "angle", "nozzle"]);
 const ghostMat = (m) => { const c = m.clone(); c.transparent = true; return c; };
 function addExtra(id, obj, intro, stageAbs, home, guide = "magnet") { obj.traverse(o => { if (o.isMesh) { o.material = ghostMat(o.material); } o.userData.id = id; }); groups[guide].add(obj); obj.updateMatrixWorld(true);
   attachDims(id, obj); asms[guide][id] = { obj, intro, stage: stageAbs ? stageAbs.map((v, i) => v - home[i]) : null, extra: true }; }   // an extra's position is an offset from where its geometry was built
-const asms = { magnet: {}, sleeve: {}, flip: {} }, asm = asms.magnet;
+const asms = { magnet: {}, sleeve: {}, flip: {}, pigtail: {} }, asm = asms.magnet;
 const MAGNET_STEPS = [
   { title: "Before you start", ref: "Step 3", intro: [], focus: ["magnet", "swivel", "m3", "bolt", "nylon", "spring", "wing", "angleBlank", "carriage"], cam: [[120, 0, 10], 340, [0.1, -0.55, 1.2]],
     text: "Print the swivel (and a spare), four lead clips and the swivel plugs (a small plate of ten in five widths) first, and have a few cm of 1.75 mm filament for the plug's pin, while the printer is still a printer. On the table: the 24 V magnet, M3 x 6 flat-head screw, 1/4\"-20 bolt, nylon spacer, spring, wing nut and the 3\" aluminium angle. The grey block is the printer's X carriage." },
@@ -520,12 +532,14 @@ const MAGNET_STEPS = [
     text: "The wing nut sets the swivel's drag: tight enough that a card doesn't spin while moving, loose enough that it turns when its corner is held (you test this in Step 9)." },
   { title: "Check the clearance", ref: "Step 4, item 4", intro: ["nozzle"], focus: ["magnet", "nozzle"], cam: [[-10, 0, 25], 300, [0, -1, 0.15]],
     text: "The magnet's face must be the lowest point of the carriage: at least 5 mm below the nozzle and everything else. Measure it, and set min_z in table/.cache/gantry.json before the first move. Also check the bolt: its thread must reach the wing nut with the spring on (a 1\" bolt is marginal; 1-1/2\" is safe)." },
-  { title: "Clip the leads to the bracket", ref: "Step 5, item 5", intro: ["wire", "clipA", "clipB"], focus: ["clipA", "clipB", "wire"], cam: [[0, 0, 36], 250, [0.9, -1, 0.7]],
-    text: "Extend the magnet's leads with 22 AWG two-core wire, and clip them to the bracket with two printed lead clips. Leave a loop of slack between the clip and the magnet so the swivel can turn a quarter for a tap." },
+  { title: "Extend the leads and put the diode across them", ref: "Step 5, items 2-3", intro: ["wire", "diodeOnLeads"], focus: ["wire", "diodeOnLeads", "magnet"], cam: [[-53, 39.9 + YB, 56], 80, [0.3, -0.6, 1.2]],
+    text: "Extend the magnet's leads with 22 AWG two-core wire (about a metre; drawn short here). Then solder a 1N4007 across the two leads, striped end (cathode) to the red + lead, and insulate it with heat-shrink. Without it the switch-off spike can kill the board's fan transistor. It goes on the part of the wire that does not flex, along the carriage here or at the plug end in the pigtail guide, never in the loop beside the swivel, where a cracked joint would leave the board unprotected without any sign. The leads leave the head beside the swivel; how they pass it is drawn schematically." },
+  { title: "Clip the leads to the bracket", ref: "Step 5, item 5", intro: ["clipA", "clipB"], focus: ["clipA", "clipB", "wire"], cam: [[0, 0, 36], 250, [0.9, -1, 0.7]],
+    text: "Clip the extended leads (diode and all) to the bracket with two printed lead clips. Leave a loop of slack between the clip and the magnet so the swivel can turn a quarter for a tap." },
   { title: "Two more clips along the carriage", ref: "Step 5, item 5", intro: ["clipC", "clipD"], focus: ["clipC", "clipD"], cam: [[-35, 25 + YB, 52], 260, [0.2, 1, 0.5]],
     text: "Two more printed lead clips go along the carriage, so the wire follows the head without snagging." },
   { title: "Done: wire it up", ref: "Steps 5-6", intro: [], noDims: true, focus: ["magnet", "swivel", "angle", "wing", "wire", "carriage"], cam: [[-10, 0, 50], 420, [0.9, -1.2, 0.5]],
-    text: "Before the Mac ever switches the magnet, run the bench test (README Step 5b): header voltage, coil resistance, current, and how many grams it really pulls on a sleeved card. Next: connect the leads to the part-fan output (the leads end here, headed for the fan connector), put a 1N4007 diode across them (striped end to +), and do the USB safety checks in Step 6 before the printer's cable touches the Mac." },
+    text: "Before the Mac ever switches the magnet, run the bench test (README Step 5b): header voltage, coil resistance, current, and how many grams it really pulls on a sleeved card. Next: connect the leads to the part-fan output (the leads end here, headed for the fan connector; the pigtail guide shows a reversible way to do that), and do the USB safety checks in Step 6 before the printer's cable touches the Mac." },
 ];
 const stepIdx = prefix => { const i = MAGNET_STEPS.findIndex(st => st.title.startsWith(prefix)); if (i < 0) console.error("manual: no step starts with", prefix); return i; };   // the animation is tied to a step by its title, so adding a step cannot shift it
 let STEPS = MAGNET_STEPS;
@@ -536,8 +550,10 @@ function buildExtras() {
   addExtra("nozzle", group(mesh(new THREE.CylinderGeometry(4, 0.4, 14, 24).rotateX(Math.PI / 2), mat.spring, -50, YB, 33), mesh(new THREE.CylinderGeometry(7, 7, 6, 6).rotateX(Math.PI / 2), mat.steel, -50, YB, 43)), stepIdx("Check the clearance"), [160, 20, 6], [-50, YB, 38]);
   const red = new THREE.MeshStandardMaterial({ color: 0xd63a3a, roughness: 0.5 }), blk = new THREE.MeshStandardMaterial({ color: 0x20242b, roughness: 0.5 });
   const pts = [[10, 0, 7.5], [34, -6, 24], [24, -24 + YB, 40], [9, -24 + YB, 43.8], [9, 24 + YB, 43.8], [-5, 34 + YB, 48], [-28, 39.9 + YB, 54], [-53, 39.9 + YB, 54], [-82, 48 + YB, 60]].map(a => new THREE.Vector3(...a));
-  const tube = (dz, m) => mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(v => v.clone().add(new THREE.Vector3(0, 0, dz)))), 160, 0.9, 8), m);
-  addExtra("wire", group(tube(0, red), tube(1.9, blk)), stepIdx("Clip the leads"), null, null);
+  const tube = (dz, side, m) => mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map((v, i) => v.clone().add(new THREE.Vector3(0, side * (i === 7 ? 4.5 : 0), dz)))), 160, 0.9, 8), m);   // the pair opens out 9 mm at the eighth point, along the carriage, where the diode bridges it
+  addExtra("wire", group(tube(0, 1, red), tube(1.9, -1, blk)), stepIdx("Extend the leads"), null, null);
+  { const d = makeDiode(Math.hypot(9, 1.9)), rd = new THREE.Vector3(0, 9, -1.9).normalize(); d.position.set(...pts[7].toArray().map((v, i) => i === 2 ? v + 0.95 : v)); d.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), rd);   // black lead -> red lead
+    addExtra("diodeOnLeads", group(d), stepIdx("Extend the leads"), null, null); makeStepLabel("diodeOnLeads", asm.diodeOnLeads.obj, new THREE.Vector3(-53, 39.9 + YB, 63)); }
   const hov = [TRAY.angle[0], TRAY.angle[1], 46], sawAt = z => [TRAY.angle[0], TRAY.angle[1] + CUT_Y, z];
   addExtra("angleBlank", hw.angleBlank, 0, null, null); asm.angleBlank.pose = k => ({ p: TRAY.angle, r: [0, 0, 0], op: k <= 1 ? 1 : 0, vis: k <= 1 });
   addExtra("offcut", hw.offcut, 0, null, null); asm.offcut.pose = k => k === 0 ? { p: TRAY.angle, r: [0, 0, 0], op: 1, vis: true } : { p: [TRAY.angle[0], TRAY.angle[1] + 45, 0], r: [0, 0, 0], op: 0, vis: false };
@@ -575,21 +591,22 @@ function magnetParts() {
   };
   return { ...parts, ...asm };
 }
-function partsFor() { return G === "sleeve" ? sleeveParts() : G === "flip" ? { ...asms.flip } : magnetParts(); }
+function partsFor() { return G === "sleeve" ? sleeveParts() : G === "flip" ? { ...asms.flip } : G === "pigtail" ? { ...asms.pigtail } : magnetParts(); }
 let PARTS = null, step = 0, stepTween = null, playTimer = null;
 function finalPose(id, k) {
   const fin = headPose(0), p = (fin[id]?.p || [0, 0, 0]).slice();
   if (FRAME.has(id) && k < stepIdx("Push the bolt up")) p[2] += L;                  // the angle's headPose is its final height; the others are built in place
   return p;
 }
-const GUIDE_INFO = { magnet: { title: "Magnet head", entryIds: () => Object.keys(TRAY) }, sleeve: { title: "Sleeve a card", entryIds: () => ["jig", "bridge"] }, flip: { title: "Flip a card (design)", entryIds: () => [] } };
+const GUIDE_INFO = { magnet: { title: "Magnet head", entryIds: () => Object.keys(TRAY) }, sleeve: { title: "Sleeve a card", entryIds: () => ["jig", "bridge"] }, flip: { title: "Flip a card (design)", entryIds: () => [] }, pigtail: { title: "Fan to magnet pigtail (proposal)", entryIds: () => [] } };
 function ghostEntries() { for (const e of Object.values(entries)) e.obj.traverse(o => { if (o.isMesh && !o.userData.ghosted) { o.material = ghostMat(o.material); o.userData.ghosted = true; } }); }   // the printed parts share one material: give each its own before fading one
 function enterSteps() { setGuide(G, step, true); }
 function setGuide(name, startStep = 0, instant = false) {
-  stopPlay(); G = name; STEPS = name === "sleeve" ? SLEEVE_STEPS : name === "flip" ? FLIP_STEPS : MAGNET_STEPS;
+  stopPlay(); hideRulers(); G = name; STEPS = { sleeve: SLEEVE_STEPS, flip: FLIP_STEPS, pigtail: PIGTAIL_STEPS }[name] || MAGNET_STEPS;
   if (!asms.magnet.carriage) buildExtras();
   if (!asms.sleeve.card) buildSleeve();
   if (!asms.flip.fence) buildFlip();
+  if (!asms.pigtail.pgBoard) buildPigtail();
   ghostEntries(); PARTS = partsFor();
   for (const id of Object.keys(TRAY)) if (!stepLabels[id]) makeStepLabel(id, entries[id].obj, labelPoint(entries[id].obj));
   for (const id of ["jig", "bridge"]) if (!stepLabels[id]) makeStepLabel(id, entries[id].obj, labelPoint(entries[id].obj));
@@ -881,8 +898,72 @@ const FLIP_STEPS = [
     text: "Use a paper card in a sleeve with a washer behind it (never a real card), magnet on. Drag the edge to the fence, lift the washer in the arc, let go at 110 degrees. Repeat 20 times and count successes, as in the README's bench protocol. Landing target: back up, washer on top, within 8 mm, 3 mm in X and 5 degrees." },
 ];
 
+// ---------- guide 4: swap the fan for the magnet with a pigtail (PROPOSAL, not built) ----------
+// README Step 5 extends the magnet's leads "to the fan connector". This guide shows the reversible version: a pigtail plug that fits the
+// part-fan header, so the board and the fan's own harness are never cut. Everything here is drawn simplified and short (the real wire is ~1 m).
+Object.assign(NAME, { diodeOnLeads: "1N4007 diode", pgBoard: "Mainboard (simplified)", pgHeader: "Part-fan header", pgFan: "Part-cooling fan + its plug", pgPlug: "Pigtail plug", pgWire: "Pigtail wire", pgMagnet: "Electromagnet on its swivel", pgDiode: "1N4007 diode" });
+Object.assign(ROLE, { diodeOnLeads: "across the two leads, stripe (cathode) toward +", pgBoard: "never cut, soldered or flashed", pgHeader: "the only thing on the board that is touched", pgFan: "the original harness stays whole", pgPlug: "mates with the header, same type as the fan's plug", pgWire: "22 AWG two-core: red to +, black to -", pgMagnet: "screwed into the printed swivel, as in the magnet guide; on the carriage in real life", pgDiode: "across the two leads near the plug, stripe (cathode) toward +" });
+Object.assign(DIMS, { diodeOnLeads: "1N4007, about 5 x 2.7 mm, soldered across the two leads on the part that does not flex, insulated with heat-shrink", pgBoard: "drawn as a plain 170 x 100 mm board: not your board's real layout", pgHeader: "connector type TBD: look at your fan's plug and buy the matching plug (not recorded in this repo yet)", pgFan: "the original fan and plug, unmodified", pgPlug: "same type as the fan's plug (TBD)", pgWire: "22 AWG two-core, about 1 m; drawn short here", pgMagnet: "magnet 20 mm dia x 15 mm, swivel 24 x 24 x 15.1 mm", pgDiode: "1N4007, soldered across the two leads near the plug (where the wire does not flex), insulated with heat-shrink" });
+Object.assign(SHORT, { diodeOnLeads: "1N4007", pgPlug: "same type as the fan's", pgWire: "22 AWG, ~1 m", pgDiode: "1N4007" });
+const PG = { S: [-10, 105, 3], H: [40, -30, 9], UP: [40, -30, 42], PARK: [125, -30, 3], M: [-100, -60, 4.5] };
+const lerp3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t), clamp01 = x => Math.min(1, Math.max(0, x));
+// the fan leaves the header during step 2 and comes home during step 7; the pigtail arrives during step 5 and leaves again at the start of step 7
+const pgFanAt = uu => {
+  if (uu <= 0) return PG.H;
+  if (uu < 1) return uu < 0.35 ? lerp3(PG.H, PG.UP, ease(uu / 0.35)) : lerp3(PG.UP, PG.PARK, ease((uu - 0.35) / 0.65));
+  if (uu <= 5) return PG.PARK;
+  if (uu < 6) { const t = uu - 5; return t < 0.5 ? PG.PARK : t < 0.8 ? lerp3(PG.PARK, PG.UP, ease((t - 0.5) / 0.3)) : lerp3(PG.UP, PG.H, ease((t - 0.8) / 0.2)); }
+  return PG.H;
+};
+const pgPigAt = uu => {
+  if (uu <= 3) return PG.S;
+  if (uu < 4) { const t = uu - 3; return t < 0.6 ? lerp3(PG.S, PG.UP, ease(t / 0.6)) : lerp3(PG.UP, PG.H, ease((t - 0.6) / 0.4)); }
+  if (uu <= 5) return PG.H;
+  if (uu < 6) { const t = uu - 5; return t < 0.2 ? lerp3(PG.H, PG.UP, ease(t / 0.2)) : t < 0.5 ? lerp3(PG.UP, PG.S, ease((t - 0.2) / 0.3)) : PG.S; }
+  return PG.S;
+};
+function buildPigtail() {
+  const std = (c, r = 0.55, m = 0.1) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m });
+  const pcb = std(0x1f6b4a, 0.5), white = std(0xeeeae0), black = std(0x20242b), red = std(0xd63a3a), blue = std(0x2b6cb0), grey = std(0x565d69, 0.4, 0.5);
+  const box = (w, d, h, m, x, y, z) => mesh(new THREE.BoxGeometry(w, d, h), m, x, y, z);
+  const wire = (pts, m) => mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p))), 120, 0.95, 8), m);
+  const [mx, my, mz] = PG.M;
+  const ext = (id, obj, intro, top) => { addExtra(id, obj, intro, null, null, "pigtail"); makeStepLabel(id, obj, new THREE.Vector3(...top)); };
+  ext("pgBoard", group(box(170, 100, 2, pcb, 0, 0, 1), box(14, 14, 3, black, -50, -5, 3.5), box(22, 18, 3, black, 20, 18, 3.5), ...[-55, -37, -19].map(x => box(8, 5, 4, white, x, 38, 4))), -1, [-60, 20, 6]);
+  ext("pgHeader", group(box(10, 6, 4, white, 40, -30, 4), box(2.4, 2.4, 0.6, red, 36, -37, 2.3), box(2.4, 2.4, 0.6, black, 44, -37, 2.3)), -1, [40, -37, 6]);
+  const fan = group(box(10, 6, 6, white, 0, 0, 0), box(40, 40, 10, black, 0, -70, 2), mesh(cyl(15, 15, 1.5), grey, 0, -70, 7.5), mesh(cyl(4, 4, 2.5), black, 0, -70, 8.5),
+    wire([[-1.5, -3, 0], [-1.5, -22, -3], [-1.5, -45, 4], [-1.5, -52, 2]], red), wire([[1.5, -3, 0], [1.5, -22, -3], [1.5, -45, 4], [1.5, -52, 2]], black));
+  ext("pgFan", fan, -1, [0, -70, 12]); asms.pigtail.pgFan.dyn = uu => ({ p: pgFanAt(uu), r: [0, 0, 0], vis: true, op: 1 });
+  const fadeBack = uu => uu > 5 ? 1 - 0.45 * clamp01(uu - 5) : 1, ghostUp = uu => uu <= 1 ? 0.3 : 0.3 + 0.7 * clamp01(uu - 1);   // made in step 3
+  const part = (id, obj, top, lift = 0) => { ext(id, obj, id === "pgDiode" ? 3 : 2, top); asms.pigtail[id].dyn = uu => { const p = pgPigAt(uu).slice(); p[2] += lift * (1 - ease(clamp01(uu - 2))); return { p, r: [0, 0, 0], vis: id !== "pgDiode" || uu > 2, op: (id === "pgDiode" ? clamp01((uu - 2) * 4) : ghostUp(uu)) * fadeBack(uu) }; }; };
+  part("pgPlug", group(box(10, 6, 6, blue, 0, 0, 0), box(4, 2, 2, blue, 0, 0, 4)), [0, 0, 8]);
+  part("pgWire", group(wire([[-5, 1.5, 0], [-26, 8, 0], [-60, -22, 3], [-80, -46, 10], [mx + 11.5, my + 1.5, 12.5]], red), wire([[-5, -1.5, 0], [-26, -8, 0], [-63, -26, 3], [-84, -49, 10], [mx + 11.5, my - 1.5, 12.5]], black)), [-60, -22, 6]);
+  // the magnet as the magnet guide builds it: screwed into the printed swivel, which covers its back. The leads come out beside the swivel (drawn schematically).
+  const swivelGeo = entries.swivel.obj.children[0].geometry, sw = new THREE.Mesh(swivelGeo, mat.print); sw.castShadow = sw.receiveShadow = true; sw.position.set(mx, my, mz + 7.5);
+  part("pgMagnet", group(mesh(cyl(10, 10, 15), mat.magnet, mx, my, mz), mesh(cyl(8, 8, 0.4), mat.steel, mx, my, mz - 7.3), sw), [mx, my, 24]);
+  // the diode goes across the two leads just outside the swivel, striped end toward the red (+) lead
+  const dio = makeDiode(16); dio.position.set(-26, 0, 1.4); dio.rotation.z = Math.PI / 2;   // across the pair close to the plug, black lead -> red lead (+y)
+  part("pgDiode", group(dio), [-26, 0, 12], 18);
+}
+const PIGTAIL_STEPS = [
+  { title: "Before you start (a proposal)", ref: "Step 5 (reversible version)", intro: [], focus: ["pgBoard", "pgHeader", "pgFan"], cam: [[20, 20, 10], 520, [0.35, -1, 0.8]],
+    text: "PROPOSAL, nothing here is built or tested. README Step 5 extends the magnet's leads \"to the fan connector\", which can end up as a splice. Instead, make a pigtail: a plug that fits the part-fan header (keyed, so it cannot go on backwards), with the magnet's wire on its other end. Switching between printer and arm is then unplug one plug, plug in the other. The board and the fan's own harness are never cut, soldered or flashed. You need a plug of the same type as the fan's (look at yours; the type is not recorded in this repo yet), 22 AWG two-core wire, a 1N4007 diode and heat-shrink. The board is drawn as a plain slab, not your board's real layout." },
+  { title: "Unplug the fan at its header", ref: "Step 5, item 1", intro: [], focus: ["pgFan", "pgHeader"], cam: [[80, -35, 15], 300, [0.5, -1, 0.7]],
+    text: "Printer off and unplugged from the wall. Pull the fan's plug straight off the part-fan header by the plug, never by the wires, and note which wire is + (usually red; confirm with the multimeter in Step 5b). Set the fan aside with its plug whole and clean. Before anything else, find out where the part-fan header is: on some boards the part fan plugs into a small board in the print head, not the mainboard, which makes every swap a head-opening job and changes how long the wire must be. Identify it by switching it with M106 and M107 (the hotend fan is always on), and write down the fan's connector type and which pin is +." },
+  { title: "Make the pigtail", ref: "Step 5, items 2-3", intro: ["pgPlug", "pgWire", "pgMagnet"], focus: ["pgPlug", "pgWire", "pgMagnet"], cam: [[-60, 75, 10], 300, [0.4, -1, 0.7]],
+    text: "Fit the matching plug to one end of the two-core wire: red to the plug's + pin, black to its -, the same way round as the fan's own plug. The other end goes to the magnet's two leads, red to +. The magnet is shown already screwed into its printed swivel, as built in the magnet guide; how the leads pass the swivel is drawn schematically. The wire is drawn short here; the real run to the carriage is about a metre. Use a keyed plug and mark + on it. The wire length depends on where the header turns out to be, so measure that route first: 1 m is a guess. A ready-made pigtail with the right plug works just as well." },
+  { title: "Put the diode across the leads", ref: "Step 5, item 3", intro: ["pgDiode"], focus: ["pgDiode", "pgMagnet"], cam: [[-36, 105, 4], 110, [0.25, -0.6, 1.3]],
+    text: "Solder a 1N4007 across the two leads close to the plug, striped end (cathode) to the red + lead, and insulate it with heat-shrink. The plug end is where the wire does not flex: a joint in the loop beside the swivel would eventually crack and leave the board unprotected without any sign. Without it the switch-off spike can kill the board's fan transistor. Test the diode with the multimeter's diode range before you solder it (about 0.5-0.7 V one way, open the other; stripe end stays open with the red probe on it): once it is across the coil the meter cannot show one-way conduction. Do it on the bench so the board never sees a bare magnet. (A thermal fuse in series with the + lead, bonded to the magnet's body, is the separate hardware cut-off: README Safety first.)" },
+  { title: "Plug the pigtail into the fan header", ref: "Step 5, item 2", intro: [], focus: ["pgPlug", "pgHeader", "pgFan"], cam: [[40, -30, 10], 170, [0.4, -1, 0.8]],
+    text: "Printer off and unplugged. Plug the pigtail onto the part-fan header, + to +, using a keyed plug that can only go on one way round, and check polarity with the multimeter's continuity range before the first switch-on: with the diode fitted, a pigtail on backwards shorts the output when the magnet is switched on. The fan stays parked to one side with its plug unharmed. The magnet is now on the fan output: M106 S255 turns it on, M107 turns it off. Then clip the wire to the bracket and carriage as in the main guide." },
+  { title: "Check before it is switched on", ref: "Steps 5b and 6", intro: [], focus: ["pgPlug", "pgHeader", "pgWire", "pgDiode"], cam: [[-10, -55, 12], 300, [0.35, -1, 0.75]],
+    text: "Do the bench test (README Step 5b) before anything moves a card. Header: measure each pin to the power supply's V- (not the frame). Most likely the fan's - pin is the switched one, so + stays near 24 V whenever the printer is on: a + lead touching the bracket or carriage is a short, and a - lead touching ground leaves the magnet on with M107 unable to turn it off. Then coil resistance, diode direction (test it before it is soldered), and current with steel on the face, on the meter's 10 A jack: the mA input is usually fused at 200-400 mA, too close to 0.25 A. Do not let the Mac switch the magnet until the hardware cut-off from the safety section exists (a thermal fuse in series with the coil: it is not in the bill of materials yet, and README Step 5 says no extra switch, which no longer holds). Then the USB checks in Step 6. In arm mode, never run a print: the part-cooling fan is not connected." },
+  { title: "Going back to a printer", ref: "Reversing Step 5", intro: [], focus: ["pgFan", "pgHeader", "pgPlug"], cam: [[20, 20, 10], 520, [0.35, -1, 0.8]],
+    text: "Printer off and unplugged. Pull the pigtail off the header and put it away with the magnet, then plug the fan back onto its header. Nothing on the board changed. Then take the magnet head and bracket off the carriage, the camera bracket off the X beam, and the bed liner off the bed; clean the tape residue and cut off the zip ties. Leave the Kapton under the bed clips: it is the USB safety fix from Step 6, not part of the conversion. If the tap station's rubber washer was glued to the bed, remove it (tape is the better choice, README Step 9.3). Check that no bed mesh or Z offset was saved (M500) while the arm was fitted, re-level the bed, spin the part fan with M106, and run a short first-layer test print to confirm the nozzle height is right." },
+];
+
 // ---------- saved progress and deep links ----------
-const LS_KEY = "divinci-manual-v1";
+const LS_KEY = "divinci-manual-v2";   // v2: the magnet guide gained a step, so v1 "done" flags would point one step early
 let progress = (() => { try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}") || {}; } catch { return {}; } })();   // {guide, guides: {magnet: {done: [bool], last}}}
 function saveStore() { try { localStorage.setItem(LS_KEY, JSON.stringify(progress)); } catch {} }
 function isDone(g, i) { return !!progress.guides?.[g]?.done?.[i]; }
@@ -905,7 +986,7 @@ async function copyLink() {
 function updateResume() {
   const b = document.getElementById("resume"), g = progress.guide, info = progress.guides?.[g];
   if (!b || !info || !GUIDE_INFO[g] || (mode === "steps" && G === g)) { if (b) b.style.display = "none"; return; }
-  const n = g === "sleeve" ? SLEEVE_STEPS.length : g === "flip" ? FLIP_STEPS.length : MAGNET_STEPS.length;
+  const n = ({ sleeve: SLEEVE_STEPS, flip: FLIP_STEPS, pigtail: PIGTAIL_STEPS }[g] || MAGNET_STEPS).length;
   b.textContent = `Resume: ${GUIDE_INFO[g].title}, step ${(info.last || 0) + 1} of ${n}`; b.style.display = "";
 }
 document.getElementById("resume").onclick = () => { G = progress.guide; step = progress.guides?.[G]?.last || 0; setMode("steps"); };
@@ -915,7 +996,7 @@ function applyUrl() {
   const q = new URLSearchParams(START_QUERY), view = q.get("view");
   urlReady = true;
   if (view === "steps") {
-    G = ["sleeve", "flip"].includes(q.get("guide")) ? q.get("guide") : "magnet"; const n = parseInt(q.get("step") || "1", 10); step = Math.max(0, (isNaN(n) ? 1 : n) - 1);
+    G = ["sleeve", "flip", "pigtail"].includes(q.get("guide")) ? q.get("guide") : "magnet"; const n = parseInt(q.get("step") || "1", 10); step = Math.max(0, (isNaN(n) ? 1 : n) - 1);
     const lm = q.get("labels"); if (["all", "current", "off"].includes(lm)) { labelMode = lm; document.getElementById("labels").textContent = "Labels: " + lm; }
     if (q.get("follow") === "0") document.getElementById("follow").checked = false;
     setMode("steps");

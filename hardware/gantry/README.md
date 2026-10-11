@@ -14,7 +14,7 @@ disagree. **Status (2026-10-05): designed from the parts' specs, not yet assembl
 decides whether the printer is the hand or the SO-101 arm is ([docs/ARM-GANTRY-GOAL.md](../../docs/ARM-GANTRY-GOAL.md),
 section M). The suction design this replaced is in git history.
 
-**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head, and three animated step-by-step guides (the magnet head, 17 steps, starting with sawing and drilling the bracket and including the swivel plug that closes the bolt's slot and the filament pin that locks it; sleeving a card with its washer, 8 steps; and the flip station design, 6 steps: `guide=flip`) with a scrubbable timeline. Labels carry each part's size, and a Speak button (or `S`, plus an Auto-read option) reads the current step aloud using the browser's own offline voices. Your place is saved in the browser, and every view has a link you can share or bookmark: `?view=steps&guide=sleeve&step=5` (also `view=head&explode=0.6`, `view=all&part=swivel`, `labels=all|current|off`, `follow=0`).
+**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head, and four animated step-by-step guides (the magnet head, 18 steps, starting with sawing and drilling the bracket and including the swivel plug that closes the bolt's slot and the filament pin that locks it; sleeving a card with its washer, 8 steps; the flip station design, 6 steps: `guide=flip`; and the reversible fan-to-magnet pigtail, a proposal, 7 steps: `guide=pigtail`) with a scrubbable timeline. Labels carry each part's size, and a Speak button (or `S`, plus an Auto-read option) reads the current step aloud using the browser's own offline voices. Your place is saved in the browser, and every view has a link you can share or bookmark: `?view=steps&guide=sleeve&step=5` (also `view=head&explode=0.6`, `view=all&part=swivel`, `labels=all|current|off`, `follow=0`).
 
 ![The whole rig](img/overview.svg)
 
@@ -40,7 +40,7 @@ section M). The suction design this replaced is in git history.
 - **Put a hardware cut-off on the magnet; the software one is not enough.** The timer lives in the Python process, and Marlin
   latches `M106 S255` until it is told `M107`. If the process dies, the Mac sleeps or the cable is pulled, the fan output
   STAYS HIGH and the magnet stays on. So a relay that opens "when the fan output goes low" does nothing for this failure: the
-  output never goes low. What does work: (1) a thermal cut-off fuse (60-70 C, under $1) in series with the coil and bonded to the
+  output never goes low. What does work: (1) a thermal cut-off fuse (60-70 C, under $1; on the bom) in series with the coil and bonded to the
   magnet's body, which ignores software completely; (2) a delay-off module on the fan output that needs a fresh edge to re-arm,
   so a latched-high output times out by itself; (3) a visible inline switch you can reach. The driver retries the off command three
   times, then refuses every other command until one succeeds, and it starts the timer before it sends the on command, but none
@@ -92,6 +92,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Card sleeves, inner and outer, for the AI's deck | 2 per card | the washer sits between them |
 | Non-slip shelf liner, cut to the bed | 1 | stops the moving bed from sliding the AI's cards |
 | Multimeter | 1 | the USB-shell voltage check (Step 6) and the 24 V check (Step 5) |
+| Thermal cut-off fuse, 60-70 C | 1 | in series with the magnet's + lead, bonded to its body: the hardware cut-off (Step 5; not bought yet, model and rating to be chosen against the coil current) |
 
 **Hardware store (The Home Depot, via Instacart) — $58.96**
 
@@ -202,19 +203,33 @@ sleeves and bed edge, change the numbers at the top of a file, and re-render wit
 ![Magnet wiring](img/magnet-wiring.svg)
 
 The part-cooling fan output is 24 V and switched by G-code: **M106 S255** = magnet on, **M107** = off. No extra
-board, power supply or switch.
+board or power supply; the one addition is the thermal cut-off fuse below (also under Safety first).
 
 1. **Printer off and unplugged.** Unplug the part-cooling fan at its connector and note which wire is **+**
    (usually red).
 2. Extend the magnet's leads with the **22 AWG two-core wire**, magnet **+** to the fan connector's **+**.
 3. Put a **1N4007 diode** across the magnet's leads: the **striped end (cathode) to +**, the other to −. Without it the
    switch-off spike can kill the board's fan transistor. Insulate with heat-shrink.
+   Also put the **thermal cut-off fuse** (60-70 C) in series with the + lead and bond it to the magnet's body (Safety first, point 1):
+   it is the hardware cut-off, and it ignores software. Leave it slack and strain-relieved like the rest of the wire.
 4. Measure before trusting it: the magnet draws about **0.25 A**, the stock fan about 0.10 A. Read the board's
    version and the fan output's transistor, and if in doubt check that it stays cool after a minute of `M106 S255`
    with a card held. If it can't carry the magnet, the fallback is a MOSFET module switched by that output
    (see the goal doc).
 5. Clip the leads to the bracket with two **printed lead clips**, leaving a loop of slack between the clip and the
    magnet so the swivel can turn a quarter for a tap; two more along the carriage.
+
+**Reversible version (proposal, not built; the manual's `guide=pigtail` shows it).** Instead of splicing into the fan's
+wiring, make a **pigtail**: a **keyed** plug that fits the part-fan header (same type as the fan's own plug; look at yours,
+the connector type is not recorded here yet) with the 22 AWG wire and the diode on its other end. Converting is unplug the
+fan, plug in the pigtail; reverting is the reverse, and the board and the fan's harness are never cut or soldered.
+- **Polarity matters once the diode is fitted.** A pigtail plugged on backwards puts the diode forward across the output and
+  shorts it the moment the magnet switches on. Use a keyed plug, mark + on it, and check continuity before the first switch-on.
+- **Find the header first.** On some boards the part fan plugs into a small board in the print head rather than the
+  mainboard. If so, every swap means opening the head, and the wire length (1 m is a guess) has to be sized from where the
+  header really is. Identify the part-fan header by switching it with `M106`/`M107` (the hotend fan is always on).
+- **Put the diode where the wire does not flex**, at the plug end or the first lead clip, not in the loop next to the swivel:
+  a cracked joint there leaves the board's transistor unprotected with no sign.
 
 ## Step 5b — Bench-test the magnet (before it ever moves a card)
 
@@ -223,10 +238,10 @@ already wired through its diode (Step 5). **Unplug the printer from the wall bef
 Write each number in the Results line at the end: they replace guesses that `fit_check.py` and the design currently rest on.
 
 1. **Header voltage (fan unplugged, nothing connected).** Printer on. Multimeter on DC volts across the two pins of the part-fan connector. Set the fan to 100% from the printer's menu (normally under Prepare or Control, fan speed), read it; set it
-   to 0, read it again. Expect about **24 V** at 100% and about 0 V at 0 on the switched side. Measure each pin to the printer's frame as well, to see which one is switched. **Not 24 V (12 V, 5 V, or nothing): stop.** This is not the output we assumed.
+   to 0, read it again. Expect about **24 V** at 100% and about 0 V at 0 on the switched side. Then measure each pin to the power supply's **V−** terminal (not the frame, which may not be connected to it). Boards like this most likely switch the fan's **−** pin to ground (not verified for this board), so expect **+ to stay at about 24 V whenever the printer is on**, and **− to read about 0 V when on and a floating, unreliable value when off** (nothing is connected to pull it up). Write down which pin is which: a + lead touching the bracket or carriage is a short, and a − lead touching ground leaves the magnet on with `M107` unable to turn it off. **Not 24 V (12 V, 5 V, or nothing): stop.** This is not the output we assumed.
 2. **Coil resistance (printer off and unplugged, magnet disconnected).** Measure across the magnet's two leads. Expect roughly **80 to 110 ohms** (24 V at 0.25 A is 96 ohms: derived from the listing, not measured). Near 0 means a short, open means a break: stop.
-3. **Diode.** Stripe (cathode) to **+**, across the coil, insulated. Check with the multimeter's diode range that it conducts one way only.
-4. **Current, with steel on the face.** Connect the magnet to the fan connector with the multimeter in series on the **mA/10 A range** in the + lead. Put a washer or steel plate on the magnet's face *before* switching on: the listing warns that running it unloaded cooks the coil.
+3. **Diode.** Test it **before** soldering it across the coil: with the coil in parallel the meter cannot show one-way conduction. On the diode range it should read about 0.5-0.7 V one way and open the other, the stripe (cathode) being the end that stays open when the red probe is on it. Then fit it, stripe (cathode) to **+**, across the coil, insulated.
+4. **Current, with steel on the face.** Connect the magnet to the fan connector with the multimeter in series in the + lead on its **10 A (or plain A) jack**: most meters' mA input is fused at 200-400 mA, too close to this reading. Put a washer or steel plate on the magnet's face *before* switching on: the listing warns that running it unloaded cooks the coil.
    Fan to 100% for **no more than 15 seconds**, read the current, fan to 0. Expect about **0.25 A**. Compare it with the board's fan output rating (Step 5, item 4); much above 0.5 A: stop.
 5. **Pull on a real card.** Tare the scale with the sleeved card and washer on it. Hold the magnet's face on the card over the washer, fan to 100%, and slowly lift the magnet away: the scale goes negative by the force pulling the card up until it lets go. Write
    the biggest reading (grams-force). The card and washer weigh about 3.6 g; a carry needs about **13 g** with a safety factor of 3; the design assumed about **300 g (3 N)**. **Under about 40 g: stop** and try the thin steel discs (BOM) instead of a washer. Over 100 g is comfortable.
