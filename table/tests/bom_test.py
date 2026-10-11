@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BOM = ROOT / "hardware" / "bom.json"
-STATUSES = {"cart", "bought", "saved", "on-hand", "check", "to-print", "list-only", "removed"}
+STATUSES = {"cart", "bought", "to-buy", "saved", "on-hand", "check", "to-print", "list-only", "removed"}
 ASIN = re.compile(r"amazon\.com/dp/([A-Z0-9]{10})")
 
 

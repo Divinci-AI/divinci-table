@@ -14,7 +14,7 @@ disagree. **Status (2026-10-05): designed from the parts' specs, not yet assembl
 decides whether the printer is the hand or the SO-101 arm is ([docs/ARM-GANTRY-GOAL.md](../../docs/ARM-GANTRY-GOAL.md),
 section M). The suction design this replaced is in git history.
 
-**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head, and four animated step-by-step guides (the magnet head, 18 steps, starting with sawing and drilling the bracket and including the swivel plug that closes the bolt's slot and the filament pin that locks it; sleeving a card with its washer, 8 steps; the flip station design, 6 steps: `guide=flip`; and the reversible fan-to-magnet pigtail, a proposal, 7 steps: `guide=pigtail`) with a scrubbable timeline. Labels carry each part's size, and a Speak button (or `S`, plus an Auto-read option) reads the current step aloud using the browser's own offline voices. Your place is saved in the browser, and every view has a link you can share or bookmark: `?view=steps&guide=sleeve&step=5` (also `view=head&explode=0.6`, `view=all&part=swivel`, `labels=all|current|off`, `follow=0`).
+**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head, and four animated step-by-step guides (the magnet head, 19 steps, starting with sawing and drilling the bracket and including the swivel plug that closes the bolt's slot and the filament pin that locks it; sleeving a card with its washer, 8 steps; the flip station design, 6 steps: `guide=flip`; and the reversible fan-to-magnet pigtail, a proposal, 7 steps: `guide=pigtail`) with a scrubbable timeline. Labels carry each part's size, and a Speak button (or `S`, plus an Auto-read option) reads the current step aloud using the browser's own offline voices. Your place is saved in the browser, and every view has a link you can share or bookmark: `?view=steps&guide=sleeve&step=5` (also `view=head&explode=0.6`, `view=all&part=swivel`, `labels=all|current|off`, `follow=0`).
 
 ![The whole rig](img/overview.svg)
 
@@ -111,9 +111,9 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Commercial Electric 4" heat-shrink tubing assortment (8-pack) | 1 | insulating the diode and the lead splices |
 | Everbilt #10 zinc flat washers (100-pack; 0.438" / 11.1 mm OD) | 1 | one per AI card, inside the sleeve (zinc-plated steel is magnetic; stainless mostly isn't) |
 
-**Online (Amazon) — the exact parts.** The first two are ordered and confirmed ($13.18): the M1 test kit. The rest
-are in *Save for later* until the deck-stack test in Step 9 passes 19 times out of 20; M1 uses the table's
-existing fixed camera, so the head camera waits too.
+**Online (Amazon) — the exact parts.** The first two are ordered and confirmed ($13.18): the M1 test kit. The head camera, the connector kit, the wire, the Kapton tape, the epoxy and the crimp connectors are in the Amazon cart but not
+ordered. The rest (the USB hub, the SO-101 arm and its kill switch) is in *Save for later* until the deck-stack test in Step 9 passes
+19 times out of 20; M1 uses the table's existing fixed camera.
 
 | Part | Link | Price |
 |---|---|---|
@@ -135,20 +135,42 @@ Drill a **1/4" hole** about 1" from one end of the 3" piece, centred on one leg.
 ## Step 2 — Mount the head camera (design in progress)
 
 A small camera rides on the print head beside the magnet, in place of the Canon: the **innomaker 1080p 32 × 32 mm UVC
-camera** (USB to the Mac; no battery, no tripod). It is light enough for the carriage. Nothing is mounted yet: its
-mount is a printed part still to design, and its field of view must be measured first, because the listing says 103°
-across but one reviewer measured about 50°.
+camera** (USB to the Mac; no battery, no tripod). Nothing is mounted yet: its mount is a printed part still to design,
+and its field of view must be measured first, because the listing says 103° across but one reviewer measured about 50°.
+Parts still to choose: a **USB 2.0 shielded extension cable, 2-3 m**, **M2 nylon screws and standoffs**, and an
+**M12 lens set (2.8, 3.6 and 6 mm)**.
 
-**Field-of-view test (no printing):**
-1. Fix the camera facing straight down on a tripod or clamp, 1920 × 1080 MJPEG, focus set by hand at the middle height.
-   Lay a printed grid (or a ruler) on the bed.
-2. Take one frame at each of 150, 200, 250 and 300 mm above the bed, measured with a ruler.
-3. From each frame read the ground width and height in mm, the real field of view (2 × atan(width ÷ 2 ÷ height)),
-   pixels per mm and per card, and how much the edges bend (a card at the corner against one at the centre).
-4. Choose the scan height and the number of tiles that cover the bed.
+**Rules for the mount:**
+- Fix the board with the nylon M2 screws so its ground and USB shield cannot touch the carriage: the CR-6's USB fault
+  puts 20 V on the shell (Step 6). Extend Step 6's voltage check to the camera's shield against the carriage.
+- Nothing may load or tug the hotend or its shroud, and the cable must not tug the nozzle: the CR-6 homes Z with a strain
+  gauge in the nozzle.
+- Run the cable away from the 24 V magnet leads, with strain relief.
+- Lock the lens (lock ring or low-strength threadlocker) once focused.
+- **The camera looks into the deck box's open exit slot on every deck pick.** Every frame must be masked over the box
+  before the software uses it, and the mask logged (Game rules).
 
-Then: print a mount, calibrate the lens and the camera-to-magnet offset into `gantry.json`, and use `gantry.py scan`,
-which already assumes the camera rides on the carriage.
+**Field-of-view test (no printing).** A distortion-free formula is not enough for a lens this wide:
+1. Fix the camera facing straight down on a tripod or clamp, in the exact mode we will use (1920 × 1080 MJPEG), focus
+   set by hand at the **verify height** (about 100-150 mm; the depth of field of a 2.8 mm f/2 lens focused at 300 mm is
+   only about 245-390 mm). Lay a printed grid (or a ruler) on the bed.
+2. Take one frame at each of 100, 150, 200, 250, 300 and 400 mm, measured from the **lens**, not the nozzle (the head
+   reaches Z 400; the lens sits above the nozzle by its own offset).
+3. From each frame read the ground width and height in mm, the real field of view, pixels per mm and per card. Run the
+   `/api/board` recogniser on sleeved cards at the centre and at the corners, and write down the pixels per card that
+   it needs.
+4. Calibrate the lens with an OpenCV ChArUco target (a rigid board) and record the distortion, then check glare on
+   sleeved cards under the real lighting (a diffuser, or crossed polarisers, if it moves with the head).
+5. Remember the 118 mm deck box and the 40 mm rack fence hide cards near the frame's edges.
+6. Choose the verify height and how many tiles cover the 400 × 400 mm bed. One frame will not hold all four bed-corner
+   markers if the real field of view is near 50°: build the mosaic from the known gantry positions and the calibrated
+   camera offset, and use the markers as checks.
+
+**Software status:** `gantry.py` `snap`, `scan` and `ports` still drive the Canon through gphoto2 (`canon_port`), and its
+default optics (`focal_mm` 18, APS-C sensor) and distortion-free lens model are Canon numbers. A UVC capture backend
+(discarding buffered frames after the settle, and locking exposure and white balance) is open work in the goal doc (G1).
+Parts of this manual below that mention `focal_mm`, `lens_at_z0_mm`, autofocus and `min_z` as the camera's floor
+describe the Canon-era setup and will change with it.
 
 ## Step 3 — Print the parts (while it's still a printer)
 
@@ -207,7 +229,7 @@ board or power supply; the one addition is the thermal cut-off fuse below (also 
 2. Extend the magnet's leads with the **22 AWG two-core wire**, magnet **+** to the fan connector's **+**.
 3. Put a **1N4007 diode** across the magnet's leads: the **striped end (cathode) to +**, the other to −. Without it the
    switch-off spike can kill the board's fan transistor. Insulate with heat-shrink.
-   Also put the **thermal cut-off fuse** (77 C, Cantherm DF077S) in series with the + lead, on the supply side of the diode, and bond it to the magnet's body (Safety first, point 1). Its metal case is live: Kapton on the magnet first, then thermal epoxy (cure under 55 C), then heat-shrink; crimp the leads, or solder 15 mm or more from the body with a heat sink, under 3 s:
+   Also put the **thermal cut-off fuse** (77 C, Cantherm DF077S) in series with the + lead, on the supply side of the diode, and bond it to the magnet's body (Safety first, point 1). Its metal case is live: Kapton on the magnet first, then thermal epoxy (cure under 55 C), then wrap the fuse in Kapton (**no heat-shrink over it, and no heat gun or lighter near it: it opens at 77 C and heat-shrink needs 90-120 C**). Use crimp-only butt splices on its leads and shrink them *before* the fuse is anywhere near; or solder 15 mm or more from the body with a heat sink, under 3 s. The printed swivel is PLA, which softens near 55-60 C: if the magnet body ever nears the fuse's 55 C holding temperature, reprint the swivel in PETG:
    it is the hardware cut-off, and it ignores software. Leave it slack and strain-relieved like the rest of the wire.
 4. Measure before trusting it: the magnet draws about **0.25 A**, the stock fan about 0.10 A. Read the board's
    version and the fan output's transistor, and if in doubt check that it stays cool after a minute of `M106 S255`
@@ -245,7 +267,7 @@ Write each number in the Results line at the end: they replace guesses that `fit
 6. **Letting go.** Fan to 0: the card should drop at once. If it clings for more than a second, the magnet has residual magnetism (the listing claims none): note it.
 7. **Heat.** Hold a card for **60 seconds** with the magnet, fan to 0, and touch the magnet's body and the swivel. Warm is fine; too hot to hold for 5 seconds: stop and tell me, because it will soften the swivel over a session.
 8. **The cut-off.** Do not let the Mac switch the magnet until the hardware cut-off from Safety first exists (thermal fuse in series with the coil, or the Uno watchdog on the fan line). The software timer cannot help if the cable is pulled.
-   Fuse checks: (a) resistance across the fuse after fitting, well under 1 ohm; (b) log the magnet body temperature through a real 30-minute pick session with the bed at 70 C (a steel case needs minutes to settle, not 60 s): 45 C or less, swap to DF072S; 45-52 C, keep DF077S; above 55 C, fix the duty (e.g. `M106 S150` after the pick), do not raise the fuse; (c) deliberately trip a spare: run it unloaded and continuous, record the time to open and the body temperature then, and confirm the circuit is open and the diode loop is harmless.
+   Fuse checks: (a) resistance across the fuse after fitting AND after the last heat (any heat-shrink or soldering nearby), well under 1 ohm; (b) log the magnet body temperature through a real 30-minute pick session with the bed warmed from the printer's own menu to 70 C (`gantry.py` refuses heating) (a steel case needs minutes to settle, not 60 s): 45 C or less, swap to DF072S; 45-52 C, keep DF077S; above 55 C, fix the duty (e.g. `M106 S150` after the pick), do not raise the fuse; (c) deliberately trip a spare: run it unloaded and continuous, record the time to open and the body temperature then, and confirm the circuit is open and the diode loop is harmless.
 
 **Results (fill in):** header ___ V at 100%, ___ V at 0 | coil ___ ohms | current ___ A | pull ___ g (card + washer) | release ___ | body temperature after 60 s ___ | date ___
 
@@ -389,7 +411,7 @@ hinge is confirmed as a requirement. Do not build the hinged head until this pas
 
 - **The AI never shuffles or searches its own deck physically.** Anything that shuffles the AI's library or has it
   search for a card is done by the person, without looking, and the table logs it.
-- **The software never reads the AI's face-up deck before a draw.** The camera doesn't look into the deck box, and
+- **The software never reads the AI's face-up deck before a draw.** With the head camera the box's exit slot is visible from above, so every frame is masked over the box first (to build). The software doesn't read it, and
   the table logs every frame it reads from the AI's zones, so a person can check it.
 - **Two cameras:** the bed (the AI's side) is seen from above; the person's side, beside the printer, by the table's
   fixed camera. Board state merges both.
@@ -423,5 +445,5 @@ hinge is confirmed as a requirement. Do not build the hinged head until this pas
 - **Two cards come up from the stack:** lower the touch-down force, add the sideways wiggle, or try the fallback
   receptive sheet (goal doc, M0).
 - **The card spins while moving:** tighten the wing nut a quarter turn.
-- **Photos are blurry:** autofocus off, manual focus on the bed at the Z you shoot from; shake from Y moves settles
+- **Photos are blurry (Canon-era):** autofocus off, manual focus on the bed at the Z you shoot from; shake from Y moves settles
   after ~0.5 s (gantry.py waits for moves to finish).

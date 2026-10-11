@@ -13,12 +13,13 @@
   "to-print": "printed on the CR-6 Max before it becomes the gantry",
   "list-only": "saved in the Amazon list, not in the cart (a fallback)",
   "removed": "was in a cart, taken out; kept here so nobody re-adds it by accident",
-  "bought": "ordered and confirmed (the Amazon and Home Depot orders, 2026-10-11); waiting for delivery or already here"
+  "bought": "ordered and confirmed (the Amazon and Home Depot orders, 2026-10-11); waiting for delivery or already here",
+  "to-buy": "needed and not bought yet (some are in a cart, none ordered)"
  },
  "carts": {
   "amazon": {
    "subtotal": 13.18,
-   "note": "Ordered and confirmed 2026-10-11: the M1 test kit (magnet, diodes); the steel discs were dropped for #10 zinc washers from Home Depot; everything else is in Save for later until the stack test passes 19/20"
+   "note": "Ordered and confirmed 2026-10-11: the M1 test kit (magnet, diodes). In the cart, not ordered (2026-10-11): head camera, JST-XH kit, wire, Kapton, epoxy, crimp connectors. The rest is in Save for later until the stack test passes 19/20"
   },
   "home-depot": {
    "subtotal": 58.96,
@@ -265,7 +266,7 @@
    "source": "amazon",
    "asin": "B0CNCSFQC1",
    "price": 18.99,
-   "status": "check",
+   "status": "to-buy",
    "route": [
     "magnet",
     "arm"
@@ -279,6 +280,57 @@
     {
      "doc": "goal",
      "step": "G0"
+    }
+   ]
+  },
+  {
+   "id": "usb-extension",
+   "name": "USB 2.0 shielded extension cable, 2-3 m",
+   "qty": 1,
+   "source": "to choose",
+   "status": "to-buy",
+   "route": [
+    "magnet"
+   ],
+   "role": "carries the head camera's USB to the Mac along the carriage and the left upright; needs strain relief and must run away from the 24 V magnet leads. Length and type not chosen yet.",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 2"
+    }
+   ]
+  },
+  {
+   "id": "m2-nylon",
+   "name": "M2 nylon screws and standoffs",
+   "qty": 1,
+   "source": "to choose",
+   "status": "to-buy",
+   "route": [
+    "magnet"
+   ],
+   "role": "mount the head camera's 32 x 32 mm board (4 x M2 holes) so its ground and USB shield cannot touch the carriage (the CR-6's USB fault puts 20 V on the shell)",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 2"
+    }
+   ]
+  },
+  {
+   "id": "m12-lens-set",
+   "name": "M12 lens set (2.8, 3.6 and 6 mm)",
+   "qty": 1,
+   "source": "to choose",
+   "status": "to-buy",
+   "route": [
+    "magnet"
+   ],
+   "role": "lets us choose the head camera's field of view if the stock 2.8 mm lens is too narrow or too wide; the lens needs a lock ring or low-strength threadlocker once focused",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 2"
     }
    ]
   },
@@ -438,10 +490,6 @@
    "used_in": [
     {
      "doc": "manual",
-     "step": "Step 2"
-    },
-    {
-     "doc": "manual",
      "step": "Step 4"
     }
    ]
@@ -458,10 +506,6 @@
    ],
    "role": "back up the tape; tidy cables",
    "used_in": [
-    {
-     "doc": "manual",
-     "step": "Step 2"
-    },
     {
      "doc": "manual",
      "step": "Step 4"
@@ -491,11 +535,11 @@
    "name": "22 AWG two-core wire, about 1 m",
    "qty": 1,
    "source": "hardware store",
-   "status": "check",
+   "status": "to-buy",
    "route": [
     "magnet"
    ],
-   "role": "extends the magnet's leads to the part-fan connector",
+   "role": "extends the magnet's leads to the part-fan connector; stranded silicone wire (it flexes at the swivel): the MMOBIEL 22 AWG red/black pair, in the Amazon cart",
    "used_in": [
     {
      "doc": "manual",
@@ -526,7 +570,7 @@
    "name": "Kapton (polyimide) tape",
    "qty": 1,
    "source": "hardware store",
-   "status": "check",
+   "status": "to-buy",
    "route": [
     "magnet",
     "arm"
@@ -631,11 +675,11 @@
    "name": "Thermal cut-off fuse, 77 C",
    "qty": 1,
    "source": "DigiKey 317-1125-ND, about $0.87; buy 5-10. Alternative: Microtemp G4A01077C. Avoid Amazon/AliExpress listings (counterfeits)",
-   "status": "check",
+   "status": "to-buy",
    "route": [
     "magnet"
    ],
-   "role": "hardware cut-off in series with the magnet's + lead, bonded to its body: the software timer cannot help if the cable is pulled; not bought. 77 C opening, 55 C holding, 10 A 250 VAC axial: far above the 0.25 A load. Chosen by holding temperature (the body must stay under 55 C), not opening temperature; a 60-70 C part would nuisance-trip. Confirm with the measured body temperature after a 30-minute session (45 C or less: DF072S; above 55 C: fix the duty, do not go to DF084S). Metal case is live: Kapton on the magnet first, epoxy, then heat-shrink; crimp the leads rather than solder",
+   "role": "hardware cut-off in series with the magnet's + lead, bonded to its body: the software timer cannot help if the cable is pulled; not bought. 77 C opening, 55 C holding, 10 A 250 VAC axial: far above the 0.25 A load. Chosen by holding temperature (the body must stay under 55 C), not opening temperature; a 60-70 C part would nuisance-trip. Confirm with the measured body temperature after a 30-minute session (45 C or less: DF072S; above 55 C: fix the duty, do not go to DF084S). Metal case is live: Kapton on the magnet first, epoxy, then heat-shrink; crimp the leads rather than solder Never put a heat gun or lighter near the fuse (it opens at 77 C, and heat-shrink needs 90-120 C): shrink the splices before the fuse is anywhere near, wrap the fuse in Kapton instead of heat-shrink, and re-measure its resistance after the last heat.",
    "used_in": [
     {
      "doc": "manual",
@@ -649,7 +693,7 @@
    "qty": 1,
    "source": "amazon",
    "asin": "B0CM315RFP",
-   "status": "check",
+   "status": "to-buy",
    "route": [
     "magnet"
    ],
@@ -667,11 +711,11 @@
    "qty": 1,
    "source": "amazon",
    "asin": "B00HTV1TXA",
-   "status": "check",
+   "status": "to-buy",
    "route": [
     "magnet"
    ],
-   "role": "bonds the thermal fuse to the magnet's body (room-temperature cure; keep it under 55 C while curing). Priced $39.62 on 2026-10-11 (in the Amazon cart, not ordered); a cheaper plain epoxy is not thermally conductive. The larger 8329TCS kit is $115.91 and reviewers report curing trouble: do not buy that one.",
+   "role": "bonds the thermal fuse to the magnet's body (room-temperature cure; keep it under 55 C while curing). Priced $39.62 on 2026-10-11 (in the Amazon cart, not ordered); a cheaper plain epoxy is not thermally conductive. The larger 8329TCS kit is $115.91 and reviewers report curing trouble: do not buy that one. A cheaper way to couple the fuse is a thin thermal pad wrapped in Kapton (suggested by the Opus review, not tried).",
    "used_in": [
     {
      "doc": "manual",
@@ -686,7 +730,7 @@
    "qty": 1,
    "source": "home-depot",
    "price": 7.24,
-   "status": "check",
+   "status": "to-buy",
    "route": [
     "magnet"
    ],

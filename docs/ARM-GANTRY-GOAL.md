@@ -8,8 +8,8 @@ check has been run and its output read. Hardware steps need a person at the prin
 
 The AI player gets a body at the table: **eyes overhead and a hand at its own seat.**
 
-- **Eyes: the CR-6 Max gantry** carries a small head camera (innomaker UVC, 2026-10-11, replacing the Canon T3i) over the bed (`hardware/gantry/`). It photographs the whole
-  duel table, both players' battlefields, and feeds `/api/board` like the fixed camera does today.
+- **Eyes: the CR-6 Max gantry** carries a small head camera (innomaker UVC, 2026-10-11, replacing the Canon T3i) over the bed (`hardware/gantry/`). It photographs the bed (the AI's side) and feeds `/api/board` like the fixed camera does today; the person's
+  side stays with the table's fixed camera.
 - **Hand: an SO-101 arm** (open source, Hugging Face LeRobot; we print its parts on the CR-6 Max) clamped at the AI's
   side of the bed, with a **suction cup** instead of the gripper (flat cards) and a 32 mm wrist camera. Its wrist roll
   does the 90° turn for tapping, so the arm needs no extra servo.
@@ -71,13 +71,17 @@ the manual and this doc in step. The cart history below is the record of how it 
       on **top of (or behind) the beam, outboard of the carriage's travel** — run the carriage end to end by hand
       before taping anything down.
 - [ ] Run the head camera's field-of-view test (manual Step 2), print its mount, measure the camera-to-magnet offset into `gantry.json`.
-- [ ] `gantry.py`: `camera_on: "beam"` — snaps move only Z (and the bed in Y), never X; `snap` at the top of Z covers
-      the bed; `--post` feeds `/api/board`.
+- [ ] `gantry.py`: a **UVC capture backend** for `snap`, `scan` and `ports` (today they drive the Canon through gphoto2): discard
+      buffered frames after the settle, lock exposure and white balance (OpenCV cannot on macOS: use uvc-util), apply the lens
+      calibration, and take `focal_mm`/`sensor_mm`/distortion from the new camera. `camera_on` becomes `"carriage"` (the head
+      moves in X and Y). **Mask the deck box's region** in every frame before it is used, and log the mask. Default `min_z`
+      to *not measured* like `magnet_min_z` (today `goto x y 0` would put the magnet into the bed).
 - [ ] **Check:** a stitched (or single) overhead frame of both halves; `/api/board` recognises the cards on each half;
       `gantry_test.py` grows checks for beam mode (no X move ever sent while snapping).
 
 ## G2 — The shared frame: one set of coordinates for camera, bed and arm
-- [ ] Four ArUco markers on the bed corners; the overhead frame → **bed millimetres** by homography.
+- [ ] Four ArUco markers on the bed corners; the overhead frame → **bed millimetres** by homography. A head camera may not
+      see all four at once: build a mosaic from the known gantry positions plus the calibrated camera offset, with the markers as checks.
 - [ ] Zones in bed mm, written once (`table/.cache/rig.json`): the AI's battlefield, the AI's hand-holder and library
       tray, the person's half (forbidden to the arm).
 - [ ] *Magnet route:* the person plays beside the printer, not on the bed, so this is **two** frames: the overhead
@@ -136,7 +140,7 @@ Why it's worth testing:
 - **Cost:** the suction set is $75.34 (pump, valve, cups, fittings, tubing) plus the PTFE tape; one electromagnet
   is about $7.
 - **The printer can be the hand.** Put the AI's whole side on the CR-6 Max bed and the gantry does the moving. That
-  drops the SO-101 kit ($197.98), the wrist camera ($18.99) and probably the hub ($31.99). Estimated total ~$105–140
+  drops the SO-101 kit ($197.98) and probably the hub ($31.99); the camera stays, because it is the head camera now. Estimated total ~$105–140
   vs $460.27 for arm + suction.
 
 | Route | Approx. cost | Note |

@@ -141,6 +141,8 @@ const HARDWARE = [
     text: "From the assortment. Sits between the bracket and the wing nut." },
   { id: "diode", name: "1N4007 diode", qty: "1", step: "Step 5", size: "about 5 x 2.7 mm",
     text: "Soldered across the magnet's two leads, striped end (cathode) to +, and insulated with heat-shrink. It absorbs the switch-off spike that could otherwise kill the board's fan transistor. Shown here on short leads beside the magnet; the magnet guide shows it on the real run of wire." },
+  { id: "fuse", name: "Thermal cut-off fuse, 77 C", qty: "1 (buy 5-10)", step: "Step 5", size: "about 4 x 10.5 mm",
+    text: "Cantherm SDF DF077S (DigiKey 317-1125-ND): a one-shot cut-off that opens at 77 C and holds to 55 C, rated 10 A 250 VAC, far above the magnet's 0.25 A. It goes in series with the + lead and is bonded to the magnet's body, so a stuck-on magnet cooks itself open even if the cable is pulled. Its metal case is live: Kapton under it, Kapton over it. Never put a heat gun or heat-shrink near it." },
   { id: "wing", name: "1/4\"-20 wing nut", qty: "1", step: "Step 4", size: "1/4\"-20",
     text: "Sets the swivel's drag: tight enough that a card doesn't spin while moving, loose enough that it turns when its corner is held." },
 ];
@@ -222,7 +224,7 @@ function makeAngle(withHole, len = 76.2, cy = YB) {   // len: piece length; cy: 
 hw.pin = mesh(cyl(0.875, 0.875, 12, 16), new THREE.MeshStandardMaterial({ color: 0xf2c230, roughness: 0.45 }), 0, 0, 6);   // a 12 mm length of 1.75 mm filament; origin: its lower end
 hw.angle = makeAngle(true); hw.angleBlank = makeAngle(false);
 const CUT_Y = YB + 38.1;            // the saw cut: the far end of the 3 inch piece
-hw.offcut = makeAngle(false, 73.8, CUT_Y + 36.9);   // the rest of a ~150 mm stock piece (kept for the camera mount)
+hw.offcut = makeAngle(false, 73.8, CUT_Y + 36.9);   // the rest of a ~150 mm stock piece (kept as a spare)
 // Hacksaw, drawn from the usual adjustable-frame pattern: D-shaped tubular frame, pistol-grip handle with a finger guard, a 12 in blade held on two pins,
 // a wing nut on the front stud for tension. Teeth point away from the handle (-x), so it cuts on the push stroke.
 { const M = (c, m, r) => new THREE.MeshStandardMaterial({ color: c, metalness: m, roughness: r });
@@ -252,6 +254,8 @@ hw.offcut = makeAngle(false, 73.8, CUT_Y + 36.9);   // the rest of a ~150 mm sto
   const stud = mesh(new THREE.CylinderGeometry(2.4, 2.4, 30, 14).rotateZ(Math.PI / 2), mat.steel, -170, 0, 6);
   const nut = group(mesh(new THREE.CylinderGeometry(5.5, 5.5, 6, 6).rotateZ(Math.PI / 2), mat.steel, 0, 0, 0), mesh(new THREE.BoxGeometry(3, 3, 24), mat.steel, 0, 0, 0), mesh(new THREE.BoxGeometry(5, 3, 10), mat.steel, 0, 0, 10), mesh(new THREE.BoxGeometry(5, 3, 10), mat.steel, 0, 0, -10)); nut.position.set(-178, 0, 6);
   hw.saw = group(blade, frame, handle, guard, pin(-151), pin(151), tab(-158, -150), tab(150, 166), stud, nut); }   // origin: the blade's teeth line, centred; the blade runs along x, teeth down
+{ const f = new THREE.MeshStandardMaterial({ color: 0x2f9e9a, roughness: 0.4, metalness: 0.3 });   // origin: the middle of the body, lying along x
+  hw.fuse = group(mesh(new THREE.CylinderGeometry(2, 2, 10.5, 24).rotateZ(Math.PI / 2), f, 0, 0, 2), mesh(new THREE.CylinderGeometry(0.45, 0.45, 9, 8).rotateZ(Math.PI / 2), mat.steel, -9.5, 0, 2), mesh(new THREE.CylinderGeometry(0.45, 0.45, 9, 8).rotateZ(Math.PI / 2), mat.steel, 9.5, 0, 2)); }
 hw.drill = group(mesh(cyl(3.175, 3.175, 40, 32), mat.steel, 0, 0, 22.4), mesh(new THREE.ConeGeometry(3.175, 2.4, 32).rotateX(-Math.PI / 2), mat.steel, 0, 0, 1.2));   // origin: the tip
 hw.spring = mesh(helix(5.2, 1.7, 4, 0.45), mat.spring);
 { const lead = (pts, c) => mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(a => new THREE.Vector3(...a))), 60, 0.9, 8), new THREE.MeshStandardMaterial({ color: c, roughness: 0.5 }));
@@ -296,8 +300,8 @@ async function build() {
     if (def.id === "clip") { clipSlots.slice(1).forEach(([cx, cy]) => { const c = new THREE.Mesh(obj.children[0].geometry, mat.print); c.castShadow = c.receiveShadow = true; c.position.set(cx - x, cy - y, 0); obj.add(c); }); obj.position.set(clipSlots[0][0], clipSlots[0][1], 0); entries.clip.home.copy(obj.position); }
   }
   // hardware: loose pieces beside the printed ones
-  const order = ["magnet", "m3", "bolt", "pin", "nylon", "angle", "spring", "wing", "diode"];
-  const loose = Object.fromEntries(order.map((id, i) => [id, [-70 + i * 55, -60 - (i % 2) * 38]]));
+  const order = ["magnet", "m3", "bolt", "pin", "nylon", "angle", "spring", "wing", "diode", "fuse"];
+  const loose = Object.fromEntries(order.map((id, i) => [id, [-95 + i * 44, -60 - (i % 2) * 38]]));
   for (const def of HARDWARE) { const o = hw[def.id]; const [x, y] = loose[def.id]; o.position.set(x, y, def.id === "m3" ? 1.5 : def.id === "diode" ? 1 : 0); register(def, o, "hw", o.position); }
   Object.values(entries).forEach(placeAnchor);
   for (const [id, e] of Object.entries(entries)) attachDims(id, e.obj);
@@ -473,7 +477,7 @@ const DIMS = {
   jig: "72.9 x 98.9 x 9.6 mm; card pocket 68.1 x 94.1 mm", bridge: "72.9 x 24.0 x 5.0 mm; washer hole for 11.1 mm OD",
   magnet: "20 mm dia x 15 mm; M3 thread in the back", m3: "M3 x 6 mm, flat head", bolt: "1/4\"-20 x 1 in (6.35 x 25.4 mm); head 7/16 in (11.1 mm) across flats",
   nylon: "cut to 6 mm; 1/2 in (12.7 mm) OD; 0.257 in (6.5 mm) bore", angle: "1 x 1 x 1/8 in (25.4 x 25.4 x 3.2 mm), 3 in (76 mm) long; 1/4 in (6.35 mm) hole, 1 in (25.4 mm) from one end",
-  angleBlank: "1 x 1 x 1/8 in (25.4 x 25.4 x 3.2 mm), cut to 3 in (76 mm); not yet drilled", offcut: "about 74 mm left of a ~150 mm stock piece (the ~6 in camera piece is cut separately)",
+  angleBlank: "1 x 1 x 1/8 in (25.4 x 25.4 x 3.2 mm), cut to 3 in (76 mm); not yet drilled", offcut: "about 74 mm left of a ~150 mm stock piece (kept as a spare: the head camera's mount will be printed)",
   saw: "12 in (300 mm) blade; frame about 330 mm (drawn, not measured)", drill: "1/4 in (6.35 mm) bit; size of the pilot bit TBD",
   spring: "about 8 mm wide (assortment; length TBD)", wing: "1/4\"-20 (6.35 mm thread)", carriage: "block drawn 72 x 72 x 62 mm: a stand-in, not measured",
   tape: "1 in (25.4 mm) wide roll", nozzle: "magnet face at least 5 mm below it", wire: "22 AWG two-core, about 1 m",
@@ -507,7 +511,7 @@ const MAGNET_STEPS = [
   { title: "Before you start", ref: "Step 3", intro: [], focus: ["magnet", "swivel", "m3", "bolt", "nylon", "spring", "wing", "angleBlank", "carriage"], cam: [[120, 0, 10], 340, [0.1, -0.55, 1.2]],
     text: "Print the swivel (and a spare), four lead clips and the swivel plugs (a small plate of ten in five widths) first, and have a few cm of 1.75 mm filament for the plug's pin, while the printer is still a printer. On the table: the 24 V magnet, M3 x 6 flat-head screw, 1/4\"-20 bolt, nylon spacer, spring, wing nut and the 3\" aluminium angle. For the wiring later (steps 15 to 17): about 1 m of 22 AWG two-core wire, a 1N4007 diode, the four printed lead clips, and a thermal cut-off fuse (not bought yet, see the bill of materials). The grey block is the printer's X carriage." },
   { title: "Saw the bracket to length", ref: "Step 1", intro: ["saw"], only: ["saw", "angleBlank", "offcut"], focus: ["saw", "angleBlank"], cam: [[232, 50, 14], 640, [0.8, -1, 0.55]],
-    text: "Cut the aluminium angle to a 3 in (76 mm) magnet piece: the longer piece (about 6 in) is for the camera. Clamp the angle in a vice or to the bench, mark the cut line, and saw straight across with the hacksaw. The teeth point away from you, so it cuts on the push stroke: use light pressure and long, steady strokes. Then file the cut edges smooth and deburr them. Wear eye protection." },
+    text: "Cut the aluminium angle to a 3 in (76 mm) magnet piece: the rest is kept as a spare (the head camera's mount will be printed). Clamp the angle in a vice or to the bench, mark the cut line, and saw straight across with the hacksaw. The teeth point away from you, so it cuts on the push stroke: use light pressure and long, steady strokes. Then file the cut edges smooth and deburr them. Wear eye protection." },
   { title: "Drill the hole", ref: "Step 1", intro: ["drill"], only: ["drill", "angle", "angleBlank"], focus: ["drill", "angle"], cam: [[215, 20, 6], 150, [0.7, -1, 0.6]],
     text: "Mark a point 1 in (25 mm) from one end, centred on one leg, and drill a 1/4 in (6.35 mm) hole there: start with a small pilot bit, clamp the piece down, and wear eye protection. The bolt goes through this hole later." },
   { title: "Tape the bracket to the X carriage", ref: "Step 4, item 1", intro: ["angle", "tape"], focus: ["angle"], cam: [[-30, 0, 45 + L], 300, [0.7, -1, 0.5]],
@@ -534,6 +538,8 @@ const MAGNET_STEPS = [
     text: "The magnet's face must be the lowest point of the carriage: at least 5 mm below the nozzle and everything else. Measure it, and set min_z in table/.cache/gantry.json before the first move. Also check the bolt: its thread must reach the wing nut with the spring on (a 1\" bolt is marginal; 1-1/2\" is safe)." },
   { title: "Extend the leads and put the diode across them", ref: "Step 5, items 2-3", intro: ["wire", "diodeOnLeads"], focus: ["wire", "diodeOnLeads", "magnet"], cam: [[-53, 39.9 + YB, 56], 80, [0.3, -0.6, 1.2]],
     text: "Extend the magnet's leads with 22 AWG two-core wire (about a metre; drawn short here). Then solder a 1N4007 across the two leads, striped end (cathode) to the red + lead, and insulate it with heat-shrink. Without it the switch-off spike can kill the board's fan transistor. It goes on the part of the wire that does not flex, along the carriage here or at the plug end in the pigtail guide, never in the loop beside the swivel, where a cracked joint would leave the board unprotected without any sign. The leads leave the head beside the swivel; how they pass it is drawn schematically. The thermal cut-off fuse (60-70 C) also goes in series with the + lead, bonded to the magnet's body; it is not drawn here." },
+  { title: "Bond the thermal fuse to the magnet", ref: "Step 5, item 3", intro: ["fuseOnMagnet", "fuseKapton"], focus: ["fuseOnMagnet", "fuseKapton", "magnet"], cam: [[-12, 0, 8], 120, [-1, -0.9, 0.3]],
+    text: "The 77 C thermal fuse goes in series with the + lead and is bonded to the magnet's body, so it cooks itself open if the magnet is left on. Its metal case is live: first a patch of Kapton on the magnet, then the fuse lying along the body in thermal epoxy (cure under 55 C), then a wrap of Kapton over it. No heat-shrink and no heat gun near the fuse: it opens at 77 C. Crimp its leads with butt splices (shrunk before the fuse is anywhere near), and measure its resistance afterwards, under 1 ohm." },
   { title: "Clip the leads to the bracket", ref: "Step 5, item 5", intro: ["clipA", "clipB"], focus: ["clipA", "clipB", "wire"], cam: [[0, 0, 36], 250, [0.9, -1, 0.7]],
     text: "Clip the extended leads (diode and all) to the bracket with two printed lead clips. Leave a loop of slack between the clip and the magnet so the swivel can turn a quarter for a tap." },
   { title: "Two more clips along the carriage", ref: "Step 5, item 5", intro: ["clipC", "clipD"], focus: ["clipC", "clipD"], cam: [[-35, 25 + YB, 52], 260, [0.2, 1, 0.5]],
@@ -554,6 +560,10 @@ function buildExtras() {
   addExtra("wire", group(tube(0, 1, red), tube(1.9, -1, blk)), stepIdx("Extend the leads"), null, null);
   { const d = makeDiode(Math.hypot(9, 1.9)), rd = new THREE.Vector3(0, 9, -1.9).normalize(); d.position.set(...pts[7].toArray().map((v, i) => i === 2 ? v + 0.95 : v)); d.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), rd);   // black lead -> red lead
     addExtra("diodeOnLeads", group(d), stepIdx("Extend the leads"), null, null); makeStepLabel("diodeOnLeads", asm.diodeOnLeads.obj, new THREE.Vector3(-53, 39.9 + YB, 63)); }
+  { const f = hw.fuse.clone(); f.position.set(-12.4, 0, 5.5); f.rotation.y = Math.PI / 2;   // lying along the body's side, on the face away from the leads
+    const kap = new THREE.MeshStandardMaterial({ color: 0xd9902a, roughness: 0.35, transparent: true, opacity: 0.3 });
+    addExtra("fuseOnMagnet", group(f), stepIdx("Bond the thermal fuse"), null, null);
+    addExtra("fuseKapton", group(mesh(new THREE.BoxGeometry(0.2, 9, 12), kap, -10.2, 0, 7.5), mesh(cyl(2.5, 2.5, 12), kap, -12.4, 0, 7.5)), stepIdx("Bond the thermal fuse"), null, null); }
   const hov = [TRAY.angle[0], TRAY.angle[1], 46], sawAt = z => [TRAY.angle[0], TRAY.angle[1] + CUT_Y, z];
   addExtra("angleBlank", hw.angleBlank, 0, null, null); asm.angleBlank.pose = k => ({ p: TRAY.angle, r: [0, 0, 0], op: k <= 1 ? 1 : 0, vis: k <= 1 });
   addExtra("offcut", hw.offcut, 0, null, null); asm.offcut.pose = k => k === 0 ? { p: TRAY.angle, r: [0, 0, 0], op: 1, vis: true } : { p: [TRAY.angle[0], TRAY.angle[1] + 45, 0], r: [0, 0, 0], op: 0, vis: false };
@@ -902,10 +912,10 @@ const FLIP_STEPS = [
 // ---------- guide 4: swap the fan for the magnet with a pigtail (PROPOSAL, not built) ----------
 // README Step 5 extends the magnet's leads "to the fan connector". This guide shows the reversible version: a pigtail plug that fits the
 // part-fan header, so the board and the fan's own harness are never cut. Everything here is drawn simplified and short (the real wire is ~1 m).
-Object.assign(NAME, { diodeOnLeads: "1N4007 diode", pgBoard: "Mainboard (simplified)", pgHeader: "Part-fan header", pgFan: "Part-cooling fan + its plug", pgPlug: "Pigtail plug", pgWire: "Pigtail wire", pgMagnet: "Electromagnet on its swivel", pgDiode: "1N4007 diode" });
-Object.assign(ROLE, { diodeOnLeads: "across the two leads, stripe (cathode) toward +", pgBoard: "never cut, soldered or flashed", pgHeader: "the only thing on the board that is touched", pgFan: "the original harness stays whole", pgPlug: "mates with the header, same type as the fan's plug", pgWire: "22 AWG two-core: red to +, black to -", pgMagnet: "screwed into the printed swivel, as in the magnet guide; on the carriage in real life", pgDiode: "across the two leads near the plug, stripe (cathode) toward +" });
-Object.assign(DIMS, { diodeOnLeads: "1N4007, about 5 x 2.7 mm, soldered across the two leads on the part that does not flex, insulated with heat-shrink", pgBoard: "drawn as a plain 170 x 100 mm board: not your board's real layout", pgHeader: "connector type TBD: look at your fan's plug and buy the matching plug (not recorded in this repo yet)", pgFan: "the original fan and plug, unmodified", pgPlug: "same type as the fan's plug (TBD)", pgWire: "22 AWG two-core, about 1 m; drawn short here", pgMagnet: "magnet 20 mm dia x 15 mm, swivel 24 x 24 x 15.1 mm", pgDiode: "1N4007, soldered across the two leads near the plug (where the wire does not flex), insulated with heat-shrink" });
-Object.assign(SHORT, { diodeOnLeads: "1N4007", pgPlug: "same type as the fan's", pgWire: "22 AWG, ~1 m", pgDiode: "1N4007" });
+Object.assign(NAME, { fuseOnMagnet: "Thermal cut-off fuse, 77 C", fuseKapton: "Kapton insulation", diodeOnLeads: "1N4007 diode", pgBoard: "Mainboard (simplified)", pgHeader: "Part-fan header", pgFan: "Part-cooling fan + its plug", pgPlug: "Pigtail plug", pgWire: "Pigtail wire", pgMagnet: "Electromagnet on its swivel", pgDiode: "1N4007 diode" });
+Object.assign(ROLE, { fuseOnMagnet: "in series with the + lead, bonded to the magnet body: opens at 77 C", fuseKapton: "under and over the fuse: its metal case is live", diodeOnLeads: "across the two leads, stripe (cathode) toward +", pgBoard: "never cut, soldered or flashed", pgHeader: "the only thing on the board that is touched", pgFan: "the original harness stays whole", pgPlug: "mates with the header, same type as the fan's plug", pgWire: "22 AWG two-core: red to +, black to -", pgMagnet: "screwed into the printed swivel, as in the magnet guide; on the carriage in real life", pgDiode: "across the two leads near the plug, stripe (cathode) toward +" });
+Object.assign(DIMS, { fuseOnMagnet: "Cantherm SDF DF077S: about 4 mm across, 10.5 mm long; opens at 77 C, holds to 55 C, 10 A 250 VAC", fuseKapton: "polyimide tape, drawn as a patch under the fuse and a wrap over it", diodeOnLeads: "1N4007, about 5 x 2.7 mm, soldered across the two leads on the part that does not flex, insulated with heat-shrink", pgBoard: "drawn as a plain 170 x 100 mm board: not your board's real layout", pgHeader: "connector type TBD: look at your fan's plug and buy the matching plug (not recorded in this repo yet)", pgFan: "the original fan and plug, unmodified", pgPlug: "same type as the fan's plug (TBD)", pgWire: "22 AWG two-core, about 1 m; drawn short here", pgMagnet: "magnet 20 mm dia x 15 mm, swivel 24 x 24 x 15.1 mm", pgDiode: "1N4007, soldered across the two leads near the plug (where the wire does not flex), insulated with heat-shrink" });
+Object.assign(SHORT, { fuseOnMagnet: "77 C fuse", fuseKapton: "Kapton", diodeOnLeads: "1N4007", pgPlug: "same type as the fan's", pgWire: "22 AWG, ~1 m", pgDiode: "1N4007" });
 const PG = { S: [-10, 105, 3], H: [40, -30, 9], UP: [40, -30, 42], PARK: [125, -30, 3], M: [-100, -60, 4.5] };
 const lerp3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t), clamp01 = x => Math.min(1, Math.max(0, x));
 // the fan leaves the header during step 2 and comes home during step 7; the pigtail arrives during step 5 and leaves again at the start of step 7
