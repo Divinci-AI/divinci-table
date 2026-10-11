@@ -40,7 +40,7 @@ section M). The suction design this replaced is in git history.
 - **Put a hardware cut-off on the magnet; the software one is not enough.** The timer lives in the Python process, and Marlin
   latches `M106 S255` until it is told `M107`. If the process dies, the Mac sleeps or the cable is pulled, the fan output
   STAYS HIGH and the magnet stays on. So a relay that opens "when the fan output goes low" does nothing for this failure: the
-  output never goes low. What does work: (1) a thermal cut-off fuse (60-70 C, under $1; on the bom) in series with the coil and bonded to the
+  output never goes low. What does work: (1) a thermal cut-off fuse (77 C Cantherm SDF DF077S, under $1; on the bom) in series with the coil and bonded to the
   magnet's body, which ignores software completely; (2) a delay-off module on the fan output that needs a fresh edge to re-arm,
   so a latched-high output times out by itself; (3) a visible inline switch you can reach. The driver retries the off command three
   times, then refuses every other command until one succeeds, and it starts the timer before it sends the on command, but none
@@ -92,7 +92,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Card sleeves, inner and outer, for the AI's deck | 2 per card | the washer sits between them |
 | Non-slip shelf liner, cut to the bed | 1 | stops the moving bed from sliding the AI's cards |
 | Multimeter | 1 | the USB-shell voltage check (Step 6) and the 24 V check (Step 5) |
-| Thermal cut-off fuse, 60-70 C | 1 | in series with the magnet's + lead, bonded to its body: the hardware cut-off (Step 5; not bought yet, model and rating to be chosen against the coil current) |
+| Thermal cut-off fuse, 77 C (Cantherm SDF DF077S, DigiKey 317-1125-ND; buy 5-10) | 1 | in series with the magnet's + lead, bonded to its body: the hardware cut-off (Step 5; not bought yet). 10 A 250 VAC, 55 C holding: chosen so the body stays under the holding temperature; see Step 5b |
 
 **Hardware store (The Home Depot, via Instacart) — $58.96**
 
@@ -210,7 +210,7 @@ board or power supply; the one addition is the thermal cut-off fuse below (also 
 2. Extend the magnet's leads with the **22 AWG two-core wire**, magnet **+** to the fan connector's **+**.
 3. Put a **1N4007 diode** across the magnet's leads: the **striped end (cathode) to +**, the other to −. Without it the
    switch-off spike can kill the board's fan transistor. Insulate with heat-shrink.
-   Also put the **thermal cut-off fuse** (60-70 C) in series with the + lead and bond it to the magnet's body (Safety first, point 1):
+   Also put the **thermal cut-off fuse** (77 C, Cantherm DF077S) in series with the + lead, on the supply side of the diode, and bond it to the magnet's body (Safety first, point 1). Its metal case is live: Kapton on the magnet first, then thermal epoxy (cure under 55 C), then heat-shrink; crimp the leads, or solder 15 mm or more from the body with a heat sink, under 3 s:
    it is the hardware cut-off, and it ignores software. Leave it slack and strain-relieved like the rest of the wire.
 4. Measure before trusting it: the magnet draws about **0.25 A**, the stock fan about 0.10 A. Read the board's
    version and the fan output's transistor, and if in doubt check that it stays cool after a minute of `M106 S255`
@@ -248,6 +248,7 @@ Write each number in the Results line at the end: they replace guesses that `fit
 6. **Letting go.** Fan to 0: the card should drop at once. If it clings for more than a second, the magnet has residual magnetism (the listing claims none): note it.
 7. **Heat.** Hold a card for **60 seconds** with the magnet, fan to 0, and touch the magnet's body and the swivel. Warm is fine; too hot to hold for 5 seconds: stop and tell me, because it will soften the swivel over a session.
 8. **The cut-off.** Do not let the Mac switch the magnet until the hardware cut-off from Safety first exists (thermal fuse in series with the coil, or the Uno watchdog on the fan line). The software timer cannot help if the cable is pulled.
+   Fuse checks: (a) resistance across the fuse after fitting, well under 1 ohm; (b) log the magnet body temperature through a real 30-minute pick session with the bed at 70 C (a steel case needs minutes to settle, not 60 s): 45 C or less, swap to DF072S; 45-52 C, keep DF077S; above 55 C, fix the duty (e.g. `M106 S150` after the pick), do not raise the fuse; (c) deliberately trip a spare: run it unloaded and continuous, record the time to open and the body temperature then, and confirm the circuit is open and the diode loop is harmless.
 
 **Results (fill in):** header ___ V at 100%, ___ V at 0 | coil ___ ohms | current ___ A | pull ___ g (card + washer) | release ___ | body temperature after 60 s ___ | date ___
 

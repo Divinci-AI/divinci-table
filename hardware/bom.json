@@ -654,14 +654,14 @@
   },
   {
    "id": "thermal-fuse",
-   "name": "Thermal cut-off fuse, 60-70 C",
+   "name": "Thermal cut-off fuse, 77 C (Cantherm SDF DF077S)",
    "qty": 1,
-   "source": "electronics supplier (not chosen yet)",
+   "source": "DigiKey 317-1125-ND, about $0.87; buy 5-10. Alternative: Microtemp G4A01077C. Avoid Amazon/AliExpress listings (counterfeits)",
    "status": "check",
    "route": [
     "magnet"
    ],
-   "role": "hardware cut-off in series with the magnet's + lead, bonded to its body: the software timer cannot help if the cable is pulled; not bought, model and current rating to be chosen against the coil's measured current",
+   "role": "hardware cut-off in series with the magnet's + lead, bonded to its body: the software timer cannot help if the cable is pulled; not bought. 77 C opening, 55 C holding, 10 A 250 VAC axial: far above the 0.25 A load. Chosen by holding temperature (the body must stay under 55 C), not opening temperature; a 60-70 C part would nuisance-trip. Confirm with the measured body temperature after a 30-minute session (45 C or less: DF072S; above 55 C: fix the duty, do not go to DF084S). Metal case is live: Kapton on the magnet first, epoxy, then heat-shrink; crimp the leads rather than solder",
    "used_in": [
     {
      "doc": "manual",
