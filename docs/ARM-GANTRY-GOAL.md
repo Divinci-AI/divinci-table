@@ -70,8 +70,8 @@ the manual and this doc in step. The cart history below is the record of how it 
 - [ ] Fix the manual first: on the CR-6 Max the carriage rides on the X beam's **front** face, so the camera bracket goes
       on **top of (or behind) the beam, outboard of the carriage's travel** — run the carriage end to end by hand
       before taping anything down.
-- [ ] Run the head camera's field-of-view test (manual Step 2), print its mount, measure the camera-to-magnet offset into `gantry.json`.
-- [ ] `gantry.py`: a **UVC capture backend** for `snap`, `scan` and `ports` (today they drive the Canon through gphoto2): discard
+- [ ] Run the head camera's field-of-view test (manual Step 2; `hardware/gantry/fov_test.py` does the capture, analysis and calibration), print its mount, measure the camera-to-magnet offset into `gantry.json`.
+- [x] *(code and tests 2026-10-11 with a fake camera; the real camera is not tried yet)* `gantry.py`: a **UVC capture backend** for `snap`, `scan` and `ports` (today they drive the Canon through gphoto2): discard
       buffered frames after the settle, lock exposure and white balance (OpenCV cannot on macOS: use uvc-util), apply the lens
       calibration, and take `focal_mm`/`sensor_mm`/distortion from the new camera. `camera_on` becomes `"carriage"` (the head
       moves in X and Y). **Mask the deck box's region** in every frame before it is used, and log the mask. Default `min_z`

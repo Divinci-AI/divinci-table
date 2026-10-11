@@ -150,7 +150,7 @@ Parts still to choose: a **USB 2.0 shielded extension cable, 2-3 m**, **M2 nylon
 - **The camera looks into the deck box's open exit slot on every deck pick.** Every frame must be masked over the box
   before the software uses it, and the mask logged (Game rules).
 
-**Field-of-view test (no printing).** A distortion-free formula is not enough for a lens this wide:
+**Field-of-view test (no printing).** `hardware/gantry/fov_test.py` does the capture, the analysis (it writes `footprint_per_mm`) and the lens calibration; its docstring says how to set the board up. A distortion-free formula is not enough for a lens this wide:
 1. Fix the camera facing straight down on a tripod or clamp, in the exact mode we will use (1920 × 1080 MJPEG), focus
    set by hand at the **verify height** (about 100-150 mm; the depth of field of a 2.8 mm f/2 lens focused at 300 mm is
    only about 245-390 mm). Lay a printed grid (or a ruler) on the bed.
@@ -166,11 +166,21 @@ Parts still to choose: a **USB 2.0 shielded extension cable, 2-3 m**, **M2 nylon
    markers if the real field of view is near 50°: build the mosaic from the known gantry positions and the calibrated
    camera offset, and use the markers as checks.
 
-**Software status:** `gantry.py` `snap`, `scan` and `ports` still drive the Canon through gphoto2 (`canon_port`), and its
-default optics (`focal_mm` 18, APS-C sensor) and distortion-free lens model are Canon numbers. A UVC capture backend
-(discarding buffered frames after the settle, and locking exposure and white balance) is open work in the goal doc (G1).
-Parts of this manual below that mention `focal_mm`, `lens_at_z0_mm`, autofocus and `min_z` as the camera's floor
-describe the Canon-era setup and will change with it.
+**Software status (2026-10-11):** `gantry.py` now has a UVC capture backend (`table/gantry_camera.py`), tested against a fake
+camera and synthetic frames (`table/tests/camera_test.py`) but **not yet tried on the real camera**. Set
+`"camera": {"kind": "uvc"}` in `gantry.json`; the default is still `"canon"`, so the old rig is unchanged.
+- A frame is taken by opening the stream, waiting for exposure to settle, throwing away `flush` buffered frames (a driver
+  queues old ones from before the move) and keeping the next. Exposure and white balance are locked where OpenCV allows;
+  on a camera that ignores it, lock them with a UVC tool such as uvc-util.
+- **The deck box is masked in memory before a frame is written** (`deck_box_mm`, in bed mm), and every frame is logged to
+  `table/.cache/gantry/camera-log.jsonl`. `scan --post` is refused, before anything moves, if `deck_box_mm` is not set.
+  A standalone `snap` is a diagnostic: unmasked, logged as such, never posted.
+- `scan` builds its picture by placing each frame where the head was (a mosaic), not by matching features: a plain shelf
+  liner gives a stitcher nothing to match.
+- `footprint` uses `footprint_per_mm` from the field-of-view test (`hardware/gantry/fov_test.py`); a UVC camera without it is
+  refused. `min_z` now defaults to *not measured*: a camera Z move is refused until it is set.
+Still to do: the real-camera trial, the distortion calibration, the printed mount, the camera-to-magnet offset, and `image_y_flip`.
+Notes below that mention `focal_mm`, `lens_at_z0_mm` and autofocus are the Canon rig.
 
 ## Step 3 — Print the parts (while it's still a printer)
 
@@ -303,16 +313,21 @@ touches a card. Write what you measured to `table/.cache/gantry.json`:
 
 ```json
 {
-  "min_z": 12,
+  "min_z": 120,
+  "magnet_min_z": 0,
   "lens_at_z0_mm": 85,
   "cam_offset_mm": [0, 0],
-  "focal_mm": 18,
+  "camera": {"kind": "uvc", "index": 0, "calibration": "table/.cache/gantry/camera.npz", "image_y_flip": false},
+  "footprint_per_mm": [1.2, 0.675],
+  "deck_box_mm": [250, 5, 323, 105],
   "y_feed": 1200
 }
 ```
 
-- `min_z`: the lowest Z at which the magnet still clears the bed by ~2 mm (the touch-down height + 2).
+- `min_z`: the CAMERA's floor: the lowest Z at which the head camera's lens clears the bed and cards. Not measured by default.
+- `magnet_min_z`: the magnet's own floor (the touch-down height, plus clearance); also not measured by default.
 - `lens_at_z0_mm`: lens front to bed at Z = 0 (measure at some Z and subtract).
+- `camera`, `footprint_per_mm`, `deck_box_mm`: the head camera (see the software status above). The numbers shown are examples, not measurements.
 - `y_feed`: the bed carries the cards, so Y moves slowly or the cards slide.
 - `travel_z`: the head rises to at least this before any X/Y move while carrying. Set it ~10 mm above the hand rack's
   fence (Z where the magnet's face is 50 mm over the bed), so the head never crosses the fence diagonally.

@@ -1,4 +1,4 @@
-"""The camera gantry: a Creality printer carrying the Canon over the table.
+"""The camera gantry: a Creality printer carrying a camera (a UVC camera on the head; the old Canon rig still works) over the table.
 
 The printer is only a motion stage here. This module never heats anything and never extrudes:
 every line goes through `safe()`, which allows moves, homing and status queries and refuses the
@@ -47,6 +47,9 @@ import time
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+import gantry_camera  # noqa: E402
+
 HERE = Path(__file__).parent
 CACHE = HERE / ".cache" / "gantry"
 CONFIG = HERE / ".cache" / "gantry.json"
@@ -62,16 +65,20 @@ TRAVEL = {
 SAFE_DEFAULT = (200, 200, 200)            # unknown machine: stay inside the smallest one
 
 # The camera rig, measured once after mounting and kept in gantry.json:
-#   min_z            lowest Z the head may go with the camera on (lens must clear the bed + cards)
+#   min_z            lowest Z the head may go with the camera on (lens must clear the bed + cards); None = NOT MEASURED, camera Z moves refused
 #   lens_at_z0_mm    lens front to bed distance when Z = 0 (negative: lens hangs below the nozzle)
 #   cam_offset_mm    [x, y] of the lens axis relative to the nozzle
-#   focal_mm, sensor_mm   18 mm kit lens at its widest on the T3i's APS-C sensor (22.3 x 14.9)
+#   focal_mm, sensor_mm   the Canon rig: 18 mm kit lens at its widest on the T3i's APS-C sensor (22.3 x 14.9)
+#   camera           {"kind": "canon"} (default) or {"kind": "uvc", ...}: see gantry_camera.py
+#   footprint_per_mm [w, h]: mm of bed seen per mm of lens height, measured by hardware/gantry/fov_test.py (the UVC camera needs it)
+#   deck_box_mm      [x0, y0, x1, y1] of the AI's deck box in bed mm: masked out of every UVC frame; a scan with --post is refused without it
 #   y_feed           the bed carries the cards, so Y moves gently or they slide
-RIG_DEFAULT = {"min_z": 0, "lens_at_z0_mm": 0, "cam_offset_mm": [0, 0], "focal_mm": 18,
+RIG_DEFAULT = {"min_z": None, "lens_at_z0_mm": 0, "cam_offset_mm": [0, 0], "focal_mm": 18,
                "sensor_mm": [22.3, 14.9], "y_feed": 1200, "overlap": 0.3, "magnet_max_s": 20, "touch_z": None,
                "lift_mm": 20, "arc_feed": 1500, "travel_z": None,
                "magnet_min_z": None, "carry_max_s": 90, "magnet_offset_mm": [0, 0],
                "flip": {}, "flip_hinged_head_built": False,
+               "camera": {"kind": "canon"}, "footprint_per_mm": None, "deck_box_mm": None,
                "rack": {"slot0": None, "pitch": 46, "rise": 3.6, "slots": 7, "base_t": 2.0}}
 # min_z is the CAMERA's floor (the lens must clear the bed). The magnet hand has its own floor, magnet_min_z: touch_z is
 #   below min_z by design, because the magnet touches a card while the lens is not on the head. goto(tool="magnet") uses it.
@@ -103,6 +110,11 @@ def footprint(z: float, cfg: dict | None = None) -> tuple[float, float]:
     d = z + cfg["lens_at_z0_mm"]
     if d <= 0:
         raise Refused(f"at Z{z} the lens would be at or below the bed")
+    if cfg.get("footprint_per_mm"):
+        kw, kh = cfg["footprint_per_mm"]
+        return d * kw, d * kh
+    if (cfg.get("camera") or {}).get("kind") == "uvc":
+        raise Refused("the head camera's field of view is not measured: run hardware/gantry/fov_test.py and set footprint_per_mm in gantry.json")
     return d * cfg["sensor_mm"][0] / cfg["focal_mm"], d * cfg["sensor_mm"][1] / cfg["focal_mm"]
 
 
@@ -304,7 +316,8 @@ class Printer:
             self._need_z()
             floor, name = (cfg["magnet_min_z"], "magnet_min_z") if tool == "magnet" else (cfg["min_z"], "the camera floor min_z")
             if floor is None:
-                raise Refused("magnet_min_z is not measured (gantry.json): the lowest Z the magnet may go, with its hang below the nozzle")
+                raise Refused(f"{name} is not measured (gantry.json): the lowest Z the "
+                              + ("magnet may go, with its hang below the nozzle" if tool == "magnet" else "head may go with the camera's lens clear of the bed and cards"))
             if z < floor:
                 raise Refused(f"Z{z} is below {name}={floor} (gantry.json)")
         if y is not None:
@@ -545,7 +558,28 @@ def canon_port() -> str | None:
     return None
 
 
-def snap(path: Path) -> Path:
+def snap(path: Path, head=None, cfg: dict | None = None) -> Path:
+    """One photo where the camera is now. head = (x, y, z): where the lens axis is over the bed and how high the lens is;
+    with it, the deck box is masked out of a UVC frame before the frame is written (the AI's face-up top card must never
+    be read) and the frame is logged to camera-log.jsonl. Without it a UVC frame is a diagnostic: unmasked, logged as such."""
+    cfg = cfg or config()
+    cam = gantry_camera.camera_config(cfg)
+    if cam["kind"] == "uvc":
+        masked = []
+
+        def process(frame, info):
+            if head is not None and cfg.get("deck_box_mm"):
+                fp = footprint(head[2], cfg)
+                masked.extend(gantry_camera.mask_regions(frame, head[:2], fp, [cfg["deck_box_mm"]],
+                                                         cam["mask_margin_mm"], cam["image_y_flip"]))
+            return frame
+        out, info = gantry_camera.capture_uvc(cam, path, process=process)
+        gantry_camera.log_frame(CACHE / "camera-log.jsonl", {
+            "frame": str(out), "head": list(head) if head else None, "deck_box_configured": bool(cfg.get("deck_box_mm")),
+            "masked": masked, "diagnostic": head is None, **info})
+        if info.get("warning"):
+            print("warning:", info["warning"])
+        return out
     port = canon_port()
     if not port:
         raise SystemExit("Canon not found by gphoto2: is it on, in P mode, and allowed to connect?")
@@ -578,9 +612,23 @@ def stitch(paths: list[Path], out: Path) -> Path | None:
     return out
 
 
+def mosaic_shots(shots, centres, footprint_mm, area, cfg, out: Path) -> Path:
+    """UVC route: place each frame by where the head was (exact) instead of matching features (a plain bed has none)."""
+    import cv2
+    cam = gantry_camera.camera_config(cfg)
+    frames = [cv2.imread(str(s)) for s in shots]
+    board = gantry_camera.mosaic(frames, centres, footprint_mm, area, cv2=cv2, y_flip=cam["image_y_flip"])
+    cv2.imwrite(str(out), board)
+    return out
+
+
 def scan(p: Printer, area=DUEL_AREAS["all"], z=None, settle=1.0, post=False) -> Path | None:
     cfg = config()
     z = z if z is not None else p.travel[2]
+    uvc = gantry_camera.camera_config(cfg)["kind"] == "uvc"
+    if uvc and post and not cfg.get("deck_box_mm"):
+        raise Refused("deck_box_mm is not set (gantry.json): a UVC frame is masked over the deck box before /api/board sees it, "
+                      "and without the box's place in bed mm there is nothing to mask. Nothing moved.")
     shots_at, (cols, rows), (fw, fh) = plan(area, z, cfg)
     ox, oy = cfg["cam_offset_mm"]
     run = CACHE / time.strftime("scan-%Y%m%d-%H%M%S")
@@ -591,9 +639,9 @@ def scan(p: Printer, area=DUEL_AREAS["all"], z=None, settle=1.0, post=False) -> 
         y = min(max(by - oy, 0), p.travel[1])
         p.goto(x, y, z)
         time.sleep(settle)                        # the bed and camera stop swaying
-        shots.append(snap(run / f"{i:02d}_x{bx:.0f}_y{by:.0f}.jpg"))
+        shots.append(snap(run / f"{i:02d}_x{bx:.0f}_y{by:.0f}.jpg", head=(bx, by, z), cfg=cfg))
         print(f"shot {i + 1}/{len(shots_at)} at bed X{bx:.0f} Y{by:.0f}")
-    out = stitch(shots, run / "board.jpg")
+    out = mosaic_shots(shots, shots_at, (fw, fh), area, cfg, run / "board.jpg") if uvc else stitch(shots, run / "board.jpg")
     if out and post:
         req = urllib.request.Request("http://127.0.0.1:8800/api/board", data=out.read_bytes(),
                                      headers={"Content-Type": "image/jpeg"})
@@ -634,7 +682,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     if a.cmd == "ports":
-        print("\n".join(find_ports()) or "no printer serial port", "\nCanon:", canon_port() or "not found")
+        print("\n".join(find_ports()) or "no printer serial port", "\nCanon:", canon_port() or "not found",
+              "\nCameras the OS sees:", ", ".join(gantry_camera.uvc_devices()) or "none")
         return
     if a.cmd == "plan":
         pts, (c, r), (fw, fh) = plan(DUEL_AREAS[a.area], a.z)
