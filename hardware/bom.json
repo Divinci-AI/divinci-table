@@ -6,22 +6,23 @@
   "goal": "docs/ARM-GANTRY-GOAL.md"
  },
  "statuses": {
-  "cart": "in a cart, about to be ordered",
+  "cart": "in a cart, about to be ordered (none right now)",
   "saved": "in Amazon's Save for later: waits on the M1 magnet test",
   "on-hand": "already owned",
   "check": "needed; probably on hand, buy only if missing",
   "to-print": "printed on the CR-6 Max before it becomes the gantry",
   "list-only": "saved in the Amazon list, not in the cart (a fallback)",
-  "removed": "was in a cart, taken out; kept here so nobody re-adds it by accident"
+  "removed": "was in a cart, taken out; kept here so nobody re-adds it by accident",
+  "bought": "ordered and confirmed (the Amazon and Home Depot orders, 2026-10-11); waiting for delivery or already here"
  },
  "carts": {
   "amazon": {
    "subtotal": 13.18,
-   "note": "Only the M1 test kit is in the cart (magnet, diodes); the steel discs were dropped for #10 zinc washers from Home Depot; everything else is in Save for later until the stack test passes 19/20"
+   "note": "Ordered and confirmed 2026-10-11: the M1 test kit (magnet, diodes); the steel discs were dropped for #10 zinc washers from Home Depot; everything else is in Save for later until the stack test passes 19/20"
   },
   "home-depot": {
    "subtotal": 58.96,
-   "note": "via Instacart; that cart also holds a copper tee ($23.09) that is not part of this build, so the cart reads $82.05 (over the $3.13 needed for Instacart's $15 restaurant credit)"
+   "note": "Ordered and confirmed 2026-10-11 (via Instacart); the order also held a copper tee ($23.09) that is not part of this build"
   }
  },
  "items": [
@@ -150,7 +151,7 @@
    "source": "amazon",
    "asin": "B078K3TKFZ",
    "price": 7.19,
-   "status": "cart",
+   "status": "bought",
    "route": [
     "magnet"
    ],
@@ -191,11 +192,11 @@
   },
   {
    "id": "zinc-washers",
-   "name": "Everbilt #10 zinc flat washers (100-pack)",
+   "name": "Everbilt #10 zinc flat washers",
    "qty": 1,
    "source": "home-depot",
    "price": 7.29,
-   "status": "cart",
+   "status": "bought",
    "route": [
     "magnet"
    ],
@@ -218,7 +219,7 @@
    "source": "amazon",
    "asin": "B0FC2CQF24",
    "price": 5.99,
-   "status": "cart",
+   "status": "bought",
    "route": [
     "magnet"
    ],
@@ -321,7 +322,7 @@
    "qty": 1,
    "source": "home-depot",
    "price": 17.79,
-   "status": "cart",
+   "status": "bought",
    "route": [
     "magnet",
     "arm"
@@ -344,11 +345,11 @@
   },
   {
    "id": "hex-bolts",
-   "name": "Everbilt 1/4\"-20 × 1\" zinc hex bolt",
+   "name": "Everbilt 1/4\"-20 × 1\" (6.35 × 25.4 mm) zinc hex bolt",
    "qty": 4,
    "source": "home-depot",
    "price": 1.16,
-   "status": "cart",
+   "status": "bought",
    "route": [
     "magnet",
     "arm"
@@ -367,11 +368,11 @@
   },
   {
    "id": "wing-nuts",
-   "name": "Everbilt 1/4\"-20 wing nut (4-pack)",
+   "name": "Everbilt 1/4\"-20 (6.35 mm) wing nut (4-pack)",
    "qty": 1,
    "source": "home-depot",
    "price": 1.69,
-   "status": "cart",
+   "status": "bought",
    "route": [
     "magnet",
     "arm"
@@ -386,11 +387,11 @@
   },
   {
    "id": "nylon-spacers",
-   "name": "Everbilt nylon spacer 1/2\" × 1\" (0.257\" bore)",
+   "name": "Everbilt nylon spacer 1/2\" (12.7 mm) × 1\"",
    "qty": 2,
    "source": "home-depot",
    "price": 6.38,
-   "status": "cart",
+   "status": "bought",
    "route": [
     "magnet",
     "arm"
@@ -409,7 +410,7 @@
    "qty": 1,
    "source": "home-depot",
    "price": 4.09,
-   "status": "cart",
+   "status": "bought",
    "route": [
     "magnet",
     "arm"
@@ -432,7 +433,7 @@
    "qty": 1,
    "source": "home-depot",
    "price": 6.59,
-   "status": "cart",
+   "status": "bought",
    "route": [
     "magnet",
     "arm"
@@ -455,7 +456,7 @@
    "qty": 1,
    "source": "home-depot",
    "price": 8.79,
-   "status": "cart",
+   "status": "bought",
    "route": [
     "magnet",
     "arm"
@@ -499,7 +500,7 @@
    "name": "Everbilt M3 × 6 mm zinc flat head machine screws (4-pack)",
    "qty": 1,
    "source": "home-depot",
-   "status": "cart",
+   "status": "bought",
    "route": [
     "magnet"
    ],
@@ -535,7 +536,7 @@
    "qty": 1,
    "source": "home-depot",
    "price": 3.09,
-   "status": "cart",
+   "status": "bought",
    "route": [
     "magnet"
    ],
@@ -654,7 +655,7 @@
   },
   {
    "id": "thermal-fuse",
-   "name": "Thermal cut-off fuse, 77 C (Cantherm SDF DF077S)",
+   "name": "Thermal cut-off fuse, 77 C",
    "qty": 1,
    "source": "DigiKey 317-1125-ND, about $0.87; buy 5-10. Alternative: Microtemp G4A01077C. Avoid Amazon/AliExpress listings (counterfeits)",
    "status": "check",
@@ -662,6 +663,60 @@
     "magnet"
    ],
    "role": "hardware cut-off in series with the magnet's + lead, bonded to its body: the software timer cannot help if the cable is pulled; not bought. 77 C opening, 55 C holding, 10 A 250 VAC axial: far above the 0.25 A load. Chosen by holding temperature (the body must stay under 55 C), not opening temperature; a 60-70 C part would nuisance-trip. Confirm with the measured body temperature after a 30-minute session (45 C or less: DF072S; above 55 C: fix the duty, do not go to DF084S). Metal case is live: Kapton on the magnet first, epoxy, then heat-shrink; crimp the leads rather than solder",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 5"
+    }
+   ]
+  },
+  {
+   "id": "jst-xh-kit",
+   "name": "JST-XH 2.54 mm 2-pin connector kit with 22 AWG pre-crimped wires",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B0CM315RFP",
+   "status": "check",
+   "route": [
+    "magnet"
+   ],
+   "role": "the pigtail's plug: the CR-6 Max's part-fan header is most likely a 2-pin JST-XH (2.54 mm), which is the usual Creality fan connector but NOT yet confirmed on this board: open the printer and look, or measure the pin pitch, before ordering. About $8-10 (variants of the listing differ).",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 5"
+    }
+   ]
+  },
+  {
+   "id": "thermal-epoxy",
+   "name": "Thermally conductive epoxy (MG Chemicals 8329TCM, 6 mL)",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B06XDL1NRQ",
+   "status": "check",
+   "route": [
+    "magnet"
+   ],
+   "role": "bonds the thermal fuse to the magnet's body (room-temperature cure; keep it under 55 C while curing). Price not checked. The larger 8329TCS kit is $115.91 and reviewers report curing trouble: do not buy that one.",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 5"
+    }
+   ]
+  },
+  {
+   "id": "butt-splices",
+   "name": "Gardner Bender 22-18 AWG heat-shrink butt splices (8-pack)",
+   "qty": 1,
+   "source": "home-depot",
+   "price": 7.24,
+   "status": "check",
+   "route": [
+    "magnet"
+   ],
+   "role": "crimped joints for the thermal fuse's leads instead of solder (the fuse is damaged by soldering heat); Home Depot item 202522490, model AMT-4120",
    "used_in": [
     {
      "doc": "manual",

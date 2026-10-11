@@ -93,6 +93,9 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Non-slip shelf liner, cut to the bed | 1 | stops the moving bed from sliding the AI's cards |
 | Multimeter | 1 | the USB-shell voltage check (Step 6) and the 24 V check (Step 5) |
 | Thermal cut-off fuse, 77 C (Cantherm SDF DF077S, DigiKey 317-1125-ND; buy 5-10) | 1 | in series with the magnet's + lead, bonded to its body: the hardware cut-off (Step 5; not bought yet). 10 A 250 VAC, 55 C holding: chosen so the body stays under the holding temperature; see Step 5b |
+| JST-XH 2.54 mm 2-pin connector kit with 22 AWG pre-crimped wires | 1 | the pigtail's plug for the part-fan header (most likely a 2-pin JST-XH; confirm by looking at the header first). [amazon.com/dp/B0CM315RFP](https://www.amazon.com/dp/B0CM315RFP) |
+| Thermally conductive epoxy (MG Chemicals 8329TCM, 6 mL) | 1 | bonds the thermal fuse to the magnet's body. [amazon.com/dp/B06XDL1NRQ](https://www.amazon.com/dp/B06XDL1NRQ) |
+| Gardner Bender 22-18 AWG heat-shrink butt splices (8-pack) | 1 | crimped joints for the fuse leads, $7.24 at Home Depot (AMT-4120) |
 
 **Hardware store (The Home Depot, via Instacart) — $58.96**
 
@@ -109,7 +112,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Commercial Electric 4" heat-shrink tubing assortment (8-pack) | 1 | insulating the diode and the lead splices |
 | Everbilt #10 zinc flat washers (100-pack; 0.438" / 11.1 mm OD) | 1 | one per AI card, inside the sleeve (zinc-plated steel is magnetic; stainless mostly isn't) |
 
-**Online (Amazon) — the exact parts.** Only the first two are in the cart ($13.18): the M1 test kit. The rest
+**Online (Amazon) — the exact parts.** The first two are ordered and confirmed ($13.18): the M1 test kit. The rest
 are in *Save for later* until the deck-stack test in Step 9 passes 19 times out of 20; M1 uses the table's
 existing fixed camera, so the Canon mount waits too.
 

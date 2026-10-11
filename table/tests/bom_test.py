@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BOM = ROOT / "hardware" / "bom.json"
-STATUSES = {"cart", "saved", "on-hand", "check", "to-print", "list-only", "removed"}
+STATUSES = {"cart", "bought", "saved", "on-hand", "check", "to-print", "list-only", "removed"}
 ASIN = re.compile(r"amazon\.com/dp/([A-Z0-9]{10})")
 
 
@@ -84,7 +84,7 @@ def problems(bom: dict, docs: dict[str, str]) -> list[str]:
                 bad.append(f"{iid}: the manual doesn't name it ({i['name']!r})")
             if u["doc"] != "manual" and i["name"] not in doc and (not i.get("asin") or i["asin"] not in doc):
                 bad.append(f"{iid}: {u['doc']} mentions neither its name nor its asin")
-        if st in ("cart", "saved") and i.get("source") == "amazon" and not any(i["asin"] in t for t in docs.values()):
+        if st in ("cart", "bought", "saved") and i.get("source") == "amazon" and not any(i["asin"] in t for t in docs.values()):
             bad.append(f"{iid}: in the Amazon cart but linked from no doc")
 
     for i in items:                                   # a printed part has its source and a printable file
@@ -105,7 +105,7 @@ def problems(bom: dict, docs: dict[str, str]) -> list[str]:
             bad.append(f"{name} links amazon.com/dp/{a}, which isn't in the bom")
 
     for cart, info in bom["carts"].items():
-        total = round(sum(i["price"] for i in items if i.get("status") == "cart" and i.get("source") == cart), 2)
+        total = round(sum(i["price"] for i in items if i.get("status") in ("cart", "bought") and i.get("source") == cart), 2)
         if abs(total - info["subtotal"]) > 0.005:
             bad.append(f"{cart}: cart items add up to ${total:.2f}, bom says ${info['subtotal']:.2f}")
         if f"${info['subtotal']:.2f}" not in docs["manual"]:
