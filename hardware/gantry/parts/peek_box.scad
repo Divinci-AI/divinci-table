@@ -9,7 +9,7 @@
 part      = "top";    // "top", "base" or "ring"
 card_w    = 66.5;     // one inner-sleeved card, as sleeve_jig.scad
 card_l    = 92.5;
-clear     = 0.8;      // around the card in its pocket
+clear     = 1.2;      // around the card in its pocket: a card yawed only 1 degree eats 0.8 mm of clearance (Hermes review), and the swivel does not control yaw
 wall      = 2.4;
 ledge     = 3.0;      // the window is this much smaller than the pocket on every side; the card's edge rests on it
 plate_t   = 3.0;
