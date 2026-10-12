@@ -72,7 +72,7 @@
       <button id="m-steps" aria-pressed="false">Step by step</button>
     </div>
     <button id="resume" style="display:none;width:100%;margin:0 0 10px"></button>
-    <div id="guide-row" style="display:none;margin:0 0 8px;color:var(--dim)">Guide <select id="guide" style="margin-left:8px;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px"><option value="magnet">Magnet head</option><option value="sleeve">Sleeve a card</option><option value="flip">Flip a card (design)</option><option value="pigtail">Fan to magnet pigtail (proposal)</option></select></div>
+    <div id="guide-row" style="display:none;margin:0 0 8px;color:var(--dim)">Guide <select id="guide" style="margin-left:8px;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px"><option value="magnet">Magnet head</option><option value="sleeve">Sleeve a card</option><option value="coupon">Test the flip coupon by hand</option><option value="peek">Read a card (peek box)</option><option value="flip">Flip a card (design, blocked)</option><option value="pigtail">Fan to magnet pigtail (proposal)</option></select></div>
     <div id="detail" aria-live="polite"><h3>Pick a part</h3><p class="meta">Click anything in the list or in the 3D view to see where it goes, how many, and how big it is.</p></div>
     <ol id="steps" style="display:none;margin:10px 0 0;padding:0;list-style:none"></ol>
     <div id="lists"><h2>Printed parts</h2><ul id="list-print"></ul>
@@ -123,6 +123,14 @@ const PRINTED = [
     text: "Holds a card while its washer goes on. One piece, with thumb notches in its end walls and stops on the long walls so the bridge centres on the card. Together with the bridge it puts every washer at the centre of the card's back, which the deck box and the rack both rely on." },
   { id: "bridge", file: "../parts/stl/sleeve_jig_bridge.stl", name: "Sleeving jig bridge", qty: "1", step: "Step 3 / Step 8",
     text: "Drops every washer at the card's centre. It sits across the tray's long walls, between the stops." },
+  { id: "coupon", file: "../parts/stl/flip_coupon.stl", name: "Flip coupon", qty: "1", step: "Step 3",
+    text: "Print this BEFORE the full flip fence (which is blocked until the flip design changes). Three 95 mm lips on one plate, marked by 1, 2 and 3 notches: 8 deg / 3.5 mm, 16 deg / 3.5 mm and 8 deg / 6 mm. You test BY HAND which lip catches a sleeved card's edge and lets it topple. Each lip has a groove at the foot of its face for a 1 mm silicone strip." },
+  { id: "peektop", file: "../parts/stl/peek_box_top.stl", name: "Peek box top", qty: "1", step: "Step 3",
+    text: "The window a drawn card lies on, FACE-DOWN, washer up. A 62.9 x 88.9 mm window under a pocket for the double-sleeved card (1.2 mm play a side, 2.5 mm lead-in, 3.5 mm rim). The plate's underside is chamfered so it prints without supports. A person sees only the card's back." },
+  { id: "peekbase", file: "../parts/stl/peek_box_base.stl", name: "Peek box base", qty: "1", step: "Step 3",
+    text: "The camera cradle: four posts for the 32 x 32 mm board (M2 nylon screws from above into blind pilot holes), a stop in the middle of each edge, and a cable notch in one short wall. cam_hole (27 mm) is a guess until you measure the board." },
+  { id: "peekring", file: "../parts/stl/peek_box_ring.stl", name: "Peek box ring", qty: "1 to 4 (2 shown)", step: "Step 3",
+    text: "Each ring adds 30 mm between the camera and the window. How many depends on the camera's MEASURED field of view (about 100 deg across needs 1, 72 needs 2, 55 needs 3, 44 needs 4). The pieces stack on tongue-and-lip joints; tape the stack to the bed." },
 ];
 const HARDWARE = [
   { id: "magnet", name: "24 V electromagnet", qty: "1", step: "Step 4 / Step 5", size: "20 x 15 mm",
@@ -143,6 +151,8 @@ const HARDWARE = [
     text: "Soldered across the magnet's two leads, striped end (cathode) to +, and insulated with heat-shrink. It absorbs the switch-off spike that could otherwise kill the board's fan transistor. Shown here on short leads beside the magnet; the magnet guide shows it on the real run of wire." },
   { id: "fuse", name: "Thermal cut-off fuse, 77 C", qty: "1 (buy 5-10)", step: "Step 5", size: "about 4 x 10.5 mm",
     text: "Cantherm SDF DF077S (DigiKey 317-1125-ND): a one-shot cut-off that opens at 77 C and holds to 55 C, rated 10 A 250 VAC, far above the magnet's 0.25 A. It goes in series with the + lead and is bonded to the magnet's body, so a stuck-on magnet cooks itself open even if the cable is pulled. Its metal case is live: Kapton under it, Kapton over it. Never put a heat gun or heat-shrink near it." },
+  { id: "peekcam", name: "Peek camera (innomaker 32 x 32 mm UVC)", qty: "1 more", step: "Step 3", size: "32 x 32 mm",
+    text: "The same model as the head camera. It sits in the peek box's base looking up at the card window. Not ordered yet; run the field-of-view test on it before choosing how many rings to print." },
   { id: "wing", name: "1/4\"-20 wing nut", qty: "1", step: "Step 4", size: "1/4\"-20",
     text: "Sets the swivel's drag: tight enough that a card doesn't spin while moving, loose enough that it turns when its corner is held." },
 ];
@@ -264,6 +274,8 @@ hw.spring = mesh(helix(5.2, 1.7, 4, 0.45), mat.spring);
 { const nut = mesh(hexPrism(11.11, 5.6), mat.steel, 0, 0, 2.8);
   const wing = (s) => mesh(new THREE.BoxGeometry(9, 1.8, 12), mat.steel, s * 12, 0, 8.6);
   hw.wing = group(nut, wing(1), wing(-1)); }
+{ const board = new THREE.MeshStandardMaterial({ color: 0x1f6f4a, roughness: 0.6 }), blk = new THREE.MeshStandardMaterial({ color: 0x15181d, roughness: 0.5 });   // origin: the board's centre, its underside on z = 0, the lens up
+  hw.peekcam = group(mesh(new THREE.BoxGeometry(32, 32, 1.6), board, 0, 0, 0.8), mesh(new THREE.BoxGeometry(14, 14, 6), blk, 0, 0, 4.6), mesh(cyl(7, 7, 14, 32), blk, 0, 0, 14.6), mesh(new THREE.BoxGeometry(8, 5, 3), mat.steel, 0, -14, 3.1)); }
 
 // ---------- scene content ----------
 const world = new THREE.Group(); scene.add(world);
@@ -291,16 +303,17 @@ function placeAnchor(e) { const b = bboxOf(e.obj); const c = b.getCenter(new THR
 
 async function build() {
   // printed parts laid out on the table, in their printing orientation
-  const layout = { rack: [-175, 250, 0], deck: [-235, 70, 0], follower: [-135, 70, 0], chute: [-35, 70, 43.5], jig: [60, 70, 0], bridge: [160, 110, 3], swivel: [-220, -60, 0], clip: [-150, -60, 0], plug: [-190, -100, 0] };
+  const layout = { rack: [-175, 250, 0], deck: [-235, 70, 0], follower: [-135, 70, 0], chute: [-35, 70, 43.5], jig: [60, 70, 0], bridge: [160, 110, 3], coupon: [-175, 175, 0], peektop: [230, 170, 0], peekbase: [320, 170, 0], peekring: [410, 170, 0], swivel: [-220, -60, 0], clip: [-150, -60, 0], plug: [-190, -100, 0] };
   const clipSlots = [[-160, -50], [-125, -50], [-160, -80], [-125, -80]];
   for (const def of PRINTED) {
     const geo = await loadStl(def.file); const [x, y, z] = layout[def.id];
     const obj = new THREE.Group(); obj.add(printedMesh(geo)); obj.position.set(x, y, z);
+    if (def.id === "peekring") { const c = new THREE.Mesh(obj.children[0].geometry, mat.print); c.castShadow = c.receiveShadow = true; c.position.z = 30; obj.add(c); }   // two rings, stacked, as the guide shows
     register(def, obj, "print", obj.position);
     if (def.id === "clip") { clipSlots.slice(1).forEach(([cx, cy]) => { const c = new THREE.Mesh(obj.children[0].geometry, mat.print); c.castShadow = c.receiveShadow = true; c.position.set(cx - x, cy - y, 0); obj.add(c); }); obj.position.set(clipSlots[0][0], clipSlots[0][1], 0); entries.clip.home.copy(obj.position); }
   }
   // hardware: loose pieces beside the printed ones
-  const order = ["magnet", "m3", "bolt", "pin", "nylon", "angle", "spring", "wing", "diode", "fuse"];
+  const order = ["magnet", "m3", "bolt", "pin", "nylon", "angle", "spring", "wing", "diode", "fuse", "peekcam"];
   const loose = Object.fromEntries(order.map((id, i) => [id, [-95 + i * 44, -60 - (i % 2) * 38]]));
   for (const def of HARDWARE) { const o = hw[def.id]; const [x, y] = loose[def.id]; o.position.set(x, y, def.id === "m3" ? 1.5 : def.id === "diode" ? 1 : 0); register(def, o, "hw", o.position); }
   Object.values(entries).forEach(placeAnchor);
@@ -448,6 +461,7 @@ const DIMDEFS = {                // local coordinates of each part; values are t
 const BOXDIMS = {                // printed parts and the card: overall size from the STL bounds / the .scad, drawn along the bounding box
   plug: [["x", "10.7 mm"], ["y", "11.3 mm"], ["z", "8.2 mm"]], pin: [["z", "12 mm"]], swivel: [["x", "24 mm"], ["z", "15.1 mm"]], clip: [["x", "14 mm"], ["y", "16 mm"], ["z", "7.8 mm"]], jig: [["x", "72.9 mm"], ["y", "98.9 mm"], ["z", "9.6 mm"]], bridge: [["x", "72.9 mm"], ["y", "24 mm"], ["z", "5 mm"]],
   deck: [["x", "73.3 mm"], ["y", "99.3 mm"], ["z", "117.8 mm"]], follower: [["x", "67.5 mm"], ["y", "93.5 mm"]], chute: [["x", "74.5 mm"], ["y", "90.1 mm"], ["z", "52.4 mm"]],
+  coupon: [["x", "305 mm"], ["y", "12 mm"], ["z", "6 mm"]], peektop: [["x", "78 mm"], ["y", "104 mm"], ["z", "14 mm"]], peekbase: [["x", "74 mm"], ["y", "100 mm"], ["z", "31 mm"]],
   rack: [["x", "349.3 mm"], ["y", "40 mm"], ["z", "111.3 mm"]], card: [["x", "63 mm"], ["y", "88 mm"]],
 };
 function attachDims(id, obj) {
@@ -474,6 +488,9 @@ const DIMS = {
   pin: "1.75 mm filament, 12 mm long; goes in 1.9 mm holes (one in the plug, one 3.3 mm deep in the swivel floor)", plug: "10.7 x 11.3 x 8.2 mm; base about 11.3 wide in the 11.6 hex channel, neck about 6.7 wide in the 7 slot, 1.9 mm pin hole at 9.8 mm; five widths marked by 1-5 notches in the handle", swivel: "24 x 24 x 15.1 mm; hex slot 11.6 mm AF; top hole 7 mm; M3 hole 3.2 mm", clip: "14 x 16 x 7.8 mm; holds 5 mm wire",
   deck: "73.3 x 99.3 x 117.8 mm; for 66.5 x 92.5 mm sleeved cards; card_t 1.6 mm TBD (measure 10 cards)", follower: "67.5 x 93.5 x 3.0 mm",
   chute: "74.5 x 90.1 x 52.4 mm; 35 deg ramp; bed_t 6 mm TBD (measure your bed)", rack: "349.3 x 40.0 x 111.3 mm; 7 slots, 46 mm pitch; card_t 1.6 mm TBD",
+  coupon: "305 x 12 x 6 mm; lips 95 mm long, 10 mm apart: 8 deg/3.5 mm, 16 deg/3.5 mm, 8 deg/6 mm; 1 mm groove at the foot of each face",
+  peektop: "78 x 104 x 14 mm; window 62.9 x 88.9 mm; pocket 68.9 x 94.9 mm, rim 3.5 mm", peekbase: "74 x 100 x 31 mm; board 32.4 mm square, M2 pitch 27 mm TBD (measure the board)", peekring: "74 x 100 x 33 mm each (adds 30 mm to the stack)",
+  peekcam: "32 x 32 mm board, M12 lens; field of view TBD (listing 103 deg, a reviewer measured about 50)",
   jig: "72.9 x 98.9 x 9.6 mm; card pocket 68.1 x 94.1 mm", bridge: "72.9 x 24.0 x 5.0 mm; washer hole for 11.1 mm OD",
   magnet: "20 mm dia x 15 mm; M3 thread in the back", m3: "M3 x 6 mm, flat head", bolt: "1/4\"-20 x 1 in (6.35 x 25.4 mm); head 7/16 in (11.1 mm) across flats",
   nylon: "cut to 6 mm; 1/2 in (12.7 mm) OD; 0.257 in (6.5 mm) bore", angle: "1 x 1 x 1/8 in (25.4 x 25.4 x 3.2 mm), 3 in (76 mm) long; 1/4 in (6.35 mm) hole, 1 in (25.4 mm) from one end",
@@ -486,7 +503,7 @@ const DIMS = {
   washer: "#10: 0.438 in (11.1 mm) OD; bore and thickness drawn, TBD", tape2: "about 18 mm square patch (drawn)",
 };
 const SHORT = { fence: "123 x 52 x 3.5 mm", flipCard: "92.5 x 66.5 mm", flipHead: "hinge 20 mm above the face",  angle: "76 x 25.4 x 3.2 mm", angleBlank: "76 x 25.4 x 3.2 mm", offcut: "about 74 mm", magnet: "20 dia x 15 mm", swivel: "24 x 24 x 15 mm", bolt: "1/4-20 x 25.4 mm", nylon: "12.7 OD x 6 mm", saw: "300 mm blade", drill: "6.35 mm bit",
-  pin: "1.75 x 12 mm", plug: "11 x 11 x 8 mm", jig: "73 x 99 x 9.6 mm", bridge: "73 x 24 x 5 mm", card: "63 x 88 mm", washer: "11.1 mm OD", m3: "M3 x 6 mm", wing: "1/4-20", clipA: "14 x 16 x 8 mm", clipB: "14 x 16 x 8 mm", clipC: "14 x 16 x 8 mm", clipD: "14 x 16 x 8 mm" };
+  coupon: "305 x 12 x 6 mm", peektop: "78 x 104 x 14 mm", peekbase: "74 x 100 x 31 mm", peekring: "74 x 100 x 33 mm", peekcam: "32 x 32 mm", pin: "1.75 x 12 mm", plug: "11 x 11 x 8 mm", jig: "73 x 99 x 9.6 mm", bridge: "73 x 24 x 5 mm", card: "63 x 88 mm", washer: "11.1 mm OD", m3: "M3 x 6 mm", wing: "1/4-20", clipA: "14 x 16 x 8 mm", clipB: "14 x 16 x 8 mm", clipC: "14 x 16 x 8 mm", clipD: "14 x 16 x 8 mm" };
 let labelMode = "current";   // all | current | off
 const stepLabels = {};
 function makeStepLabel(id, obj, local) {
@@ -498,7 +515,7 @@ function makeStepLabel(id, obj, local) {
   const l = new CSS2DObject(el); obj.add(l); l.position.copy(local); stepLabels[id] = { el, l };
 }
 function labelPoint(obj) { const b = bboxOf(obj), c = b.getCenter(new THREE.Vector3()); const top = new THREE.Vector3(c.x, c.y, b.max.z); obj.worldToLocal(top); return top; }
-const groups = { magnet: new THREE.Group(), sleeve: new THREE.Group(), flip: new THREE.Group(), pigtail: new THREE.Group() }; for (const g of Object.values(groups)) { g.visible = false; world.add(g); }
+const groups = { magnet: new THREE.Group(), sleeve: new THREE.Group(), flip: new THREE.Group(), pigtail: new THREE.Group(), coupon: new THREE.Group(), peek: new THREE.Group() }; for (const g of Object.values(groups)) { g.visible = false; world.add(g); }
 let G = "magnet";                // the active guide
 const L = 34;                     // the frame (carriage, bracket) hangs this far up until step 7 lowers it onto the bolt
 const SUBIDS = new Set(["magnet", "swivel", "m3", "bolt", "plug", "pin", "nylon"]);
@@ -506,7 +523,7 @@ const FRAME = new Set(["carriage", "tape", "angle", "nozzle"]);
 const ghostMat = (m) => { const c = m.clone(); c.transparent = true; return c; };
 function addExtra(id, obj, intro, stageAbs, home, guide = "magnet") { obj.traverse(o => { if (o.isMesh) { o.material = ghostMat(o.material); } o.userData.id = id; }); groups[guide].add(obj); obj.updateMatrixWorld(true);
   attachDims(id, obj); asms[guide][id] = { obj, intro, stage: stageAbs ? stageAbs.map((v, i) => v - home[i]) : null, extra: true }; }   // an extra's position is an offset from where its geometry was built
-const asms = { magnet: {}, sleeve: {}, flip: {}, pigtail: {} }, asm = asms.magnet;
+const asms = { magnet: {}, sleeve: {}, flip: {}, pigtail: {}, coupon: {}, peek: {} }, asm = asms.magnet;
 const MAGNET_STEPS = [
   { title: "Before you start", ref: "Step 3", intro: [], focus: ["magnet", "swivel", "m3", "bolt", "nylon", "spring", "wing", "angleBlank", "carriage"], cam: [[120, 0, 10], 340, [0.1, -0.55, 1.2]],
     text: "Print the swivel (and a spare), four lead clips and the swivel plugs (a small plate of ten in five widths) first, and have a few cm of 1.75 mm filament for the plug's pin, while the printer is still a printer. On the table: the 24 V magnet, M3 x 6 flat-head screw, 1/4\"-20 bolt, nylon spacer, spring, wing nut and the 3\" aluminium angle. For the wiring later (steps 15 to 17): about 1 m of 22 AWG two-core wire, a 1N4007 diode, the four printed lead clips, and a thermal cut-off fuse (not bought yet, see the bill of materials). The grey block is the printer's X carriage." },
@@ -602,25 +619,28 @@ function magnetParts() {
   };
   return { ...parts, ...asm };
 }
-function partsFor() { return G === "sleeve" ? sleeveParts() : G === "flip" ? { ...asms.flip } : G === "pigtail" ? { ...asms.pigtail } : magnetParts(); }
+function partsFor() { return G === "sleeve" ? sleeveParts() : G === "flip" ? { ...asms.flip } : G === "pigtail" ? { ...asms.pigtail } : G === "coupon" ? couponParts() : G === "peek" ? peekParts() : magnetParts(); }
 let PARTS = null, step = 0, stepTween = null, playTimer = null;
 function finalPose(id, k) {
   const fin = headPose(0), p = (fin[id]?.p || [0, 0, 0]).slice();
   if (FRAME.has(id) && k < stepIdx("Push the bolt up")) p[2] += L;                  // the angle's headPose is its final height; the others are built in place
   return p;
 }
-const GUIDE_INFO = { magnet: { title: "Magnet head", entryIds: () => Object.keys(TRAY) }, sleeve: { title: "Sleeve a card", entryIds: () => ["jig", "bridge"] }, flip: { title: "Flip a card (design)", entryIds: () => [] }, pigtail: { title: "Fan to magnet pigtail (proposal)", entryIds: () => [] } };
+const GUIDE_INFO = { magnet: { title: "Magnet head", entryIds: () => Object.keys(TRAY) }, sleeve: { title: "Sleeve a card", entryIds: () => ["jig", "bridge"] }, flip: { title: "Flip a card (design, blocked)", entryIds: () => [] }, pigtail: { title: "Fan to magnet pigtail (proposal)", entryIds: () => [] },
+  coupon: { title: "Test the flip coupon by hand", entryIds: () => ["coupon"] }, peek: { title: "Read a card (peek box)", entryIds: () => ["peektop", "peekbase", "peekring", "peekcam"] } };
 function ghostEntries() { for (const e of Object.values(entries)) e.obj.traverse(o => { if (o.isMesh && !o.userData.ghosted) { o.material = ghostMat(o.material); o.userData.ghosted = true; } }); }   // the printed parts share one material: give each its own before fading one
 function enterSteps() { setGuide(G, step, true); }
 function setGuide(name, startStep = 0, instant = false) {
-  stopPlay(); hideRulers(); G = name; STEPS = { sleeve: SLEEVE_STEPS, flip: FLIP_STEPS, pigtail: PIGTAIL_STEPS }[name] || MAGNET_STEPS;
+  stopPlay(); hideRulers(); G = name; STEPS = { sleeve: SLEEVE_STEPS, flip: FLIP_STEPS, pigtail: PIGTAIL_STEPS, coupon: COUPON_STEPS, peek: PEEK_STEPS }[name] || MAGNET_STEPS;
   if (!asms.magnet.carriage) buildExtras();
   if (!asms.sleeve.card) buildSleeve();
   if (!asms.flip.fence) buildFlip();
   if (!asms.pigtail.pgBoard) buildPigtail();
+  if (!asms.coupon.cpCard) buildCoupon();
+  if (!asms.peek.pkCard) buildPeek();
   ghostEntries(); PARTS = partsFor();
   for (const id of Object.keys(TRAY)) if (!stepLabels[id]) makeStepLabel(id, entries[id].obj, labelPoint(entries[id].obj));
-  for (const id of ["jig", "bridge"]) if (!stepLabels[id]) makeStepLabel(id, entries[id].obj, labelPoint(entries[id].obj));
+  for (const id of ["jig", "bridge", "coupon", "peektop", "peekbase", "peekring", "peekcam"]) if (!stepLabels[id]) makeStepLabel(id, entries[id].obj, labelPoint(entries[id].obj));
   const ids = new Set(GUIDE_INFO[name].entryIds());
   for (const [id, e] of Object.entries(entries)) { e.obj.visible = ids.has(id); e.anchor.visible = false; }
   for (const [n, g] of Object.entries(groups)) g.visible = n === name;
@@ -810,7 +830,7 @@ const SLEEVE_STEPS = [
   { title: "Slide the outer sleeve over both", ref: "Step 8", intro: ["outer"], focus: ["outer"], cam: [[36, 60, 4], 230, [0.7, -0.7, 0.7]],
     text: "Slide the outer sleeve over the card, the washer and the tape." },
   { title: "Done: the washer sits behind the card", ref: "Step 8", intro: [], focus: ["washer", "card"], cam: [[36, 49, 3], 170, [0.4, -0.8, 1]],
-    text: "The disc sits behind the card's back, so the magnet picks the card up face-up through the card. Never put steel in a person's cards." },
+    text: "The disc sits behind the card's back. The AI's deck is kept FACE-DOWN, washer up, so the magnet lands straight on the washer; a face-up card is picked through the card. Never put steel in a person's cards." },
 ];
 function cardTex(face) {
   const c = document.createElement("canvas"); c.width = 252; c.height = 352; const g = c.getContext("2d");
@@ -896,8 +916,8 @@ function buildFlip() {
 }
 const FLIP_STEPS = [
   { title: "Before you start", ref: "Flipping a card", intro: [], focus: ["fence", "flipCard", "flipHead"], cam: [[0, 10, 12], 380, [0.55, -1, 0.75]],
-    text: "The flip station turns one of the AI's cards over like a page. A low printed fence catches one long edge of the card, the magnet lifts the card by its washer in an arc, and past vertical it lets go: the card topples over the fence, back face up. This is a DESIGN: nothing here has been built, and the checks only prove collisions and reach. It also needs the magnet head to tilt with the card (a passive pitch hinge), which the current head does not do. Bench-test first." },
-  { title: "Print the flip fence", ref: "Flipping a card", intro: ["fence"], focus: ["fence"], cam: [[-150, -30, 4], 230, [0.4, -1, 0.7]],
+    text: "STATUS: the full fence is BLOCKED by the pre-print gate (the head would have to hang over the card as it falls), so print and hand-test the flip coupon first (guide: Test the flip coupon by hand). Draws no longer need a flip at all: the deck is face-down and the peek box reads each drawn card (guide: Read a card). The flip station turns one of the AI's cards over like a page. A low printed fence catches one long edge of the card, the magnet lifts the card by its washer in an arc, and past vertical it lets go: the card topples over the fence, back face up. This is a DESIGN: nothing here has been built, and the checks only prove collisions and reach. It also needs the magnet head to tilt with the card (a passive pitch hinge), which the current head does not do. Bench-test first." },
+  { title: "Print the flip fence (blocked: coupon first)", ref: "Flipping a card", intro: ["fence"], focus: ["fence"], cam: [[-150, -30, 4], 230, [0.4, -1, 0.7]],
     text: "Print flip_fence in PLA+ before the printer becomes the gantry: one low piece, 123 x 52 x 3.5 mm, no supports needed. It has a lip with a face that leans 8 degrees over the card, two guide rails for the landing side, and two tape-down tabs." },
   { title: "Stick the grip strip on", ref: "Flipping a card", intro: ["grip"], focus: ["grip", "fence"], cam: [[-150, -20, 4], 190, [0.5, -1, 0.5]],
     text: "Press a strip of self-adhesive silicone or fine grip tape (about 1.5 mm wide stock, trimmed to 94 mm) into the groove in the catching face. The face grips the card's edge so it pivots instead of slipping. Press it flat: a raised strip changes the lip height." },
@@ -973,6 +993,87 @@ const PIGTAIL_STEPS = [
     text: "Printer off and unplugged. Pull the pigtail off the header and put it away with the magnet, then plug the fan back onto its header. Nothing on the board changed. Then take the magnet head and bracket off the carriage, the camera bracket off the X beam, and the bed liner off the bed; clean the tape residue and cut off the zip ties. Leave the Kapton under the bed clips: it is the USB safety fix from Step 6, not part of the conversion. If the tap station's rubber washer was glued to the bed, remove it (tape is the better choice, README Step 9.3). Check that no bed mesh or Z offset was saved (M500) while the arm was fitted, re-level the bed, spin the part fan with M106, and run a short first-layer test print to confirm the nozzle height is right." },
 ];
 
+// ---------- shared by guides 5 and 6: a card with its washer on the BACK, drawn back-up (face-down) ----------
+function guideCard(wx, wy) {
+  const T = 1.6, plane = (face, z, flip) => { const g = new THREE.PlaneGeometry(wy, wx).rotateZ(Math.PI / 2); const m = new THREE.Mesh(wx > wy ? g : new THREE.PlaneGeometry(wx, wy), new THREE.MeshStandardMaterial({ map: cardTex(face), roughness: 0.6 })); m.position.z = z; if (flip) m.rotation.x = Math.PI; return m; };
+  const ring = new THREE.Shape(); ring.absarc(0, 0, 5.55, 0, Math.PI * 2, false); const hole = new THREE.Path(); hole.absarc(0, 0, 2.6, 0, Math.PI * 2, true); ring.holes.push(hole);
+  return group(mesh(new THREE.BoxGeometry(wx, wy, T), new THREE.MeshStandardMaterial({ color: 0xf3efe6, roughness: 0.7 })), plane(false, T / 2 + 0.01, false), plane(true, -T / 2 - 0.01, true),
+    mesh(new THREE.ExtrudeGeometry(ring, { depth: 1.2, curveSegments: 28, bevelEnabled: false }), mat.steel, 0, 0, T / 2));
+}
+Object.assign(NAME, { cpCard: "Sleeved card, face-down (washer up)", cpMag: "Neodymium magnet (weighed)", cpStrip: "Silicone strips (1 mm)", pkCard: "Card, face-down (washer up)", pkBeam: "What the camera sees", pkMag: "Magnet" });
+Object.assign(ROLE, { cpCard: "the test card: a spare, with a washer", cpMag: "a hand-held magnet whose pull you weighed on the scale", cpStrip: "grip at the foot of each lip's face", pkCard: "lies on the window, its face against the open window", pkBeam: "the camera's cone up through the window", pkMag: "picks the washer on the card's back directly" });
+Object.assign(SHORT, { cpCard: "92.5 x 66.5 mm", cpMag: "20 mm", cpStrip: "1 mm x 95 mm each", pkCard: "63 x 88 mm", pkBeam: "about 110 mm wide at the card", pkMag: "20 mm dia" });
+
+// ---------- guide 5: test the flip coupon by hand (README "Flipping a card", the bench test) ----------
+const CP_X = 47.5, CP_P = [47.5, 0.4, 0.8], CP_R = 33.25;                 // lip 1's middle; the pivot at the card's caught edge; half the card's width
+const cpA = (u) => u <= 4 ? 0 : u <= 5 ? 55 * ease(u - 4) : u <= 6 ? 55 + 45 * ease(u - 5) : u <= 7 ? 100 + 80 * ease(u - 6) : 180;
+function cpCardPose(a) { const r = a * Math.PI / 180, lift = 1.2 * clamp01((a - 120) / 60); return { p: [CP_X, CP_P[1] + CP_R * Math.cos(r), CP_P[2] + CP_R * Math.sin(r) + lift], r: [r, 0, 0] }; }
+const COUPON_STEPS = [
+  { title: "Before you start", ref: "Flipping a card", intro: [], focus: ["coupon", "cpCard", "cpMag"], cam: [[150, 10, 3], 460, [0.3, -1, 0.75]],
+    text: "The full flip fence is blocked until the head can withdraw while the card falls. The coupon needs only your hand: three short lips on one plate, so you learn which lip catches a sleeved card's edge and lets it topple, before anything is built around it. You need a spare sleeved card with a washer (Step 8), a neodymium magnet whose pull you weighed on the kitchen scale (an unpowered 24 V magnet holds nothing), silicone strip, and tape." },
+  { title: "Print the coupon", ref: "Flipping a card", intro: [], focus: ["coupon"], cam: [[150, 5, 3], 380, [0.2, -1, 0.5]],
+    text: "305 x 12 x 6 mm, no supports, 42 minutes. The notches on the rear strip say which lip is which: 1 notch = 8 deg / 3.5 mm (the baseline), 2 notches = 16 deg / 3.5 mm (a steeper lean), 3 notches = 8 deg / 6 mm (a taller lip)." },
+  { title: "Press the silicone strip into the grooves", ref: "Flipping a card", intro: ["cpStrip"], focus: ["cpStrip", "coupon"], cam: [[47, 3, 3], 150, [0.45, -1, 0.5]],
+    text: "Each lip has a 1 mm groove at the foot of its face, where a flat card's edge actually touches. Press a 1 mm self-adhesive silicone strip into it, flush. Test every lip with the strip and without." },
+  { title: "Tape the coupon to the real bed surface", ref: "Flipping a card", intro: [], focus: ["coupon"], cam: [[150, 0, 3], 420, [0.35, -1, 0.9]],
+    text: "Use the same shelf-liner or surface the cards will lie on. The card waits on the +Y side of the lips; the free bed on the -Y side is where it lands. Shuffle which lip you try first each time, so a worn card or a tired hand doesn't favour lip 1." },
+  { title: "Lay a face-down card against lip 1", ref: "Flipping a card", intro: ["cpCard", "cpMag"], focus: ["cpCard", "cpMag", "coupon"], cam: [[47, 20, 8], 230, [0.7, -0.9, 0.7]],
+    text: "Run the DRAW direction first, because that is the one the game needs: the card lies face-down, washer up, with its long edge against the lip's face. Put the magnet on the washer. Face-down to face-up leaves the washer underneath." },
+  { title: "Lift the washer in an arc", ref: "Flipping a card", intro: [], focus: ["cpCard", "cpMag"], cam: [[47, 10, 12], 260, [1, 0.1, 0.25]],
+    text: "Hold the magnet level and lift the washer so the card pivots about its caught edge. A hand's wrist is already a hinge, so also try the magnet fixed level on a block that slides up a square: that is the case the real head has. Note whether the edge slips, and by how many mm." },
+  { title: "Let go past vertical", ref: "Flipping a card", intro: [], focus: ["cpCard", "cpMag"], cam: [[47, 5, 18], 260, [1, 0.1, 0.25]],
+    text: "Past vertical, pull the magnet away and write down WHEN and in which direction you pulled it: a hand hides the two problems that block the full fence (the head in the card's path, and the pull tugging the card). Releasing too early drops the card back." },
+  { title: "It topples: count and record", ref: "Flipping a card", intro: [], focus: ["cpCard", "coupon"], cam: [[47, -10, 6], 300, [1, 0.3, 0.4]],
+    text: "The card should land on the landing side, face-up, washer underneath. Do 20 trials per lip: landed face-up or not, edge slid (mm), card slipped off the washer, landing skew in degrees. 18 of 20 is a screening bar only, not a pass for something that runs on every draw. Picking the lip decides whether the full fence is worth redesigning." },
+];
+function buildCoupon() {
+  const card = guideCard(92.5, 66.5), mag = group(mesh(cyl(10, 10, 15, 36), mat.magnet, 0, 0, 7.5));
+  const strip = group(...[0, 1, 2].map(i => mesh(new THREE.BoxGeometry(95, 1, 1.2), new THREE.MeshStandardMaterial({ color: 0x23262b, roughness: 0.8 }), 47.5 + i * 105, 0.1, 0.8)));
+  const ext = (id, obj, intro) => { addExtra(id, obj, intro, null, null, "coupon"); makeStepLabel(id, obj, new THREE.Vector3(0, 0, id === "cpMag" ? 17 : id === "cpStrip" ? 3 : 3)); };
+  ext("cpStrip", strip, 2); asms.coupon.cpStrip.pose = k => ({ p: [0, 0, 0], r: [0, 0, 0], op: k >= 2 ? 1 : 0, vis: k >= 1 });
+  ext("cpCard", card, 4); ext("cpMag", mag, 4);
+  asms.coupon.cpCard.dyn = u => { const q = cpCardPose(cpA(u)); return { p: q.p, r: q.r, vis: u > 3, op: clamp01((u - 3) * 4) }; };
+  asms.coupon.cpMag.dyn = u => {
+    const a = cpA(Math.min(u, 6)), q = cpCardPose(a), r = a * Math.PI / 180, off = 0.8 + 1.2, away = ease(clamp01(u - 6));
+    return { p: [q.p[0], q.p[1] - off * Math.sin(r), q.p[2] + off * Math.cos(r) + 70 * away], r: q.r, vis: u > 3, op: clamp01((u - 3) * 4) * (1 - away) };
+  };
+}
+function couponParts() { return { coupon: { obj: entries.coupon.obj, intro: -1, pose: () => ({ p: [0, 0, 0], r: [0, 0, 0], op: 1 }) }, ...asms.coupon }; }
+
+// ---------- guide 6: read a drawn card without turning it over (README "Reading a drawn card") ----------
+const PK = { cx: 36.85, cy: 49.85, base: 28, ring: 30, rings: 2, seat: 98 };      // the box's middle; heights from peek_box.scad with two rings
+const PK_LIFT = (u) => { const t = clamp01(u - 5); return t < 0.5 ? 0 : 60 * ease((t - 0.5) * 2); };
+const PEEK_STEPS = [
+  { title: "Before you start", ref: "Reading a drawn card", intro: [], focus: ["peektop", "peekring", "peekbase", "peekcam"], cam: [[40, 50, 40], 520, [1.1, -1, 0.7]],
+    text: "The AI's deck is kept face-down, washer up. To know what it drew, it lays the card FACE-DOWN on this box's window; a second camera inside looks up through the window and reads the face. A person sees only the card's back. Four parts: the base (camera cradle), 1 to 4 rings (shown with two), the top (window and pocket), and the camera. How many rings depends on the camera's measured field of view, which nobody has measured yet." },
+  { title: "Camera into the base", ref: "Reading a drawn card", intro: ["peekcam"], focus: ["peekcam", "peekbase"], cam: [[37, 50, 8], 220, [0.8, -1, 1.1]], fade: { peekbase: 0.3 },
+    text: "The 32 x 32 mm board stands on four posts with the lens up, held by a stop on each edge and M2 nylon screws from above into blind pilot holes (so nothing sticks out under the floor and the box doesn't rock). The posts are at 27 mm pitch, a GUESS: measure the board's holes first. The USB cable leaves through the notch in the short wall; plug the notch with foam if you can see the card's face through it." },
+  { title: "Stack the rings", ref: "Reading a drawn card", intro: ["peekring"], focus: ["peekring", "peekbase"], cam: [[37, 50, 40], 420, [1, -1, 0.7]],
+    text: "Each ring adds 30 mm between the lens and the window and sits on a tongue-and-lip joint with 0.25 mm of play: no glue. A 16:9 frame has to cover 112 mm across the window, which takes about 100 deg of field of view with 1 ring, 72 with 2, 55 with 3 and 44 with 4. Measure the camera's real field of view first (Step 2's test) and print only that many." },
+  { title: "Put the top on and tape the stack down", ref: "Reading a drawn card", intro: ["peektop"], focus: ["peektop"], cam: [[37, 50, 70], 460, [1, -1, 0.6]],
+    text: "The window is 62.9 x 88.9 mm with a 3 mm ledge under the double-sleeved card; the pocket has 1.2 mm of play, a 2.5 mm lead-in and a 3.5 mm rim. Tape the box to the bed and the joints together: the joints are only 0.25 mm loose and nothing locks them. The finished tower is 100 to 170 mm tall, so travel_z must clear it by 10 mm." },
+  { title: "Lay the card in the pocket, face-down", ref: "Reading a drawn card", intro: ["pkCard"], focus: ["pkCard", "peektop"], cam: [[37, 50, 99], 300, [1, -1, 0.6]],
+    text: "The magnet picks the top card of the deck by its washer (back up, so the magnet lands straight on it) and sets it in the pocket: the card's FACE is against the window, its back and the washer face up. Land 0.5 mm high and let the magnet draw the washer up, because the window is open under the card. The bed must not move in Y until the card is picked up again." },
+  { title: "The camera reads the face", ref: "Reading a drawn card", intro: ["pkBeam"], focus: ["pkBeam", "peekcam", "pkCard"], cam: [[37, 50, 60], 560, [1.2, -0.9, 0.35]], fade: { peektop: 0.2, peekring: 0.2, peekbase: 0.2 },
+    text: "The walls are drawn faint here to show the camera's cone. The head is parked and the bed still; the software takes one frame and reads the card. LEDs belong close under the plate (or crossed polarizers on the LEDs and the lens): an LED far below the card makes glare streaks across the art through a glossy sleeve. Every read is logged with the card's landing state." },
+  { title: "Pick it up again", ref: "Reading a drawn card", intro: ["pkMag"], focus: ["pkMag", "pkCard"], cam: [[37, 50, 120], 520, [1, -1, 0.5]],
+    text: "The magnet takes the card out by its washer and carries it to the rack or the battlefield. Nobody saw its face. The card is turned face-up only when it is cast, when everyone sees it anyway. What this does not hide: someone who lifts the box off the bed sees the camera, and a card that drops face-up on the bed shows itself." },
+];
+function buildPeek() {
+  const card = guideCard(63, 88), mag = group(mesh(cyl(10, 10, 15, 36), mat.magnet, 0, 0, 7.5));
+  const beam = group(mesh(cyl(56, 2, 70, 40), new THREE.MeshBasicMaterial({ color: 0xffc65a, transparent: true, opacity: 0.25, depthWrite: false, side: THREE.DoubleSide }), 0, 0, 35));
+  const ext = (id, obj, intro, top) => { addExtra(id, obj, intro, null, null, "peek"); makeStepLabel(id, obj, new THREE.Vector3(0, 0, top)); };
+  ext("pkCard", card, 4, 3); ext("pkBeam", beam, 5, 60); ext("pkMag", mag, 6, 17);
+  asms.peek.pkCard.dyn = u => { const drop = ease(clamp01(u - 3)), z = PK.seat + 0.8 + 50 * (1 - drop) + PK_LIFT(u); return { p: [PK.cx, PK.cy, z], r: [0, 0, 0], vis: u > 3, op: clamp01((u - 3) * 4) }; };
+  asms.peek.pkBeam.dyn = u => ({ p: [PK.cx, PK.cy, PK.base - 4], r: [0, 0, 0], vis: u > 4 && u < 6, op: u <= 5 ? clamp01(u - 4) : clamp01(6 - u) });
+  asms.peek.pkMag.dyn = u => { const t = clamp01(u - 5), z = t < 0.5 ? 160.8 - 60 * ease(t * 2) : 100.8 + PK_LIFT(u); return { p: [PK.cx, PK.cy, z], r: [0, 0, 0], vis: u > 5, op: clamp01((u - 5) * 4) }; };
+}
+function peekParts() {
+  const base = [0, 0, 0], at = (id, intro, stage, fin) => [id, { obj: entries[id].obj, intro, pose: k => ({ p: k >= intro ? fin : stage, r: [0, 0, 0], op: k >= intro ? 1 : 0.3 }) }];
+  return { peekbase: { obj: entries.peekbase.obj, intro: -1, pose: () => ({ p: base, r: [0, 0, 0], op: 1 }) },
+    ...Object.fromEntries([at("peekcam", 1, [-70, PK.cy, 0], [PK.cx, PK.cy, 6]), at("peekring", 2, [-110, 0, 0], [0, 0, PK.base]), at("peektop", 3, [110, 0, PK.base + PK.rings * PK.ring], [0, 0, PK.base + PK.rings * PK.ring])]), ...asms.peek };
+}
+
 // ---------- saved progress and deep links ----------
 const LS_KEY = "divinci-manual-v2";   // v2: the magnet guide gained a step, so v1 "done" flags would point one step early
 let progress = (() => { try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}") || {}; } catch { return {}; } })();   // {guide, guides: {magnet: {done: [bool], last}}}
@@ -997,7 +1098,7 @@ async function copyLink() {
 function updateResume() {
   const b = document.getElementById("resume"), g = progress.guide, info = progress.guides?.[g];
   if (!b || !info || !GUIDE_INFO[g] || (mode === "steps" && G === g)) { if (b) b.style.display = "none"; return; }
-  const n = ({ sleeve: SLEEVE_STEPS, flip: FLIP_STEPS, pigtail: PIGTAIL_STEPS }[g] || MAGNET_STEPS).length;
+  const n = ({ sleeve: SLEEVE_STEPS, flip: FLIP_STEPS, pigtail: PIGTAIL_STEPS, coupon: COUPON_STEPS, peek: PEEK_STEPS }[g] || MAGNET_STEPS).length;
   b.textContent = `Resume: ${GUIDE_INFO[g].title}, step ${(info.last || 0) + 1} of ${n}`; b.style.display = "";
 }
 document.getElementById("resume").onclick = () => { G = progress.guide; step = progress.guides?.[G]?.last || 0; setMode("steps"); };
@@ -1007,7 +1108,7 @@ function applyUrl() {
   const q = new URLSearchParams(START_QUERY), view = q.get("view");
   urlReady = true;
   if (view === "steps") {
-    G = ["sleeve", "flip", "pigtail"].includes(q.get("guide")) ? q.get("guide") : "magnet"; const n = parseInt(q.get("step") || "1", 10); step = Math.max(0, (isNaN(n) ? 1 : n) - 1);
+    G = ["sleeve", "flip", "pigtail", "coupon", "peek"].includes(q.get("guide")) ? q.get("guide") : "magnet"; const n = parseInt(q.get("step") || "1", 10); step = Math.max(0, (isNaN(n) ? 1 : n) - 1);
     const lm = q.get("labels"); if (["all", "current", "off"].includes(lm)) { labelMode = lm; document.getElementById("labels").textContent = "Labels: " + lm; }
     if (q.get("follow") === "0") document.getElementById("follow").checked = false;
     setMode("steps");
