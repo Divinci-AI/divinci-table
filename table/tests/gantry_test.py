@@ -298,6 +298,29 @@ except RuntimeError:
 p.send = orig_send
 ok &= check("F: an error mid-flip still turns the magnet off", fake.sent[-1] == "M107" and not p.magnet)
 
+# ── the peek box: a card is read face-down on a window, without turning it over ──────────────────
+import tempfile as _tf
+PK = {"pocket": [270.0, 60.0], "seat_z": 71.5, "tower_h": 75.0, "camera": "usb-0:1"}
+cfg = dict(gantry.RIG_DEFAULT, min_z=0, magnet_min_z=0, touch_z=2, travel_z=100, peek=dict(PK))
+fake = FakeMarlin("CR-6 Max"); p = gantry.Printer(ser=fake, log=lambda *_: None); p.zero_z(0)
+plog = Path(_tf.mkdtemp()) / "peek.jsonl"
+res = p.peek({"x": 350, "y": 60}, lambda: {"card": "x", "landed": "face-down"}, log_path=plog)
+ok &= check("peek: the card goes to the pocket's x, y and sits seat_z higher than a card on the bed",
+            any(l.startswith("G0 X270.0 Y60.0") for l in fake.sent) and any(l.startswith("G0 Z73.5") for l in fake.sent))
+ok &= check("peek: the card is held again on return (magnet on, the last magnet word is M106)",
+            p.magnet and [l for l in fake.sent if l in ("M106 S255", "M107")][-1] == "M106 S255")
+ok &= check("peek: the read is logged with the landing state", "face-down" in plog.read_text() and '"event": "peek"' in plog.read_text())
+cfg["travel_z"] = 80
+ok &= check("peek: refused when travel_z does not clear the tower by 10 mm", refused(lambda: p.peek_spot()))
+cfg["travel_z"] = 100; cfg["peek"] = dict(PK, pocket=None)
+ok &= check("peek: refused until the box is measured", refused(lambda: p.peek_spot()))
+cfg["peek"] = dict(PK)
+fake = FakeMarlin("CR-6 Max"); p = gantry.Printer(ser=fake, log=lambda *_: None); p.zero_z(0)
+def shaky():
+    p.goto(y=70)
+    return {}
+ok &= check("peek: a head that moves during the read is refused, with the magnet off", refused(lambda: p.peek({"x": 350, "y": 60}, shaky, log_path=plog)) and not p.magnet)
+
 # ── a streaming print owns the serial port ────────────────────────────────────────────────────
 real = gantry.print_running
 gantry.print_running = lambda: True

@@ -79,7 +79,8 @@ RIG_DEFAULT = {"min_z": None, "lens_at_z0_mm": 0, "cam_offset_mm": [0, 0], "foca
                "magnet_min_z": None, "carry_max_s": 90, "magnet_offset_mm": [0, 0],
                "flip": {}, "flip_hinged_head_built": False,
                "camera": {"kind": "canon"}, "footprint_per_mm": None, "deck_box_mm": None,
-               "rack": {"slot0": None, "pitch": 46, "rise": 3.6, "slots": 7, "base_t": 2.0}}
+               "rack": {"slot0": None, "pitch": 46, "rise": 3.6, "slots": 7, "base_t": 2.0},
+               "peek": {"pocket": None, "seat_z": None, "tower_h": None, "camera": None}}
 # min_z is the CAMERA's floor (the lens must clear the bed). The magnet hand has its own floor, magnet_min_z: touch_z is
 #   below min_z by design, because the magnet touches a card while the lens is not on the head. goto(tool="magnet") uses it.
 #   magnet_min_z and travel_z default to None = NOT MEASURED: every magnet Z move, pick, place and flip is refused until they are set.
@@ -94,6 +95,12 @@ ABS_MAGNET_MAX_S = 180                 # no config value may exceed this
 # rack: the printed hand rack (hardware/gantry/parts/hand_rack.scad). slot0 = [x, y] of the centre of slot 0's card,
 #   measured in Step 7; pitch and rise match the .scad. Each slot k sits k*pitch to the right and k*rise higher; a
 #   card leaves and enters its slot sideways, from one pitch to the left, because the next card's shelf covers it.
+# peek: the peek box (hardware/gantry/parts/peek_box.scad), where a drawn card lies face-down on a window and a camera inside reads its face.
+#   pocket   [x, y] of the centre of the card lying in its pocket (bed mm), measured in Step 7
+#   seat_z   how far above the bed the card's underside rests: base_h + rings * ring_h + skirt_h + plate_t from the .scad (the card sits on the ledge)
+#   tower_h  how tall the whole box is (seat_z + the rim): travel_z must clear it by PEEK_CLEARANCE_MM or peek() is refused
+#   camera   how to find the peek camera (a USB port path, NOT an index: two identical cameras swap indexes on reboot); read by the caller's capture function
+PEEK_CLEARANCE_MM = 10.0
 MAGNET_ON, MAGNET_OFF = "M106 S255", "M107"
 
 
@@ -467,6 +474,39 @@ class Printer:
             raise Refused(f"the rack has slots 0..{r['slots'] - 1}")
         x0, y0 = r["slot0"]
         return {"x": x0 + k * r["pitch"], "y": y0, "dz": r["base_t"] + k * r["rise"], "slide_x": -r["pitch"] if k else 0.0}
+
+    def peek_spot(self) -> dict:
+        """Where the card lies in the peek box: place(**peek_spot()) sets it down, pick(**peek_spot()) takes it up again."""
+        k = dict(RIG_DEFAULT["peek"], **(config().get("peek") or {}))
+        if k.get("pocket") is None or k.get("seat_z") is None or k.get("tower_h") is None:
+            raise Refused("measure the peek box (peek.pocket, peek.seat_z, peek.tower_h in gantry.json) first")
+        cfg = config()
+        if cfg.get("travel_z") is None or float(cfg["travel_z"]) < float(k["tower_h"]) + PEEK_CLEARANCE_MM:
+            raise Refused(f"travel_z ({cfg.get('travel_z')}) must clear the peek box ({k['tower_h']} mm tall) by {PEEK_CLEARANCE_MM:g} mm: "
+                          "the head crosses the bed at travel_z and the tower stands under the X beam")
+        return {"x": float(k["pocket"][0]), "y": float(k["pocket"][1]), "dz": float(k["seat_z"])}
+
+    def peek(self, src: dict, capture, log_path: Path | None = None):
+        """Read the card at `src` (pick() arguments) without turning it over: pick it, lay it FACE-DOWN in the peek box, let
+        capture() take the frame with the head parked and the bed still, then pick it up again (the card is held on return).
+        capture() returns whatever the reader makes of the frame; if it is a dict, its keys are copied to the log, which should include
+        `landed` (face-down or not) so a card that tumbled face-up is on the record. The bed must not move in Y while the card lies there."""
+        spot = self.peek_spot()
+        self.pick(**src)
+        self.place(**spot)
+        self.send("M400", timeout=120)
+        before = self.position()
+        result = capture()
+        after = self.position()
+        if any(abs(before[a] - after[a]) > 0.05 for a in "XYZ"):
+            self.magnet_off()
+            raise Refused(f"the head moved while the peek card was being read ({before} -> {after}); the card was left in the box")
+        entry = {"event": "peek", "src": {k: src.get(k) for k in ("x", "y", "dz")}, "spot": spot}
+        if isinstance(result, dict):
+            entry.update({k: v for k, v in result.items() if k not in ("frame",)})
+        gantry_camera.log_frame(log_path or (CACHE / "peek-log.jsonl"), entry)
+        self.pick(**spot)
+        return result
 
     def tap(self, cx: float, cy: float, ccw: bool = False):
         """The held card turns a quarter about its corner pinned at (cx, cy): the magnet swings a quarter circle.

@@ -162,7 +162,7 @@ Design notes for the printer-as-hand version:
   arm plan too.* The box has a **one-card exit slot**: the magnet slides the top card out, and the slot's lip stops
   the card below even when its disc is pulled along.
 - **Rules this forces:** the AI never shuffles or searches its own deck physically (the person does, without
-  looking, and the table logs it), and the software never reads the face-up deck before a draw (logged frames).
+  looking, and the table logs it), and the software reads a card only on the peek box after a draw (logged frames), the deck being face-down.
 - **Tapping with no extra motor:** the magnet sits on a free swivel with light drag. At a tap station a rubber foot
   on the bed pins one corner of the card, and an arc move (G2/G3) a quarter circle around that corner turns the
   card 90°. If that isn't reliable, the MG90S goes back on (it's saved in the list).

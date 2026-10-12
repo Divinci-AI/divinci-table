@@ -383,6 +383,21 @@ report("FAIL" if win_w >= 63.0 or pk["ledge"] < 2.0 else "ok", "the peek window 
 top_z = pk["skirt_h"] + pk["plate_t"]; cx_, cy_ = pk["wall"] + pw_ / 2, pk["wall"] + pl_ / 2
 report("FAIL" if collides(f'intersection(){{ import("{PT}"); translate([{cx_},{cy_},{top_z + 1.7}]) cylinder(d=20, h=15, $fn=48); }}') else "ok",
        "the 20 mm magnet can sit on the washer of a card lying in the peek pocket", f"the pocket's rim is {pk['wall'] + pk['rim_extra']:g} mm thick and {pk['pocket_d']:g} mm tall, 33 mm from the washer")
+# where the box stands on the bed, and how tall it is, against everything else that stands there
+LAYOUT["peek"] = (232.0, 10.0)                       # lower-left of the box's outline: front, between the chute and the deck box, in the person's reach
+PEEK_RINGS = 2                                        # assumed until the camera's field of view is measured (1 to 4)
+pe = pk["rim_extra"]; pk_ow, pk_ol = pw_ + 2 * pk["wall"], pl_ + 2 * pk["wall"]
+peek_rect = (LAYOUT["peek"][0] - pe, LAYOUT["peek"][1] - pe, LAYOUT["peek"][0] + pk_ow + pe, LAYOUT["peek"][1] + pk_ol + pe)
+others = {"deck box": (LAYOUT["deck"][0], LAYOUT["deck"][1], LAYOUT["deck"][0] + 73.3, LAYOUT["deck"][1] + 99.3),
+          "discard chute": (10, -80, 84.5, 10), "flip fence": (P.fence_x, P.fence_y, P.fence_x + 123.3, P.fence_y + 51.5),
+          "hand rack": (LAYOUT["rack_x"][0], LAYOUT["rack_y"][0], LAYOUT["rack_x"][1], LAYOUT["rack_y"][1])}
+hits = [n for n, (a0, b0, a1, b1) in others.items() if peek_rect[0] < a1 and a0 < peek_rect[2] and peek_rect[1] < b1 and b0 < peek_rect[3]]
+gap_deck = LAYOUT["deck"][0] - peek_rect[2]
+report("FAIL" if hits or peek_rect[2] > 400 or peek_rect[3] > 400 else "ok", "the peek box's footprint overlaps nothing else on the bed and stays on it",
+       ("overlaps " + ", ".join(hits)) if hits else f"outline x {peek_rect[0]:.0f}..{peek_rect[2]:.0f}, y {peek_rect[1]:.0f}..{peek_rect[3]:.0f}; {gap_deck:.0f} mm from the deck box; the fence is {P.fence_y - peek_rect[3]:.0f} mm behind it", id="peek-layout")
+tower_h = pk["base_h"] + PEEK_RINGS * pk["ring_h"] + pk["skirt_h"] + pk["plate_t"] + pk["pocket_d"]
+report("WARN", "travel_z must clear the peek box with the rings assumed, and nothing measures it yet",
+       f"{PEEK_RINGS} rings stand {tower_h:.0f} mm tall: travel_z in gantry.json must be at least {tower_h + 10:.0f} (gantry.py refuses a peek below that); the deck box is ~118 mm, so a travel_z that clears the deck box clears this too until the box has 4 rings ({pk['base_h'] + 4 * pk['ring_h'] + pk['skirt_h'] + pk['plate_t'] + pk['pocket_d']:.0f} mm)")
 need_w = max(win_l, win_w * 16 / 9)                   # a 16:9 frame: the window's short side fills the frame's HEIGHT, so the width must cover 16/9 of it
 fovs = lambda n: 2 * math.degrees(math.atan(need_w / 2 / (pk["base_h"] + n * pk["ring_h"] + pk["skirt_h"] + pk["plate_t"] - 22.0)))
 report("WARN", "the peek camera's field of view is unmeasured, so how many rings it needs is not decided",

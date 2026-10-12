@@ -341,11 +341,12 @@ touches a card. Write what you measured to `table/.cache/gantry.json`:
   fence (Z where the magnet's face is 50 mm over the bed), so the head never crosses the fence diagonally.
 - `rack`: `{"slot0": [x, y]}`, the carriage position over the centre of a card in the rack's leftmost slot. Pitch
   (46) and rise (3.6) are already the .scad's numbers; change them here if you change them there.
+- `peek`: `{"pocket": [x, y], "seat_z": ..., "tower_h": ..., "camera": "<usb port path>"}`: the centre of a card lying in the peek box's pocket (with a sleeved spare card in it, put the magnet over its washer and read the position), how far above the bed the card rests (base + rings + top, measured with the calipers, not the .scad), how tall the whole box is, and which camera it is (by USB port path: two identical cameras swap indexes on reboot). `travel_z` must be at least `tower_h` + 10 or `peek()` is refused.
 
 ![Bed layout](img/bed-layout.svg)
 
 **Bed layout.** The hand rack along the **back** edge (the AI's side), fence toward the person. The discard chute
-hooks over the **front** edge at the left; the deck box at the front right. The battlefield is the middle, about
+hooks over the **front** edge at the left; the deck box at the front right, with the **peek box** beside it (bed x 230-308, y 8-112, `LAYOUT["peek"]` in `fit_check.py`, which checks it against everything else). The peek box takes one or two of the front battlefield spots; the tower is 100-170 mm tall, so `travel_z` is set above it. The battlefield is the middle, about
 400 × 260 mm: roughly ten card spots plus the tap station's rubber washer. Tape everything down on the shelf liner.
 
 ## Step 8 — Sleeve the AI's deck
@@ -375,7 +376,8 @@ M1 uses the table's existing fixed camera; the head camera waits until the resul
 4. **The hand rack:** fill all seven slots, then take out and put back slots 6, 0 and 3 five times each
    (`pick(**p.rack_slot(k))`, `place(**p.rack_slot(k))`). Pass: no card drags the one above or below it along, and
    every card goes back fully into its slot.
-5. Record the numbers in the goal doc's section M. Nothing else gets ordered until the doubles test passes.
+5. **The peek box (once built):** 20 times, take the top card of the deck face-down, lay it in the pocket, hold the head still for the camera, and take it out again to a rack slot (`p.peek(src, capture)`). Pass: the card lands inside the pocket 20 of 20 times (without the rim catching it), the recogniser reads it correctly, and `.cache/peek-log.jsonl` has 20 lines with `landed` face-down.
+6. Record the numbers in the goal doc's section M. Nothing else gets ordered until the doubles test passes.
 
 ## Flipping a card (edge flip) — DESIGN ONLY, not built, not bench-tested
 
@@ -481,6 +483,7 @@ The tower is 76 to 170 mm tall and **is not yet in `fit_check`'s layout or the g
 - **Before printing anything, run `fit_check.py`.** It ends with a PRE-PRINT GATE: failures are listed in `fit_check_ledger.json`, the
   run exits 0 only when every failure is on the ledger and every ledger entry still fails, and it prints which parts are cleared to
   print. `fit_check_gate_test.py` proves the gate in both directions.
+- **Done (2026-10-11), not run on hardware:** `Printer.peek(src, capture)` in `gantry.py` picks the card at `src`, lays it face-down in the peek box, parks the head, calls `capture()` (which must return the reader's result; give it `landed` for the card's landing state), refuses if the head moved during the read, logs the read to `.cache/peek-log.jsonl`, and picks the card up again. `peek_spot()` refuses until `peek.pocket/seat_z/tower_h` are measured and `travel_z` clears the tower by 10 mm. 6 checks in `gantry_test.py`. **Still to write:** the capture function itself (open the camera by USB port path and run the recogniser on the frame), and the draw sequence that strings deck pick, peek, rack placement together.
 - `gantry.py scan` assumes the camera rides on the **carriage**. With the camera on the **X beam**, X moves don't move
   the camera: use `snap` at the top of Z, and the scan needs a `camera_on: "beam"` setting so it moves only Z and Y.
 

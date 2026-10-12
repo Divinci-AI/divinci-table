@@ -42,6 +42,8 @@
 <rect x="60.0" y="555.0" width="93.1" height="25.0" fill="#e8dccd" stroke="#8a5a2b" stroke-width="1.5"/>
 <rect x="60.0" y="580.0" width="93.1" height="42.5" fill="#efe6da" stroke="#8a5a2b" stroke-width="1.5" stroke-dasharray="4 3"/>
 <rect x="425.0" y="505.0" width="95.0" height="72.5" fill="#e6efe6" stroke="#3e7a4f" stroke-width="1.5"/>
+<rect x="337.5" y="440.0" width="97.5" height="130.0" fill="#efe6f4" stroke="#6b4a8a" stroke-width="1.5"/>
+<text x="386.0" y="508.0" font-size="12" text-anchor="middle" font-weight="700" fill="#6b4a8a">peek</text>
 <text x="300.0" y="652.0" font-size="12" text-anchor="middle" font-weight="700" fill="#555">FRONT: the person sits here</text>
 <text x="578.0" y="100.0" font-size="14" text-anchor="start" font-weight="700" fill="#1a1a1a">Hand rack (back edge)</text>
 <text x="578.0" y="118.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">seven slots, numbered 0–6; grey dot = the washer</text>
@@ -55,7 +57,11 @@
 <text x="578.0" y="388.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">hooks over the front edge; cards slide</text>
 <text x="578.0" y="404.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">off into a tray on the table below</text>
 <text x="578.0" y="460.0" font-size="14" text-anchor="start" font-weight="700" fill="#1a1a1a">Deck box (front right)</text>
-<text x="578.0" y="478.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">face-up deck under its lid; the magnet</text>
+<text x="578.0" y="478.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">face-down deck (washer up) under its lid; the magnet</text>
 <text x="578.0" y="494.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">slides the top card out of the open strip</text>
+<text x="578.0" y="530.0" font-size="14" text-anchor="start" font-weight="700" fill="#1a1a1a">Peek box (front, beside the deck box)</text>
+<text x="578.0" y="548.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">a drawn card lies face-down on its window;</text>
+<text x="578.0" y="564.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">a camera inside reads it. 100-170 mm tall:</text>
+<text x="578.0" y="580.0" font-size="13" text-anchor="start" font-weight="400" fill="#333">it takes one or two battlefield spots.</text>
 <text x="24.0" y="688.0" font-size="12" text-anchor="start" font-weight="400" fill="#555">The bed moves toward / away from you (Y); the magnet head moves left / right (X). Keep people's cards off the bed.</text>
 </svg>
