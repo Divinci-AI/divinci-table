@@ -76,6 +76,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Printed deck box follower plate | 1 | 67.5 × 93.5 × 3.0 mm | rides on four springs, keeping the top card at the exit slot |
 | Printed discard chute | 1 | 74.5 × 90.1 × 52.4 mm; 35° ramp; `bed_t` 6 mm TBD | graveyard and exile go off the bed's edge into a tray |
 | Printed hand rack | 1 | 349.3 × 40.0 × 111.3 mm; 7 slots, 46 mm pitch; `card_t` 1.6 mm TBD | the AI's hand: seven cards in a staircase on the bed's back edge, faces hidden by its fence |
+| Printed flip coupon | 1 | 305 × 12 × 6 mm; three lips: 8°/3.5 mm, 16°/3.5 mm, 8°/6 mm | tests by hand which lip turns a sleeved card (see the bench test below); print this before the full flip fence |
 | Printed sleeving jig tray | 1 | 72.9 × 98.9 × 9.6 mm; card pocket 68.1 × 94.1 mm | holds a card while its washer goes on |
 | Printed sleeving jig bridge | 1 | 72.9 × 24.0 × 5.0 mm; hole for an 11.1 mm washer | drops every washer at the card's centre |
 | Printed lead clip | 4 | 14 × 16 × 7.8 mm; holds 5 mm wire | the magnet's leads, with slack for the swivel |
@@ -208,6 +209,9 @@ sleeves and bed edge, change the numbers at the top of a file, and re-render wit
   the person's side hides the faces. Print it standing on the fence (the STL is already turned that way): the slots
   become upright slits and need no supports. It is ~347 mm long, so it uses most of the 400 mm bed; set `card_t` to
   the same number as the deck box.
+- **Printed flip coupon** ([`flip_coupon.scad`](parts/flip_coupon.scad)): three 95 mm lips (longer than the card, 10 mm apart) on one 305 x 12 x 6 mm piece
+  (1 notch: 8 degrees, 3.5 mm; 2 notches: 16 degrees, 3.5 mm; 3 notches: 8 degrees, 6 mm), no supports. It is for the hand
+  bench test under "Flipping a card", not for the gantry: print it before the full flip fence, which stays blocked until the flip design changes.
 - **Printed sleeving jig tray** ([`sleeve_jig.scad`](parts/sleeve_jig.scad)) and **Printed sleeving jig bridge**
   (the same file, `part = "bridge"`): put every washer at the centre of the card's back (Step 8), which the deck box
   and the rack both rely on. (Revised 2026-10-08: the tray is one piece, with thumb notches in its end walls only, and has stops so the bridge centres on the card. See [`hardware/DESIGN-REVIEW-2026-10-08.md`](../DESIGN-REVIEW-2026-10-08.md).)
@@ -419,7 +423,7 @@ rubber or silicone on its face. (2) Sleeve one of your own *spare* cards with a 
 (unpowered, on a handle, with a small hinge you can feel: a bent paper clip is enough) on the washer; stand the card's long edge against the fence face. (4) Lift
 the magnet in an arc so the card pivots about the edge; at about 110 degrees pull the magnet away and let go. (5) Repeat 20 times. Record for each flip: success
 (landed back up, washer on top, inside the rails), the edge slid or not (and how far in mm), the washer height needed to get past the fence, the card
-slipped off the washer, landing skew in degrees. Success threshold: 18 of 20 with no card damage. If the edge slips, add grip or a steeper face; if the card
+slipped off the washer, landing skew in degrees. Success threshold: 18 of 20 with no card damage (a screening bar, not a pass for something that runs on every draw). **Coupon notes (2026-10-11 review):** an unpowered 24 V magnet holds nothing and a fridge magnet is far weaker than the design's 3 N, so use a neodymium magnet whose pull you weighed (Step 9 scale) and expect releasing it to tug the card. A hand's wrist is already a hinge, so also try the magnet fixed level on a block that slides up a square: that is the no-hinge case. Write down which way and when you pulled the magnet away each time (the ledger's two blockers are about the head being in the card's path). Tape the coupon on the real bed surface, shuffle the lip order, and run the **draw direction first (face-down to face-up, washer on top, ending washer underneath)**; the face-up to face-down direction above is the reverse. A silicone strip is 1 mm and sits in the groove at the foot of the face; compare strip against no strip. If the edge slips, add grip or a steeper face; if the card
 flexes off the washer, release earlier; if it will not topple, raise the release angle; if it only works with a hinged magnet and never without, the
 hinge is confirmed as a requirement. Do not build the hinged head until this passes.
 

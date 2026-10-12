@@ -892,6 +892,25 @@
    "stl": "hardware/gantry/parts/stl/hand_rack.stl"
   },
   {
+   "id": "flip-coupon",
+   "name": "Printed flip coupon",
+   "qty": 1,
+   "source": "print",
+   "status": "to-print",
+   "route": [
+    "magnet"
+   ],
+   "role": "three short lips (8 deg/3.5 mm, 16 deg/3.5 mm, 8 deg/6 mm) to test by hand which one turns a sleeved card; printed before the full flip fence, which is blocked until the flip design changes",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    }
+   ],
+   "scad": "hardware/gantry/parts/flip_coupon.scad",
+   "stl": "hardware/gantry/parts/stl/flip_coupon.stl"
+  },
+  {
    "id": "sleeve-jig-tray",
    "name": "Printed sleeving jig tray",
    "qty": 1,
