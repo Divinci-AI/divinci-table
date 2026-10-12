@@ -23,7 +23,7 @@
       "id": "bolt-length",
       "blocks": [],
       "owner": "michael",
-      "review_by": "2026-10-12",
+      "review_by": "2026-10-14",
       "reason": "the BOM lists 1 inch bolts and the stack leaves 0.0 mm of margin; buy 1-1/2 inch (hardware only: blocks assembly, not printing).",
       "hardware_only": true
     },

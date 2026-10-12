@@ -95,6 +95,8 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | JST-XH 2.54 mm 2-pin connector kit with 22 AWG pre-crimped wires | 1 | the pigtail's plug for the part-fan header (most likely a 2-pin JST-XH; confirm by looking at the header first). [amazon.com/dp/B0CM315RFP](https://www.amazon.com/dp/B0CM315RFP) |
 | Thermally conductive epoxy (MG Chemicals 8329TCM, 6 mL) | 1 | bonds the thermal fuse to the magnet's body. [amazon.com/dp/B00HTV1TXA](https://www.amazon.com/dp/B00HTV1TXA) |
 | Gardner Bender 22-18 AWG heat-shrink butt splices (8-pack) | 1 | crimped joints for the fuse leads, $7.24 at Home Depot (AMT-4120) |
+| Hard to Find Fastener 1/4"-20 × 1-1/2" zinc hex bolt (100-pack) | 1 | the swivel's axle, long enough for the stack (the 1" bolts leave no margin); $13.79 in the Amazon cart. [amazon.com/dp/B00L1L84BY](https://www.amazon.com/dp/B00L1L84BY) |
+| Kynup 6 inch digital caliper | 1 | measure sleeved cards, the bed edge and the printed parts (Step 3); $16.99 in the Amazon cart. [amazon.com/dp/B09964YBMF](https://www.amazon.com/dp/B09964YBMF) |
 
 **Hardware store (The Home Depot, via Instacart) — $58.96**
 

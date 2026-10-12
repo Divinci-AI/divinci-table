@@ -398,6 +398,46 @@
    ]
   },
   {
+   "id": "hex-bolts-long",
+   "name": "Hard to Find Fastener 1/4\"-20 × 1-1/2\" zinc hex bolt (100-pack)",
+   "qty": 1,
+   "source": "amazon",
+   "status": "to-buy",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "the swivel's axle at the length the stack needs: the 1\" Everbilt bolts leave 0.0 mm of margin (fit-check ledger bolt-length). In the Amazon cart (not ordered), $13.79.",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 4"
+    }
+   ],
+   "price": 13.79,
+   "asin": "B00L1L84BY"
+  },
+  {
+   "id": "calipers",
+   "name": "Kynup 6 inch digital caliper",
+   "qty": 1,
+   "source": "amazon",
+   "status": "to-buy",
+   "route": [
+    "magnet",
+    "arm"
+   ],
+   "role": "measure sleeved cards with their washers, the bed edge and the printed parts before printing the deck box and chute (card_t and bed_t are placeholders). In the Amazon cart (not ordered), $16.99.",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    }
+   ],
+   "price": 16.99,
+   "asin": "B09964YBMF"
+  },
+  {
    "id": "wing-nuts",
    "name": "Everbilt 1/4\"-20 (6.35 mm) wing nut (4-pack)",
    "qty": 1,
