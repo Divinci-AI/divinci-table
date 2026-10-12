@@ -577,7 +577,8 @@ function buildExtras() {
   addExtra("wire", group(tube(0, 1, red), tube(1.9, -1, blk)), stepIdx("Extend the leads"), null, null);
   { const d = makeDiode(Math.hypot(9, 1.9)), rd = new THREE.Vector3(0, 9, -1.9).normalize(); d.position.set(...pts[7].toArray().map((v, i) => i === 2 ? v + 0.95 : v)); d.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), rd);   // black lead -> red lead
     addExtra("diodeOnLeads", group(d), stepIdx("Extend the leads"), null, null); makeStepLabel("diodeOnLeads", asm.diodeOnLeads.obj, new THREE.Vector3(-53, 39.9 + YB, 63)); }
-  { const f = hw.fuse.clone(); f.position.set(-12.4, 0, 5.5); f.rotation.y = Math.PI / 2;   // lying along the body's side, on the face away from the leads
+  { const f = hw.fuse.clone(); f.children.filter(c => c.isCSS2DObject).forEach(c => f.remove(c));   // the clone carried the parts-list label (same element) into every guide
+    f.position.set(-12.4, 0, 5.5); f.rotation.y = Math.PI / 2;   // lying along the body's side, on the face away from the leads
     const kap = new THREE.MeshStandardMaterial({ color: 0xd9902a, roughness: 0.35, transparent: true, opacity: 0.3 });
     addExtra("fuseOnMagnet", group(f), stepIdx("Bond the thermal fuse"), null, null);
     addExtra("fuseKapton", group(mesh(new THREE.BoxGeometry(0.2, 9, 12), kap, -10.2, 0, 7.5), mesh(cyl(2.5, 2.5, 12), kap, -12.4, 0, 7.5)), stepIdx("Bond the thermal fuse"), null, null); }
