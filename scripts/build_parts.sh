@@ -13,6 +13,9 @@ render() {                                    # name, output, extra args…  (ou
 }
 for f in magnet_swivel deck_box discard_chute hand_rack lead_clip flip_fence flip_coupon; do render "$f" "stl/$f.stl" "$f.scad"; done
 render "deck_box follower" stl/deck_box_follower.stl -D 'part="follower"' deck_box.scad
+render "peek_box top" stl/peek_box_top.stl -D 'part="top"' peek_box.scad
+render "peek_box base" stl/peek_box_base.stl -D 'part="base"' peek_box.scad
+render "peek_box ring" stl/peek_box_ring.stl -D 'part="ring"' peek_box.scad
 render "sleeve_jig tray" stl/sleeve_jig_tray.stl sleeve_jig.scad
 render "sleeve_jig bridge" stl/sleeve_jig_bridge.stl -D 'part="bridge"' sleeve_jig.scad
 render "fit_gauge slits" stl/fit_gauge_slits.stl -D 'part="slits"' fit_gauges.scad

@@ -366,6 +366,30 @@ cfgp = HERE.parent.parent / "table" / ".cache" / "gantry.json"; offs = (_json.lo
 report("WARN" if not offs else "ok", "magnet_offset_mm (magnet axis relative to the nozzle) is measured, so reach to the deck, rack and chute can be checked",
        "not measured: every reach check assumes [0, 0]. The chute needs the magnet at least ~20 mm in FRONT of the nozzle (Y offset <= -20) to drag a card onto it; bed Y can't go below 0" if not offs else f"offset {offs}", id="magnet-offset-unmeasured")
 
+# 7.7 peek box: a card lies face-down on a window, a camera inside reads its face; the magnet picks the washer on top
+print("7.7 peek box: the pieces stack, the window sees the card, the magnet reaches the washer")
+pk = scad_vars("peek_box.scad"); PT, PB, PR = STL / "peek_box_top.stl", STL / "peek_box_base.stl", STL / "peek_box_ring.stl"
+def pair(lower, upper, z):                           # does `upper`, set on `lower` at height z, overlap it?
+    return collides(f'intersection(){{ import("{lower}"); translate([0,0,{z}]) import("{upper}"); }}')
+joints = [("base+ring", pair(PB, PR, pk["base_h"])), ("ring+ring", pair(PR, PR, pk["ring_h"])), ("ring+top", pair(PR, PT, pk["ring_h"])), ("base+top", pair(PB, PT, pk["base_h"]))]
+bad_j = [n for n, c in joints if c]
+report("FAIL" if bad_j else "ok", "peek box pieces stack on their tongue-and-lip joints without overlapping (base, ring, top; ring on ring)",
+       ("overlap at: " + ", ".join(bad_j) + ": check joint_gap and tongue_h in peek_box.scad") if bad_j else "tongue and lip clear each other at every joint", id="peek-joints")
+off_x = collides(f'intersection(){{ import("{PR}"); translate([{pk["wall"] - 0.6},0,{pk["ring_h"]}]) import("{PR}"); }}')
+report("ok" if off_x else "FAIL", "negative control: a ring shifted 1.8 mm sideways DOES overlap the one below (the joint check can fail)", "the lips and tongues really do engage")
+pw_, pl_ = pk["card_w"] + 2 * pk["clear"], pk["card_l"] + 2 * pk["clear"]; win_w, win_l = pw_ - 2 * pk["ledge"], pl_ - 2 * pk["ledge"]
+report("FAIL" if win_w >= 63.0 or pk["ledge"] < 2.0 else "ok", "the peek window leaves a ledge of at least 2 mm under the sleeved card and shows nearly all of its face",
+       f"window {win_w:.1f} x {win_l:.1f} mm under a {pk['card_w']:g} x {pk['card_l']:g} mm sleeved card (bare card 63 x 88): ledge {pk['ledge']:g} mm")
+top_z = pk["skirt_h"] + pk["plate_t"]; cx_, cy_ = pk["wall"] + pw_ / 2, pk["wall"] + pl_ / 2
+report("FAIL" if collides(f'intersection(){{ import("{PT}"); translate([{cx_},{cy_},{top_z + 1.7}]) cylinder(d=20, h=15, $fn=48); }}') else "ok",
+       "the 20 mm magnet can sit on the washer of a card lying in the peek pocket", f"the pocket's rim is {pk['wall'] + pk['rim_extra']:g} mm thick and {pk['pocket_d']:g} mm tall, 33 mm from the washer")
+need_w = max(win_l, win_w * 16 / 9)                   # a 16:9 frame: the window's short side fills the frame's HEIGHT, so the width must cover 16/9 of it
+fovs = lambda n: 2 * math.degrees(math.atan(need_w / 2 / (pk["base_h"] + n * pk["ring_h"] + pk["skirt_h"] + pk["plate_t"] - 22.0)))
+report("WARN", "the peek camera's field of view is unmeasured, so how many rings it needs is not decided",
+       f"to see the whole {win_w:.0f} x {win_l:.0f} mm window in a 16:9 frame the lens must cover {need_w:.0f} mm across: it needs a horizontal field of view of "
+       + ", ".join(f"{fovs(n):.0f} deg with {n} ring(s)" for n in (1, 2, 3, 4)) + " (measured to the card's face, lens assumed 22 mm above the floor). The listing claims 103 deg (probably the DIAGONAL: a 16:9 frame then needs about 108 deg diagonal for 1 ring), one reviewer measured about 50: "
+       "run Step 2's field-of-view test on this camera before choosing, and measure the board's hole pitch for cam_hole", id="peek-fov-unmeasured")
+
 # ── the gate: a failure may only pass if it is written down, and a written-down failure that stopped failing must be removed ──
 import os
 LEDGER = Path(os.environ.get("FIT_CHECK_LEDGER") or HERE / "fit_check_ledger.json")

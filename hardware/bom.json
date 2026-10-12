@@ -816,7 +816,7 @@
    "route": [
     "magnet"
    ],
-   "role": "holds the AI's shuffled deck face-up and covered; the magnet slides the top card out through a slot one card thick, so the card below can't follow",
+   "role": "holds the AI's shuffled deck face-down (washer up) and covered; the magnet slides the top card out through a slot one card thick, so the card below can't follow",
    "used_in": [
     {
      "doc": "manual",
@@ -909,6 +909,44 @@
    ],
    "scad": "hardware/gantry/parts/flip_coupon.scad",
    "stl": "hardware/gantry/parts/stl/flip_coupon.stl"
+  },
+  {
+   "id": "peek-box",
+   "name": "Printed peek box",
+   "qty": 1,
+   "source": "print",
+   "status": "to-print",
+   "route": [
+    "magnet"
+   ],
+   "role": "a top (card window + pocket), a base (camera cradle) and 1 to 4 stacking rings: a card lies face-down on the window and the peek camera reads its face from below, so the AI reads a drawn card without turning it. The ring count waits for the camera's measured field of view.",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    }
+   ],
+   "scad": "hardware/gantry/parts/peek_box.scad",
+   "stl": "hardware/gantry/parts/stl/peek_box_top.stl"
+  },
+  {
+   "id": "peek-camera",
+   "name": "innomaker 1080p 32 \u00d7 32 mm UVC camera (peek box)",
+   "qty": 1,
+   "source": "amazon",
+   "asin": "B0CNCSFQC1",
+   "price": 18.99,
+   "status": "to-buy",
+   "route": [
+    "magnet"
+   ],
+   "role": "the same model as the head camera, mounted in the peek box's base looking up at the card window. Not in the cart yet. Also needs a 5 V USB LED strip and a USB extension; neither chosen.",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 3"
+    }
+   ]
   },
   {
    "id": "sleeve-jig-tray",

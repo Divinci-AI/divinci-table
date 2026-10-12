@@ -1,4 +1,4 @@
-// Deck box: a card magazine for the AI's face-up deck (README Step 3, goal doc section M).
+// Deck box: a card magazine for the AI's face-down deck (washer up) (README Step 3, goal doc section M).
 // A follower plate on four springs pushes the stack up against the lid (rear) and two side lips (front).
 // The front wall stops exactly one card below the lips, so the magnet can slide out the TOP card only:
 // the card under it, even if its steel disc is pulled along, hits the front wall.

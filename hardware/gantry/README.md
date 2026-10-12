@@ -72,11 +72,13 @@ Prices as seen on 2026-10-04; any equivalent part works.
 |---|---|---|---|
 | Printed magnet swivel | 1 (+1 spare) | 24 × 24 × 15.1 mm; hex slot 11.6 mm AF; top hole 7 mm | holds the magnet and turns in its bracket |
 | Printed swivel plug | 1 per swivel (10 printed in 5 widths, marked 1-5 notches on the handle) | T-shaped, 10.7 x 11.3 x 8.2 mm; slides into the swivel's open side after the bolt; 1.9 mm pin hole | closes the hex channel and the slot so the bolt cannot slide out; keep the width that goes in with a firm push, then LOCK it with a 1.75 mm filament pin (plug hole -> the swivel's floor hole; for a swivel printed before the pilot hole existed, drill it through the plug with a 1.8 mm bit, or use super glue). `parts/swivel_plug_lib.scad` |
-| Printed deck box with a one-card exit slot | 1 | 73.3 × 99.3 × 117.8 mm; `card_t` 1.6 mm TBD | the AI's shuffled deck, face-up and covered; one card out at a time |
+| Printed deck box with a one-card exit slot | 1 | 73.3 × 99.3 × 117.8 mm; `card_t` 1.6 mm TBD | the AI's shuffled deck, **face-down (washer up)** under a lid; one card out at a time |
 | Printed deck box follower plate | 1 | 67.5 × 93.5 × 3.0 mm | rides on four springs, keeping the top card at the exit slot |
 | Printed discard chute | 1 | 74.5 × 90.1 × 52.4 mm; 35° ramp; `bed_t` 6 mm TBD | graveyard and exile go off the bed's edge into a tray |
 | Printed hand rack | 1 | 349.3 × 40.0 × 111.3 mm; 7 slots, 46 mm pitch; `card_t` 1.6 mm TBD | the AI's hand: seven cards in a staircase on the bed's back edge, faces hidden by its fence |
 | Printed flip coupon | 1 | 305 × 12 × 6 mm; three lips: 8°/3.5 mm, 16°/3.5 mm, 8°/6 mm | tests by hand which lip turns a sleeved card (see the bench test below); print this before the full flip fence |
+| Printed peek box (3 kinds of piece: `top`, `base`, `ring`) | 1 top, 1 base, 1 to 4 rings (print 2 first) | 76.9 × 102.9 mm top (73 × 99 below it); top 13.5 mm, base 31 mm, each ring 33 mm (`peek_box.scad`) | a window the AI's drawn card lies face-down on, with a camera looking up through it: the AI reads a card without anyone seeing its face |
+| innomaker 1080p 32 × 32 mm UVC camera (peek box) (the same model as the head camera) | 1 more | 32 × 32 mm, 4 × M2 holes | the peek camera: mounted in the peek box's base, looking up |
 | Printed sleeving jig tray | 1 | 72.9 × 98.9 × 9.6 mm; card pocket 68.1 × 94.1 mm | holds a card while its washer goes on |
 | Printed sleeving jig bridge | 1 | 72.9 × 24.0 × 5.0 mm; hole for an 11.1 mm washer | drops every washer at the card's centre |
 | Printed lead clip | 4 | 14 × 16 × 7.8 mm; holds 5 mm wire | the magnet's leads, with slack for the swivel |
@@ -194,7 +196,7 @@ sleeves and bed edge, change the numbers at the top of a file, and re-render wit
   100% infill, top hole up. The magnet screws on underneath with the M3 screw, dropped in through the top hole;
   the 1/4" bolt slides in from the side, head first and thread up (the hex slot takes the head, a keyhole slot in the ceiling takes the thread), so the bolt turns *with* the swivel.
 - **Printed deck box with a one-card exit slot** ([`deck_box.scad`](parts/deck_box.scad)): a card magazine. A lid
-  over the rear covers only what is behind the washer's reach (the open front strip must extend past the top card's centre by the magnet's radius, or the magnet cannot land on the washer: fixed 2026-10-08); see the open question in `hardware/DESIGN-REVIEW-2026-10-08.md` about the deck's orientation; side lips hold the top card down, and the
+  over the rear covers only what is behind the washer's reach (the open front strip must extend past the top card's centre by the magnet's radius, or the magnet cannot land on the washer: fixed 2026-10-08); the deck is loaded face-down, washer up (decided 2026-10-11: see "Reading a drawn card"; the open question in `hardware/DESIGN-REVIEW-2026-10-08.md` is settled by it); side lips hold the top card down, and the
   front wall stops exactly one card below them, so only the top card can slide out. Set `card_t` from ten sleeved
   cards with their discs, measured together.
 - **Printed deck box follower plate** (the same file, `part = "follower"`): sits on four springs from the
@@ -212,6 +214,7 @@ sleeves and bed edge, change the numbers at the top of a file, and re-render wit
 - **Printed flip coupon** ([`flip_coupon.scad`](parts/flip_coupon.scad)): three 95 mm lips (longer than the card, 10 mm apart) on one 305 x 12 x 6 mm piece
   (1 notch: 8 degrees, 3.5 mm; 2 notches: 16 degrees, 3.5 mm; 3 notches: 8 degrees, 6 mm), no supports. It is for the hand
   bench test under "Flipping a card", not for the gantry: print it before the full flip fence, which stays blocked until the flip design changes.
+- **Printed peek box** ([`peek_box.scad`](parts/peek_box.scad); `part = "top"`, `"base"`, `"ring"`): stack base, then 1 to 4 rings, then top; the joints are tongue-and-lip, no glue, and the whole box is taped to the bed. Print the top and the base with 3 walls, 20% infill, no supports (the base prints floor-down; rings and top print as modelled, rings with a brim because they stand on a 1 mm lip; the top's ledge has a 45° underside so it needs no support). The pocket is for the double-sleeved card, face-down; the window leaves a 3 mm ledge under the sleeve. How many rings depends on the camera's real field of view (Step 2's test): a 16:9 frame has to cover 110 mm across the window, which takes about 100° with 1 ring, 72° with 2, 55° with 3 and 44° with 4, measured to the card's face (`fit_check.py` prints this). The listing's 103° is probably the *diagonal*, which is only about 95° across, so expect 2 rings, and 4 if the reviewer's 50° is right. A known 2.1 mm M12 lens (roughly 110-120° diagonal) is the alternative; run the field-of-view test before printing any ring. Run the sensor's long side along the box's 99 mm direction. Measure the camera board's M2 hole pitch with the calipers and set `cam_hole` (27 mm is a guess) before printing the base. See "Reading a drawn card".
 - **Printed sleeving jig tray** ([`sleeve_jig.scad`](parts/sleeve_jig.scad)) and **Printed sleeving jig bridge**
   (the same file, `part = "bridge"`): put every washer at the centre of the card's back (Step 8), which the deck box
   and the rack both rely on. (Revised 2026-10-08: the tray is one piece, with thumb notches in its end walls only, and has stops so the bridge centres on the card. See [`hardware/DESIGN-REVIEW-2026-10-08.md`](../DESIGN-REVIEW-2026-10-08.md).)
@@ -427,12 +430,36 @@ slipped off the washer, landing skew in degrees. Success threshold: 18 of 20 wit
 flexes off the washer, release earlier; if it will not topple, raise the release angle; if it only works with a hinged magnet and never without, the
 hinge is confirmed as a requirement. Do not build the hinged head until this passes.
 
+## Reading a drawn card (peek box) — DESIGN, not built, not bench-tested
+
+The deck is face-down (washer up), so the magnet lands on the washer directly and no flip is needed on a draw. To play the card the AI must know what it is: the peek box does that without turning the card.
+
+**Sequence.** (1) Pick the top card of the deck at its washer. (2) Carry it to the peek box and lay it **face-down** in the pocket: its face is against the window, its back and washer are up. (3) The peek camera, looking up through the window, takes a frame; the software reads the card. (4) Pick it again at the washer and move it to the hand rack or wherever it goes. The card is turned face-up (by the edge flip, once that is designed) only when it is **cast**, when everyone sees it anyway.
+
+**What a person can see.** The back of the card, the washer, and the box's walls. The face is against the window and the camera is inside the stack. Nothing is hidden by a lid or by software.
+
+**What it still leaks, and does not claim to fix.** The human loads the opening seven cards into the rack and sees them; they also see a mulligan. A person who lifts the box off the bed sees the camera and the last card lying in it.
+
+**Why it replaces the flip for draws.** The edge flip (coupon test, above) is blocked on the head's geometry and turns every card face-up on an open station for a moment. This turns none and needs no moving part: a card lies down and is picked up. It also means the card's washer is never between the camera and the face.
+
+**Things to bench-test (all unknown):**
+| Question | How to find out |
+|---|---|
+| Does a sleeved card lie flat on the 3 mm ledge, or sag into the window? | lay ten sleeved cards in the top piece by hand; look from below with a straightedge across the window |
+| Is the face readable through the sleeve without glare? | an LED's glare spot lands where the mirror geometry puts it, not where it points: an LED on a wall far below the card reflects into the lens from INSIDE the window, as streaks across the art. So keep the LEDs within about a tenth of the lens-to-card distance below the plate (in the top's skirt, cable out through the base notch), or cross a polarizer film on the LEDs with another on the lens; print the box in black PLA; compare a diffuser (baking paper) against none |
+| Does the stock lens focus at the lens-to-window distance? | the M12 lens turns; focus it at the real distance and lock it |
+| Does the recogniser read the card from there? | feed ten captured frames to `/api/board` and count the misreads |
+| Does the magnet drop a card into the pocket every time? | 20 placements from a pick at the deck, off-centre by up to 3 mm; the pocket has a 2.5 mm lead-in and a 3.5 mm rim. Land 0.5 mm high and let the magnet draw the washer up, because the window is open under the card |
+| Is the stack steady? | the joints have 0.25 mm of play and nothing locks them: tape the box to the bed and the joints together, or print one piece once the ring count is known |
+| Can a person see the face? | with the box in place, look through the cable notch with a phone held at the bed; plug the notch with foam if anything shows |
+
+The tower is 76 to 170 mm tall and **is not yet in `fit_check`'s layout or the gantry's limits**: put it at a Y extreme of the bed, add it as an obstacle with its real height, and give the peek step its own safe Z before the first run. The mask over the deck box is unchanged. Two identical innomaker cameras share a USB id and can swap order on reboot, so pin each camera by its USB port, not by index. Still to buy: a 5 V LED strip (or polarizer film), a USB extension with slack for the bed's full Y travel, M2 nylon screws, a foam plug for the notch. **What the software needs (not written):** a `peek_mm` position in `gantry.json`, a second camera index, a `peek` step in the draw sequence (pick, place on the peek pocket, capture, pick), and a log line per read.
+
 ## Game rules on the magnet route
 
 - **The AI never shuffles or searches its own deck physically.** Anything that shuffles the AI's library or has it
   search for a card is done by the person, without looking, and the table logs it.
-- **The software never reads the AI's face-up deck before a draw.** With the head camera the box's exit slot is visible from above, so every frame is masked over the box first (to build). The software doesn't read it, and
-  the table logs every frame it reads from the AI's zones, so a person can check it.
+- **The AI's cards are face-down everywhere except at the peek box and when they are cast.** The deck, the hand rack and the battlefield before casting show only backs, so the head camera never sees a face and a person can see none of the AI's cards. The software reads a card's face exactly once, on the peek box after a draw, and logs every read from the AI's zones, so a person can check it. The mask over the deck box stays on (it also hides the box's stack from the head camera).
 - **Two cameras:** the bed (the AI's side) is seen from above; the person's side, beside the printer, by the table's
   fixed camera. Board state merges both.
 
