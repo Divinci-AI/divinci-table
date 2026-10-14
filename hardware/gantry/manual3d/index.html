@@ -72,7 +72,7 @@
       <button id="m-steps" aria-pressed="false">Step by step</button>
     </div>
     <button id="resume" style="display:none;width:100%;margin:0 0 10px"></button>
-    <div id="guide-row" style="display:none;margin:0 0 8px;color:var(--dim)">Guide <select id="guide" style="margin-left:8px;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px"><option value="magnet">Magnet head</option><option value="sleeve">Sleeve a card</option><option value="coupon">Test the flip coupon by hand</option><option value="peek">Read a card (peek box)</option><option value="flip">Flip a card (design, blocked)</option><option value="pigtail">Fan to magnet pigtail (proposal)</option></select></div>
+    <div id="guide-row" style="display:none;margin:0 0 8px;color:var(--dim)">Guide <select id="guide" style="margin-left:8px;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px"><option value="magnet">Magnet head</option><option value="sleeve">Sleeve a card</option><option value="coupon">Test the flip coupon by hand</option><option value="peek">Read a card (peek box)</option><option value="measure">Measure the table's own parts (design)</option><option value="flip">Flip a card (design, blocked)</option><option value="pigtail">Fan to magnet pigtail (proposal)</option></select></div>
     <div id="detail" aria-live="polite"><h3>Pick a part</h3><p class="meta">Click anything in the list or in the 3D view to see where it goes, how many, and how big it is.</p></div>
     <ol id="steps" style="display:none;margin:10px 0 0;padding:0;list-style:none"></ol>
     <div id="lists"><h2>Printed parts</h2><ul id="list-print"></ul>
@@ -515,7 +515,7 @@ function makeStepLabel(id, obj, local) {
   const l = new CSS2DObject(el); obj.add(l); l.position.copy(local); stepLabels[id] = { el, l };
 }
 function labelPoint(obj) { const b = bboxOf(obj), c = b.getCenter(new THREE.Vector3()); const top = new THREE.Vector3(c.x, c.y, b.max.z); obj.worldToLocal(top); return top; }
-const groups = { magnet: new THREE.Group(), sleeve: new THREE.Group(), flip: new THREE.Group(), pigtail: new THREE.Group(), coupon: new THREE.Group(), peek: new THREE.Group() }; for (const g of Object.values(groups)) { g.visible = false; world.add(g); }
+const groups = { magnet: new THREE.Group(), sleeve: new THREE.Group(), flip: new THREE.Group(), pigtail: new THREE.Group(), coupon: new THREE.Group(), peek: new THREE.Group(), measure: new THREE.Group() }; for (const g of Object.values(groups)) { g.visible = false; world.add(g); }
 let G = "magnet";                // the active guide
 const L = 34;                     // the frame (carriage, bracket) hangs this far up until step 7 lowers it onto the bolt
 const SUBIDS = new Set(["magnet", "swivel", "m3", "bolt", "plug", "pin", "nylon"]);
@@ -523,7 +523,7 @@ const FRAME = new Set(["carriage", "tape", "angle", "nozzle"]);
 const ghostMat = (m) => { const c = m.clone(); c.transparent = true; return c; };
 function addExtra(id, obj, intro, stageAbs, home, guide = "magnet") { obj.traverse(o => { if (o.isMesh) { o.material = ghostMat(o.material); } o.userData.id = id; }); groups[guide].add(obj); obj.updateMatrixWorld(true);
   attachDims(id, obj); asms[guide][id] = { obj, intro, stage: stageAbs ? stageAbs.map((v, i) => v - home[i]) : null, extra: true }; }   // an extra's position is an offset from where its geometry was built
-const asms = { magnet: {}, sleeve: {}, flip: {}, pigtail: {}, coupon: {}, peek: {} }, asm = asms.magnet;
+const asms = { magnet: {}, sleeve: {}, flip: {}, pigtail: {}, coupon: {}, peek: {}, measure: {} }, asm = asms.magnet;
 const MAGNET_STEPS = [
   { title: "Before you start", ref: "Step 3", intro: [], focus: ["magnet", "swivel", "m3", "bolt", "nylon", "spring", "wing", "angleBlank", "carriage"], cam: [[120, 0, 10], 340, [0.1, -0.55, 1.2]],
     text: "Print the swivel (and a spare), four lead clips and the swivel plugs (a small plate of ten in five widths) first, and have a few cm of 1.75 mm filament for the plug's pin, while the printer is still a printer. On the table: the 24 V magnet, M3 x 6 flat-head screw, 1/4\"-20 bolt, nylon spacer, spring, wing nut and the 3\" aluminium angle. For the wiring later (steps 15 to 17): about 1 m of 22 AWG two-core wire, a 1N4007 diode, the four printed lead clips, and a thermal cut-off fuse (not bought yet, see the bill of materials). The grey block is the printer's X carriage." },
@@ -620,7 +620,7 @@ function magnetParts() {
   };
   return { ...parts, ...asm };
 }
-function partsFor() { return G === "sleeve" ? sleeveParts() : G === "flip" ? { ...asms.flip } : G === "pigtail" ? { ...asms.pigtail } : G === "coupon" ? couponParts() : G === "peek" ? peekParts() : magnetParts(); }
+function partsFor() { return G === "sleeve" ? sleeveParts() : G === "flip" ? { ...asms.flip } : G === "pigtail" ? { ...asms.pigtail } : G === "coupon" ? couponParts() : G === "peek" ? peekParts() : G === "measure" ? measureParts() : magnetParts(); }
 let PARTS = null, step = 0, stepTween = null, playTimer = null;
 function finalPose(id, k) {
   const fin = headPose(0), p = (fin[id]?.p || [0, 0, 0]).slice();
@@ -628,17 +628,19 @@ function finalPose(id, k) {
   return p;
 }
 const GUIDE_INFO = { magnet: { title: "Magnet head", entryIds: () => Object.keys(TRAY) }, sleeve: { title: "Sleeve a card", entryIds: () => ["jig", "bridge"] }, flip: { title: "Flip a card (design, blocked)", entryIds: () => [] }, pigtail: { title: "Fan to magnet pigtail (proposal)", entryIds: () => [] },
-  coupon: { title: "Test the flip coupon by hand", entryIds: () => ["coupon"] }, peek: { title: "Read a card (peek box)", entryIds: () => ["peektop", "peekbase", "peekring", "peekcam"] } };
+  coupon: { title: "Test the flip coupon by hand", entryIds: () => ["coupon"] }, peek: { title: "Read a card (peek box)", entryIds: () => ["peektop", "peekbase", "peekring", "peekcam"] },
+  measure: { title: "Measure the table's own parts (design)", entryIds: () => [] } };
 function ghostEntries() { for (const e of Object.values(entries)) e.obj.traverse(o => { if (o.isMesh && !o.userData.ghosted) { o.material = ghostMat(o.material); o.userData.ghosted = true; } }); }   // the printed parts share one material: give each its own before fading one
 function enterSteps() { setGuide(G, step, true); }
 function setGuide(name, startStep = 0, instant = false) {
-  stopPlay(); hideRulers(); G = name; STEPS = { sleeve: SLEEVE_STEPS, flip: FLIP_STEPS, pigtail: PIGTAIL_STEPS, coupon: COUPON_STEPS, peek: PEEK_STEPS }[name] || MAGNET_STEPS;
+  stopPlay(); hideRulers(); G = name; STEPS = { sleeve: SLEEVE_STEPS, flip: FLIP_STEPS, pigtail: PIGTAIL_STEPS, coupon: COUPON_STEPS, peek: PEEK_STEPS, measure: MS_STEPS }[name] || MAGNET_STEPS;
   if (!asms.magnet.carriage) buildExtras();
   if (!asms.sleeve.card) buildSleeve();
   if (!asms.flip.fence) buildFlip();
   if (!asms.pigtail.pgBoard) buildPigtail();
   if (!asms.coupon.cpCard) buildCoupon();
   if (!asms.peek.pkCard) buildPeek();
+  if (!asms.measure.msHead) buildMeasure();
   ghostEntries(); PARTS = partsFor();
   for (const id of Object.keys(TRAY)) if (!stepLabels[id]) makeStepLabel(id, entries[id].obj, labelPoint(entries[id].obj));
   for (const id of ["jig", "bridge", "coupon", "peektop", "peekbase", "peekring", "peekcam"]) if (!stepLabels[id]) makeStepLabel(id, entries[id].obj, labelPoint(entries[id].obj));
@@ -1075,6 +1077,77 @@ function peekParts() {
     ...Object.fromEntries([at("peekcam", 1, [-70, PK.cy, 0], [PK.cx, PK.cy, 6]), at("peekring", 2, [-110, 0, 0], [0, 0, PK.base]), at("peektop", 3, [110, 0, PK.base + PK.rings * PK.ring], [0, 0, PK.base + PK.rings * PK.ring])]), ...asms.peek };
 }
 
+// ---------- guide 7: let the table measure its own parts (hardware/gantry/MEASURE-DESIGN.md; a design, NOT built) ----------
+const MS_PARK = [120, 330, 160];
+const MS_KEYS = [                                              // the head's path, [u, x, y, z of the magnet's face]; step k's motion happens while u runs from k - 1 to k
+  [0, 120, 330, 160], [1, 120, 330, 160],
+  [1.25, 95, 280, 240], [1.55, 95, 280, 140], [1.85, 95, 280, 40], [2, 95, 280, 40],            // calibration: the lens at three heights over the chessboard (the camera hangs 45 mm to the +X of the magnet)
+  [2.5, 85, 120, 90], [3, 85, 120, 90],                                                           // photo-measure: the lens over the card
+  [3.25, 260, 120, 70], [3.45, 260, 120, 0.2], [3.55, 260, 120, 40], [3.8, 260, 120, 16.4], [4, 260, 120, 50],   // touch-off: the bed, then the top of a 10-card stack
+  [4.2, 300, 280, 60], [4.35, 300, 280, 0.2], [4.5, 300, 280, 40], [4.8, 300, 280, 120], [5, 300, 280, 120],    // stamp the paper, then look at the mark
+  [6, 120, 330, 160], [7, 120, 330, 160]];
+function msHead(uu) {
+  let a = MS_KEYS[0], b = MS_KEYS[MS_KEYS.length - 1];
+  for (let i = 0; i < MS_KEYS.length - 1; i++) if (uu >= MS_KEYS[i][0] && uu <= MS_KEYS[i + 1][0]) { a = MS_KEYS[i]; b = MS_KEYS[i + 1]; break; }
+  const t = a[0] === b[0] ? 0 : ease(clamp01((uu - a[0]) / (b[0] - a[0])));
+  return [a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t];
+}
+const MS_CAM = [45, 0, 38.4];                                  // the camera's lens tip, from the magnet's face
+const MS_STEPS = [
+  { title: "Before you start", ref: "Measure mode (design)", intro: [], only: ["msBed", "msHead", "msCaliper", "msJaw", "msCard"], focus: ["msHead", "msCaliper"], cam: [[180, 220, 40], 760, [0.6, -1, 0.8]],
+    text: "DESIGN ONLY: measure mode is not built yet, and Opus 5.5 and Hermes have reviewed the design but nothing has been run. The idea: the table measures its own parts and positions, so you do not hand-measure every number the config guesses (card thickness, bed height, the peek box's seat height, where each slot is). LiDAR is rejected: an iPhone's is good to about 1 cm and a hobby time-of-flight board to 1-3 mm, and we need 0.1 to 0.3 mm. What we already own does the job: the printer's own axes as a touch probe, the head camera once calibrated, and the calipers as the reference that tells you how wrong the other two are. The grey block is the head: magnet below, camera on the right." },
+  { title: "Calipers first: the ground truth", ref: "Measure mode (design)", intro: ["msCube", "msCaliper", "msJaw", "msCard"], only: ["msBed", "msHead", "msCube", "msCaliper", "msJaw", "msCard"], focus: ["msCube", "msCaliper", "msCard"], cam: [[90, 120, 15], 300, [0.6, -1, 0.7]],
+    text: "Every other method is judged against these. Measure a 20 mm printed cube, the 63 x 88 mm card, the sleeved card, the camera board and the bolt head, and write the numbers down. The caliper reads to 0.01 mm and is good to about 0.03 mm: ten times better than anything else here. Measure card thickness on a stack of ten and divide, because one card is too thin to read reliably." },
+  { title: "Calibrate the head camera", ref: "Measure mode (design)", intro: ["msBoard", "msBeam"], only: ["msBed", "msHead", "msBoard", "msBeam"], focus: ["msBoard", "msBeam"], cam: [[140, 280, 60], 560, [0.9, -1.1, 0.8]],
+    text: "Print the chessboard (9 x 6 squares of 20 mm, so OpenCV counts 8 x 5 inner corners), glue it flat, and measure one square with the calipers. The head takes a photo at each of several heights; fov_test.py reads the scale and the field of view from each (the cone here is illustrative: the real field of view is unmeasured, and the listing says 103 degrees, 130 degrees and one reviewer measured about 50). The camera arrives 2026-10-13, so this comes first. The result is only valid in the plane of the board." },
+  { title: "Measure flat things from a photo", ref: "Measure mode (design)", intro: ["msDim"], only: ["msBed", "msHead", "msCard", "msDim", "msCube"], focus: ["msCard", "msDim"], cam: [[115, 120, 30], 330, [0.6, -1, 0.75]],
+    text: "Planned command: measure photo. Click two points in a calibrated top-down photo and read the distance in mm, with the pixel error bound. It is correct only in the plane where the scale was taken: a feature 30 mm above the bed seen from 120 mm away reads about 25% too large, so put the scale marker in the part's own plane. The camera's offset from the magnet (cam_offset_mm) is also unmeasured and adds to every position converted to bed coordinates. Claimed accuracy is about 0.2 mm, which fails our own one-third rule for 0.3 mm tolerances: validate it first." },
+  { title: "Touch-off: heights as differences", ref: "Measure mode (design)", intro: ["msStack", "msNoGo"], only: ["msBed", "msHead", "msStack", "msNoGo"], focus: ["msStack", "msNoGo", "msHead"], cam: [[300, 120, 40], 400, [0.7, -1, 0.5]],
+    text: "Planned command: measure touch. Start at travel_z, come down in 0.1 mm steps (goto prints to 0.1 mm, so that is the resolution) until a sheet of paper just drags, then go UP, never sideways. Z is only known relative to the last zero_z, so heights are differences inside one session: touch the bed, put the stack on, touch the stack's top, and subtract. Five touches, and report the spread, not just the mean. The red box is a no-go zone: it refuses any point inside the deck box, the rack fence or the peek tower. Without a contact signal a person's judgement is worth about 0.2 to 0.5 mm. It cannot set magnet_min_z itself: you set that floor by hand first." },
+  { title: "Find the tool offsets (a proposal)", ref: "Measure mode (design)", intro: ["msPaper", "msMark", "msOffset"], only: ["msBed", "msHead", "msPaper", "msMark", "msOffset"], focus: ["msPaper", "msMark", "msOffset"], cam: [[300, 280, 40], 330, [0.6, -1, 0.9]],
+    text: "NOT in the reviewed design: my idea since, untested. The most valuable numbers are the offsets between the magnet and the camera, because every pick hands a position from one to the other. Ink the magnet's face with a washable marker, press it on paper at a known spot (no card, magnet off), then park the head at that same spot and look: the mark appears in the photo away from the middle, and that distance is the camera's offset (the amber line). It needs only the camera and a calibrated scale, so it is as accurate as the camera is, about 0.2 mm if the calibration holds." },
+  { title: "Validate, then apply", ref: "Measure mode (design)", intro: [], only: ["msBed", "msHead", "msCube", "msCard", "msStack"], focus: ["msCube", "msCard", "msStack"], cam: [[170, 150, 10], 560, [0.6, -1, 0.7]],
+    text: "A method is trusted for a number only if its error is under a third of the tolerance that number needs, and you decide the tolerance first. Test each method on things the calipers already know, at the real points of use (rack slot 0, the peek seat), three repeats each: the 63 x 88 card and the camera board's hole pitch for the camera, a 20 mm cube and the 10-card stack for touch-off, and ten touches at one point with a fresh zero_z in between. Then measure apply writes a value into gantry.json only if it passes its guards: converted to the right meaning, never lowering a floor, within 10 times the old value both ways, merged into nested keys, written atomically, and refused if the bed's tilt between the deck, a rack slot and the peek seat is over 0.2 mm." },
+  { title: "Later: an iPhone overhead (deferred)", ref: "Measure mode (design)", intro: ["msTripod", "msPhone", "msPhoneBeam"], only: ["msBed", "msHead", "msTripod", "msPhone", "msPhoneBeam"], focus: ["msPhone", "msTripod"], cam: [[130, 200, 200], 1000, [0.8, -1, 0.5]],
+    text: "Both reviewers said defer it. Set the phone stationary on the tripod, never on the print head (about 190 g on the X carriage, and it would hide the magnet). It sees the whole bed at once, but it needs its own calibration with the lens correction off, it switches lenses and stabilises on every shot, and the bed moves in Y, so its picture matches bed coordinates only at a known Y: put a marker in each part's own plane. Its LiDAR is still not used. Photos move to the Mac by cable or AirDrop, so nothing is uploaded. Send pictures of the tripod grip when you are home and we will find where it clamps." },
+];
+Object.assign(NAME, { msBed: "Bed (a 260 x 260 mm window of the 400 x 400)", msHead: "The head (magnet and camera)", msCube: "20 mm printed cube", msCaliper: "Calipers (the reference)", msJaw: "Caliper's sliding jaw", msCard: "Card, 63 x 88 mm", msBoard: "Calibration chessboard", msBeam: "What the camera sees (illustrative)", msDim: "A distance read from the photo", msStack: "Stack of ten cards", msNoGo: "No-go zone (the deck box)", msPaper: "Paper for the stamp", msMark: "The magnet's mark", msOffset: "The camera's offset", msTripod: "Tripod with an arm", msPhone: "iPhone, stationary overhead", msPhoneBeam: "What the phone sees (illustrative)" });
+Object.assign(ROLE, { msBed: "where everything below happens", msHead: "the magnet hangs below; the camera is on the right, 45 mm over", msCube: "a known size to test the methods against", msCaliper: "ground truth, good to about 0.03 mm", msCard: "a known 63 x 88 mm", msBoard: "9 x 6 squares of 20 mm: its scale sets the photo's scale", msBeam: "the field of view is not measured yet", msDim: "two clicks on the photo, a distance in mm", msStack: "ten cards: the touch difference over 10 is one card's thickness", msNoGo: "touch-off refuses any point inside it", msPaper: "the magnet's ink mark lands on it", msMark: "where the magnet's axis really is", msOffset: "mark to the lens axis: the offset the config needs", msTripod: "keeps the phone still above the bed", msPhone: "sees the whole bed; deferred", msPhoneBeam: "the footprint on the bed" });
+Object.assign(SHORT, { msBed: "260 x 260 mm shown", msCube: "20 mm", msCard: "63 x 88 mm", msBoard: "180 x 120 mm", msStack: "63 x 88 x 16 mm", msNoGo: "73 x 99 x 118 mm", msPaper: "120 x 120 mm" });
+function buildMeasure() {
+  const std = (c, r = 0.55, m = 0.1) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m });
+  const box = (w, d, h, m, x, y, z) => mesh(new THREE.BoxGeometry(w, d, h), m, x, y, z), amber = new THREE.MeshBasicMaterial({ color: 0xffc65a }), white = std(0xf3efe6, 0.7, 0);
+  const ext = (id, obj, intro, top, vis) => { addExtra(id, obj, intro, null, null, "measure"); if (top) makeStepLabel(id, obj, new THREE.Vector3(...top)); asms.measure[id].pose = k => ({ p: [0, 0, 0], r: [0, 0, 0], op: vis ?? 1, vis: k >= intro }); };
+  const line = (x0, y0, x1, y1, z = 0.6) => { const L = Math.hypot(x1 - x0, y1 - y0), g = group(box(L, 1.2, 0.6, amber, (x0 + x1) / 2, (y0 + y1) / 2, z), box(1.2, 8, 0.6, amber, x0, y0, z), box(1.2, 8, 0.6, amber, x1, y1, z)); g.children[0].rotation.z = Math.atan2(y1 - y0, x1 - x0); return g; };
+  ext("msBed", box(260, 260, 3, std(0x3a4658, 0.6, 0.2), 180, 200, -1.5), -1, [-20, 0, 2]);
+  const head = group(mesh(cyl(10, 10, 15), mat.magnet, 0, 0, 7.5), box(24, 24, 16, mat.print, 0, 0, 23), box(58, 40, 28, std(0x565d69, 0.4, 0.5), 8, 0, 69), box(34, 8, 6, std(0x565d69, 0.4, 0.5), 29, 0, 56));
+  const cam = hw.peekcam.clone(); [...cam.children].filter(c => c.isCSS2DObject).forEach(c => cam.remove(c)); cam.rotation.x = Math.PI; cam.position.set(45, 0, 60); head.add(cam);                 // the board's lens up becomes lens down
+  ext("msHead", head, -1, [0, 0, 92]); asms.measure.msHead.dyn = uu => ({ p: msHead(uu), r: [0, 0, 0], vis: true, op: 1 });
+  ext("msCube", box(20, 20, 20, mat.print, 0, 0, 10), 1, [0, 0, 22]); asms.measure.msCube.pose = k => ({ p: [50, 120, 0], r: [0, 0, 0], op: 1, vis: k >= 1 });
+  ext("msCaliper", group(box(150, 14, 3, mat.steel, 75, 0, 41.5), box(3, 14, 40, mat.steel, -1.5, 0, 20), box(40, 22, 7, std(0x20242b), 30, 0, 46.5)), 1, [60, 0, 50]); asms.measure.msCaliper.pose = k => ({ p: [40, 120, 0], r: [0, 0, 0], op: 1, vis: k >= 0 });
+  ext("msJaw", box(3, 14, 40, mat.steel, 0, 0, 20), 1, null); asms.measure.msJaw.dyn = uu => ({ p: [40 + 45 - 25 * ease(clamp01(uu)) + 1.5, 120, 0], r: [0, 0, 0], vis: true, op: 1 });   // opens 45 mm, closes on the cube's 20 mm
+  ext("msCard", box(63, 88, 1.6, white, 0, 0, 0.8), 0, [0, 0, 4]); asms.measure.msCard.pose = k => ({ p: [130, 120, 0], r: [0, 0, 0], op: 1, vis: true });
+  const cv = document.createElement("canvas"); cv.width = 900; cv.height = 600; const cx = cv.getContext("2d");
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 9; c++) { cx.fillStyle = (r + c) % 2 ? "#111" : "#f4f4f4"; cx.fillRect(c * 100, r * 100, 100, 100); }
+  const bt = new THREE.CanvasTexture(cv); bt.colorSpace = THREE.SRGBColorSpace; bt.anisotropy = 8;
+  ext("msBoard", mesh(new THREE.PlaneGeometry(180, 120), new THREE.MeshStandardMaterial({ map: bt, roughness: 0.8 }), 0, 0, 0.3), 2, [0, 0, 4]); asms.measure.msBoard.pose = k => ({ p: [140, 280, 0], r: [0, 0, 0], op: 1, vis: k >= 2 });
+  const beam = (rb, id) => new THREE.Mesh(cyl(0.001, rb, 1, 40), new THREE.MeshBasicMaterial({ color: 0xffc65a, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }));
+  const bm = beam(1.19, "msBeam"); ext("msBeam", group(bm), 2, null);
+  asms.measure.msBeam.dyn = uu => { const h = msHead(uu), z = Math.max(1, h[2] + MS_CAM[2]); bm.scale.set(z, z, z); bm.position.z = z / 2; return { p: [h[0] + MS_CAM[0], h[1], 0], r: [0, 0, 0], vis: uu > 1.2 && uu < 5.1, op: 0.16 }; };
+  ext("msDim", line(-31.5, 0, 31.5, 0, 1.2), 3, [0, 0, 8]); asms.measure.msDim.pose = k => ({ p: [130, 120, 0], r: [0, 0, 0], op: 1, vis: k >= 3 });
+  ext("msStack", box(63, 88, 16, white, 0, 0, 8), 4, [0, 0, 18]); asms.measure.msStack.dyn = uu => ({ p: [260, 120, 0], r: [0, 0, 0], vis: uu > 3.58, op: clamp01((uu - 3.58) * 6) });
+  ext("msNoGo", box(73, 99, 118, std(0xe5484d, 0.6, 0), 0, 0, 59), 4, [0, 0, 120], 0.28); asms.measure.msNoGo.pose = k => ({ p: [350, 120, 0], r: [0, 0, 0], op: 0.28, vis: k >= 4 });
+  ext("msPaper", box(120, 120, 0.4, white, 0, 0, 0.2), 5, [0, 0, 4]); asms.measure.msPaper.pose = k => ({ p: [300, 280, 0], r: [0, 0, 0], op: 1, vis: k >= 5 });
+  ext("msMark", mesh(cyl(8, 8, 0.5), std(0xd63a3a, 0.8, 0), 0, 0, 0.5), 5, [0, 0, 6]); asms.measure.msMark.dyn = uu => ({ p: [300, 280, 0], r: [0, 0, 0], vis: uu > 4.4, op: clamp01((uu - 4.4) * 8) });
+  ext("msOffset", line(0, 0, 45, 0, 0.9), 5, [22, 0, 8]); asms.measure.msOffset.dyn = uu => ({ p: [300, 280, 0], r: [0, 0, 0], vis: uu > 4.75, op: clamp01((uu - 4.75) * 5) });
+  const leg = a => { const l = mesh(cyl(2.5, 2.5, 100), mat.alu, 0, 0, 0); const g = new THREE.Group(); l.position.set(0, 0, -50); const t = new THREE.Group(); t.add(l); t.rotation.x = 0.55; g.add(t); g.rotation.z = a; return g; };
+  ext("msTripod", group(mesh(cyl(4, 4, 430), mat.alu, 0, 0, 215), box(270, 8, 8, mat.alu, 135, 0, 430), ...[0, 2.1, 4.2].map(leg).map(g => { g.position.z = 85; return g; })), 7, [0, 0, 440]); asms.measure.msTripod.pose = k => ({ p: [-60, 200, 0], r: [0, 0, 0], op: 1, vis: k >= 7 });
+  ext("msPhone", group(box(71, 147, 8, std(0x20242b, 0.4, 0.5), 0, 0, 0), box(18, 18, 4, std(0x10141a), -22, 58, -5.5), mesh(cyl(6, 6, 2), std(0x2b6cb0, 0.2, 0.6), -22, 58, -7.5)), 7, [0, 0, 10]); asms.measure.msPhone.pose = k => ({ p: [200, 200, 434], r: [0, 0, 0], op: 1, vis: k >= 7 });
+  const pb = new THREE.Mesh(cyl(0.001, 1, 1, 40), new THREE.MeshBasicMaterial({ color: 0x59b6ff, transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide })); pb.scale.set(300, 300, 430); pb.position.z = 215;
+  ext("msPhoneBeam", group(pb), 7, null); asms.measure.msPhoneBeam.pose = k => ({ p: [200, 200, 0], r: [0, 0, 0], op: 0.08, vis: k >= 7 });
+}
+function measureParts() { return { ...asms.measure }; }
+
 // ---------- saved progress and deep links ----------
 const LS_KEY = "divinci-manual-v2";   // v2: the magnet guide gained a step, so v1 "done" flags would point one step early
 let progress = (() => { try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}") || {}; } catch { return {}; } })();   // {guide, guides: {magnet: {done: [bool], last}}}
@@ -1099,7 +1172,7 @@ async function copyLink() {
 function updateResume() {
   const b = document.getElementById("resume"), g = progress.guide, info = progress.guides?.[g];
   if (!b || !info || !GUIDE_INFO[g] || (mode === "steps" && G === g)) { if (b) b.style.display = "none"; return; }
-  const n = ({ sleeve: SLEEVE_STEPS, flip: FLIP_STEPS, pigtail: PIGTAIL_STEPS, coupon: COUPON_STEPS, peek: PEEK_STEPS }[g] || MAGNET_STEPS).length;
+  const n = ({ sleeve: SLEEVE_STEPS, flip: FLIP_STEPS, pigtail: PIGTAIL_STEPS, coupon: COUPON_STEPS, peek: PEEK_STEPS, measure: MS_STEPS }[g] || MAGNET_STEPS).length;
   b.textContent = `Resume: ${GUIDE_INFO[g].title}, step ${(info.last || 0) + 1} of ${n}`; b.style.display = "";
 }
 document.getElementById("resume").onclick = () => { G = progress.guide; step = progress.guides?.[G]?.last || 0; setMode("steps"); };
@@ -1109,7 +1182,7 @@ function applyUrl() {
   const q = new URLSearchParams(START_QUERY), view = q.get("view");
   urlReady = true;
   if (view === "steps") {
-    G = ["sleeve", "flip", "pigtail", "coupon", "peek"].includes(q.get("guide")) ? q.get("guide") : "magnet"; const n = parseInt(q.get("step") || "1", 10); step = Math.max(0, (isNaN(n) ? 1 : n) - 1);
+    G = ["sleeve", "flip", "pigtail", "coupon", "peek", "measure"].includes(q.get("guide")) ? q.get("guide") : "magnet"; const n = parseInt(q.get("step") || "1", 10); step = Math.max(0, (isNaN(n) ? 1 : n) - 1);
     const lm = q.get("labels"); if (["all", "current", "off"].includes(lm)) { labelMode = lm; document.getElementById("labels").textContent = "Labels: " + lm; }
     if (q.get("follow") === "0") document.getElementById("follow").checked = false;
     setMode("steps");

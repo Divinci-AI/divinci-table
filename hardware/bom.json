@@ -1,6 +1,6 @@
 {
  "about": "Bill of materials for the physical AI player (camera gantry + magnet hand, and the optional SO-101 arm). One entry per part, ordered or not. table/tests/bom_test.py checks it against the manual and the goal doc: every part is used by a step that exists, every Amazon link in those docs is listed here, removed parts stay out of the manual, and the cart totals add up.",
- "updated": "2026-10-11",
+ "updated": "2026-10-12",
  "docs": {
   "manual": "hardware/gantry/README.md",
   "goal": "docs/ARM-GANTRY-GOAL.md"
@@ -13,13 +13,13 @@
   "to-print": "printed on the CR-6 Max before it becomes the gantry",
   "list-only": "saved in the Amazon list, not in the cart (a fallback)",
   "removed": "was in a cart, taken out; kept here so nobody re-adds it by accident",
-  "bought": "ordered and confirmed (the Amazon and Home Depot orders, 2026-10-11); waiting for delivery or already here",
-  "to-buy": "needed and not bought yet (some are in a cart, none ordered)"
+  "bought": "ordered and confirmed (Amazon and Home Depot, 2026-10-09 to 2026-10-11); waiting for delivery or already here",
+  "to-buy": "needed and not bought yet; the two in the Amazon cart (bolts, caliper) are NOT ordered"
  },
  "carts": {
   "amazon": {
-   "subtotal": 13.18,
-   "note": "Ordered and confirmed 2026-10-11: the M1 test kit (magnet, diodes). In the cart, not ordered (2026-10-11): head camera, JST-XH kit, wire, Kapton, epoxy, crimp connectors. The rest is in Save for later until the stack test passes 19/20"
+   "subtotal": 148.1,
+   "note": "Checked 2026-10-12. Subtotal = every Amazon part ordered 2026-10-09 to 2026-10-11 at item prices before tax (the removed Canon battery is not counted). Ordered: M1 test kit; the head camera, wire, butt connectors, M2 kit, Kapton, JST-XH kit ($69.84 with tax); and the thermal epoxy ($42.69, arrives Oct 20). In the cart, not ordered (checked 2026-10-12, $36.77): 1-1/2\" hex bolts ($13.79), the Kynup caliper ($16.99) and the 77 C thermal fuse 10-pack ($5.99). Still unbought and not in the cart: second camera (peek box), USB extension, 5 V LED strip or polarizer, foam plug. Everything else is in Save for later until the stack test passes 19/20. 2026-10-12 bare-bones decision: the LED strip, second camera and M12 lens are deferred; the thermal fuse and USB extension have listings chosen but are not ordered"
   },
   "home-depot": {
    "subtotal": 58.96,
@@ -266,12 +266,12 @@
    "source": "amazon",
    "asin": "B0CNCSFQC1",
    "price": 18.99,
-   "status": "to-buy",
+   "status": "bought",
    "route": [
     "magnet",
     "arm"
    ],
-   "role": "the head camera: rides on the print head beside the magnet and replaces the Canon (USB to the Mac, no battery or tripod). In the Amazon cart, not ordered. Fixed M12 lens, 103 degree horizontal field of view claimed (one reviewer measured about 50): run the field-of-view test in Step 2 before printing a mount. Later also the SO-101's wrist camera.",
+   "role": "the head camera: rides on the print head beside the magnet and replaces the Canon (USB to the Mac, no battery or tripod). Ordered Amazon order 113-8531797-3096269 (2026-10-11), 1 camera, arriving Oct 12; the order's listing title says 130 degree wide angle, so the field of view is not what earlier notes claimed. Fixed M12 lens, the 103 degree figure from the earlier listing and one reviewer's measured 50 degrees are both unverified: run the field-of-view test in Step 2 before printing a mount. Later also the SO-101's wrist camera.",
    "used_in": [
     {
      "doc": "manual",
@@ -287,29 +287,31 @@
    "id": "usb-extension",
    "name": "USB 2.0 shielded extension cable, 2-3 m",
    "qty": 1,
-   "source": "to choose",
+   "source": "amazon",
    "status": "to-buy",
    "route": [
     "magnet"
    ],
-   "role": "carries the head camera's USB to the Mac along the carriage and the left upright; needs strain relief and must run away from the 24 V magnet leads. Length and type not chosen yet.",
+   "role": "carries the head camera's USB to the Mac along the carriage and the left upright; needs strain relief and must run away from the 24 V magnet leads. Listing chosen 2026-10-12: Monoprice 10 ft USB 2.0 A male to A female, $10.99 (shielding not stated in the listing: check it feels like a standard shielded cable). Only needed if the camera's own cable does not reach the Mac.",
    "used_in": [
     {
      "doc": "manual",
      "step": "Step 2"
     }
-   ]
+   ],
+   "asin": "B003L14VJ6",
+   "price": 10.99
   },
   {
    "id": "m2-nylon",
    "name": "M2 nylon screws and standoffs",
    "qty": 1,
    "source": "amazon",
-   "status": "to-buy",
+   "status": "bought",
    "route": [
     "magnet"
    ],
-   "role": "mount the head camera's 32 x 32 mm board (4 x M2 holes) so its ground and USB shield cannot touch the carriage (the CR-6's USB fault puts 20 V on the shell). MCMASKE 380-piece kit in the Amazon cart (not ordered), $9.99.",
+   "role": "mount the head camera's 32 x 32 mm board (4 x M2 holes) so its ground and USB shield cannot touch the carriage (the CR-6's USB fault puts 20 V on the shell). MCMASKE 380-piece kit.99. Ordered Amazon order 113-8531797-3096269 (2026-10-11).",
    "used_in": [
     {
      "doc": "manual",
@@ -407,7 +409,7 @@
     "magnet",
     "arm"
    ],
-   "role": "the swivel's axle at the length the stack needs: the 1\" Everbilt bolts leave 0.0 mm of margin (fit-check ledger bolt-length). In the Amazon cart (not ordered), $13.79.",
+   "role": "the swivel's axle at the length the stack needs: the 1\" Everbilt bolts leave 0.0 mm of margin (fit-check ledger bolt-length). In the Amazon cart (checked 2026-10-12, not ordered), $13.79.",
    "used_in": [
     {
      "doc": "manual",
@@ -427,7 +429,7 @@
     "magnet",
     "arm"
    ],
-   "role": "measure sleeved cards with their washers, the bed edge and the printed parts before printing the deck box and chute (card_t and bed_t are placeholders). In the Amazon cart (not ordered), $16.99.",
+   "role": "measure sleeved cards with their washers, the bed edge and the printed parts before printing the deck box and chute (card_t and bed_t are placeholders). In the Amazon cart (checked 2026-10-12, not ordered), $16.99.",
    "used_in": [
     {
      "doc": "manual",
@@ -576,18 +578,20 @@
    "id": "hookup-wire",
    "name": "22 AWG two-core wire, about 1 m",
    "qty": 1,
-   "source": "hardware store",
-   "status": "to-buy",
+   "source": "amazon",
+   "status": "bought",
    "route": [
     "magnet"
    ],
-   "role": "extends the magnet's leads to the part-fan connector; stranded silicone wire (it flexes at the swivel): the MMOBIEL 22 AWG red/black pair, in the Amazon cart",
+   "role": "extends the magnet's leads to the part-fan connector; stranded silicone wire (it flexes at the swivel): the MMOBIEL 22 AWG red/black pair,. Ordered Amazon order 113-8531797-3096269 (2026-10-11). (MMOBIEL red/black silicone, 32.8 ft reel)",
    "used_in": [
     {
      "doc": "manual",
      "step": "Step 5"
     }
-   ]
+   ],
+   "price": 6.77,
+   "asin": "B0DGV4ZW1G"
   },
   {
    "id": "heat-shrink",
@@ -611,19 +615,21 @@
    "id": "kapton-tape",
    "name": "Kapton (polyimide) tape",
    "qty": 1,
-   "source": "hardware store",
-   "status": "to-buy",
+   "source": "amazon",
+   "status": "bought",
    "route": [
     "magnet",
     "arm"
    ],
-   "role": "insulates under the bed clips (the CR-6 USB fault) and covers the cable's +5 V pin",
+   "role": "insulates under the bed clips (the CR-6 USB fault) and covers the cable's +5 V pin. Ordered Amazon order 113-8531797-3096269 (2026-10-11). (VCHOMY 10 mm x 33 m, 2 rolls)",
    "used_in": [
     {
      "doc": "manual",
      "step": "Step 6"
     }
-   ]
+   ],
+   "price": 4.99,
+   "asin": "B0C9PMHWGS"
   },
   {
    "id": "printer-usb-cable",
@@ -698,36 +704,59 @@
    "id": "multimeter",
    "name": "Multimeter",
    "qty": 1,
-   "source": "on-hand",
-   "status": "check",
+   "source": "amazon",
+   "status": "bought",
    "route": [
     "magnet",
     "arm"
    ],
-   "role": "measures the printer's USB shell against the Mac's ground before the first plug-in",
+   "role": "measures the printer's USB shell against the Mac's ground before the first plug-in. Delivered Oct 9 (order 114-6355424-2066669) (AstroAI 2000-count)",
    "used_in": [
     {
      "doc": "manual",
      "step": "Step 6"
     }
-   ]
+   ],
+   "asin": "B01ISAMUA6",
+   "price": 14.59
   },
   {
-   "id": "thermal-fuse",
-   "name": "Thermal cut-off fuse, 77 C",
+   "id": "soldering-iron",
+   "name": "Soldering iron kit",
    "qty": 1,
-   "source": "DigiKey 317-1125-ND, about $0.87; buy 5-10. Alternative: Microtemp G4A01077C. Avoid Amazon/AliExpress listings (counterfeits)",
-   "status": "to-buy",
+   "source": "amazon",
+   "status": "bought",
    "route": [
     "magnet"
    ],
-   "role": "hardware cut-off in series with the magnet's + lead, bonded to its body: the software timer cannot help if the cable is pulled; not bought. 77 C opening, 55 C holding, 10 A 250 VAC axial: far above the 0.25 A load. Chosen by holding temperature (the body must stay under 55 C), not opening temperature; a 60-70 C part would nuisance-trip. Confirm with the measured body temperature after a 30-minute session (45 C or less: DF072S; above 55 C: fix the duty, do not go to DF084S). Metal case is live: Kapton on the magnet first, epoxy, then heat-shrink; crimp the leads rather than solder Never put a heat gun or lighter near the fuse (it opens at 77 C, and heat-shrink needs 90-120 C): shrink the splices before the fuse is anywhere near, wrap the fuse in Kapton instead of heat-shrink, and re-measure its resistance after the last heat.",
+   "role": "for the connector, wire and pigtail work (not the thermal fuse: its heat damages it, use crimps). Delivered Oct 9 (order 114-6355424-2066669).",
    "used_in": [
     {
      "doc": "manual",
      "step": "Step 5"
     }
-   ]
+   ],
+   "asin": "B087767KNW",
+   "price": 13.99
+  },
+  {
+   "id": "thermal-fuse",
+   "name": "Thermal cut-off fuse, 77 C",
+   "qty": 1,
+   "source": "amazon",
+   "status": "to-buy",
+   "route": [
+    "magnet"
+   ],
+   "role": "hardware cut-off in series with the magnet's + lead, bonded to its body: the software timer cannot help if the cable is pulled; not bought. 77 C opening, 55 C holding, 10 A 250 VAC axial: far above the 0.25 A load. Chosen by holding temperature (the body must stay under 55 C), not opening temperature; a 60-70 C part would nuisance-trip. Confirm with the measured body temperature after a 30-minute session (45 C or less: DF072S; above 55 C: fix the duty, do not go to DF084S). Metal case is live: Kapton on the magnet first, epoxy, then heat-shrink; crimp the leads rather than solder Never put a heat gun or lighter near the fuse (it opens at 77 C, and heat-shrink needs 90-120 C): shrink the splices before the fuse is anywhere near, wrap the fuse in Kapton instead of heat-shrink, and re-measure its resistance after the last heat. Listing chosen 2026-10-12: BOJACK SF76E 77 C, 10 A 250 V, pack of 10, $5.99 (a 10-pack is the smallest size; spares are fine). In the Amazon cart (2026-10-12), not ordered.",
+   "used_in": [
+    {
+     "doc": "manual",
+     "step": "Step 5"
+    }
+   ],
+   "asin": "B07Y61YTTK",
+   "price": 5.99
   },
   {
    "id": "jst-xh-kit",
@@ -735,17 +764,18 @@
    "qty": 1,
    "source": "amazon",
    "asin": "B0CM315RFP",
-   "status": "to-buy",
+   "status": "bought",
    "route": [
     "magnet"
    ],
-   "role": "the pigtail's plug: the CR-6 Max's part-fan header is most likely a 2-pin JST-XH (2.54 mm), which is the usual Creality fan connector but NOT yet confirmed on this board: open the printer and look, or measure the pin pitch, before ordering. About $8-10 (variants of the listing differ).",
+   "role": "the pigtail's plug: the CR-6 Max's part-fan header is most likely a 2-pin JST-XH (2.54 mm), which is the usual Creality fan connector but NOT yet confirmed on this board: open the printer and look, or measure the pin pitch, before ordering. About $8-10 (variants of the listing differ). Ordered Amazon order 113-8531797-3096269 (2026-10-11).",
    "used_in": [
     {
      "doc": "manual",
      "step": "Step 5"
     }
-   ]
+   ],
+   "price": 16.99
   },
   {
    "id": "thermal-epoxy",
@@ -753,11 +783,11 @@
    "qty": 1,
    "source": "amazon",
    "asin": "B00HTV1TXA",
-   "status": "to-buy",
+   "status": "bought",
    "route": [
     "magnet"
    ],
-   "role": "bonds the thermal fuse to the magnet's body (room-temperature cure; keep it under 55 C while curing). Priced $39.62 on 2026-10-11 (in the Amazon cart, not ordered); a cheaper plain epoxy is not thermally conductive. The larger 8329TCS kit is $115.91 and reviewers report curing trouble: do not buy that one. A cheaper way to couple the fuse is a thin thermal pad wrapped in Kapton (suggested by the Opus review, not tried). Ships from Tequipment, due Oct 20 (the rest arrives Oct 13).",
+   "role": "bonds the thermal fuse to the magnet's body (room-temperature cure; keep it under 55 C while curing). Priced $39.62 on 2026-10-11 (; a cheaper plain epoxy is not thermally conductive. The larger 8329TCS kit is $115.91 and reviewers report curing trouble: do not buy that one. A cheaper way to couple the fuse is a thin thermal pad wrapped in Kapton (suggested by the Opus review, not tried). Ordered as Amazon order 113-9643074-9107410 (2026-10-11, $42.69 with tax; ships from Tequipment, arriving Oct 20).",
    "used_in": [
     {
      "doc": "manual",
@@ -768,21 +798,22 @@
   },
   {
    "id": "butt-splices",
-   "name": "Gardner Bender 22-18 AWG heat-shrink butt splices (8-pack)",
+   "name": "AIRIC 22/20/18 AWG crimp-type heat-shrink butt connectors (100 pcs)",
    "qty": 1,
-   "source": "home-depot",
-   "price": 7.24,
-   "status": "to-buy",
+   "source": "amazon",
+   "price": 8.99,
+   "status": "bought",
    "route": [
     "magnet"
    ],
-   "role": "crimped joints for the thermal fuse's leads instead of solder (the fuse is damaged by soldering heat); Home Depot item 202522490, model AMT-4120; Amazon alternative in the cart (not ordered): AIRIC 22/20/18 AWG crimp-type heat-shrink butt connectors, 100 pcs, $8.99, B06XCQ7P8R. Avoid the 'solder seal' type: soldering heat can damage the fuse",
+   "role": "crimped joints for the thermal fuse's leads instead of solder (the fuse is damaged by soldering heat). Ordered Amazon order 113-8531797-3096269 (2026-10-11) instead of the Home Depot Gardner Bender 8-pack (AMT-4120). Avoid the 'solder seal' type: soldering heat can damage the fuse",
    "used_in": [
     {
      "doc": "manual",
      "step": "Step 5"
     }
-   ]
+   ],
+   "asin": "B06XCQ7P8R"
   },
   {
    "id": "magnet-swivel",
@@ -931,7 +962,7 @@
   },
   {
    "id": "peek-camera",
-   "name": "innomaker 1080p 32 \u00d7 32 mm UVC camera (peek box)",
+   "name": "innomaker 1080p 32 × 32 mm UVC camera (peek box)",
    "qty": 1,
    "source": "amazon",
    "asin": "B0CNCSFQC1",
@@ -940,7 +971,7 @@
    "route": [
     "magnet"
    ],
-   "role": "the same model as the head camera, mounted in the peek box's base looking up at the card window. Not in the cart yet. Also needs a 5 V USB LED strip and a USB extension; neither chosen.",
+   "role": "the same model as the head camera, mounted in the peek box's base looking up at the card window. NOT ordered: the 2026-10-11 order held only one camera, so this second one is still to buy. Order it after the head camera's field-of-view test if you want to know the lens first, or now to save a shipping wait. Also needs a 5 V USB LED strip and a USB extension; neither chosen. DEFERRED (bare-bones build, 2026-10-12): not needed until the head camera's field-of-view test and the stack test pass.",
    "used_in": [
     {
      "doc": "manual",
@@ -1154,6 +1185,19 @@
    "price": 3.19,
    "status": "removed",
    "reason": "only sealed the valve's threads"
+  },
+  {
+   "id": "dummy-battery-lp-e10",
+   "name": "Kimaru LP-E10 dummy battery and ACK-E10 AC kit",
+   "qty": 1,
+   "source": "amazon",
+   "price": 25.34,
+   "status": "removed",
+   "route": [],
+   "role": "ordered 2026-10-09 (order 114-6107625-0621817, delivered Oct 10) for a Canon Rebel; the Canon was dropped for the UVC head camera, and the T3i takes the LP-E8 anyway. Unused: eligible for return through 2026-11-09.",
+   "used_in": [],
+   "asin": "B08LYLY5NN",
+   "reason": "ordered 2026-10-09 (order 114-6107625-0621817, delivered Oct 10) for a Canon Rebel; the Canon was dropped for the UVC head camera, and the T3i takes the LP-E8 anyway. Unused: eligible for return through 2026-11-09."
   }
  ]
 }

@@ -14,7 +14,7 @@ disagree. **Status (2026-10-05): designed from the parts' specs, not yet assembl
 decides whether the printer is the hand or the SO-101 arm is ([docs/ARM-GANTRY-GOAL.md](../../docs/ARM-GANTRY-GOAL.md),
 section M). The suction design this replaced is in git history.
 
-**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head, and four animated step-by-step guides (the magnet head, 19 steps, starting with sawing and drilling the bracket and including the swivel plug that closes the bolt's slot and the filament pin that locks it; sleeving a card with its washer, 8 steps; the flip station design, 6 steps: `guide=flip`; and the reversible fan-to-magnet pigtail, a proposal, 7 steps: `guide=pigtail`) with a scrubbable timeline. Labels carry each part's size, and a Speak button (or `S`, plus an Auto-read option) reads the current step aloud using the browser's own offline voices. Your place is saved in the browser, and every view has a link you can share or bookmark: `?view=steps&guide=sleeve&step=5` (also `view=head&explode=0.6`, `view=all&part=swivel`, `labels=all|current|off`, `follow=0`).
+**3D version:** `scripts/serve-manual3d.sh`, then open <http://localhost:8765/manual3d/>: every printed part (the real STL files) and every piece of hardware, labelled, with an exploded view of the magnet head, and animated step-by-step guides, including `guide=measure` (the measure-mode design: calipers, camera calibration, touch-off, the stamp idea, validation and the deferred iPhone overhead; a design, not built), plus the four original ones (the magnet head, 19 steps, starting with sawing and drilling the bracket and including the swivel plug that closes the bolt's slot and the filament pin that locks it; sleeving a card with its washer, 8 steps; the flip station design, 6 steps: `guide=flip`; and the reversible fan-to-magnet pigtail, a proposal, 7 steps: `guide=pigtail`) with a scrubbable timeline. Labels carry each part's size, and a Speak button (or `S`, plus an Auto-read option) reads the current step aloud using the browser's own offline voices. Your place is saved in the browser, and every view has a link you can share or bookmark: `?view=steps&guide=sleeve&step=5` (also `view=head&explode=0.6`, `view=all&part=swivel`, `labels=all|current|off`, `follow=0`).
 
 ![The whole rig](img/overview.svg)
 
@@ -87,19 +87,20 @@ Prices as seen on 2026-10-04; any equivalent part works.
 
 | Part | Qty | Used for |
 |---|---|---|
-| 22 AWG two-core wire, about 1 m | 1 | extending the magnet's leads to the part-fan connector |
-| Kapton (polyimide) tape | 1 roll | under the bed clips, and over the USB cable's +5 V pin |
+| 22 AWG two-core wire, about 1 m | 1 | extending the magnet's leads to the part-fan connector; ordered (MMOBIEL, $6.77). [amazon.com/dp/B0DGV4ZW1G](https://www.amazon.com/dp/B0DGV4ZW1G) |
+| Kapton (polyimide) tape | 1 roll | under the bed clips, and over the USB cable's +5 V pin; ordered ($4.99). [amazon.com/dp/B0C9PMHWGS](https://www.amazon.com/dp/B0C9PMHWGS) |
 | Micro-USB cable for the printer (came with it) | 1 | printer to the Mac |
 | USB-C to USB-A adapter | 1 | the Mac has only USB-C; both cables end in USB-A |
 | Card sleeves, inner and outer, for the AI's deck | 2 per card | the washer sits between them |
 | Non-slip shelf liner, cut to the bed | 1 | stops the moving bed from sliding the AI's cards |
-| Multimeter | 1 | the USB-shell voltage check (Step 6) and the 24 V check (Step 5) |
+| Multimeter | 1 | the USB-shell voltage check (Step 6) and the 24 V check (Step 5); ordered, AstroAI ($14.59). [amazon.com/dp/B01ISAMUA6](https://www.amazon.com/dp/B01ISAMUA6) |
+| Soldering iron kit | 1 | the connector and wire work (never the thermal fuse: crimp it); ordered, 60 W ($13.99). [amazon.com/dp/B087767KNW](https://www.amazon.com/dp/B087767KNW) |
 | Thermal cut-off fuse, 77 C (Cantherm SDF DF077S, DigiKey 317-1125-ND; buy 5-10) | 1 | in series with the magnet's + lead, bonded to its body: the hardware cut-off (Step 5; not bought yet). 10 A 250 VAC, 55 C holding: chosen so the body stays under the holding temperature; see Step 5b |
 | JST-XH 2.54 mm 2-pin connector kit with 22 AWG pre-crimped wires | 1 | the pigtail's plug for the part-fan header (most likely a 2-pin JST-XH; confirm by looking at the header first). [amazon.com/dp/B0CM315RFP](https://www.amazon.com/dp/B0CM315RFP) |
 | Thermally conductive epoxy (MG Chemicals 8329TCM, 6 mL) | 1 | bonds the thermal fuse to the magnet's body. [amazon.com/dp/B00HTV1TXA](https://www.amazon.com/dp/B00HTV1TXA) |
-| Gardner Bender 22-18 AWG heat-shrink butt splices (8-pack) | 1 | crimped joints for the fuse leads, $7.24 at Home Depot (AMT-4120) |
-| Hard to Find Fastener 1/4"-20 × 1-1/2" zinc hex bolt (100-pack) | 1 | the swivel's axle, long enough for the stack (the 1" bolts leave no margin); $13.79 in the Amazon cart. [amazon.com/dp/B00L1L84BY](https://www.amazon.com/dp/B00L1L84BY) |
-| Kynup 6 inch digital caliper | 1 | measure sleeved cards, the bed edge and the printed parts (Step 3); $16.99 in the Amazon cart. [amazon.com/dp/B09964YBMF](https://www.amazon.com/dp/B09964YBMF) |
+| AIRIC 22/20/18 AWG crimp-type heat-shrink butt connectors (100 pcs) | 1 | crimped joints for the fuse leads; ordered, $8.99 (instead of the Home Depot Gardner Bender AMT-4120). [amazon.com/dp/B06XCQ7P8R](https://www.amazon.com/dp/B06XCQ7P8R) |
+| Hard to Find Fastener 1/4"-20 × 1-1/2" zinc hex bolt (100-pack) | 1 | the swivel's axle, long enough for the stack (the 1" bolts leave no margin); $13.79, in the Amazon cart (not ordered). [amazon.com/dp/B00L1L84BY](https://www.amazon.com/dp/B00L1L84BY) |
+| Kynup 6 inch digital caliper | 1 | measure sleeved cards, the bed edge and the printed parts (Step 3); $16.99, in the Amazon cart (not ordered). [amazon.com/dp/B09964YBMF](https://www.amazon.com/dp/B09964YBMF) |
 
 **Hardware store (The Home Depot, via Instacart) — $58.96**
 
@@ -116,8 +117,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Commercial Electric 4" heat-shrink tubing assortment (8-pack) | 1 | insulating the diode and the lead splices |
 | Everbilt #10 zinc flat washers (100-pack; 0.438" / 11.1 mm OD) | 1 | one per AI card, inside the sleeve (zinc-plated steel is magnetic; stainless mostly isn't) |
 
-**Online (Amazon) — the exact parts.** The first two are ordered and confirmed ($13.18): the M1 test kit. The head camera, the connector kit, the wire, the Kapton tape, the epoxy and the crimp connectors are in the Amazon cart but not
-ordered. The rest (the USB hub, the SO-101 arm and its kill switch) is in *Save for later* until the deck-stack test in Step 9 passes
+**Online (Amazon) — the exact parts.** Ordered and confirmed, $148.10 before tax (checked against the order history 2026-10-12): the M1 test kit ($13.18), the multimeter and soldering kit (Oct 9), the head camera, wire, crimp connectors, M2 nylon kit, Kapton tape and JST-XH kit (Oct 11, arriving Oct 12), and the thermal epoxy (arriving Oct 20). In the Amazon cart, not ordered: the 1-1/2" bolts and the caliper. Still to buy and in no cart: the second camera (peek box), a USB extension, the 77 C thermal fuse, an LED strip or polarizer, and a foam plug. The rest (the USB hub, the SO-101 arm and its kill switch) is in *Save for later* until the deck-stack test in Step 9 passes
 19 times out of 20; M1 uses the table's existing fixed camera.
 
 | Part | Link | Price |
@@ -142,7 +142,7 @@ Drill a **1/4" hole** about 1" from one end of the 3" piece, centred on one leg.
 A small camera rides on the print head beside the magnet, in place of the Canon: the **innomaker 1080p 32 × 32 mm UVC
 camera** (USB to the Mac; no battery, no tripod). Nothing is mounted yet: its mount is a printed part still to design,
 and its field of view must be measured first, because the listing says 103° across but one reviewer measured about 50°.
-Parts still to choose: a **USB 2.0 shielded extension cable, 2-3 m** (the camera's own cable is short), **M2 nylon screws and standoffs** (a 380-piece kit is in the Amazon cart), and, only after the field-of-view test, an **M12 lens (after the field-of-view test)**: if the stock lens turns out too narrow we need a wider one with an infrared-cut filter.
+Parts still to choose: a **USB 2.0 shielded extension cable, 2-3 m** (the camera's own cable is short), **M2 nylon screws and standoffs** (a 380-piece kit, ordered: [amazon.com/dp/B0B5LST3PG](https://www.amazon.com/dp/B0B5LST3PG)), and, only after the field-of-view test, an **M12 lens (after the field-of-view test)**: if the stock lens turns out too narrow we need a wider one with an infrared-cut filter.
 
 **Rules for the mount:**
 - Fix the board with the nylon M2 screws so its ground and USB shield cannot touch the carriage: the CR-6's USB fault
