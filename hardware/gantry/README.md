@@ -95,12 +95,12 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Non-slip shelf liner, cut to the bed | 1 | stops the moving bed from sliding the AI's cards |
 | Multimeter | 1 | the USB-shell voltage check (Step 6) and the 24 V check (Step 5); ordered, AstroAI ($14.59). [amazon.com/dp/B01ISAMUA6](https://www.amazon.com/dp/B01ISAMUA6) |
 | Soldering iron kit | 1 | the connector and wire work (never the thermal fuse: crimp it); ordered, 60 W ($13.99). [amazon.com/dp/B087767KNW](https://www.amazon.com/dp/B087767KNW) |
-| Thermal cut-off fuse, 77 C (Cantherm SDF DF077S, DigiKey 317-1125-ND; buy 5-10) | 1 | in series with the magnet's + lead, bonded to its body: the hardware cut-off (Step 5; not bought yet). 10 A 250 VAC, 55 C holding: chosen so the body stays under the holding temperature; see Step 5b |
+| Thermal cut-off fuse, 77 C (Cantherm SDF DF077S, DigiKey 317-1125-ND; buy 5-10) | 1 | in series with the magnet's + lead, bonded to its body: the hardware cut-off (Step 5). Bought instead as the Amazon BOJACK SF76E 77 C, 10 A 250 V, 10-pack (delivered Oct 13): its holding temperature is not stated, so check it before relying on it; the Cantherm part is the fallback. [amazon.com/dp/B07Y61YTTK](https://www.amazon.com/dp/B07Y61YTTK). 10 A 250 VAC, 55 C holding: chosen so the body stays under the holding temperature; see Step 5b |
 | JST-XH 2.54 mm 2-pin connector kit with 22 AWG pre-crimped wires | 1 | the pigtail's plug for the part-fan header (most likely a 2-pin JST-XH; confirm by looking at the header first). [amazon.com/dp/B0CM315RFP](https://www.amazon.com/dp/B0CM315RFP) |
 | Thermally conductive epoxy (MG Chemicals 8329TCM, 6 mL) | 1 | bonds the thermal fuse to the magnet's body. [amazon.com/dp/B00HTV1TXA](https://www.amazon.com/dp/B00HTV1TXA) |
 | AIRIC 22/20/18 AWG crimp-type heat-shrink butt connectors (100 pcs) | 1 | crimped joints for the fuse leads; ordered, $8.99 (instead of the Home Depot Gardner Bender AMT-4120). [amazon.com/dp/B06XCQ7P8R](https://www.amazon.com/dp/B06XCQ7P8R) |
-| Hard to Find Fastener 1/4"-20 × 1-1/2" zinc hex bolt (100-pack) | 1 | the swivel's axle, long enough for the stack (the 1" bolts leave no margin); $13.79, in the Amazon cart (not ordered). [amazon.com/dp/B00L1L84BY](https://www.amazon.com/dp/B00L1L84BY) |
-| Kynup 6 inch digital caliper | 1 | measure sleeved cards, the bed edge and the printed parts (Step 3); $16.99, in the Amazon cart (not ordered). [amazon.com/dp/B09964YBMF](https://www.amazon.com/dp/B09964YBMF) |
+| Hard to Find Fastener 1/4"-20 × 1-1/2" zinc hex bolt (100-pack) | 1 | the swivel's axle, long enough for the stack (the 1" bolts leave no margin); $13.79, ordered and delivered Oct 13. [amazon.com/dp/B00L1L84BY](https://www.amazon.com/dp/B00L1L84BY) |
+| Kynup 6 inch digital caliper | 1 | measure sleeved cards, the bed edge and the printed parts (Step 3); $16.99, ordered and delivered Oct 13. [amazon.com/dp/B09964YBMF](https://www.amazon.com/dp/B09964YBMF) |
 
 **Hardware store (The Home Depot, via Instacart) — $58.96**
 
@@ -117,7 +117,7 @@ Prices as seen on 2026-10-04; any equivalent part works.
 | Commercial Electric 4" heat-shrink tubing assortment (8-pack) | 1 | insulating the diode and the lead splices |
 | Everbilt #10 zinc flat washers (100-pack; 0.438" / 11.1 mm OD) | 1 | one per AI card, inside the sleeve (zinc-plated steel is magnetic; stainless mostly isn't) |
 
-**Online (Amazon) — the exact parts.** Ordered and confirmed, $148.10 before tax (checked against the order history 2026-10-12): the M1 test kit ($13.18), the multimeter and soldering kit (Oct 9), the head camera, wire, crimp connectors, M2 nylon kit, Kapton tape and JST-XH kit (Oct 11, arriving Oct 12), and the thermal epoxy (arriving Oct 20). In the Amazon cart, not ordered: the 1-1/2" bolts and the caliper. Still to buy and in no cart: the second camera (peek box), a USB extension, the 77 C thermal fuse, an LED strip or polarizer, and a foam plug. The rest (the USB hub, the SO-101 arm and its kill switch) is in *Save for later* until the deck-stack test in Step 9 passes
+**Online (Amazon) — the exact parts.** Ordered and confirmed, $184.87 before tax (checked against the order history 2026-10-14): the M1 test kit ($13.18), the multimeter and soldering kit (Oct 9), the head camera, wire, crimp connectors, M2 nylon kit, Kapton tape and JST-XH kit (Oct 11, delivered Oct 13), the 77 C thermal fuse 10-pack, the 1-1/2" bolts and the caliper (Oct 12, delivered Oct 13), and the thermal epoxy (arriving Oct 20). The Amazon cart is empty. Still to buy and in no cart: the second camera (peek box), a USB extension, an LED strip or polarizer, and a foam plug. The rest (the USB hub, the SO-101 arm and its kill switch) is in *Save for later* until the deck-stack test in Step 9 passes
 19 times out of 20; M1 uses the table's existing fixed camera.
 
 | Part | Link | Price |

@@ -1,6 +1,6 @@
 {
  "about": "Bill of materials for the physical AI player (camera gantry + magnet hand, and the optional SO-101 arm). One entry per part, ordered or not. table/tests/bom_test.py checks it against the manual and the goal doc: every part is used by a step that exists, every Amazon link in those docs is listed here, removed parts stay out of the manual, and the cart totals add up.",
- "updated": "2026-10-12",
+ "updated": "2026-10-14",
  "docs": {
   "manual": "hardware/gantry/README.md",
   "goal": "docs/ARM-GANTRY-GOAL.md"
@@ -13,13 +13,13 @@
   "to-print": "printed on the CR-6 Max before it becomes the gantry",
   "list-only": "saved in the Amazon list, not in the cart (a fallback)",
   "removed": "was in a cart, taken out; kept here so nobody re-adds it by accident",
-  "bought": "ordered and confirmed (Amazon and Home Depot, 2026-10-09 to 2026-10-11); waiting for delivery or already here",
-  "to-buy": "needed and not bought yet; the two in the Amazon cart (bolts, caliper) are NOT ordered"
+  "bought": "ordered and confirmed (Amazon and Home Depot, 2026-10-09 to 2026-10-12); delivered, or waiting for delivery (the thermal epoxy arrives Oct 20)",
+  "to-buy": "needed and not bought yet"
  },
  "carts": {
   "amazon": {
-   "subtotal": 148.1,
-   "note": "Checked 2026-10-12. Subtotal = every Amazon part ordered 2026-10-09 to 2026-10-11 at item prices before tax (the removed Canon battery is not counted). Ordered: M1 test kit; the head camera, wire, butt connectors, M2 kit, Kapton, JST-XH kit ($69.84 with tax); and the thermal epoxy ($42.69, arrives Oct 20). In the cart, not ordered (checked 2026-10-12, $36.77): 1-1/2\" hex bolts ($13.79), the Kynup caliper ($16.99) and the 77 C thermal fuse 10-pack ($5.99). Still unbought and not in the cart: second camera (peek box), USB extension, 5 V LED strip or polarizer, foam plug. Everything else is in Save for later until the stack test passes 19/20. 2026-10-12 bare-bones decision: the LED strip, second camera and M12 lens are deferred; the thermal fuse and USB extension have listings chosen but are not ordered"
+   "subtotal": 184.87,
+   "note": "Checked 2026-10-14. Subtotal = every Amazon part ordered 2026-10-09 to 2026-10-12 at item prices before tax (the removed Canon battery is not counted). Ordered: M1 test kit; the head camera, wire, butt connectors, M2 kit, Kapton, JST-XH kit ($69.84 with tax, delivered Oct 13); the thermal epoxy ($42.69, arrives Oct 20); and the 77 C thermal fuse 10-pack, 1-1/2\" hex bolts and Kynup caliper ($39.62 with tax, delivered Oct 13). The Amazon cart is empty. Still unbought and not in the cart: second camera (peek box), USB extension, 5 V LED strip or polarizer, foam plug. Everything else is in Save for later until the stack test passes 19/20. 2026-10-12 bare-bones decision: the LED strip, second camera and M12 lens are deferred; the USB extension has a listing chosen but is not ordered"
   },
   "home-depot": {
    "subtotal": 58.96,
@@ -271,7 +271,7 @@
     "magnet",
     "arm"
    ],
-   "role": "the head camera: rides on the print head beside the magnet and replaces the Canon (USB to the Mac, no battery or tripod). Ordered Amazon order 113-8531797-3096269 (2026-10-11), 1 camera, arriving Oct 12; the order's listing title says 130 degree wide angle, so the field of view is not what earlier notes claimed. Fixed M12 lens, the 103 degree figure from the earlier listing and one reviewer's measured 50 degrees are both unverified: run the field-of-view test in Step 2 before printing a mount. Later also the SO-101's wrist camera.",
+   "role": "the head camera: rides on the print head beside the magnet and replaces the Canon (USB to the Mac, no battery or tripod). Ordered Amazon order 113-8531797-3096269 (2026-10-11), 1 camera, delivered Oct 13; the order's listing title says 130 degree wide angle, so the field of view is not what earlier notes claimed. Fixed M12 lens, the 103 degree figure from the earlier listing and one reviewer's measured 50 degrees are both unverified: run the field-of-view test in Step 2 before printing a mount. Later also the SO-101's wrist camera.",
    "used_in": [
     {
      "doc": "manual",
@@ -404,12 +404,12 @@
    "name": "Hard to Find Fastener 1/4\"-20 × 1-1/2\" zinc hex bolt (100-pack)",
    "qty": 1,
    "source": "amazon",
-   "status": "to-buy",
+   "status": "bought",
    "route": [
     "magnet",
     "arm"
    ],
-   "role": "the swivel's axle at the length the stack needs: the 1\" Everbilt bolts leave 0.0 mm of margin (fit-check ledger bolt-length). In the Amazon cart (checked 2026-10-12, not ordered), $13.79.",
+   "role": "the swivel's axle at the length the stack needs: the 1\" Everbilt bolts leave 0.0 mm of margin (fit-check ledger bolt-length). Ordered as Amazon order 113-7038727-2570614 (placed 2026-10-12, $39.62 with tax for the fuse, bolts and caliper), delivered Oct 13, $13.79.",
    "used_in": [
     {
      "doc": "manual",
@@ -424,12 +424,12 @@
    "name": "Kynup 6 inch digital caliper",
    "qty": 1,
    "source": "amazon",
-   "status": "to-buy",
+   "status": "bought",
    "route": [
     "magnet",
     "arm"
    ],
-   "role": "measure sleeved cards with their washers, the bed edge and the printed parts before printing the deck box and chute (card_t and bed_t are placeholders). In the Amazon cart (checked 2026-10-12, not ordered), $16.99.",
+   "role": "measure sleeved cards with their washers, the bed edge and the printed parts before printing the deck box and chute (card_t and bed_t are placeholders). Ordered as Amazon order 113-7038727-2570614 (placed 2026-10-12, $39.62 with tax for the fuse, bolts and caliper), delivered Oct 13, $16.99.",
    "used_in": [
     {
      "doc": "manual",
@@ -744,11 +744,11 @@
    "name": "Thermal cut-off fuse, 77 C",
    "qty": 1,
    "source": "amazon",
-   "status": "to-buy",
+   "status": "bought",
    "route": [
     "magnet"
    ],
-   "role": "hardware cut-off in series with the magnet's + lead, bonded to its body: the software timer cannot help if the cable is pulled; not bought. 77 C opening, 55 C holding, 10 A 250 VAC axial: far above the 0.25 A load. Chosen by holding temperature (the body must stay under 55 C), not opening temperature; a 60-70 C part would nuisance-trip. Confirm with the measured body temperature after a 30-minute session (45 C or less: DF072S; above 55 C: fix the duty, do not go to DF084S). Metal case is live: Kapton on the magnet first, epoxy, then heat-shrink; crimp the leads rather than solder Never put a heat gun or lighter near the fuse (it opens at 77 C, and heat-shrink needs 90-120 C): shrink the splices before the fuse is anywhere near, wrap the fuse in Kapton instead of heat-shrink, and re-measure its resistance after the last heat. Listing chosen 2026-10-12: BOJACK SF76E 77 C, 10 A 250 V, pack of 10, $5.99 (a 10-pack is the smallest size; spares are fine). In the Amazon cart (2026-10-12), not ordered.",
+   "role": "hardware cut-off in series with the magnet's + lead, bonded to its body: the software timer cannot help if the cable is pulled. 77 C opening, 55 C holding, 10 A 250 VAC axial: far above the 0.25 A load. Chosen by holding temperature (the body must stay under 55 C), not opening temperature; a 60-70 C part would nuisance-trip. Confirm with the measured body temperature after a 30-minute session (45 C or less: DF072S; above 55 C: fix the duty, do not go to DF084S). Metal case is live: Kapton on the magnet first, epoxy, then heat-shrink; crimp the leads rather than solder Never put a heat gun or lighter near the fuse (it opens at 77 C, and heat-shrink needs 90-120 C): shrink the splices before the fuse is anywhere near, wrap the fuse in Kapton instead of heat-shrink, and re-measure its resistance after the last heat. Listing chosen 2026-10-12: BOJACK SF76E 77 C, 10 A 250 V, pack of 10, $5.99 (a 10-pack is the smallest size; spares are fine). Ordered as Amazon order 113-7038727-2570614 (placed 2026-10-12, $39.62 with tax for the fuse, bolts and caliper), delivered Oct 13. The SF76E listing does not state a holding temperature (55 C is the Cantherm DF077S figure this design was chosen on): confirm it from the pack's datasheet or by the 30-minute body-temperature log before relying on it; DigiKey DF077S remains the fallback.",
    "used_in": [
     {
      "doc": "manual",
