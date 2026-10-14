@@ -409,7 +409,7 @@
     "magnet",
     "arm"
    ],
-   "role": "the swivel's axle at the length the stack needs: the 1\" Everbilt bolts leave 0.0 mm of margin (fit-check ledger bolt-length). Ordered as Amazon order 113-7038727-2570614 (placed 2026-10-12, $39.62 with tax for the fuse, bolts and caliper), delivered Oct 13, $13.79.",
+   "role": "the swivel's axle at the length the stack needs: the 1\" Everbilt bolts left 0.0 mm of margin; fit_check.py now uses these (the bolt-length ledger entry was resolved 2026-10-14, 12.7 mm of margin). Ordered as Amazon order 113-7038727-2570614 (placed 2026-10-12, $39.62 with tax for the fuse, bolts and caliper), delivered Oct 13, $13.79.",
    "used_in": [
     {
      "doc": "manual",

@@ -86,8 +86,8 @@ il, wall, floor_t, wall_h = 92.5 + 1.6, 2.4, 1.6, 5
 hit = collides(f'intersection(){{ import("{tray}"); translate([0,{(il + 2 * wall) / 2},{floor_t + wall_h}]) import("{bridge}"); }}')
 report("FAIL" if hit else "ok", "bridge sits on the tray without overlapping it")
 
-print("3. bolt stack-up (1 inch bolt; change BOLT_LEN for 1-1/2 inch)")
-BOLT_LEN, HEAD_H, SWIVEL_TOP, POCKET_FLOOR = 25.4, 3.97, 15.1, 6.5
+print("3. bolt stack-up (1-1/2 inch bolt, the BOM's hex-bolts-long; the 1 inch Everbilt bolt left 0.0 mm)")
+BOLT_LEN, HEAD_H, SWIVEL_TOP, POCKET_FLOOR = 38.1, 3.97, 15.1, 6.5
 NYLON, BRACKET, NUT = 6.0, 3.2, 5.6
 SPRING_SOLID = 6.0                                 # assumed: measure the real spring
 thread_end = POCKET_FLOOR + HEAD_H + BOLT_LEN
@@ -344,10 +344,11 @@ else:
 
 # 7.4 hardware that the BOM lists against what the stack needs
 bom = _json.loads((HERE.parent / "bom.json").read_text()); items = bom["items"] if isinstance(bom, dict) and "items" in bom else bom
-bolt_item = next((i for i in items if i.get("id") == "hex-bolts"), {}); bolt_in = 1.5 if "1-1/2" in bolt_item.get("name", "") or "1.5" in bolt_item.get("name", "") else 1.0
+bolts = [i for i in items if i.get("id") in ("hex-bolts", "hex-bolts-long") and i.get("status") == "bought"]    # the bolts actually in hand; the longest one is the axle
+bolt_in = max((1.5 if "1-1/2" in i.get("name", "") or "1.5" in i.get("name", "") else 1.0 for i in bolts), default=1.0)
 need_len = SWIVEL_TOP + NYLON + BRACKET + SPRING_SOLID + NUT - POCKET_FLOOR - HEAD_H
 report("FAIL" if bolt_in * 25.4 < need_len + 0.5 else "ok", "the bolt in the bill of materials is long enough for the stack with a margin of at least 0.5 mm",
-       f"the BOM lists a {bolt_in:g} inch bolt ({bolt_in * 25.4:.1f} mm); the stack needs {need_len:.1f} mm of bolt + 0.5 mm: buy 1-1/2 inch", id="bolt-length")
+       f"the longest bolt the BOM marks bought is {bolt_in:g} inch ({bolt_in * 25.4:.1f} mm); the stack needs {need_len:.1f} mm of bolt + 0.5 mm" + ("" if bolt_in * 25.4 >= need_len + 0.5 else ": buy 1-1/2 inch"), id="bolt-length")
 est = 1.25 + 0.30 + 0.20                              # #10 washer 0.049 in + card 0.3 + two sleeves, nominal: an ESTIMATE, to be replaced by the ten-card measurement
 report("WARN" if est > ct else "ok", "card_t (a card with its washer) is not below an estimate from the parts' nominal thicknesses",
        f"card_t is {ct:g} mm; washer 1.25 + card 0.30 + sleeves 0.20 = {est:.2f} mm: the deck box's slot is card_t + {d['slot_play']:g} and the rack's slot card_t + {r['gap']:g}; measure ten and set card_t in all three .scad files", id="card-t-unmeasured")
