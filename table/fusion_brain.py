@@ -389,7 +389,9 @@ def on_priority(t: Table, e: dict, dry: bool):
     local = None if dry else local_choice(s, opts, question)
     pick, line = (local[0], "") if local else choose(s, opts, question, dry)
     if pick.get("action") == "cast":
-        t.act("cast", name=pick["name"])
+        ok, d = t.act("cast", name=pick["name"])
+        if not ok:
+            choose_mode_and_recast(t, s, {"name": pick["name"]}, d, dry)    # a modal instant (Drown in the Loch) is refused until a mode is named
         if line:
             say(t, line)
     else:

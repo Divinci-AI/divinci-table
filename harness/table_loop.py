@@ -240,7 +240,7 @@ def run_loop(a, guards: Guards, game_cmd: list[str], env: dict, log=print) -> di
                 seen[sig] = {"game": i, "seed": seed, "decks": decks}
         for d in decks.split(","):
             per_deck[d] += 1
-        keep = failed or any(k != "pilot-error" for k in rec["oracle"])
+        keep = a.keep_all or failed or any(k != "pilot-error" for k in rec["oracle"])
         if not keep and run.exists():
             shutil.rmtree(run, ignore_errors=True)       # holds private hands: only a game with something to read is kept
         log(f"game {i}: rc={rc} {secs}s {rec['stopped']} oracle={rec['oracle']}" + (" FAILED" if failed else ""))
@@ -273,6 +273,7 @@ def main():
     ap.add_argument("--swapouts-per-min", type=float, default=30000.0); ap.add_argument("--max-failures", type=int, default=3)
     ap.add_argument("--watch-secs", type=float, default=10.0, help="how often the guards are sampled during a game")
     ap.add_argument("--kill-grace-secs", type=float, default=90.0, help="a game gets --max-secs plus this before it is killed")
+    ap.add_argument("--keep-all", action="store_true", help="keep every game folder (logs, decisions, snapshots) for research; they hold private hands, never share them")
     ap.add_argument("--fake-mode", default="random", help="fake_router mode: random | first")
     a = ap.parse_args()
     if not 2 <= a.seats <= 6:
