@@ -189,7 +189,11 @@ def choose(state: dict, options: list[tuple[str, dict]], question: str, dry: boo
     """options: [(label, {"action":..., **body})]. Returns the chosen option's body and the line to say."""
     prompt = ("STATE:\n" + json.dumps(state_for_prompt(state), separators=(",", ":")) + "\nOPTIONS:\n"
               + "\n".join(f"{i + 1}. {lab}" for i, (lab, _) in enumerate(options)) + f"\n{question}")
-    r = ask(prompt, dry, release_for(state.get("commander")))
+    if os.environ.get("FUSION_BACKEND") == "local" and not dry:   # the Orin pilots: no release, no cloud, no silent fallback
+        import local_pilot
+        r = local_pilot.decide(prompt, len(options), game=os.environ.get("PILOT_GAME", ""))
+    else:
+        r = ask(prompt, dry, release_for(state.get("commander")))
     if r.get("capped"):                                    # sleeping AI: the most passive option, and no talk
         i = next((k for k, (_, b) in enumerate(options) if b.get("action") in PASSIVE), len(options) - 1)
         return options[i][1], ""
@@ -199,6 +203,31 @@ def choose(state: dict, options: list[tuple[str, dict]], question: str, dry: boo
         i = 0
     i = i if 0 <= i < len(options) else 0
     return options[i][1], str(r.get("say") or "").strip()
+
+
+def mana_value(cost: str) -> int:
+    """{4}{G} -> 5, {X}{G}{G} -> 2 (X counts 0), {W/U} -> 1: the least mana the cost can take, to skip an option that cannot be afforded."""
+    n = 0
+    for sym in re.findall(r"\{([^}]*)\}", cost or ""):
+        n += int(sym) if sym.isdigit() else (0 if sym.upper() == "X" else 1)
+    return n
+
+
+def choose_mode_and_recast(t: Table, s: dict, body: dict, d: dict, dry: bool):
+    """A modal spell ("Choose one —") is refused until a mode is named: ask which, then cast again with it."""
+    m = re.search(r"choose (\d+) with --mode \(1-based\): (.*)$", str((d or {}).get("error") or ""), re.S)
+    if not m:
+        return False, d
+    n, modes = int(m.group(1)), [x.strip() for x in re.split(r"\s*\|\s*(?=\d+\. )", m.group(2)) if x.strip()]
+    if n == 1:
+        opts = [(f"mode {mode}", {"action": "mode", "modes": [i + 1]}) for i, mode in enumerate(modes)] + [("do not cast it", {"action": "stop"})]
+        pick, _ = choose(s, opts, f'Which mode of "{body.get("name")}"?', dry)
+        if pick["action"] == "stop":
+            return False, d
+        picked = pick["modes"]
+    else:
+        picked = list(range(1, n + 1))                      # several modes: take the first n (no model call)
+    return t.act("cast", **{**body, "modes": picked})
 
 
 def say(t: Table, line: str):
@@ -212,9 +241,15 @@ def say(t: Table, line: str):
 def play_turn(t: Table, dry: bool):
     t.act("begin")
     s = t.state()
-    lands = [h["name"] for h in s.get("hand", []) if h["land"]]
-    if lands and not s.get("land_played"):
-        t.act("land", name=lands[0])
+    in_hand = [h for h in s.get("hand", []) if h["land"]]
+    in_hand.sort(key=lambda h: "return a land" in (h.get("text") or "").lower())   # a plain land first: a bounce land needs a land to return
+    if in_hand and not s.get("land_played"):
+        pick = in_hand[0]
+        body = {"name": pick["name"]}
+        has_land = any("Land" in (p.get("type") or "") for p in s.get("permanents", []))
+        if "return a land" in (pick.get("text") or "").lower() and has_land:
+            body["bounce"] = "self"                        # the table wants a choice once another land is out; the bounce land itself is the safe one
+        t.act("land", **body)
     for _ in range(4):                                     # main phase: up to four spells
         s = t.state()
         opts = []
@@ -236,7 +271,7 @@ def play_turn(t: Table, dry: bool):
                 opts.append((f'cast "{h["name"]}" FACE DOWN for {{3}} (turn up later: {h["face_up_cost"]})',
                              {"action": "cast", "name": h["name"], "face_down": True}))
         for pm in s.get("permanents", []):
-            if pm.get("face_down") and pm.get("turn_up_cost"):
+            if pm.get("face_down") and pm.get("turn_up_cost") and mana_value(pm["turn_up_cost"]) <= (s.get("untapped_mana") or 0):
                 opts.append((f'turn face-down #{pm["id"]} ({pm["name"]}) face up for {pm["turn_up_cost"]}',
                              {"action": "turn-up", "ref": f'#{pm["id"]}'}))
         cc = s.get("commander_card") or {}
@@ -249,7 +284,9 @@ def play_turn(t: Table, dry: bool):
         if pick["action"] == "stop":
             break
         body = {k: v for k, v in pick.items() if k != "action"}
-        ok, _ = t.act(pick["action"], **body)
+        ok, d = t.act(pick["action"], **body)
+        if not ok and pick["action"] == "cast":
+            ok, d = choose_mode_and_recast(t, s, body, d, dry)
         say(t, line)
         if not ok:
             break
@@ -330,6 +367,10 @@ def on_removal(t: Table, e: dict):
     verb = {"destroy": "destroy", "exile": "exile", "bounce": "bounce", "counter": "destroy"}.get(e.get("effect"))
     if verb and e.get("target") and e["target"] != "all":
         t.act(verb, ref=e["target"])
+    elif e.get("target") == "all" and e.get("effect") in ("wipe", "exile-all", "bounce-all", "damage-all"):
+        ok, d = t.act("effect", kind="apply-removal")      # the table applies the spell's own text to MY permanents, once per event
+        if not ok:
+            say(t, f"I can't apply {e.get('spell') or 'that'} automatically: {d.get('error', 'refused')}")
     else:
         say(t, "Noted.")
 
@@ -409,9 +450,10 @@ def main():
     ap.add_argument("--token-file", default=os.environ.get("TABLE_TOKEN_FILE", str(HERE / ".brain-token")))
     ap.add_argument("--dry", action="store_true")
     a = ap.parse_args()
-    if not a.dry and not RELEASE_ID:
+    local = os.environ.get("FUSION_BACKEND") == "local"
+    if not a.dry and not local and not RELEASE_ID:
         sys.exit("no Fusion release: set FUSION_RELEASE_ID or write table/.cache/fusion.json {\"release_id\": …}")
-    if not a.dry and not os.environ.get("DIVINCI_FUSION_API_KEY"):
+    if not a.dry and not local and not os.environ.get("DIVINCI_FUSION_API_KEY"):
         sys.exit("DIVINCI_FUSION_API_KEY isn't set: run under infisical run (see the docstring), or --dry")
     t = Table(a.url, a.seat, Path(a.token_file))
     since = t.events("latest").get("last", 0)
@@ -431,6 +473,11 @@ def main():
     except Exception as ex:                               # noqa: BLE001
         print(f"  ! catch-up turn failed: {type(ex).__name__}: {ex}", flush=True)
     while True:
+        if local:                                            # a failed model call flags the game: stop, never play on with a default
+            import local_pilot
+            if local_pilot.FAILED:
+                print(f"PILOT-FAILED: {local_pilot.FAILED[0]}", flush=True)
+                sys.exit(3)
         try:
             d = t.events(since)
         except Exception as ex:                              # noqa: BLE001

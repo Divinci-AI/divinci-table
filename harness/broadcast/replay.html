@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Divinci Table: AI's Playing Cards</title>
+<meta name="viewport" content="width=1280">
+<style>
+ :root{--bg:#0f1220;--panel:#181c30;--line:#2a3050;--ink:#e8ebf7;--mute:#8d95b8;--acc:#7aa2ff;--life:#ffd166;--bad:#ff6b6b}
+ *{box-sizing:border-box} html,body{margin:0;width:1280px;height:720px;overflow:hidden;background:var(--bg);color:var(--ink);font:15px/1.25 -apple-system,"Helvetica Neue",Arial,sans-serif}
+ #top{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid var(--line);background:#0b0e1a}
+ #title{font-weight:700;font-size:20px;letter-spacing:.2px} #banner{color:var(--mute);font-size:13px}
+ #main{display:grid;height:560px;gap:8px;padding:8px}
+ .seat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;overflow:hidden;position:relative}
+ .seat.active{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+ .seat.out{opacity:.45}
+ .name{font-weight:700;font-size:17px} .cmdr{color:var(--mute);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .life{position:absolute;right:12px;top:6px;font-size:40px;font-weight:800;color:var(--life)} .life.low{color:var(--bad)}
+ .counts{color:var(--mute);font-size:12px;margin:2px 0 6px} .chips{display:flex;flex-wrap:wrap;gap:4px}
+ .chip{background:#232948;border:1px solid var(--line);border-radius:6px;padding:2px 6px;font-size:12px;max-width:210px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .chip.tapped{opacity:.55;transform:rotate(-2deg)} .chip .pt{color:var(--life);font-weight:700;margin-left:4px}
+ .hand{margin-top:6px;color:#9be39b;font-size:11px} .hand b{color:var(--mute);font-weight:600}
+ #bottom{height:116px;display:grid;grid-template-columns:1fr 330px;gap:8px;padding:0 8px 8px}
+ #talk{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 12px;overflow:hidden;font-size:14px}
+ #talk div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis} #talk .who{color:var(--acc);font-weight:700;margin-right:6px}
+ #np{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 12px;font-size:12px;color:var(--mute)}
+ #np b{color:var(--ink)} #phase{color:var(--acc);font-weight:700;font-size:13px}
+ #end{position:absolute;inset:0;background:rgba(8,10,20,.82);display:none;align-items:center;justify-content:center;font-size:34px;font-weight:800}
+</style></head><body>
+<div id="top"><div id="title"></div><div id="banner"></div></div>
+<div id="main"></div>
+<div id="bottom"><div id="talk"></div><div id="np"></div></div>
+<div id="end"></div>
+<script>
+"use strict";
+let R=null;
+const $=id=>document.getElementById(id);
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=String(text);return e;}
+function frameAt(t){let f=R.frames[0];for(const x of R.frames){if(x.t<=t)f=x;else break;}return f;}
+function showAt(t){
+  if(!R)return false; const f=frameAt(t); if(!f)return false;
+  const names=Object.keys(f.seats), main=$("main"); main.textContent="";
+  const cols=names.length<=2?names.length:2; main.style.gridTemplateColumns="repeat("+cols+",1fr)";
+  main.style.gridTemplateRows="repeat("+Math.ceil(names.length/cols)+",1fr)";
+  for(const n of names){
+    const s=f.seats[n], box=el("div","seat"+(f.phase&&f.phase.player===n?" active":"")+(s.life!==null&&s.life<=0?" out":""));
+    box.appendChild(el("div","name",n)); box.appendChild(el("div","cmdr",s.cmdr||""));
+    box.appendChild(el("div","life"+(s.life!==null&&s.life<=10?" low":""),s.life===null?"?":s.life));
+    box.appendChild(el("div","counts","hand "+s.hand+" · library "+s.library+" · graveyard "+s.gy+" · lands "+s.lands));
+    const chips=el("div","chips");
+    for(const p of s.perms){const c=el("span","chip"+(p.tapped?" tapped":""),p.name+(p.token?" (token)":""));if(p.pt){c.appendChild(el("span","pt",p.pt));}chips.appendChild(c);}
+    box.appendChild(chips);
+    if(s.hand_cards){const h=el("div","hand");h.appendChild(el("b","","in hand: "));h.appendChild(document.createTextNode(s.hand_cards.join(", ")));box.appendChild(h);}
+    main.appendChild(box);
+  }
+  const talk=$("talk"); talk.textContent="";
+  for(const l of f.talk){const d=el("div");d.appendChild(el("span","who",l.who));d.appendChild(document.createTextNode(l.text));talk.appendChild(d);}
+  const np=$("np"); np.textContent="";
+  np.appendChild(el("div","","Now playing")); np.lastChild.style.color="#e8ebf7";
+  np.appendChild(el("div","",R.now_playing.seats.map(s=>s.name).join(" vs ")));
+  np.appendChild(el("div","",R.now_playing.model));
+  if(f.phase){const p=el("div","", "");p.id="phase";p.textContent=f.phase.player+" · "+f.phase.step;np.appendChild(p);}
+  const end=$("end"); if(R.result&&t>=R.frames[R.frames.length-1].t){end.style.display="flex";end.textContent="Winner: "+R.result.winner;}else end.style.display="none";
+  return true;
+}
+window.showAt=showAt;
+window.ready=false;
+fetch("/replay.json",{cache:"no-store"}).then(r=>r.json()).then(j=>{R=j;$("title").textContent=R.title;$("banner").textContent=R.banner;showAt(0);window.duration=R.duration;window.ready=true;
+  if(new URLSearchParams(location.search).get("play")==="1"){const t0=performance.now();(function tick(){showAt((performance.now()-t0)/1000);requestAnimationFrame(tick);})();}
+}).catch(e=>{$("banner").textContent="replay not available";});
+</script></body></html>

@@ -320,6 +320,25 @@ def main():
         check("Claude ends without its own damage: nothing more is dealt, the turn passes to Fusion",
               S7.state("Fusion")["life"] == life_a and S7.phase()["player"] == "Fusion", (S7.state("Fusion")["life"], life_a, S7.phase()["player"]))
 
+    with Server(order="Claude,Fusion", humans=False) as S8:                                     # a seat that has lost takes no more damage
+        S8.claim_all()
+        S8.start_game()
+        S8.call("POST", "/api/phase/windows", {"on": False}, host=True)
+        for name, p_, t_ in (("Bear", 3, 3), ("Wolf", 2, 2)):
+            S8.host_brain("Claude", "token", name=name, power=p_, toughness=t_)
+        go(S8, "Claude", "begin")
+        bear, wolf = (perm(S8, "Claude", n) for n in ("Bear", "Wolf"))
+        c, r = go(S8, "Claude", "attack", assign={f"#{bear['id']}": "Fusion"})
+        check("elimination: Claude attacks Fusion with the 3/3 (declared while Fusion is still in the game)", c == 200, (c, r))
+        c, r = S8.host_brain("Fusion", "life", player="Fusion", delta=-S8.state("Fusion")["life"])
+        out_life = S8.state("Fusion")["life"]
+        check("...then Fusion is put at 0 (it has lost)", c == 200 and out_life <= 0, (c, r, out_life))
+        c, r = go(S8, "Claude", "damage")
+        check("...the attack declared before it lost deals nothing more", S8.state("Fusion")["life"] == out_life, (c, r, out_life, S8.state("Fusion")["life"]))
+        c, r = go(S8, "Claude", "attack", assign={f"#{wolf['id']}": "Fusion"})
+        check("a NEW attack on a seat at 0 is refused, and says it has lost", c in (400, 409) and "has lost" in str(r.get("error")), (c, r))
+        check("...and Fusion's life did not move", S8.state("Fusion")["life"] == out_life, (out_life, S8.state("Fusion")["life"]))
+
     os.environ["TABLE_AI_PASS_SECS"] = "3"                                         # a silent seat: the clock is short here
     with Server(order="Claude,Fusion", humans=False) as S3:
         S3.claim_all()

@@ -29,6 +29,8 @@ from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import snapfile
+
 from match import find_cards_in_text, identify, identify_any, near_card_candidates, parse_decklist
 
 HERE = Path(__file__).parent
@@ -82,6 +84,9 @@ ap.add_argument("--human-pass-secs", type=float, default=0.0,
 ap.add_argument("--fair-seed", choices=["local", "online", "off"], default="local",
                 help="provably fair AI decks (fair.py): commit each AI seat's shuffle before the first draw. "
                      "local: OS entropy + players' secret words (offline); online: also ANU quantum + drand")
+ap.add_argument("--seed", type=int, default=None,
+                help="replayable games for the dogfood loop: seat shuffles and the opening roll derive from this integer "
+                     "(no fair-seed commit, so NOT provably fair; never set on a table with people). Same seed + same actions = same game")
 ap.add_argument("--confirm-frames", type=int, default=2, help="same card on N frames in a row")
 ap.add_argument("--clear-secs", type=float, default=1.0, help="no card in view this long before the next scan")
 ap.add_argument("--token-file", default=None,
@@ -138,7 +143,8 @@ if args.ai_deck:
         print(f"fair seed: {sorted(_online)}", flush=True)
     for _i, _deck in enumerate(args.ai_deck):
         _n = AI_PLAYERS[_i]["name"]
-        VPS[_n] = VirtualPlayer(_deck, _n, **({} if args.fair_seed == "off" or args.restore else
+        VPS[_n] = VirtualPlayer(_deck, _n, **({"seed": args.seed * 1000 + _i} if args.seed is not None else
+                                              {} if args.fair_seed == "off" or args.restore else
                                               {"fair_words": {}, "fair_online": _online or False}))
         DECK_OF[_n] = _deck
         AI_PLAYERS[_i]["has_deck"] = True
@@ -193,6 +199,9 @@ def acting(name):
 FAIR = {"game": time.strftime("%Y%m%d-%H%M%S"), "words": {}, "revealed": False}
 
 
+SEED_GAME = [0]                                   # games started under --seed, so each reshuffle differs but replays the same
+
+
 def reshuffle_all():
     """A new game for every AI seat. With fair seeding, each shuffle is sealed with the players' secret
     words collected since the last game (POST /api/fair/word), and the words are then cleared."""
@@ -203,8 +212,10 @@ def reshuffle_all():
     if args.fair_seed == "online":
         import fair
         online = fair.online_parts()                  # once per game, shared by every seat
-    for n in list(VPS):
-        VPS[n] = VirtualPlayer(DECK_OF[n], n, **({} if args.fair_seed == "off" else
+    SEED_GAME[0] += 1
+    for _i, n in enumerate(list(VPS)):
+        VPS[n] = VirtualPlayer(DECK_OF[n], n, **({"seed": args.seed * 1000 + SEED_GAME[0] * 10 + _i} if args.seed is not None else
+                                                 {} if args.fair_seed == "off" else
                                                  {"fair_words": words, "fair_online": online or False}))
     save_fair()
 
@@ -370,14 +381,12 @@ def snapshot():
     import pickle
     try:
         with VP_LOCK, PHASE_LOCK:
+            snapfile.SNAP_SEQ[0] += 1
+            seq = snapfile.SNAP_SEQ[0]
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
                                  "ORDER": turn_order(), "EVENTS": list(EVENTS[-1500:]), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
                                  "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "SEAT_PROXY": SEAT_PROXY, "SEAT_INVITES": SEAT_INVITES, "DECKDECL": DECKDECL, "ev_id": _ev_id[0], "saved": time.time()})
-        p = research_dir() / "snapshot.pkl"
-        tmp = p.with_suffix(".tmp")
-        tmp.write_bytes(blob)
-        os.chmod(tmp, 0o600)
-        tmp.replace(p)
+        snapfile.write_snapshot(research_dir() / "snapshot.pkl", blob, seq)
     except Exception as e:                            # never let saving break the table
         print(f"snapshot failed: {e}", flush=True)
 
@@ -725,7 +734,7 @@ def combat_flush(attacker_seat: str | None = None):
     for e in [e for e in COMBAT["pending"] if attacker_seat is None or e["attacker"] == attacker_seat]:
         COMBAT["pending"].remove(e)
         d = VPS.get(e["defender"])
-        if d is None:
+        if d is None or d.life <= 0:                       # a seat that has lost takes no more damage (attacks declared before it lost are dropped)
             continue
         with VP_LOCK:
             life0 = d.life
@@ -1000,8 +1009,10 @@ def highroll_start(mode: str, sides: int, by: str) -> tuple[int, dict]:
     if mode == "table":                               # no network: this table's own fresh randomness, published with the roll
         import fair
         import secrets as _secrets
-        src = _secrets.token_hex(32)
-        HIGHROLL.update(entropy=src, source="this table's own randomness (no network needed)",
+        src = (hashlib.sha256(f"seed|{args.seed}|{SEED_GAME[0]}|highroll".encode()).hexdigest() if args.seed is not None
+               else _secrets.token_hex(32))
+        HIGHROLL.update(entropy=src, source=("--seed (replayable, not fair)" if args.seed is not None
+                                             else "this table's own randomness (no network needed)"),
                         formula="fair.die_roll(entropy, 'highroll|<round>|<name>', sides)")
         while not HIGHROLL["winner"]:
             r = str(HIGHROLL["round"])
@@ -3759,6 +3770,11 @@ class H(BaseHTTPRequestHandler):
                             except Exception:
                                 pass
                 elif action == "attack":
+                    out_now = life_table()                      # a seat at 0 or less has lost: nothing may attack it (a combat step deals all its damage at once, but the NEXT one must not)
+                    for who in dict(b["assign"]).values():
+                        dn = seat(who) or next((h["name"] for h in HUMANS if h["name"].lower() == str(who).lower()), None)
+                        if dn in out_now and dn != VP.name and isinstance(out_now[dn], int) and out_now[dn] <= 0:
+                            raise IllegalAction(f"{dn} has lost (at {out_now[dn]}); attack a player still in the game")
                     said = VP.manual_attack(b["assign"], role_on=b.get("role_on"))
                     for ref, who in b["assign"].items():
                         c = VP.perm(ref)
