@@ -253,5 +253,9 @@ check("wipe: nothing on the board to remove -> no claim", not spell_game("Ruin W
 T[0] = 0.0
 check("targeted and optional spells make no claim", not spell_game("Pick Fight", [snap(0.5, [("Brindle Elf", False)]), snap(1.5, [("Brindle Elf", False)])]) and not spell_game("Maybe Rally", [snap(0.5), snap(1.5)]))
 T[0] = 0.0
+T[0] = 0.0
+check("a no-effect finding names its card, and the card is not part of the signature", [f.get("card") for f in spell_game("Goblin Rally", [snap(0.5), snap(1.5), snap(2.5)])] == ["Goblin Rally"]
+      and O.finding("no-effect", "A", 1, "cast", "x", card="One")["signature"] == O.finding("no-effect", "A", 1, "cast", "x", card="Two")["signature"]
+      and "card" not in O.finding("drift", "A", 1, "pass", "x"))
 check("mutation: board-spell detector is unseen when no-effect is off", not [f for f in O.check_game([], [rec("A", "cast", [], {"name": "Goblin Rally"})], TEXTS2, only=[k for k in O.KINDS if k != "no-effect"], snaps=[snap(0.5), snap(1.5)], types=TYPES2) if "token" in f["why"]])
 sys.exit(0 if ok_all else 1)

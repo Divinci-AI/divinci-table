@@ -339,6 +339,33 @@ def main():
         check("a NEW attack on a seat at 0 is refused, and says it has lost", c in (400, 409) and "has lost" in str(r.get("error")), (c, r))
         check("...and Fusion's life did not move", S8.state("Fusion")["life"] == out_life, (out_life, S8.state("Fusion")["life"]))
 
+    print("a board wipe cast by one pilot is told to EVERY seat (its own too), and each applies it to its own permanents")
+    wiper = ["--ai", "Wiper|Inspirit, Flagship Vessel|", "--ai-deck", str(G.REPO / "decks/inspirit.json"), "--pilot", "Wiper"]
+    with Server(order="Wiper,Claude,Fusion", humans=False, extra=wiper) as S9:
+        S9.claim_all()
+        S9.claim("Wiper")
+        S9.start_game()
+        S9.call("POST", "/api/phase/windows", {"on": False}, host=True)
+        for who, nm in (("Claude", "Bear"), ("Claude", "Wolf"), ("Wiper", "Imp")):
+            S9.host_brain(who, "token", name=nm, power=2, toughness=2)
+        for land in ("Plains", "Plains", "Plains", "Island", "Mountain", "Island", "Mountain"):
+            c, r = S9.host_brain("Wiper", "search", name=land, to="battlefield")
+            if c != 200:
+                S9.host_brain("Wiper", "put", name=land)
+        S9.host_brain("Wiper", "search", name="Fumigate", to="hand")
+        go(S9, "Wiper", "begin")
+        c, r = go(S9, "Wiper", "cast", name="Fumigate")
+        check("Wiper casts Fumigate", c == 200, (c, r))
+        evs = S9.call("GET", "/api/events?since=0")[1].get("events", [])
+        told = sorted(e["addressee"] for e in evs if e.get("type") == "attention" and e.get("kind") == "removal" and e.get("target") == "all")
+        check("...the table tells every seat, the caster included", told == ["Claude", "Fusion", "Wiper"], told)
+        for who in ("Wiper", "Claude"):
+            c, r = S9.host_brain(who, "effect", kind="apply-removal")
+            left = [p["name"] for p in S9.state(who)["permanents"] if "Creature" in (p.get("type") or "") or "token" in p["name"].lower()]
+            check(f"...{who} applies it: no creature is left on its board", c == 200 and not left, (c, left, r))
+        c, r = S9.host_brain("Claude", "effect", kind="apply-removal")
+        check("...and it applies once: a second apply is refused", c == 400 and "no unapplied" in str(r.get("error")), (c, r))
+
     os.environ["TABLE_AI_PASS_SECS"] = "3"                                         # a silent seat: the clock is short here
     with Server(order="Claude,Fusion", humans=False) as S3:
         S3.claim_all()

@@ -75,9 +75,12 @@ def signature(kind: str, action: str, why: str) -> str:
     return f"{kind}|{action}|{' '.join(w.lower().split())[:80]}"
 
 
-def finding(kind, seat, line, action, why="", event=None):
-    return {"kind": kind, "seat": seat, "brain_line": line, "event_id": event, "action": action,
-            "why": why[:160], "signature": signature(kind, action, why)}
+def finding(kind, seat, line, action, why="", event=None, card=None):
+    f = {"kind": kind, "seat": seat, "brain_line": line, "event_id": event, "action": action,
+         "why": why[:160], "signature": signature(kind, action, why)}
+    if card:
+        f["card"] = str(card)[:60]                  # which card, for reading a report (it is not part of the signature: one bug, many cards)
+    return f
 
 
 def draw_count(rec) -> int:
@@ -128,7 +131,7 @@ def check_board(brain, snaps, types, commanders=None, window=4.0, texts=None) ->
             and after[-1]["seats"][r["seat"]]["gy"] > before[-1]["seats"][r["seat"]]["gy"]
         returned = any(name in (x.get("hand_after") or []) for _, x in recs if x["seat"] == r["seat"] and r["ts"] < x["ts"] <= r["ts"] + window and x is not r)
         if not (seen or died or returned or name in (r.get("hand_after") or []) and r["action"] == "land" and body.get("bounce")):
-            out.append(finding("no-effect", r["seat"], i, r["action"], "the permanent never appeared on the battlefield"))
+            out.append(finding("no-effect", r["seat"], i, r["action"], "the permanent never appeared on the battlefield", card=name))
     # 1b. a spell whose text creates tokens, or wipes the board ("destroy/exile/return all"), must visibly change the public board
     for i, r in recs:
         name = (r.get("body") or {}).get("name")
@@ -147,7 +150,7 @@ def check_board(brain, snaps, types, commanders=None, window=4.0, texts=None) ->
         if make:
             tok = lambda x: sum(1 for st in x["seats"].values() for p in st["perms"] if p[6])
             if max(tok(x) for x in after) <= tok(before[-1]):
-                out.append(finding("no-effect", r["seat"], i, "cast", "the spell creates tokens; none appeared on the battlefield"))
+                out.append(finding("no-effect", r["seat"], i, "cast", "the spell creates tokens; none appeared on the battlefield", card=name))
         else:
             named = re.search(r"\b(?:destroy|exile|return) all ([^.]*)", t, re.I).group(1)
             kinds_ = [k for k in ("creature", "artifact", "enchantment", "planeswalker", "land") if k in named.lower()]
@@ -156,7 +159,7 @@ def check_board(brain, snaps, types, commanders=None, window=4.0, texts=None) ->
             want = re.compile("|".join(kinds_), re.I)
             perms = lambda x: sum(1 for st in x["seats"].values() for p in st["perms"] if not p[6] and want.search(types.get(p[1], "")))
             if perms(before[-1]) > 0 and min(perms(x) for x in after) >= perms(before[-1]):
-                out.append(finding("no-effect", r["seat"], i, "cast", "the spell removes all permanents of a kind; the battlefield did not shrink"))
+                out.append(finding("no-effect", r["seat"], i, "cast", "the spell removes all permanents of a kind; the battlefield did not shrink", card=name))
     # 2. zones: hand + library + graveyard + non-token permanents (not the commander) must not EXCEED what the seat started with,
     #    and must do so in two samples in a row (a card in flight between zones can be counted twice for one sample)
     base: dict = {}
@@ -194,10 +197,10 @@ def check_game(events, brain, texts=None, stall_s=120.0, only=None, commanders=N
             why = r.get("why") or ""
             if r["action"] in ("cast", "land", "turn-up") and r["refused"] == "illegal":
                 if "unrunnable-text" in on and re.search(r"can.t be played|not supported|don.t know how|unrunnable", why, re.I):
-                    out.append(finding("unrunnable-text", r["seat"], i, r["action"], why))
+                    out.append(finding("unrunnable-text", r["seat"], i, r["action"], why, card=(r.get("body") or {}).get("name")))
                 elif "refused-but-offered" in on:
                     kind = "pilot-error" if PILOT_ERROR.search(why) else "refused-but-offered"
-                    out.append(finding(kind, r["seat"], i, r["action"], why))
+                    out.append(finding(kind, r["seat"], i, r["action"], why, card=(r.get("body") or {}).get("name")))
 
     # per seat walk: hand continuity, land count per turn
     last_hand: dict[str, list[str]] = {}
@@ -255,14 +258,14 @@ def check_game(events, brain, texts=None, stall_s=120.0, only=None, commanders=N
             if m and prev is not None:
                 n = {"a": 1, "one": 1, "two": 2, "three": 3}.get(m.group(1).lower()) or int(m.group(1))
                 if "target" not in t.lower() and "may" not in t.lower() and sum(draw_count(x) for x in window) < n:
-                    out.append(finding("no-effect", s, i, a, f"text promises drawing {n}; none drawn"))
+                    out.append(finding("no-effect", s, i, a, f"text promises drawing {n}; none drawn", card=played))
             m = re.search(r"you gain (\d+) life", t, re.I)
             if m and "may" not in t.lower() and r.get("life") is not None:
                 before = next((x.get("life") for _, x in reversed([p2 for p2 in recs if p2[0] < i and p2[1].get("seat") == s])
                                if x.get("life") is not None), None)
                 top = max((x.get("life") for x in window if x.get("life") is not None), default=r["life"])
                 if before is not None and top - before < int(m.group(1)) and "if " not in t.lower():
-                    out.append(finding("no-effect", s, i, a, f"text promises {m.group(1)} life; life did not rise"))
+                    out.append(finding("no-effect", s, i, a, f"text promises {m.group(1)} life; life did not rise", card=played))
         if a == "mulligan" or a == "new-game":
             lands_this_turn[s] = 0
         last_hand[s] = hand

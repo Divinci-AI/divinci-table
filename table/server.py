@@ -3727,6 +3727,13 @@ class H(BaseHTTPRequestHandler):
                                           targets=b.get("targets"), commander=bool(b.get("commander")),
                                           x=int(b.get("x") or 0), discount=int(b.get("discount") or 0),
                                           color=b.get("color"))
+                    import oracle
+                    if oracle.effect(str(b["name"])) in ("wipe", "exile-all", "bounce-all"):
+                        # A wipe cast by one seat hits EVERY seat's board, its own too. The AI seats are virtual, so each is told
+                        # (as a human's spoken wipe tells them) and applies it to its own permanents: nothing else removes them.
+                        for n in list(VPS):
+                            emit("attention", kind="removal", text=f"{VP.name} casts {b['name']}.", addressee=n, spell=str(b["name"]),
+                                 effect=oracle.effect(str(b["name"])), target="all")
                 elif action == "block":                  # someone attacked the AI; the brain blocks (or not)
                     from ai_turn import resolve_block
                     blk = VP.perm(b["blocker"]) if b.get("blocker") else None
@@ -3844,19 +3851,16 @@ class H(BaseHTTPRequestHandler):
                         raise IllegalAction("no unapplied removal was aimed at you in the last 15 minutes")
                     ev = evs[-1]
                     eff, tgt, spell = ev.get("effect"), str(ev.get("target") or ""), ev.get("spell")
-                    if eff not in ("destroy", "exile", "bounce", "wipe"):
+                    if eff not in ("destroy", "exile", "bounce", "wipe", "exile-all", "bounce-all"):
                         raise IllegalAction(f"the table can't apply a '{eff}' effect yet ({spell}): do it by hand")
                     wtext = ((oracle.card(spell) or {}).get("text") or "").lower() if spell else ""
-                    zone = {"destroy": "graveyard", "exile": "exile", "bounce": "hand"}.get(eff) or ("exile" if "exile all" in wtext else "graveyard")
+                    zone = {"destroy": "graveyard", "exile": "exile", "bounce": "hand", "exile-all": "exile", "bounce-all": "hand"}.get(eff) \
+                        or ("exile" if "exile all" in wtext else "graveyard")
                     if tgt == "all":
+                        import wipes
                         text = ((oracle.card(spell) or {}).get("text") or "").lower() if spell else ""
-                        if "all creatures" in text or "each creature" in text:
-                            victims = [p for p in VP.battlefield if p.is_("Creature")]
-                        elif "nonland permanents" in text:
-                            victims = [p for p in VP.battlefield if not p.is_("Land")]
-                        elif "all permanents" in text:
-                            victims = list(VP.battlefield)
-                        else:
+                        victims = wipes.victims(VP.battlefield, text)
+                        if victims is None:
                             raise IllegalAction(f"{spell}: the table can't tell which of your permanents it hits: do it by hand")
                     else:
                         victims = [VP.perm(tgt)]

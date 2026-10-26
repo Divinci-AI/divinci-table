@@ -49,7 +49,7 @@ check("...and refuses a JETSON_BASE that is not loopback", p.returncode != 0 and
 # ── 3. the loop with a scripted stand-in game ───────────────────────────────────────────────────
 FAKE = tmp / "fakegame.py"
 FAKE.write_text('''
-import json, os, sys, time, subprocess
+import json, os, signal, sys, time, subprocess
 from pathlib import Path
 a = dict(zip(sys.argv[1::2], sys.argv[2::2]))
 run = Path(a["--run"]); run.mkdir(parents=True, exist_ok=True); (run / "brain.jsonl").write_text("private")
@@ -60,6 +60,8 @@ def summary(rc, stopped, oracle=None, sigs=None):
 if what == "ok": summary(0, "turn cap")
 if what == "finding": summary(2, "turn cap", {"leak": 1}, {"leak|say|x": 1})
 if what == "fail": summary(3, "a brain exited")
+if what == "fail-router-down":
+    os.kill(int(os.environ["ROUTER_PID"]), signal.SIGKILL); time.sleep(0.5); summary(3, "a brain exited")
 if what == "hang": time.sleep(600)
 if what == "wait-stop":
     while not Path(a["--stop-file"]).exists(): time.sleep(0.2)
@@ -128,5 +130,14 @@ import fake_router
 srv = fake_router.start("first", 1)
 p, out, rep, rows = loop(["fail", "ok", "ok"], ["--backend", "orin", "--orin-clear", "--games", "5"], {"JETSON_BASE": srv.base})
 check("orin backend: the first pilot failure stops the whole loop (no retry loop)", rep.get("games") == 1 and "pilot failed" in rep.get("stopped", ""), rep)
+
+rp = subprocess.Popen([sys.executable, str(REPO / "harness/fake_router.py"), "--mode", "first"], stdout=subprocess.PIPE, text=True)
+rbase = rp.stdout.readline().strip()
+p, out, rep, rows = loop(["fail-router-down", "ok"], ["--backend", "orin", "--orin-clear", "--games", "5"], {"JETSON_BASE": rbase, "ROUTER_PID": str(rp.pid), "TABLE_LOOP_PASS_ENV": "PLAN,ROUTER_PID"})
+check("orin backend: a pilot failure with the router gone is recorded as a network loss, not a game result, and the loop stops",
+      rep.get("games") == 1 and rows and rows[0].get("network_lost") is True and "unreachable" in rep.get("stopped", ""), (rep, rows))
+rp.wait()
+p, out, rep, rows = loop(["fail", "ok"], ["--backend", "orin", "--orin-clear", "--games", "5"], {"JETSON_BASE": srv.base})
+check("...while a pilot failure with the router still answering is NOT called a network loss", rows and rows[0].get("network_lost") is False, rows)
 check("...and the loop made no model request itself", len(srv.seen) == 0)
 sys.exit(0 if ok_all else 1)

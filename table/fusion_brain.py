@@ -230,6 +230,30 @@ def choose_mode_and_recast(t: Table, s: dict, body: dict, d: dict, dry: bool):
     return t.act("cast", **{**body, "modes": picked})
 
 
+_COUNT = {"a": 1, "one": 1, "two": 2, "three": 3}
+
+
+def resolve_simple_text(t: Table, h: dict | None):
+    """The table does not resolve a cast spell's own text: the caster does ("I draw two", "I gain 3"). Apply the plain cases an
+    instant or sorcery states outright: "draw N cards", "you gain N life". Anything targeted, optional, conditional or counted per
+    something ("for each", "equal to", X) is left alone. These are the same rules the oracle uses, so what it expects is what we do."""
+    if not h or not re.search(r"Instant|Sorcery", str(h.get("type") or "")):
+        return
+    text = re.sub(r"\([^)]*\)", "", str(h.get("text") or ""))
+    low = text.lower()
+    m = re.search(r"draw (a|one|two|three|\d+) cards?", low)
+    if m and not re.search(r"target|may|for each|equal to|\bx\b|each (other )?(player|opponent)|if ", low):
+        n = _COUNT.get(m.group(1)) or int(m.group(1))
+        if 0 < n <= 7:
+            t.act("draw", n=n)
+    m = re.search(r"you gain (\d+) life", low)
+    if m and not re.search(r"may|for each|equal to|\bx\b|if ", low):
+        n = int(m.group(1))
+        if 0 < n <= 40:
+            t.act("life", player="me", delta=n)
+
+
+
 def say(t: Table, line: str):
     if capped() and not CALLS["announced"]:
         CALLS["announced"] = True
@@ -287,6 +311,8 @@ def play_turn(t: Table, dry: bool):
         ok, d = t.act(pick["action"], **body)
         if not ok and pick["action"] == "cast":
             ok, d = choose_mode_and_recast(t, s, body, d, dry)
+        if ok and pick["action"] == "cast":
+            resolve_simple_text(t, next((x for x in s.get("hand", []) if x["name"] == body.get("name")), None))
         say(t, line)
         if not ok:
             break
@@ -391,7 +417,9 @@ def on_priority(t: Table, e: dict, dry: bool):
     if pick.get("action") == "cast":
         ok, d = t.act("cast", name=pick["name"])
         if not ok:
-            choose_mode_and_recast(t, s, {"name": pick["name"]}, d, dry)    # a modal instant (Drown in the Loch) is refused until a mode is named
+            ok, d = choose_mode_and_recast(t, s, {"name": pick["name"]}, d, dry)    # a modal instant (Drown in the Loch) is refused until a mode is named
+        if ok:
+            resolve_simple_text(t, next((x for x in instants if x["name"] == pick["name"]), None))
         if line:
             say(t, line)
     else:

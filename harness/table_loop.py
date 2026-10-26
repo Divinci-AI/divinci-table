@@ -224,10 +224,11 @@ def run_loop(a, guards: Guards, game_cmd: list[str], env: dict, log=print) -> di
             subprocess.run(["pkill", "-f", f"server.py.*--port {port}"], capture_output=True)
             kill_port(port)
         failed = timed_out or rc not in OK_CODES or leftover or not s
+        net_lost = a.backend == "orin" and (rc == 3 or timed_out) and not router_health(env["JETSON_BASE"])   # the path to the Orin is gone: a network fact, not game data
         guards.n_games += 1
         guards.fails = guards.fails + 1 if failed else 0
         rec = {"i": i, "seed": seed, "decks": decks, "seats": a.seats, "rc": rc, "secs": secs, "timed_out": timed_out, "leftover_port": leftover,
-               "failed": failed, "stopped": s.get("stopped"), "events": s.get("events"), "oracle": s.get("oracle") or {},
+               "failed": failed, "network_lost": net_lost, "stopped": s.get("stopped"), "events": s.get("events"), "oracle": s.get("oracle") or {},
                "signatures": s.get("oracle_signatures") or {}, "pilot_failed": s.get("pilot_failed"), "model_calls": s.get("model_calls"),
                "repro": f"python3 harness/pilot_game.py --seed {seed} --decks {decks} --turns {a.turns_per_seat * a.seats}"}
         with open(results, "a") as fh:
@@ -246,7 +247,9 @@ def run_loop(a, guards: Guards, game_cmd: list[str], env: dict, log=print) -> di
         log(f"game {i}: rc={rc} {secs}s {rec['stopped']} oracle={rec['oracle']}" + (" FAILED" if failed else ""))
         i += 1
         if a.backend == "orin" and (rc == 3 or timed_out):
-            stop_reason = "a pilot failed on the Orin (not retrying: tell the orin session)"
+            stop_reason = ("the tunnel or the Orin became unreachable during this game (a network loss, not a game result; not retrying: "
+                           "tell the orin session, and the tunnel is closed by whoever opened it)" if net_lost
+                           else "a pilot failed on the Orin (not retrying: tell the orin session)")
             break
         if stop_reason:
             break
