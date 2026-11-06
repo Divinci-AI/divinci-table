@@ -334,8 +334,8 @@ def board3d() -> dict:
                     perms.append(_card_view(p.name, id=p.id, tapped=p.tapped, token=p.token, counters=p.counters,
                                             attached_to=p.attached_to, role=p.role, pt=pt,
                                             type=p.card.get("type") or " ".join(p.types)))
-            seats.append({"name": n, "kind": "ai", "commander": v.commander.get("name"),
-                          "commander_card": _card_view(v.commander.get("name")), "life": v.life,
+            seats.append({"name": n, "kind": "ai", "commander": (v.commander or {}).get("name"),
+                          "commander_card": _card_view((v.commander or {}).get("name")) if v.commander else None, "life": v.life,
                           "hand": len(v.hand), "library": len(v.library), "commander_in_zone": v.cmdr_in_zone,
                           "commander_tax": 2 * v.cmdr_casts, "permanents": perms,
                           "graveyard": [c["name"] for c in v.graveyard][-100:], "graveyard_count": len(v.graveyard)})
@@ -1134,7 +1134,7 @@ def seat_declaration(n: str) -> dict:
     decl = DECKDECL.get(n) or {}
     if n in VPS:
         auto = {} if decl.get("cards") or decl.get("url") else _deck_file_list(n)
-        return {"commander": VPS[n].commander.get("name"), "deck_cards": decl.get("total") or auto.get("total") or 0,
+        return {"commander": (VPS[n].commander or {}).get("name"), "deck_cards": decl.get("total") or auto.get("total") or 0,
                 "deck_url": decl.get("url"), "deck_name": getattr(VPS[n], "deck_name", None), "declared": True, "auto": not decl}
     commander = next((h.get("commander") for h in HUMANS if h["name"] == n), None)
     return {"commander": commander, "deck_cards": decl.get("total") or 0, "deck_url": decl.get("url"),
@@ -1169,8 +1169,8 @@ def declare_deck(nm: str, b: dict) -> tuple[int, dict]:
         return 400, {"error": "name your commander (and, if you like, your deck list)"}
     try:
         canon = D.match_commander(b["commander"], oracle.db()) if has_cmd else None
-        if canon and nm in VPS and canon != VPS[nm].commander.get("name"):
-            raise D.DeclareError(f"{nm} plays a virtual deck led by {VPS[nm].commander.get('name')}: its commander is fixed by the deck")
+        if canon and nm in VPS and canon != (VPS[nm].commander or {}).get("name"):
+            raise D.DeclareError(f"{nm} plays a virtual deck led by {(VPS[nm].commander or {}).get('name')}: its commander is fixed by the deck")
         newlist = None
         if has_list:
             got = D.read_decklist(b.get("decklist"))
@@ -2196,7 +2196,7 @@ def _table_rules(text: str, r: dict, cards: list[str], who: str | None = None) -
     if VP and addressed == ai and r.get("kind") in ("question", "chatter", "play", "deal"):
         with CONVO_LOCK:
             last = CONVO["announced"][-1] if CONVO["announced"] else None
-        which = F.card_question(text, cards, last, VP.commander["name"])
+        which = F.card_question(text, cards, last, VP.commander["name"] if VP.commander else "")
         c = oracle.card(which) if which else None
         if c and which not in VP.private_hand():          # never read out a card it's holding
             said.append(F.say_card(which, c["text"]))
@@ -2707,7 +2707,7 @@ class H(BaseHTTPRequestHandler):
                 lt = life_table()
                 seats = [{"name": h["name"], "commander": h["commander"], "kind": "human",
                           "life": lt.get(h["name"]), "hand": HAND_N.get(h["name"], 7)} for h in HUMANS]
-                seats += [{"name": n, "commander": v.commander.get("name"), "kind": "ai", "life": v.life,
+                seats += [{"name": n, "commander": (v.commander or {}).get("name"), "kind": "ai", "life": v.life,
                            "hand": len(v.hand)} for n, v in VPS.items()]
             return self._send(200, {"seats": seats})
         if self.path == "/show":

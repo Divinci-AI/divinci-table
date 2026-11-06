@@ -132,7 +132,9 @@ class VirtualPlayer:
         local entropy plus these {player: secret word} inputs (and ANU/drand with fair_online)."""
         d = json.load(open(deck_file))
         self.deck_name = d["name"]
-        self.commander = d["commander"][0]
+        # A deck with no commander (a 40-card sealed deck: 2-headed giant, draft) has commander None; every
+        # command-zone path below is skipped for it. Commander decks are unchanged.
+        self.commander = (d.get("commander") or [None])[0]
         self.name = name
         self.rng = random.Random(seed)
         self.library = [c for c in d["mainBoard"] for _ in range(c.get("count", 1))]
@@ -151,7 +153,7 @@ class VirtualPlayer:
         self.hand: list[dict] = []
         self.graveyard: list[dict] = []
         self.battlefield: list[Perm] = []
-        self.cmdr_in_zone, self.cmdr_casts = True, 0
+        self.cmdr_in_zone, self.cmdr_casts = self.commander is not None, 0
         self.life, self.turn, self.land_played = 40, 0, False
         self.log: list[str] = []
         self.public_board: list[str] = []         # other players' announced cards (set each turn)
@@ -320,7 +322,11 @@ class VirtualPlayer:
 
     def missing_color(self):
         """The commander colour its mana makes least of — what a "choose a color" land Aura names."""
-        ident = [c for c in "WUBRG" if c in (self.commander.get("colorIdentity") or self.commander.get("colors") or [])] or ["G"]
+        if self.commander is not None:
+            src = self.commander.get("colorIdentity") or self.commander.get("colors") or []
+        else:   # no commander: the colours its library actually plays
+            src = [c for card in self.library for c in (card.get("colorIdentity") or card.get("colors") or [])]
+        ident = [c for c in "WUBRG" if c in src] or ["G"]
         made = "".join(c for _, c in self.sources())
         return min(ident, key=lambda c: made.count(c))
 
@@ -430,7 +436,7 @@ class VirtualPlayer:
             pay = self.plan_payment(c.get("manaCost", ""), -self.auto_discount(c))
             if pay is not None:
                 out.append((f"cast {c['name']}", c, pay, False))
-        if self.cmdr_in_zone:
+        if self.cmdr_in_zone and self.commander is not None:
             pay = self.plan_payment(self.commander["manaCost"], 2 * self.cmdr_casts)
             if pay is not None:
                 out.append((f"cast your commander {self.commander['name']}", self.commander, pay, True))
@@ -646,7 +652,8 @@ class VirtualPlayer:
 
     # ── public / private views ────────────────────────────────────────────────────────────
     def public(self):
-        return {"name": self.name, "commander": self.commander["name"], "life": self.life, "turn": self.turn,
+        return {"name": self.name, "commander": self.commander["name"] if self.commander else None,
+                "life": self.life, "turn": self.turn,
                 "hand": len(self.hand), "library": len(self.library), "commander_in_zone": self.cmdr_in_zone,
                 "commander_tax": 2 * self.cmdr_casts,
                 "lands": sum(1 for p in self.battlefield if p.is_("Land")),
@@ -833,7 +840,9 @@ def _manual(cls):
         color: for "as this enters, choose a color" (W/U/B/R/G)."""
         if color:
             self.next_color = color.strip().upper()[:1]
-        if commander or name.lower() in (self.commander["name"].lower(), "commander"):
+        if commander or (self.commander and name.lower() in (self.commander["name"].lower(), "commander")):
+            if self.commander is None:
+                raise IllegalAction("this deck has no commander")
             if not self.cmdr_in_zone:
                 raise IllegalAction("your commander is not in the command zone")
             c, is_cmdr = self.commander, True
@@ -1026,7 +1035,7 @@ def _manual(cls):
             self.battlefield.remove(x)
             if x.token:
                 continue
-            if x.card["name"] == self.commander["name"]:
+            if self.commander is not None and x.card["name"] == self.commander["name"]:
                 self.cmdr_in_zone = True
             elif to == "hand" and x is p:
                 self.hand.append(x.card)
@@ -1047,7 +1056,8 @@ def _manual(cls):
                                  "shuffle": "is shuffled into my library"}.get(where, "")}[to]
         if p.token and to == "library":
             where_txt = "leaves the battlefield (a token: it's gone)"
-        return [f"{p.name} {where_txt}" + (" (commander to the command zone)" if p.card["name"] == self.commander["name"] else "") + "."]
+        cmdr_note = " (commander to the command zone)" if self.commander is not None and p.card["name"] == self.commander["name"] else ""
+        return [f"{p.name} {where_txt}" + cmdr_note + "."]
 
     def search_library(self, name, to="hand", tapped=False):
         c = _match(name, self.library, lambda c: c["name"])
@@ -1453,8 +1463,9 @@ def brain_view(p: VirtualPlayer) -> dict:
                   "aura_targets": (["an opponent's permanent (--on 'their card')"] if is_hostile_aura(c) else
                                    [f"#{t.id} {t.name}" for t in p.aura_targets(c)])
                   if "Aura" in (c.get("subtypes") or []) else None} for c in p.hand],
-        "commander_card": {"name": p.commander["name"], "cost": p.commander["manaCost"], "text": p.commander["text"],
-                           "castable_now": p.commander["name"] in castable},
+        "commander_card": None if p.commander is None else
+            {"name": p.commander["name"], "cost": p.commander["manaCost"], "text": p.commander["text"],
+             "castable_now": p.commander["name"] in castable},
         "permanents": [{"id": x.id, "name": x.name, "type": x.card.get("type"), "tapped": x.tapped, "sick": x.sick,
                         "face_down": x.face_down, "turn_up_cost": (" ".join(face_cost(x.card)) if face_cost(x.card)
                                                                    else x.card.get("manaCost")) if x.face_down else None,

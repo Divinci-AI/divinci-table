@@ -23,7 +23,8 @@ def _context(p: VirtualPlayer, humans: list[dict], public_board: list[str]) -> s
     """The DECISION layer's view. It includes the hand; persona replies never get this."""
     st = p.public()
     hand = "; ".join(f"{c['name']} ({c.get('manaCost') or 'land'}, {c.get('type')})" for c in p.hand)
-    return (f"You are {p.name}, playing the {p.deck_name} Commander deck (commander {p.commander['name']}) "
+    deck_kind = f"Commander deck (commander {p.commander['name']})" if p.commander else "40-card deck (no commander)"
+    return (f"You are {p.name}, playing the {p.deck_name} {deck_kind} "
             f"in a four-player game against: {', '.join(h['name'] for h in humans) or 'the table'}.\n"
             f"Turn {st['turn']}. Your life {st['life']}. Untapped mana {st['untapped_mana']}.\n"
             f"Your battlefield: {', '.join(st['battlefield']) or 'no creatures or enchantments'}; lands {st['lands']}.\n"
