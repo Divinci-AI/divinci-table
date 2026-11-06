@@ -15,5 +15,10 @@
     "@cloudflare/workers-types": "^4.20251001.0",
     "typescript": "^5.9.0",
     "wrangler": "^4.76.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "undici": "^7.30.1"
+    }
   }
 }
