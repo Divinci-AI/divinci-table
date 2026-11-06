@@ -843,9 +843,9 @@ def _manual(cls):
         color: for "as this enters, choose a color" (W/U/B/R/G)."""
         if color:
             self.next_color = color.strip().upper()[:1]
+        if self.commander is None and (commander or name.lower() == "commander"):
+            raise IllegalAction("this deck has no commander")
         if commander or (self.commander and name.lower() in (self.commander["name"].lower(), "commander")):
-            if self.commander is None:
-                raise IllegalAction("this deck has no commander")
             if not self.cmdr_in_zone:
                 raise IllegalAction("your commander is not in the command zone")
             c, is_cmdr = self.commander, True

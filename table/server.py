@@ -1331,6 +1331,9 @@ def next_step(by: str | None = None, shared: bool = False, confirm: bool = False
         q = next((t for t in TODOS if t.get("kind") == "question" and not t["done"]), None)
         if q:                                         # the table must settle what a player asked first
             return 409, {**phase_public(), "error": f"waiting on {q.get('ask')}'s question: {q['text'][:90]}"}
+        if priority_open():                           # an AI still holds priority in this step: NEXT is refused until it answers
+            holders = PRIORITY["waiting"] or PRIORITY["seats"]   # (or its window times out), as the design says
+            return 409, {**phase_public(), "error": "priority: waiting on " + ", ".join(holders)}
         ps = passes_state()
         if ps["next"]:                                # people still to pass: this press is one of them passing
             who = next((n for n in ps["need"] if n.lower() == by.lower()), None)
