@@ -154,7 +154,10 @@ class VirtualPlayer:
         self.graveyard: list[dict] = []
         self.battlefield: list[Perm] = []
         self.cmdr_in_zone, self.cmdr_casts = self.commander is not None, 0
-        self.life, self.turn, self.land_played = 40, 0, False
+        # Starting life comes from the deck (startingLife); Commander is 40, a 40-card 1v1 is 20 (2-Headed Giant
+        # is 30 per team, handled with team support later). A deck with no commander and no startingLife gets 20.
+        self.life = int(d.get("startingLife") or (40 if self.commander is not None else 20))
+        self.turn, self.land_played = 0, False
         self.log: list[str] = []
         self.public_board: list[str] = []         # other players' announced cards (set each turn)
         self.on_their_cards: list[str] = []       # its hostile Auras, sitting on opponents' permanents
