@@ -1,6 +1,6 @@
 """Table server, first cut: the scan pad for the AI's hidden hand, using this Mac's camera.
 
-  ~/.venvs/table/bin/python table/server.py --deck decks/example.txt
+  python3 table/server.py --deck decks/example.txt
   open http://localhost:8800            # localhost is a secure context, so the camera works
 
 A drawn card is held FACE toward the laptop camera: the person scanning sees only its back, the
@@ -116,6 +116,17 @@ ap.add_argument("--token-file", default=None,
                      "test run, needs its own so it doesn't lock the live game's brain out")
 args = ap.parse_args()
 
+# Every held request (a page's long-poll) is an open file. macOS starts a process at 256, so a few hundred idle connections from the
+# tunnel would make the next request, localhost included, fail until they close (review 2026-11-11). Raise the soft limit.
+try:
+    import resource
+    _soft, _hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    _want = 8192 if _hard == resource.RLIM_INFINITY else min(_hard, 8192)
+    if _soft < _want:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (_want, _hard))
+except (ImportError, ValueError, OSError):
+    pass
+
 # CLOUD mode (Linux container, e.g. Cloudflare Containers): no Apple Vision, no local Whisper/Gemma/`say`.
 # Card scanning and the open mic are off until their cloud backends exist; everything else works.
 CLOUD = os.environ.get("TABLE_CLOUD") == "1" or sys.platform != "darwin"
@@ -123,21 +134,39 @@ if CLOUD:
     def read_lines(*_a, **_k):                     # no OCR backend in the cloud yet: scanning finds nothing
         return []
 else:
-    from ocr_mac import read_lines  # noqa: E402
+    try:
+        from ocr_mac import read_lines  # noqa: E402
+    except ImportError as e:                       # a Mac without pyobjc: the scan pad is off, the game itself still runs
+        print(f"scan pad off ({e}); to turn it on: pip install pyobjc-framework-Vision pyobjc-framework-Cocoa", file=sys.stderr)
+
+        def read_lines(*_a, **_k):
+            return []
 
 if not args.deck and not args.any_card:
     sys.exit("pass --deck FILE, or --any-card to test with any Magic card")
 
 
 def load_catalog():
-    """Scryfall's list of every card name, cached. One request, well inside their rate limits."""
+    """Every card name, cached. Order: the cached Scryfall name list; else the names in the Oracle file when that is already
+    here (no network); else one request to Scryfall, well inside their rate limits. A first run with no cache and no
+    network stops with the one command that fixes it, not a traceback."""
     import urllib.request
     cache = HERE / ".cache" / "card-names.json"
     if not cache.exists():
+        oracle_file = HERE / ".cache" / "oracle.json"
+        if oracle_file.exists():
+            import oracle
+            names = sorted(oracle.db())
+            cache.write_text(json.dumps({"data": names}))      # same shape as Scryfall's, so later runs (and the tests) read it
+            return names
         cache.parent.mkdir(exist_ok=True)
         req = urllib.request.Request("https://api.scryfall.com/catalog/card-names",
                                      headers={"User-Agent": "divinci-table/0.1", "Accept": "application/json"})
-        body = urllib.request.urlopen(req, timeout=30).read().decode()
+        try:
+            body = urllib.request.urlopen(req, timeout=30).read().decode()
+        except OSError as e:                       # URLError, timeouts, refused connections
+            sys.exit(f"first run needs the card-name list and there is no network ({e}).\n"
+                     "Run once with internet access: python3 table/fetch_data.py   (about 40 MB from Scryfall; after that the table is offline)")
         cache.write_text(body)
     return json.loads(cache.read_text())["data"]
 
@@ -2614,7 +2643,9 @@ def declare_deck(nm: str, b: dict) -> tuple[int, dict]:
     exactly as --human 'Name|Commander' would have. Each change is one public line in the game log."""
     import oracle
     import deckdecl as D
-    if PHASE["player"] is not None:
+    # Started = the first turn is under way, OR START has run (the high roll has a winner) OR the opening-hand step is open: with the
+    # mulligan step PHASE["player"] stays None until everyone keeps, so it alone would let a seat swap its commander after seeing its hand.
+    if PHASE["player"] is not None or HIGHROLL.get("winner") or MULL.get("on"):
         return 409, {"error": "the game has already started: commanders and deck lists are declared before it"}
     has_cmd = str(b.get("commander") or "").strip() != ""
     has_list = "decklist" in b and b.get("decklist") is not None
@@ -5043,6 +5074,7 @@ class H(BaseHTTPRequestHandler):
             self.close_connection = True                 # the close told the client; under keep-alive it would wait
 
     def _send(self, code, obj=None, body=None, ctype="application/json"):
+        self._last_code = code                             # what this request answered (the pilot route asks: did the action happen?)
         data = body if body is not None else json.dumps(obj).encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
@@ -5280,7 +5312,10 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/history":     # the whole game's public log, from the research file
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)
-            start = max(0, int((q.get("from") or ["0"])[0] or 0))
+            try:
+                start = max(0, int((q.get("from") or ["0"])[0] or 0))
+            except ValueError:
+                return self._send(400, {"error": "from must be a number"})
             p = research_dir() / "events.jsonl"
             try:
                 lines = p.read_text().splitlines() if p.exists() else []
@@ -5309,6 +5344,11 @@ class H(BaseHTTPRequestHandler):
             except ValueError:
                 wait = 0.0
             deadline = time.time() + wait
+            if q.get("since", ["0"])[0] != "latest":
+                try:
+                    int(q.get("since", ["0"])[0] or 0)
+                except ValueError:
+                    return self._send(400, {"error": "since must be a number, or 'latest'"})
             with EV_COND:
                 while True:
                     last = EVENTS[-1]["id"] if EVENTS else 0
@@ -5668,9 +5708,14 @@ class H(BaseHTTPRequestHandler):
                 by = unquote(self.headers.get("X-By", ""))[:30] or "someone"
                 caption = " ".join(unquote(self.headers.get("X-Caption", "")).split())[:300]
                 d = research_dir() / "photos"
-                if CLOUD:                                  # a public room: only seated players upload, and not forever
-                    if not seat_key_ok(by, unquote(self.headers.get("X-Seat-Key", ""))):
+                remote = STRICT_SEATS and not self._is_local()   # another device (a phone, a tunnel): a seat key, and it is only talking (below)
+                if CLOUD or remote:                        # a public room or a tunnel: only seated players upload, as themselves, and not forever
+                    key_ = unquote(self.headers.get("X-Seat-Key", ""))[:200]
+                    seats_ = [h["name"] for h in HUMANS] + sorted(PILOTS)
+                    holder_ = next((n for n in seats_ if seat_key_ok(n, key_)), None) if key_ else None
+                    if not holder_:
                         return self._send(403, {"error": "claim your seat first (👤) to share photos"})
+                    by = next((n for n in seats_ if n.lower() == by.lower() and seat_key_ok(n, key_)), holder_)   # X-By cannot speak for another seat
                     if d.exists() and sum(1 for _ in d.iterdir()) >= 300:
                         return self._send(429, {"error": "this table has reached its photo limit (300)"})
                 d.mkdir(exist_ok=True)
@@ -5680,7 +5725,7 @@ class H(BaseHTTPRequestHandler):
                 (d / name).write_bytes(data)
                 os.chmod(d / name, 0o600)
                 emit("chat", by=by, text=caption or "📷 a photo of the table", photo="/photos/" + name)
-                if caption:
+                if caption and not (remote and by in PILOTS):   # a pilot's caption from another device is table talk, never a move (see /api/chat)
                     try:
                         respond_text(caption, by if by in [h["name"] for h in HUMANS] else None, time.time())
                     except Exception as e:
@@ -5695,7 +5740,11 @@ class H(BaseHTTPRequestHandler):
                 if not text:
                     return self._send(400, {"error": "say something"})
                 who = by if by in [h["name"] for h in HUMANS] else None
-                if b.get("talk") or text.startswith("~"):     # just talking: everyone sees it, nothing reads it as a move
+                # Typed text is read as if said aloud at the table ("Fusion is at 0" changes a life total, "I cast ..." removes a card). For a plain
+                # human seat that IS the game: their cards are physical, so their announcements move the table, as at a real one. A PILOT's moves
+                # are the engine's, checked there; from another device under STRICT_SEATS a pilot's text is only talk. The seat guard proved WHO is
+                # typing, not that they may change anyone else's numbers: own-seat-only on /api/life and the card actions must not be walked around.
+                if b.get("talk") or text.startswith("~") or (STRICT_SEATS and not self._is_local() and by in PILOTS):   # just talking: everyone sees it, nothing reads it as a move
                     emit("chat", by=by or "someone", text=text.lstrip("~ ").strip() or text, talk=True)
                     return self._send(200, {"ok": True, "talk": True})
                 if not b.get("spoken"):                   # typed (or pushed-to-talk): everyone sees it as said
@@ -6345,13 +6394,15 @@ class H(BaseHTTPRequestHandler):
                                                 "error": f"waiting on passes: {blocked} (retry)"})
                     if act not in ("pass", "say", "peek", "choose"):
                         ACT_STARTS.append(_ev_id[0])       # where this action's events begin: BACK goes to before the step it happened in
+                    self._last_code = None
                     with acting(sn):
                         out = self._brain(act, b)
-                    if act in ("cast", "turn-up", "manifest") and not on_turn(sn):
+                    did = self._last_code is not None and 200 <= self._last_code < 300   # a REFUSED cast (a bad target, no mana) changed nothing: it must not
+                    if did and act in ("cast", "turn-up", "manifest") and not on_turn(sn):   # restart the round or count the caster as passed
                         priority_reset(f"{sn} responded ({act})")   # an AI answered in a person's step: round again
                         if not any(d_.get("stage") == "window" for d_ in (COMBAT.get("decl") or {}).values()):
                             ai_passed(sn)                           # …and it has had its say in the new round (v6c: not after blocks: there it passes itself)
-                    elif act == "pass" and not on_turn(sn):
+                    elif did and act == "pass" and not on_turn(sn):
                         ai_passed(sn)                               # (a no-op after the pilot's own, counted above)
                 return out
             if self.path == "/api/reset":                  # new game: empty hand, full library, no history
@@ -6411,7 +6462,10 @@ class H(BaseHTTPRequestHandler):
             return True
         if method == "POST":                               # browsers always send Origin on a cross-site POST; scripts and tools send none
             origin = (self.headers.get("Origin") or "").strip().lower()
-            foreign = origin == "null" or (origin and not host_allowed(origin.split("://", 1)[-1].split("/", 1)[0]))
+            o_auth = origin.split("://", 1)[-1].split("/", 1)[0]
+            # same origin only: this table's page sends Origin = the address it was served from (the Host header), port included, so another
+            # page on 127.0.0.1:9999 (or a sibling tunnel name) is as foreign as evil.example
+            foreign = origin == "null" or (origin and (not host_allowed(o_auth) or o_auth != host))
             if foreign or (self.headers.get("Sec-Fetch-Site") or "").lower() == "cross-site":
                 self._send(403, {"error": "requests from other web pages are refused"})
                 return True
@@ -6440,7 +6494,14 @@ class H(BaseHTTPRequestHandler):
         from: it gets only what a phone on the Wi-Fi gets."""
         if self.client_address[0] not in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
             return False
-        return not any(self.headers.get(h) for h in self.PROXY_HEADERS)
+        if any(self.headers.get(h) for h in self.PROXY_HEADERS):
+            return False
+        host = (self.headers.get("Host") or "").strip().lower()      # the laptop is addressed as itself. A tunnel keeps its own Host name, so
+        if host:                                                       # trust never rests on a proxy remembering to add a forwarding header
+            name = host[:host.index("]") + 1] if host.startswith("[") and "]" in host else host.split(":")[0]
+            if name not in ("localhost", "127.0.0.1", "[::1]") and not name.endswith(".localhost"):
+                return False
+        return True
 
     def _lan_blocked(self, method: str) -> bool:
         """A request from another device to anything outside LAN_OK: refuse it (draining a POST body
@@ -7352,7 +7413,11 @@ class H(BaseHTTPRequestHandler):
 def _warm():
     import numpy as np
     import voice
-    voice.transcribe(np.zeros(16000, dtype=np.float32), "warm-up")
+    try:
+        voice.transcribe(np.zeros(16000, dtype=np.float32), "warm-up")
+    except ImportError as e:                          # no Whisper on this machine (not an Apple-silicon Mac): the table runs, the open mic is off
+        print(f"open mic off ({e}); to turn it on: pip install mlx-whisper (Apple silicon)", flush=True)
+        voice.WHISPER_SECOND = ""
     if voice.WHISPER_SECOND:
         try:
             voice.transcribe(np.zeros(16000, dtype=np.float32), "warm-up", voice.WHISPER_SECOND)

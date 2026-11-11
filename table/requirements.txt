@@ -1,0 +1,11 @@
+# The table server and its tests are tested on Python 3.14 (older versions are untested) and need numpy (table/voice.py imports it, audio or not).
+numpy
+
+# Everything below is optional, and only for the feature named. Nothing else in table/ needs a third-party package.
+#   pyobjc-framework-Vision pyobjc-framework-Cocoa    scan pad: reading card names from the camera (macOS only; the server starts without it)
+#   pillow opencv-python-headless                     board and gantry camera vision
+#   mlx-whisper                                       speech to text on a Mac (open mic)
+#   speechbrain torch torchaudio                      telling speakers apart by voice
+#   pyserial                                          the card-printer / gantry hardware under hardware/
+#   anthropic                                         an AI seat's in-character banter through the Anthropic API (a bot, not the server)
+#   chess                                             table/chess_server.py

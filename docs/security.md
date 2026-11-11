@@ -24,7 +24,14 @@ what, and which test holds each rule.*
    the key's seat, whatever name the page sent. *`table/tests/remote_guard_test.py`* (mutation-checked: with the
    guard off, 14 checks fail and an anonymous request changes life totals).
 2. **People own their numbers.** Only your seat's key changes your life total; a pilot can't change another
-   player's life, and a pilot's combat damage counts only their own lifelink. *remote_guard_test.*
+   player's life, and a pilot's combat damage counts only their own lifelink. *remote_guard_test.* **A pilot's typed text
+   and photo captions from another device are table talk, never moves.** Typed or spoken text is read as said aloud at
+   the table ("Sam is at 9" moves a life total, "I cast <removal> on Claude's Horta" asks Claude to apply it). For a plain
+   human seat that is the game (their cards are physical, and the table believes what players say, as at a real one). A
+   **pilot's** moves are the engine's, checked there; from another device under `STRICT_SEATS` a pilot's text is only
+   said. Until 2026-11-11 it was parsed too, so a pilot's key (or, on the photo route, no key at all) could set another
+   seat's life or destroy their permanent by typing it. *`table/tests/remote_authority_test.py` (fails on the earlier
+   code); `chat_board_test.py` and `retro5_test.py` hold the human announcements.*
 3. **Hidden information stays hidden.** A pilot sees only their own hand; another seat's key, no key or a made-up
    key gets 403; `take` (reaching into another hand) is the host's alone, so it can't be used to probe a hand by
    guessing names. *remote_guard_test (mutation-checked).*
@@ -53,10 +60,24 @@ what, and which test holds each rule.*
 10. **Watching my board** (passive vision): only while the player looks down at the table, only after the view changed
    and settled, at most once per 30 s, and only with the seat's deck known (it names only cards from that deck);
    results are suggestions until the player adds them, and adding never removes a card.
-11. **Surveys and photos.** Seat-gated, size- and count-capped, stored in the room's research folder (0600); the
-   public log says who answered a survey, never what.
+11. **Surveys and photos.** Seat-gated (any device but the laptop: since 2026-11-11 not only in cloud rooms), recorded
+   under the key's own seat whatever `X-By` says, size- and count-capped (300), stored in the room's research folder
+   (0600); the public log says who answered a survey, never what. *remote_authority_test.*
+12. **The laptop is addressed as itself.** Host-level trust needs a loopback peer, a loopback `Host`, and no forwarding
+   header (a tunnel keeps its own host name, so trust never depends on a proxy remembering to add one). A POST's
+   `Origin` must be this table's own address, port included, so another page on a localhost port is as foreign as
+   another site. *remote_authority_test, security_review_test.*
 
 ## Known limits (accepted for now)
+
+- **A held spell names who may respond.** While a seat's spell waits for a counter, the public stream and
+  `/api/phase` (`waiting_on`) list the seats that hold a castable answer, which is information a real table keeps
+  hidden. Fix options: list every opponent as waited-on while only the holders are asked, or always open the window.
+  Not changed yet (it alters what players see).
+- **`/api/deckdecl` lists a virtual seat's whole deck** under the default `--decklists auto` (Commander-style open
+  lists). A table where a deck list is an edge (draft tables, agents) starts with `--decklists declared`.
+- **Held connections cost file descriptors.** The server raises its own limit to 8192; a flood of idle long-polls from
+  a tunnel can still crowd out other requests. Put a rate limit in front of a table you expose widely.
 
 - **Seats are first come.** Anyone with a room's link can claim an unclaimed seat. Rooms are public by design;
   a private-room option would add an invite per room.
