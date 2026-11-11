@@ -1,12 +1,14 @@
 """T16: "This creature can't attack alone" (Pet Sehlat) is the engine's rule, not a note: the attack is refused, the legal list and the
 state's per-creature can_attack / why_not agree with it (so the page's Attack button and its "N ready" count do too), and the bot follows.
 
-    PYTHONDONTWRITEBYTECODE=1 ~/.venvs/table/bin/python table/tests/alone_test.py"""
+    PYTHONDONTWRITEBYTECODE=1 python3 table/tests/alone_test.py"""
 import importlib, os, sys, tempfile
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
 BOT = Path(os.path.expanduser(os.environ.get("BOT_DIR", str(HERE.parent / "bot-v6"))))
 sys.path[:0] = [str(HERE), str(HERE / "tests"), str(BOT)]
+cards_path.need(BOT / "claude_autopilot.py", "the Claude bot", "BOT_DIR=<dir with claude_autopilot.py>")
 import retro_game4_test as R
 import player
 check = R.check

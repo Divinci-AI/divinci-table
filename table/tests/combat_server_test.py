@@ -1,6 +1,6 @@
 """Combat the SERVER computes (dogfood run 1, finding 1): a defender never types how much it took.
 
-    ~/.venvs/table/bin/python table/tests/combat_server_test.py
+    python3 table/tests/combat_server_test.py
 
 A pilot says which of its creatures attack whom; the engine knows their power. The defender's `block` takes the number from
 the table's own record (whatever amount it sends is ignored), unblocked damage is dealt when the attacker's `damage` comes or

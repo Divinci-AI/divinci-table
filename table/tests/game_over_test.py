@@ -3,11 +3,12 @@ built from the public log only (turns, life over time, damage, deaths, spells, t
 page; the pages load the banner; the final log is saved for the retro; a rematch waits for the host. A throwaway table on a free port (never a
 live game's), TABLE_NO_VOICE=1: so no spoken line.
 
-    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 ~/.venvs/table/bin/python table/tests/game_over_test.py
+    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 python3 table/tests/game_over_test.py
 """
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 import time
@@ -101,6 +102,9 @@ def table_game_over():
 
 def banner_escapes():
     print("assets/gameover.js renders the summary escaped")
+    if not shutil.which("node"):
+        print("  ⏭️  skipped: this check runs the page's script in Node, and node is not installed")
+        return
     js = (HERE / "assets" / "gameover.js").read_text()
     harness = r"""
 const vm = require("vm"); const html = []; const els = [];

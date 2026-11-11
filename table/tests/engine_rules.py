@@ -1,7 +1,7 @@
 """Rules the engine (player.py) must get right, each from a position that came up in a real or
 rehearsed game. No server, no model — pure arithmetic, runs in a second.
 
-  ~/.venvs/table/bin/python table/tests/engine_rules.py
+  python3 table/tests/engine_rules.py
 """
 from __future__ import annotations
 

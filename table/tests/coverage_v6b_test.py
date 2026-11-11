@@ -1,7 +1,7 @@
 """v6, further down the coverage list: look-at-the-top choices, an owner's top-or-bottom choice, mass damage, cost reductions in a spell's own
 text, The Doctor's second sentence, Shields Up!, Temporal Conqueror, an attack trigger with "you may sacrifice", Hemmer.
 
-    PYTHONDONTWRITEBYTECODE=1 ~/.venvs/table/bin/python table/tests/coverage_v6b_test.py"""
+    PYTHONDONTWRITEBYTECODE=1 python3 table/tests/coverage_v6b_test.py"""
 from v6_harness import R, Table, check, run, cast, answer, choices, says
 import player
 

@@ -12,7 +12,7 @@ degrees of random tilt — and scores three readers against the known layout:
 at 4K (3840x2160) and 1080p (1920x1080). Card names are validated against Scryfall's catalog
 (a reader can't score with a card that doesn't exist).
 
-  ~/.venvs/table/bin/python table/tests/board_eval.py
+  python3 table/tests/board_eval.py
 """
 from __future__ import annotations
 

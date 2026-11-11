@@ -1,7 +1,7 @@
 """Playtest 2 server fixes (docs/PLAYTEST-2-GOAL.md F1, F3, F5): the quiet autopass default, the held /api/events request,
 and the visible log surviving a restart. Real servers on their own ports.
 
-  ~/.venvs/table/bin/python table/tests/playtest2_server_test.py
+  python3 table/tests/playtest2_server_test.py
 """
 from __future__ import annotations
 

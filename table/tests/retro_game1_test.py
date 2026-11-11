@@ -1,15 +1,16 @@
 """Regression tests for what went wrong in the first Star Trek game (2026-11-06, Michael vs Sam, two pilot seats). Each check names the
 retro row it covers (~/.divinci/star-trek-mtg/RETRO-LOG.md).
 
-    ~/.venvs/table/bin/python table/tests/retro_game1_test.py
+    python3 table/tests/retro_game1_test.py
 
 Part A drives the engine (player.py) directly. Part B starts its own server on a free port (two pilot seats, no model) and replays the
 combat that dealt damage twice: an attack trigger untapped the Tactical Officer and the table let it attack a second time.
-Needs ~/.divinci/star-trek-mtg/cards.json (the Star Trek card data)."""
+Needs the Star Trek card data: python3 table/fetch_data.py --set trk."""
 from __future__ import annotations
 
 import json
 import os
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import re
 import socket
 import subprocess
@@ -22,11 +23,11 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
-sys.path.insert(0, os.path.expanduser("~/.divinci/star-trek-mtg/draft"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import player  # noqa: E402
-from make_deck_json import entry  # noqa: E402
+from make_deck_json_shim import entry  # noqa: E402
 
-CARDS = {c["name"]: c for c in json.loads(Path(os.path.expanduser("~/.divinci/star-trek-mtg/cards.json")).read_text()) if c.get("set") == "trk"}
+CARDS = {c["name"]: c for c in json.loads(Path(cards_path.cards_json()).read_text()) if c.get("set") == "trk"}
 FAILS: list[str] = []
 
 

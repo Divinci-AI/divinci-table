@@ -1,7 +1,7 @@
 """Cloud rooms: another device changes the table only with a seat key, and only for its own seat where it
 should; a pilot seat (a person's virtual deck) sees and plays only its own cards.
 
-    ~/.venvs/table/bin/python table/tests/remote_guard_test.py
+    python3 table/tests/remote_guard_test.py
 
 Starts its own server (TABLE_CLOUD=1, a free port, no model); every request carries X-Forwarded-For, which is
 what the cloud Worker sends, so the server treats it as another device."""

@@ -1,6 +1,6 @@
 """T15: the pre-game mulligan step. Every seat sees its opening seven and answers Keep or Mulligan (London) before the first turn.
 
-    PYTHONDONTWRITEBYTECODE=1 ~/.venvs/table/bin/python table/tests/mulligan_test.py
+    PYTHONDONTWRITEBYTECODE=1 python3 table/tests/mulligan_test.py
 
 The rule and the moves are checked on the engine alone; the step itself on real tables on free ports, through each seat's own key."""
 from __future__ import annotations

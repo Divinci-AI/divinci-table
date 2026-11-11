@@ -3,8 +3,8 @@ Whisper model × preprocessing, scored the way the table scores it: was the card
 (exactly, or as the top close candidate)? Latency is reported with it — a model that hears
 everything a second late is a different trade.
 
-  ~/.venvs/table/bin/python table/tests/stt_bench.py                 # all models
-  ~/.venvs/table/bin/python table/tests/stt_bench.py --models small,turbo --pre none,norm
+  python3 table/tests/stt_bench.py                 # all models
+  python3 table/tests/stt_bench.py --models small,turbo --pre none,norm
 """
 from __future__ import annotations
 

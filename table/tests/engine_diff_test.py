@@ -18,7 +18,8 @@ def check(name, ok, detail=""):
 r = D.run()
 check("11,900 generated combats were compared", r["cases"] == 11900, r["cases"])
 check("no divergence outside deathtouch: plain combat, trample and blocking agree", set(r["by_cause"]) <= D.KNOWN, r["by_cause"])
-check("the known gap is still present (the table's block resolution cannot see deathtouch)", r["divergent"] > 0 and {"attacker-deathtouch", "blocker-deathtouch"} <= set(r["by_cause"]), r["by_cause"])
+check("the known gap is still present: resolve_block is not handed the ATTACKER's deathtouch", r["divergent"] > 0 and "attacker-deathtouch" in r["by_cause"], r["by_cause"])
+check("…and the BLOCKER's deathtouch is seen now (it was part of the gap before the retro rounds)", "blocker-deathtouch" not in r["by_cause"], r["by_cause"])
 check("a plain case, spelled out: 5/3 trampler blocked by a 0/2 -> 3 tramples over, the blocker dies",
       D.engine_outcome({"p": 5, "t": 3, "trample": True}, {"p": 0, "t": 2}) == D.table_outcome({"p": 5, "t": 3, "trample": True}, {"p": 0, "t": 2})
       == {"def_loss": 3, "blocker_dead": True, "attacker_dead": False})

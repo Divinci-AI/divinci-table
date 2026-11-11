@@ -1,10 +1,11 @@
-"""Test decks from the set's card data, so no suite ever needs a real game's decks (~/.divinci/star-trek-mtg/live/decks holds people's picks).
+"""Test decks from the set's card data, so no suite ever needs a real game's decks (a real game's decks hold people's picks).
     TABLE_TEST_DECKS=$(python3 table/tests/fixture_decks.py) ...
 Prints the directory it wrote claude.json, sam.json and michael.json to. Deliberately plain 40-card decks: what the suites search for by name is in them."""
 from __future__ import annotations
 
 import json
 import os
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import sys
 import tempfile
 from pathlib import Path
@@ -12,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import make_deck_json_shim as shim  # noqa: E402
 
-CARDS = {c["name"]: c for c in shim.load(os.path.expanduser("~/.divinci/star-trek-mtg/cards.json"))}
+CARDS = {c["name"]: c for c in shim.load(cards_path.cards_json())}
 DECKS = {
     "claude": {"Swamp": 9, "Mountain": 8, "Tal Shiar Operative": 3, "Fugitive Listener": 3, "Assault Drone": 2, "Obsidian Order Operative": 2, "Cha'DIch Investigator": 2,
                "Rogue Artificial Intelligence": 1, "Boarding Action": 2, "Savvy Profiteer": 2, "Tal Shiar Analyst": 2, "Bat'leth": 2, "Tricorder": 2},

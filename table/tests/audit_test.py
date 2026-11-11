@@ -2,7 +2,7 @@
 detectors are load-bearing (mutation check). Every log here is SYNTHETIC and built in a temp dir: invented
 card names, no real game data.
 
-    ~/.venvs/table/bin/python table/tests/audit_test.py"""
+    python3 table/tests/audit_test.py"""
 import contextlib
 import io
 import json

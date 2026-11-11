@@ -2,7 +2,7 @@
 creature." Total power counts every creature its controller has, tapped ones too; the counter is aimed by the controller (asked, like any
 aimed trigger). Below 8, nothing happens. The engine first, then a table of its own on a free port (never a live game's), the seat's own key.
 
-    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 ~/.venvs/table/bin/python table/tests/janeway_test.py
+    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 python3 table/tests/janeway_test.py
 """
 from __future__ import annotations
 

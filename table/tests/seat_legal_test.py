@@ -5,7 +5,7 @@ action they send (a land, a cast, a station, an attack, a block, damage, end, pa
 on the other seat's turn, a second land in a turn, attacking with a creature the list didn't offer) must be refused. Also: the
 route needs that seat's key; another seat's key or no key is refused.
 
-    ~/.venvs/table/bin/python table/tests/seat_legal_test.py [turns=8]
+    python3 table/tests/seat_legal_test.py [turns=8]
 
 Turns are counted from what /api/phase really says: a turn starts each time `player` changes (it carries no turn number). The walk ends
 after TURNS turns, at game over, or at a STALL: the phase not moving and no listed action accepted for STALL_SECS (default 45). A stall

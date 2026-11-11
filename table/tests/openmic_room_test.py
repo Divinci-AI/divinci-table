@@ -1,7 +1,7 @@
 """The cloud open mic end to end on a real server, with a FAKE judge standing in for the room's Worker (Clef):
 the server asks it once per spoken line (room token attached), a router "play" the judge is sure is no move doesn't
 announce a card, a real move does, a missed move nudges the speaker, and side conversation on an open mic never
-reaches the public log.   ~/.venvs/table/bin/python table/tests/openmic_room_test.py"""
+reaches the public log.   python3 table/tests/openmic_room_test.py"""
 from __future__ import annotations
 
 import json

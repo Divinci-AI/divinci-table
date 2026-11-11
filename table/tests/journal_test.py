@@ -5,7 +5,7 @@ Part 2 starts its own server (port 8816, its own token file and research folder;
 with one external-brain AI seat and two people, then checks the endpoints: due events at the fixed moments,
 refusals, the seal until /api/game-over, declines, and the reset.
 
-  ~/.venvs/table/bin/python table/tests/journal_test.py [--no-server]
+  python3 table/tests/journal_test.py [--no-server]
 """
 from __future__ import annotations
 

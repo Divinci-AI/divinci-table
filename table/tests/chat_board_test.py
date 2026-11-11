@@ -2,7 +2,7 @@
 Michael typed 'I play Silverbluff Bridge artifact land and pass', the log heard the play, and /board still said
 "Nothing recorded yet." because only a brain or the person's own 'my board' call wrote PUBLIC_BOARD.
 
-    ~/.venvs/table/bin/python table/tests/chat_board_test.py
+    python3 table/tests/chat_board_test.py
 
 Remote calls only (X-Forwarded-For on every request), cloud room (TABLE_CLOUD=1), ROUTER=code, no brain for the people:
 the chat goes through /api/chat with the seat key, as the page's chat line sends it. One server on port 8831

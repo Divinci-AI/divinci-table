@@ -3,12 +3,13 @@ scripted agents connect through the MCP server (table_mcp.py, stdio) with nothin
 (as AGENT-GUIDE says), introduce themselves, play only moves from table_legal_actions until the table declares game over, and the
 lobby's list then shows the winner. Deterministic agents (no model): this tests the plumbing an agent relies on, not play quality.
 
-    ~/.venvs/table/bin/python table/tests/agent_golden_path_test.py
+    python3 table/tests/agent_golden_path_test.py
 """
 from __future__ import annotations
 
 import json
 import os
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import socket
 import subprocess
 import sys
@@ -19,7 +20,7 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
-DECKS = Path(os.environ.get("TABLE_TEST_DECKS") or os.path.expanduser("~/.divinci/star-trek-mtg/live/decks"))
+DECKS = cards_path.decks_dir()
 FAILS: list[str] = []
 
 

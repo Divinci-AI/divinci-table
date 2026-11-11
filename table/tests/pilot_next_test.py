@@ -2,7 +2,7 @@
 the seat passes and ends turns on /hand, and NEXT must say so instead of asking "who are you?" again (the claim popup
 reloads the page, the press fails the same way, and the person is stuck in a loop). A wrong key must still be refused.
 
-  ~/.venvs/table/bin/python table/tests/pilot_next_test.py
+  python3 table/tests/pilot_next_test.py
 """
 from __future__ import annotations
 

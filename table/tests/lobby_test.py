@@ -1,12 +1,13 @@
 """lobby.py: host-only and loopback-only; creates 1v1 and 2HG games whose seat keys come back as 0600 FILES (never key text);
 two bots play a lobby game from those files; the list shows phase and life; bad requests are refused; the cap holds; stop works.
 
-    ~/.venvs/table/bin/python table/tests/lobby_test.py
+    python3 table/tests/lobby_test.py
 """
 from __future__ import annotations
 
 import json
 import os
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import socket
 import stat
 import subprocess
@@ -18,8 +19,9 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
-ROOT = Path(os.path.expanduser("~/.divinci/star-trek-mtg"))
-DECKS = ROOT / "live" / "decks"
+ROOT = Path(os.environ.get("BOT_DIR") or Path.home() / ".divinci" / "star-trek-mtg").expanduser()
+cards_path.need(ROOT / "claude_autopilot.py", "the Claude bot", "BOT_DIR=<dir with claude_autopilot.py>")
+DECKS = cards_path.decks_dir()
 FAILS: list[str] = []
 
 

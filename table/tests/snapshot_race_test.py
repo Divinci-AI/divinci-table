@@ -1,6 +1,6 @@
 """The snapshot is written by many request threads at once (dogfood loop 2: 6-16 'snapshot failed' per game).
 
-    ~/.venvs/table/bin/python table/tests/snapshot_race_test.py
+    python3 table/tests/snapshot_race_test.py
 
 Every writer must succeed, no temp file may be left behind, and an older state must never land over a newer one.
 """

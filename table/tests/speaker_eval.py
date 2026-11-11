@@ -3,7 +3,7 @@ held-out lines — clean, in room noise, across the table — and report accurac
 (correctly) says "not sure" instead of guessing wrong. Wrong answers are the number that matters:
 a wrong speaker puts damage on the wrong player.
 
-  ~/.venvs/table/bin/python table/tests/speaker_eval.py
+  python3 table/tests/speaker_eval.py
 """
 from __future__ import annotations
 

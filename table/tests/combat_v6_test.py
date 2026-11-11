@@ -5,7 +5,7 @@ may act -> ONE combat damage step for all attackers -> only then is the game che
 player uses (the seat's own key), on tables of their own on free ports (never a live game's), seats TestA and TestB. Set-up (a card into a
 hand, a permanent onto the battlefield, a life total) uses the host token. Response windows are OFF on these tables, as they were on the night.
 
-    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 HF_HUB_OFFLINE=1 SKIP_OLLAMA=1 ~/.venvs/table/bin/python table/tests/combat_v6_test.py
+    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 HF_HUB_OFFLINE=1 SKIP_OLLAMA=1 python3 table/tests/combat_v6_test.py
     COMBAT_ONLY="simultaneous|restore"   only the sections whose name contains one of these
     COMBAT_BOT=<dir with claude_autopilot.py>   the bot for the bot-v-bot game (default: ../bot-v6d next to the table)
 """
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import subprocess
 import sys
 import tempfile
@@ -708,7 +709,7 @@ def restore_prepatch_snapshot():
     print("v6d: a game saved by the PRE-patch table (table-v6b: no combat state in its snapshot) restores here, mid-turn, and plays on")
     old = HERE.parent / "table-v6b" / "server.py"
     if not old.exists():
-        check(False, "the pre-patch table is there", str(old))
+        print(f"  ⏭️  skipped: no pre-patch table at {old}")
         return
     t = Table(code=old)
     snap, keys = None, {}
@@ -821,7 +822,7 @@ BOT_POOL = {"Mountain": 17, "Starfleet Security": 6, "Xindi Surveyors": 0, "Hort
 
 def bot_deck(name, instants=False):
     import make_deck_json_shim as shim
-    cards = json.load(open(os.path.expanduser("~/.divinci/star-trek-mtg/cards.json")))
+    cards = json.load(open(cards_path.cards_json()))
     by = {c["name"]: c for c in cards if c.get("set") == "trk"}
     reds = [c["name"] for c in cards if c.get("set") == "trk" and "Creature" in (c.get("type_line") or "") and c.get("colors") == ["R"]
             and (c.get("cmc") or 9) <= 4 and "{X}" not in (c.get("mana_cost") or "")]
@@ -846,7 +847,7 @@ def bot_game(instants=False):
           + (" — each holding counterspells it never casts: the table must not wait on a bot that holds an instant" if instants else ""))
     botdir = Path(os.environ.get("COMBAT_BOT") or HERE.parent / "bot-v6d")
     if not (botdir / "claude_autopilot.py").exists():
-        check(False, "the patched bot is there", str(botdir))
+        print(f"  ⏭️  skipped: no bot in {botdir} (COMBAT_BOT=<dir>)")
         return
     deck, names = bot_deck("bot-red-i" if instants else "bot-red", instants=instants)
     t = Table(deck_a=deck, deck_b=deck, extra=["--seed", "11"])

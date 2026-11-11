@@ -4,7 +4,7 @@ before the surveil was answered, so the draw took a card that should have been s
 exile your creature, back under its owner's control at the beginning of the next end step. Tables of their own on free ports (never a live
 game's), the seat's own key; the library stacked so the exact card drawn is known.
 
-    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 ~/.venvs/table/bin/python table/tests/effect_order_test.py
+    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 python3 table/tests/effect_order_test.py
 """
 from __future__ import annotations
 

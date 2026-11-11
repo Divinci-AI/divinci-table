@@ -2,12 +2,13 @@
 playing its first turn from table_legal_actions alone, table_wait returning what happened, and the guard rails (the body can't
 pick another seat, only table actions are accepted, a world-readable key file is refused, the key never appears in a reply).
 
-    ~/.venvs/table/bin/python table/tests/table_mcp_test.py
+    python3 table/tests/table_mcp_test.py
 """
 from __future__ import annotations
 
 import json
 import os
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import socket
 import subprocess
 import sys
@@ -17,7 +18,7 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
-DECKS = Path(os.environ.get("TABLE_TEST_DECKS") or os.path.expanduser("~/.divinci/star-trek-mtg/live/decks"))
+DECKS = cards_path.decks_dir()
 FAILS: list[str] = []
 
 

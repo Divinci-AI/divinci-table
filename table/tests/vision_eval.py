@@ -1,7 +1,7 @@
 """Camera reading, by condition: full-frame OCR vs per-card crops (vision.py). Scored as the table
 needs it: the right card(s), and NEVER a wrong one.
 
-  ~/.venvs/table/bin/python table/tests/vision_eval.py
+  python3 table/tests/vision_eval.py
 """
 from __future__ import annotations
 

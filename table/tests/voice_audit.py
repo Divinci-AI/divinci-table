@@ -3,8 +3,8 @@ its own name) is spoken the way the AI says it — "I cast <card>." — in each 
 transcribed back by Whisper with no hint, and scored with the same "would a player recognise it"
 rule the sensory suite uses. Run it after changing the voice or the pronunciation lexicon.
 
-  ~/.venvs/table/bin/python table/tests/voice_audit.py                    # Moira + 4 others, raw vs lexicon
-  ~/.venvs/table/bin/python table/tests/voice_audit.py --voices Moira --fails
+  python3 table/tests/voice_audit.py                    # Moira + 4 others, raw vs lexicon
+  python3 table/tests/voice_audit.py --voices Moira --fails
 """
 from __future__ import annotations
 

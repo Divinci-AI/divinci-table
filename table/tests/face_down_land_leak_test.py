@@ -1,7 +1,7 @@
 """A face-down permanent is a nameless 2/2 whatever the card underneath is: the opponent's view (/api/brain/state "opponents") must not name it,
 count it as a land, or leave it out of the creature list. Deterministic: manifest Michael's WHOLE library so every land card of his is face down.
 
-    TABLE_TEST_DECKS=$(python tests/fixture_decks.py) ~/.venvs/table/bin/python table/tests/face_down_land_leak_test.py
+    TABLE_TEST_DECKS=$(python tests/fixture_decks.py) python3 table/tests/face_down_land_leak_test.py
 """
 from __future__ import annotations
 import json, os, socket, subprocess, sys, tempfile, time, urllib.error, urllib.request

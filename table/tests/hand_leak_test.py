@@ -8,18 +8,19 @@ Michael. What Michael made public comes from his own actions in the private rese
 a name in the event log is exactly what this test hunts, so it can't count as public (it once did, and a leak INTO the log hid itself).
 Also searched: Claude's /api/seat/legal, and the refusal messages Claude gets for probes aimed at Michael's face-down cards. Also: one
 seat's key can't read the other seat's private state, and the brain-only routes refuse a seat key. Decks: TABLE_TEST_DECKS, or the
-fixture decks (never live/). The bot: AUTOPILOT (default ~/.divinci/star-trek-mtg/claude_autopilot.py).
+fixture decks (never live/). The bot: AUTOPILOT=<claude_autopilot.py> (it lives outside this repo; the test skips without it).
 
 Routes that are card catalogs or rules lookups by design (/api/cardnames, /api/card) and static files are skipped; /api/deckdecl
 is checked to hold only what a player chose to declare (the table runs with --decklists declared, as an agent table would; the
 default "auto" publishes a virtual seat's deck file Commander-style, by design).
 
-    ~/.venvs/table/bin/python table/tests/hand_leak_test.py
+    python3 table/tests/hand_leak_test.py
 """
 from __future__ import annotations
 
 import json
 import os
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import re
 import socket
 import subprocess
@@ -31,11 +32,12 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
-ROOT = Path(os.path.expanduser("~/.divinci/star-trek-mtg"))
+ROOT = Path(os.environ.get("BOT_DIR") or Path.home() / ".divinci" / "star-trek-mtg").expanduser()
 sys.path.insert(0, str(HERE / "tests"))
 import fixture_decks  # noqa: E402
 DECKS = Path(os.environ["TABLE_TEST_DECKS"]) if os.environ.get("TABLE_TEST_DECKS") else fixture_decks.write(Path(tempfile.mkdtemp(prefix="leak-decks-")))
 AUTOPILOT = Path(os.environ.get("AUTOPILOT") or ROOT / "claude_autopilot.py").expanduser()
+cards_path.need(AUTOPILOT, "the Claude bot (claude_autopilot.py)", "AUTOPILOT=<file>")
 BASICS = ("Plains", "Island", "Swamp", "Mountain", "Forest")
 FAILS: list[str] = []
 

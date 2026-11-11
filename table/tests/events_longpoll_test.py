@@ -4,7 +4,7 @@ Unit checks on core.Events.wait_since, then the real dnd server: a held request 
 under half a second (the old polling averaged ~0.75 s), a quiet log answers at the timeout, the wait is capped, a page
 ahead of the server is told so at once, and a request without ?wait= is still answered instantly.
 
-    ~/.venvs/table/bin/python table/tests/events_longpoll_test.py
+    python3 table/tests/events_longpoll_test.py
 """
 import json
 import os
@@ -57,7 +57,7 @@ check("one emit releases every waiting request", not any(w.is_alive() for w in w
 PORT = 8200 + os.getpid() % 90
 BASE = f"http://127.0.0.1:{PORT}"
 tmp = tempfile.mkdtemp()
-srv = subprocess.Popen([str(Path.home() / ".venvs/table/bin/python"), "table/dnd_server.py", "--players", "Ana,Ben", "--port", str(PORT)], cwd=ROOT,
+srv = subprocess.Popen([sys.executable, "table/dnd_server.py", "--players", "Ana,Ben", "--port", str(PORT)], cwd=ROOT,
                        env={**os.environ, "DIVINCI_FUSION_API_KEY": "", "TABLE_RESEARCH_DIR": tmp}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 

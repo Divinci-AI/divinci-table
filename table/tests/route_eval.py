@@ -3,7 +3,7 @@ addressed). Needs Ollama with gemma4:e2b. Fails if any AI answers when it should
 AI answers, or if more than one line routes wrongly. Hand-written and tuned against, so it is a
 floor, not an accuracy estimate — add real table talk to CASES as it's collected.
 
-  ~/.venvs/table/bin/python table/tests/route_eval.py
+  python3 table/tests/route_eval.py
 """
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))

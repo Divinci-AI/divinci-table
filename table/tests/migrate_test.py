@@ -2,7 +2,7 @@
 """migrate_live.py, end to end: carry a running game into a snapshot, restore it on another server, and
 check every AI seat comes back identical — hand, board, graveyard, life, and the whole library order.
 
-    ~/.venvs/table/bin/python table/tests/migrate_test.py
+    python3 table/tests/migrate_test.py
 
 Two servers on spare ports (8817 → 8818), fair seeding off, their own token files; never touches a
 running game. Prints fingerprints only, never a hidden card.

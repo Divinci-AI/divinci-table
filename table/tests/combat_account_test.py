@@ -3,7 +3,7 @@ forecast: every attacker unblocked, at its power then (a double striker twice). 
 changing since make the real number, so at the damage step the table now says what the attack actually took off each player, and why
 it differs when it does. Checked against the life events themselves. A table of its own on a free port (never a live game's).
 
-    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 ~/.venvs/table/bin/python table/tests/combat_account_test.py
+    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 python3 table/tests/combat_account_test.py
 """
 from __future__ import annotations
 

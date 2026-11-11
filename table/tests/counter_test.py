@@ -1,7 +1,7 @@
 """v6: counterspells. A pilot's spell is held while an opposing pilot who could counter it answers (casts the counterspell, or passes); a countered
 spell goes to the graveyard without resolving; "unless its controller pays {N}" asks its controller.
 
-    PYTHONDONTWRITEBYTECODE=1 ~/.venvs/table/bin/python table/tests/counter_test.py"""
+    PYTHONDONTWRITEBYTECODE=1 python3 table/tests/counter_test.py"""
 import os
 import time
 from v6_harness import R, Table, check, run, cast, answer, choices, says

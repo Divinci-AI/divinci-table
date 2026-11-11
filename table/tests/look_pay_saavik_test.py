@@ -8,7 +8,7 @@
    controller's non-Borg creatures (her own included), the damage is dealt and the creature dies normally; nothing to aim at: said, nothing
    happens. And a virtual seat can flash her in during the opponent's declare attackers and declare blockers steps.
 
-    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 ~/.venvs/table/bin/python table/tests/look_pay_saavik_test.py
+    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 python3 table/tests/look_pay_saavik_test.py
     LPS_ONLY="engine|surveil table"   only the sections whose title names one of these
 """
 from __future__ import annotations

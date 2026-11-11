@@ -2,12 +2,13 @@
 Spacecraft (Class-F Shuttlecraft: "6+ | Flying, vigilance"), so: Claude stations a Shuttlecraft with a Horta, attacks with it the
 next turn; Michael's Shuttle Ace (no flying) is not offered as a blocker, its block is refused, and "no block" still answers it.
 
-    ~/.venvs/table/bin/python table/tests/flying_block_test.py
+    python3 table/tests/flying_block_test.py
 """
 from __future__ import annotations
 
 import json
 import os
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import socket
 import subprocess
 import sys
@@ -18,7 +19,7 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
-DECK = Path(os.environ.get("TABLE_TEST_DECKS") or os.path.expanduser("~/.divinci/star-trek-mtg/live/decks")) / "sam.json"
+DECK = cards_path.decks_dir() / "sam.json"
 FAILS: list[str] = []
 
 

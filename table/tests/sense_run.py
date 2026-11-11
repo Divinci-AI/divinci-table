@@ -12,9 +12,9 @@ fails the test even when the text was right.
 It starts its own server (default port 8801, its own token file) so a live game on :8800 is left
 alone, and watches every socket of that server and Ollama for a non-loopback connection.
 
-  ~/.venvs/table/bin/python table/tests/sense_run.py                      # all scenarios
-  ~/.venvs/table/bin/python table/tests/sense_run.py --only hear- --tier regression
-  ~/.venvs/table/bin/python table/tests/sense_run.py --list
+  python3 table/tests/sense_run.py                      # all scenarios
+  python3 table/tests/sense_run.py --only hear- --tier regression
+  python3 table/tests/sense_run.py --list
 
 Scenarios live in table/tests/scenarios/*.yaml. Tier "regression" must pass today; tier "goal"
 describes what the player should do and is expected to fail until it is built. A goal that starts

@@ -1,5 +1,5 @@
 """Open mic v2 policy (table/openmic.py) with a scripted judge: no model, no network.
-    ~/.venvs/table/bin/python table/tests/openmic_test.py
+    python3 table/tests/openmic_test.py
 """
 import json, os, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

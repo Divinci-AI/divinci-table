@@ -7,7 +7,7 @@ the table can check by itself: did the DM roll dice, move or set a player's hit 
 character in its TABLE line (the table drops that, but trying is a fault). Vividness and consistency are judged by a
 person, blind: it writes a scoring sheet with the replies shuffled and the models hidden.
 
-    ~/.venvs/table/bin/python table/tests/t4_dm_eval.py gemma4:e2b gemma4:e2b+think [out_dir]
+    python3 table/tests/t4_dm_eval.py gemma4:e2b gemma4:e2b+think [out_dir]
 """
 from __future__ import annotations
 

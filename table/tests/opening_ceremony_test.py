@@ -1,6 +1,6 @@
 """Every game opens with the high roll (a person pressed START and it used to be their turn at once, no roll).
 
-    ~/.venvs/table/bin/python table/tests/opening_ceremony_test.py
+    python3 table/tests/opening_ceremony_test.py
 
 NEXT/START from a person or a virtual-deck seat now runs the high roll for who goes first: every player rolls, ties re-roll, the
 winner takes the first turn and the order turns round the table from them, and the whole roll (every die, the randomness it came
@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 os.environ.pop("TABLE_HIGHROLL", None)                 # THIS test wants the real ceremony
+os.environ.setdefault("TABLE_MULLIGAN", "off")         # ...of the roll; the opening-hand step (on by default since T15) has its own tests: mulligan_test.py
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import stage1_guard_test as G  # noqa: E402
 from stage1_guard_test import Server  # noqa: E402

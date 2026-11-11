@@ -1,6 +1,6 @@
 """The opening ceremony declares each seat's commander and deck list (a player asked: "nobody declared my commander").
 
-    ~/.venvs/table/bin/python table/tests/declare_deck_test.py
+    python3 table/tests/declare_deck_test.py
 
 A person's seat names its commander at the check-in (matched against the card file, stored under its canonical name, and made the
 seat's commander everywhere, as --human 'Name|Commander' would) and may add a deck list, pasted or a link (never fetched). Ready and

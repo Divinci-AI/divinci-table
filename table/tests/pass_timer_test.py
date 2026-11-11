@@ -2,7 +2,7 @@
 log, after the time; the active player is never timed out; a hold pauses it; the deadline the pages count down to is
 published in the server's own clock. Two real servers on their own ports.
 
-  ~/.venvs/table/bin/python table/tests/pass_timer_test.py
+  python3 table/tests/pass_timer_test.py
 """
 from __future__ import annotations
 

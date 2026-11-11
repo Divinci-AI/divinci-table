@@ -2,7 +2,7 @@
 said in the public log, and a card from a hidden zone into a hidden zone is only "a card". Not for bot seats, not on another seat's cards.
 Tables of their own on free ports (never a live game's), the seat's own key.
 
-    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 ~/.venvs/table/bin/python table/tests/manual_test.py
+    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 python3 table/tests/manual_test.py
 """
 from __future__ import annotations
 

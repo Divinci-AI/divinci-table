@@ -1,7 +1,7 @@
 """'To deck' from the card menu on /board (Chaos Warp: "the owner shuffles the permanent into their library"), and the
 engine's matching move for a pilot seat's own permanents.
 
-    ~/.venvs/table/bin/python table/tests/deck_move_test.py
+    python3 table/tests/deck_move_test.py
 
 Part 1 is the engine (player.py) in-process: top / bottom / shuffle, tokens, the commander, Auras falling off.
 Part 2 is the server, cloud room (TABLE_CLOUD=1), remote calls (X-Forwarded-For), one server on port 8831

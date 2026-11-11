@@ -6,7 +6,7 @@ Checks what the table can: each beat answers, a companion addressed by name answ
 writes Ana's words, the death-save and other rules hold; times each beat to its first spoken sentence. Writes the
 whole story as a transcript to read (docs/results/t6-solo-rehearsal.md): reading it is the real check.
 
-    ~/.venvs/table/bin/python table/tests/solo_rehearsal.py [ollama-model]
+    python3 table/tests/solo_rehearsal.py [ollama-model]
 """
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def call(path: str, body: dict | None = None) -> dict:
 
 
 tmp = tempfile.mkdtemp()
-srv = subprocess.Popen([str(Path.home() / ".venvs/table/bin/python"), "table/dnd_server.py", "--players", "Ana",
+srv = subprocess.Popen([sys.executable, "table/dnd_server.py", "--players", "Ana",
                         "--companions", "ai:Leonardo:normal:wizard,ai:Mira:quiet:cleric", "--mode", "theater",
                         "--dm-backend", f"ollama:{MODEL}", "--port", str(PORT)], cwd=ROOT,
                        env={**os.environ, "DIVINCI_FUSION_API_KEY": "", "TABLE_RESEARCH_DIR": tmp},

@@ -8,7 +8,7 @@ States: the mulligan step (opponent's opening hand and bottom picks), a held spe
 attacker, the game-over summary, BACK (rewind) and its log text, a search effect (the chooser alone sees the options), "By hand" moves, face-down
 permanents of every type (creature / land / artifact / enchantment) in every public view and in what a typed target slot says about them.
 
-    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 ~/.venvs/table/bin/python table/tests/hidden_info_rare_test.py
+    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 python3 table/tests/hidden_info_rare_test.py
     HI_ONLY="mulligan|held"       only the sections whose title names one of these
 """
 from __future__ import annotations

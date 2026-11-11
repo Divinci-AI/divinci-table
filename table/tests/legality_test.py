@@ -1,5 +1,5 @@
 """T18: every button of a seat's own state says whether it can be pressed now, and why not, from the engine's own checks.
-    PYTHONDONTWRITEBYTECODE=1 ~/.venvs/table/bin/python table/tests/legality_test.py"""
+    PYTHONDONTWRITEBYTECODE=1 python3 table/tests/legality_test.py"""
 from v6_harness import R, Table, check, run, cast
 
 

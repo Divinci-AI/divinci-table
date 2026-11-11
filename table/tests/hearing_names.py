@@ -2,7 +2,7 @@
 table makes of them. Wrong answers are the number to keep at zero; "none" is recoverable (the
 player repeats it), a wrong card is not.
 
-  ~/.venvs/table/bin/python table/tests/hearing_names.py
+  python3 table/tests/hearing_names.py
 """
 from __future__ import annotations
 

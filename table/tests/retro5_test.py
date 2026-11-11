@@ -4,7 +4,7 @@ its damage (no grace, no silent "no blocks"); T9 the choice banner; T12 an X pic
 T14 the declare-attackers prompt; apply-removal by event id (a damage spell no longer blocks an older destroy); research folders keyed by
 the game id. Tables of their own on free ports (never a live game's).
 
-    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 ~/.venvs/table/bin/python table/tests/retro5_test.py
+    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 python3 table/tests/retro5_test.py
 """
 from __future__ import annotations
 

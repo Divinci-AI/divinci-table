@@ -1,5 +1,5 @@
 """How well tev1 judges table talk, on lines labelled by hand. Needs Ollama with tev1 (local, no network).
-    ~/.venvs/table/bin/python table/tests/openmic_tev1_eval.py
+    python3 table/tests/openmic_tev1_eval.py
 """
 import os, sys, time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

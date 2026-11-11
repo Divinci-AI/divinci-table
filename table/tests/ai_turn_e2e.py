@@ -8,7 +8,7 @@ privacy (the hand never appears publicly; the hand endpoint needs the token; spo
 name a card in the hand), voice ("Ellivere, your turn." plays a turn; your plays are silent), and
 that no process opens a non-loopback connection.
 
-  ~/.venvs/table/bin/python table/tests/ai_turn_e2e.py
+  python3 table/tests/ai_turn_e2e.py
 """
 from __future__ import annotations
 

@@ -1,11 +1,13 @@
 """v6: the autopilot bot (review-20261109/bot-v6) answers the new kinds of question and never hangs a game: modes, "you may sacrifice", a target
 player, pay-or-be-countered, and a spell held for its response.
-    PYTHONDONTWRITEBYTECODE=1 ~/.venvs/table/bin/python table/tests/bot_v6_test.py     (BOT_DIR: where claude_autopilot.py is)"""
+    PYTHONDONTWRITEBYTECODE=1 python3 table/tests/bot_v6_test.py     (BOT_DIR: where claude_autopilot.py is)"""
 import importlib, os, sys, tempfile, time
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 from pathlib import Path
 from v6_harness import R, Table, check, run, cast, answer, choices, says, HERE
 BOT = Path(os.path.expanduser(os.environ.get("BOT_DIR", str(HERE.parent / "bot-v6"))))
 sys.path.insert(0, str(BOT))
+cards_path.need(BOT / "claude_autopilot.py", "the Claude bot", "BOT_DIR=<dir with claude_autopilot.py>")
 M, C = "Michael", "Claude"
 
 

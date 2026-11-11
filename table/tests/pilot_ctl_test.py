@@ -2,7 +2,7 @@
 with its own port. No host brain token is used or readable. Checks the key never reaches stdout, is saved 0600, only
 the pilot's own seat and life are reachable, and a missing key is refused.
 
-  ~/.venvs/table/bin/python table/tests/pilot_ctl_test.py
+  python3 table/tests/pilot_ctl_test.py
 """
 from __future__ import annotations
 

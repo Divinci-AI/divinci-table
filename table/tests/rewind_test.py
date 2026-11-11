@@ -4,7 +4,7 @@ something happened in it): life, damage, the board, hands, libraries in the same
 it alone; a seated person asks and another person confirms. Never into or across a bot's moves. Tables of their own on free ports (never a
 live game's).
 
-    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 ~/.venvs/table/bin/python table/tests/rewind_test.py
+    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 python3 table/tests/rewind_test.py
 """
 from __future__ import annotations
 

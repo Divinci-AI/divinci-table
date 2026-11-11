@@ -1,7 +1,7 @@
 """v6: cards the table left "By hand" now resolve through the engine. Every check goes through the route a player uses (cast from hand with the
 seat's own key, answer the table's question with `choose`), on tables of their own on free ports. Set-up uses the host token.
 
-    PYTHONDONTWRITEBYTECODE=1 ~/.venvs/table/bin/python table/tests/coverage_v6_test.py        V6_ONLY="Wesley|Dahar" for some sections"""
+    PYTHONDONTWRITEBYTECODE=1 python3 table/tests/coverage_v6_test.py        V6_ONLY="Wesley|Dahar" for some sections"""
 from v6_harness import R, Table, check, run, cast, answer, choices, says
 import player
 

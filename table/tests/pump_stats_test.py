@@ -1,7 +1,7 @@
 """Power/toughness the engine reads from Auras and the card's own text (dogfood run 2, finding 2), and two triggers it used to
 skip (Righteous Authority's extra draw, Kestia's attack draw). No server, no model.
 
-  ~/.venvs/table/bin/python table/tests/pump_stats_test.py
+  python3 table/tests/pump_stats_test.py
 """
 from __future__ import annotations
 

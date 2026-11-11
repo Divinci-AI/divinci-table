@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """NEXT, priority windows and snapshot/restore, end to end against a real server on a spare port.
 
-    ~/.venvs/table/bin/python table/tests/phase_test.py
+    python3 table/tests/phase_test.py
 
 Starts its own server (fair seeding off, its own token file, port 8815) and never touches a running game.
 """
@@ -22,6 +22,7 @@ PORT = 8815
 BASE = f"http://127.0.0.1:{PORT}"
 TMP = Path(tempfile.mkdtemp(prefix="phase-test-"))
 TOKEN = TMP / "token"
+os.environ.setdefault("TABLE_MULLIGAN", "off")       # this test walks the turn structure; the opening-hand step (on by default since T15) has its own tests
 os.environ["TABLE_RESEARCH_DIR"] = str(TMP / "research")         # this test's games stay out of the real data
 RESEARCH = TMP / "research"
 fails = []

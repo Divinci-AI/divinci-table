@@ -14,7 +14,7 @@ if [ "${1:-}" != quick ] && [ "${FORCE:-}" != 1 ] && lsof -ti tcp:8800 -sTCP:LIS
     echo "a game is running on :8800 — the full suite would restart it. Run 'quick', finish the game, or FORCE=1."; exit 3
   fi
 fi
-PY=~/.venvs/table/bin/python
+PY=${PY:-$HOME/.venvs/table/bin/python}       # PY=python3 for a plain clone (this full run needs a Mac with Gemma/Ollama and the browser suites)
 # Test decks come from the set's card data, never from a real game's decks (live/decks holds people's picks).
 export TABLE_TEST_DECKS=${TABLE_TEST_DECKS:-$($PY table/tests/fixture_decks.py)}
 export TABLE_RESEARCH_DIR=$(mktemp -d)/research   # simulated games never land in the real research data

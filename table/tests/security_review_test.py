@@ -1,7 +1,7 @@
 """The 2026-11-07 security review (S1, S4): the table refuses requests a web page could forge, and serves card art from outside the
 repo only. Starts its own server on a free port (no model, no cloud).
 
-    ~/.venvs/table/bin/python table/tests/security_review_test.py
+    python3 table/tests/security_review_test.py
 """
 import http.client
 import json
@@ -96,8 +96,11 @@ try:
     check(st != 200, "no way out of the art folder", st)
     st, _ = req("GET", "/assets/art/abc123.jpg")
     check(st != 200, "nothing under /assets/art (the repo) any more", st)
-    ign = subprocess.run(["git", "check-ignore", "-q", "table/assets/art/x.jpg"], cwd=HERE.parent).returncode == 0
-    check(ign, "git ignores table/assets/art/ (art can't be committed by accident)")
+    if (HERE.parent / ".git").exists():                  # a ZIP download has no repository to ask
+        ign = subprocess.run(["git", "check-ignore", "-q", "table/assets/art/x.jpg"], cwd=HERE.parent).returncode == 0
+        check(ign, "git ignores table/assets/art/ (art can't be committed by accident)")
+    else:
+        print("  ⏭️  skipped: not a git checkout, so there is no .gitignore to ask")
 finally:
     proc.terminate()
     try:

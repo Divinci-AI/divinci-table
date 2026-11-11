@@ -2,7 +2,7 @@
 hand-over, and a late one restarted the NEXT player's turn after they had begun it (a listed Station refused "only in your main phase", 1 golden
 path in ~6). Also: a listed move that went stale because the game ended answers 409 (read again), not 400.
 
-    PYTHONDONTWRITEBYTECODE=1 ~/.venvs/table/bin/python table/tests/turn_handoff_test.py"""
+    PYTHONDONTWRITEBYTECODE=1 python3 table/tests/turn_handoff_test.py"""
 import os, sys, time
 from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent

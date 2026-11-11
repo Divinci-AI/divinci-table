@@ -11,8 +11,8 @@ Checked every AI turn:  at most one land · its announced attacks become the hum
 Checked continuously:   the table's life totals == the simulator's
 Measured:               latency per kind of line (play, question, AI turn, attack on it)
 
-  ~/.venvs/table/bin/python table/tests/game_sim.py                      # 2 games × 8 rounds
-  ~/.venvs/table/bin/python table/tests/game_sim.py --games 5 --rounds 12 --seed 3
+  python3 table/tests/game_sim.py                      # 2 games × 8 rounds
+  python3 table/tests/game_sim.py --games 5 --rounds 12 --seed 3
 """
 from __future__ import annotations
 

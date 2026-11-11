@@ -1,7 +1,7 @@
 """Stage 1 of docs/hud-plan.md: the server refuses what the honor system used to allow, for a REMOTE player.
 
-    ~/.venvs/table/bin/python table/tests/stage1_guard_test.py          # every item
-    ~/.venvs/table/bin/python table/tests/stage1_guard_test.py 1 3      # only items 1 and 3
+    python3 table/tests/stage1_guard_test.py          # every item
+    python3 table/tests/stage1_guard_test.py 1 3      # only items 1 and 3
 
 Every request carries X-Forwarded-For (what the cloud Worker adds), so the server treats the caller as another device:
 the seat guard, the LAN block and the pilot key rules all apply. Only calls named `host_*` come from the laptop itself
@@ -66,7 +66,7 @@ class Server:
                "--ai", "Claude|Kaust, Eyes of the Glade|", "--ai-deck", str(REPO / "decks/kaust.json"),
                "--ai", "Fusion|Tuvasa the Sunlit|", "--ai-deck", str(REPO / "decks/tuvasa.json"),
                "--pilot", "Claude", "--pilot", "Fusion", *(["--human", "Michael|", "--human", "Sam|"] if self.humans else []),
-               "--order", self.order, "--priority-window", "0.2", "--fair-seed", "off", *self.extra]
+               "--order", self.order, "--priority-window", "0.2", "--fair-seed", "off", "--seat-rate", "1000", *self.extra]   # a test polls faster than the 10/s default; --seat-rate has its own tests
         self.proc = subprocess.Popen(cmd, cwd=REPO, env=env, stdout=open(self.tmp / "server.log", "w"), stderr=subprocess.STDOUT)
         for _ in range(180):
             if self.proc.poll() is not None:

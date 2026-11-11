@@ -7,7 +7,7 @@ with macOS `say`. Building fixtures is the ONLY step that touches the network, a
 the egress watch starts. The watch then asserts that the server processes open no non-loopback
 connection for the whole session.
 
-  ~/.venvs/table/bin/python table/tests/e2e_offline.py            # server on :8800, so1 on :8792
+  python3 table/tests/e2e_offline.py            # server on :8800, so1 on :8792
 """
 from __future__ import annotations
 

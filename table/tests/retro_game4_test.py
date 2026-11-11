@@ -1,7 +1,7 @@
 """Game 4 retro (2026-11-08): real mechanics instead of announcing them. Every check goes through the route a player uses: cast from hand, press the
 action, on a table of its own on a free port. The G4 rows are in ~/.divinci/star-trek-mtg/RETRO-LOG.md.
 
-    PYTHONDONTWRITEBYTECODE=1 ~/.venvs/table/bin/python table/tests/retro_game4_test.py
+    PYTHONDONTWRITEBYTECODE=1 python3 table/tests/retro_game4_test.py
     RETRO_ONLY="R1|S2" …          only the sections whose title names one of these (each section runs on its own: one that throws is one failure)
     RETRO_SEED=4                  the shuffle every table here starts with (pinned, so a failure repeats)
 
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import traceback
 import socket
 import subprocess
@@ -26,7 +27,7 @@ import make_deck_json_shim as shim  # noqa: E402
 import player  # noqa: E402
 from ai_turn import resolve_block  # noqa: E402
 
-CARDS = {c["name"]: c for c in shim.load(os.path.expanduser("~/.divinci/star-trek-mtg/cards.json"))}
+CARDS = {c["name"]: c for c in shim.load(cards_path.cards_json())}
 FAILS: list[str] = []
 
 
@@ -65,7 +66,7 @@ TMP = Path(tempfile.mkdtemp(prefix="retro4-"))
 
 def deck_file(name):
     f = TMP / f"{name}.json"
-    f.write_text(json.dumps({"name": name, "commander": None, "startingLife": 20, "mainBoard": [shim.entry({**next(c for c in json.load(open(os.path.expanduser('~/.divinci/star-trek-mtg/cards.json'))) if c['name'] == n and c.get('set') == 'trk')}, k) for n, k in POOL.items()]}))
+    f.write_text(json.dumps({"name": name, "commander": None, "startingLife": 20, "mainBoard": [shim.entry({**next(c for c in json.load(open(cards_path.cards_json())) if c['name'] == n and c.get('set') == 'trk')}, k) for n, k in POOL.items()]}))
     return str(f)
 
 
@@ -1335,7 +1336,7 @@ def main():
     def _section_22():
         print("Coverage is true: what it calls handled, the engine does")
         import card_coverage as cv
-        cards = shim.load(os.path.expanduser("~/.divinci/star-trek-mtg/cards.json"))
+        cards = shim.load(cards_path.cards_json())
         bad = []
         for card in cards:
             if not ("Instant" in card["types"] or "Sorcery" in card["types"]):
@@ -1626,7 +1627,7 @@ def main():
         snap = (len(real.battlefield), real.life, list(real.todo), len(real.__dict__.get("outbox") or []))
         probed = 0
         try:
-            for c_ in shim.load(os.path.expanduser("~/.divinci/star-trek-mtg/cards.json")):
+            for c_ in shim.load(cards_path.cards_json()):
                 try:
                     card_coverage.by_hand_lines(c_)
                     for sent_ in [x for x in __import__("re").split(r"(?<=\.)\s+|\n", c_.get("text") or "") if x.strip()]:

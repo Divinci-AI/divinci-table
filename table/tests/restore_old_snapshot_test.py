@@ -5,11 +5,12 @@ The OLD code is a FROZEN copy of the table as it was before the Game 4 retro pat
 It is never the live worktree: once the patch is applied there, "old" would be the new code and the test would compare new with new and pass
 whatever it found. A missing or unfrozen copy is a FAILURE, not a skip.
 
-    PYTHONDONTWRITEBYTECODE=1 ~/.venvs/table/bin/python table/tests/restore_old_snapshot_test.py"""
+    PYTHONDONTWRITEBYTECODE=1 python3 table/tests/restore_old_snapshot_test.py"""
 from __future__ import annotations
 
 import json
 import os
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import sys
 import time
 from pathlib import Path
@@ -22,6 +23,7 @@ import retro_game4_test as R  # noqa: E402
 FROZEN = Path(os.path.expanduser("~/.divinci/star-trek-mtg/backups/table-pre-retro-g4"))
 OLD_DIR = Path(os.environ.get("OLD_TABLE") or FROZEN).expanduser()
 OLD = OLD_DIR / "server.py"
+cards_path.need(OLD, "a frozen pre-patch table", "OLD_TABLE=<dir>")
 check = R.check
 
 

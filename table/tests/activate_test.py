@@ -1,7 +1,7 @@
 """Activated abilities (dogfood run 2: Mirror Entity, Kessig Wolf Run and friends had no command). The engine checks the cost,
 refuses what it cannot run BEFORE anything is paid, and runs the ones it understands. No server, no model.
 
-  ~/.venvs/table/bin/python table/tests/activate_test.py
+  python3 table/tests/activate_test.py
 """
 from __future__ import annotations
 
@@ -222,8 +222,9 @@ spirit = (tg.make_tokens("Spirit", 1, 1, ["Flying"]), tg.battlefield[-1])[1]
 bear = (tg.make_tokens("Bear", 2, 2), tg.battlefield[-1])[1]
 r = refuses(lambda: tg.activate("Thalia's Geistcaller", sac_ref=f"#{bear.id}"), "is not a Spirit")
 check(r[0] and f"#{spirit.id}" in r[1], f"Geistcaller: a Bear is not a Spirit, and the refusal names the Spirit it could use ({r[1][:100]})")
-r = refuses(lambda: tg.activate("Thalia's Geistcaller", sac_ref=f"#{spirit.id}"), "nothing was paid")
-check(r[0] and spirit in tg.battlefield, "…with the Spirit, the effect (indestructible) is not one the table runs: refused, and the Spirit is NOT sacrificed")
+gc = next(x for x in tg.battlefield if x.card.get("name") == "Thalia's Geistcaller")
+tg.activate("Thalia's Geistcaller", sac_ref=f"#{spirit.id}")
+check(spirit not in tg.battlefield and "Indestructible" in tg.kws(gc), "…with the Spirit: the cost is paid (the Spirit is sacrificed) and Geistcaller gains indestructible until end of turn")
 
 mz = fresh("aminatou.json")
 put(mz, "Mind Stone")

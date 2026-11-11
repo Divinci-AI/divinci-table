@@ -12,6 +12,7 @@ the Cosmos art and shot once the manifest names them.
 from __future__ import annotations
 
 import json
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import shutil
 import struct
 import sys
@@ -23,6 +24,8 @@ sys.path.insert(0, str(HERE))
 import dnd_map as M  # noqa: E402
 
 CACHE = HERE / ".cache" / "dnd"
+if not CACHE.exists():
+    cards_path.skip("needs the D&D 3D assets in table/.cache/dnd (they are not in the repo)")
 KNOWN = set(".,=~DPM#TROKBSCW")
 THEMES = {"tavern", "road", "forest", "cave", "crypt", "keep", "bridge", "ruins"}
 ROOM_TRIS, MINI_TRIS = 150_000, 20_000

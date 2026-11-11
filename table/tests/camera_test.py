@@ -1,7 +1,7 @@
 """The head camera: the UVC capture backend, the deck-box mask, the mosaic, the refusals, and the field-of-view script.
 
 No hardware: a fake OpenCV capture, a fake Marlin board, and synthetic chessboard frames rendered at a known field of view.
-  ~/.venvs/table/bin/python table/tests/camera_test.py
+  python3 table/tests/camera_test.py
 """
 import importlib.util
 import json

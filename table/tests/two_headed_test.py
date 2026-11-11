@@ -1,14 +1,15 @@
 """Two-Headed Giant, step 1: teammates share one life total (30). Later steps (shared team turn, team combat, the first-draw
 rule) add their checks here.
 
-    ~/.venvs/table/bin/python table/tests/two_headed_test.py
+    python3 table/tests/two_headed_test.py
 
 Part A drives the engine; Part B starts a throwaway four-seat table on a free port with --team and checks the shared total
-through the server (its life action and its life table). Needs ~/.divinci/star-trek-mtg/live/decks/*.json."""
+through the server (its life action and its life table). Needs test decks: built from the card data, or TABLE_TEST_DECKS=<dir>."""
 from __future__ import annotations
 
 import json
 import os
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import pickle
 import socket
 import subprocess
@@ -23,7 +24,7 @@ HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 import player  # noqa: E402
 
-DECKS = Path(os.environ.get("TABLE_TEST_DECKS") or os.path.expanduser("~/.divinci/star-trek-mtg/live/decks"))
+DECKS = cards_path.decks_dir()
 FAILS: list[str] = []
 
 

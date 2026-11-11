@@ -1,6 +1,6 @@
 """A deck with no commander (a 40-card 1-vs-1 or sealed deck) plays beside Commander decks.
 
-    ~/.venvs/table/bin/python table/tests/no_commander_test.py
+    python3 table/tests/no_commander_test.py
 
 Builds a no-commander copy of an existing Commander deck (the same cards, no commander), then checks the
 seat's starting life, that no command-zone path is taken, and that a commander-only request is refused

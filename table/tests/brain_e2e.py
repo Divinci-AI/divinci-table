@@ -5,7 +5,7 @@ Needs the server started with --brain external, e.g.
             --ai-deck decks/ellivere.json --human "Michael|" --human "Player 2|"
 Every check is built from the ACTUAL shuffled hand (read first), never from hard-coded card names.
 
-  ~/.venvs/table/bin/python table/tests/brain_e2e.py
+  python3 table/tests/brain_e2e.py
 """
 from __future__ import annotations
 

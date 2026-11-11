@@ -1,13 +1,14 @@
 """The test-mode table fee (x402_gate.py): a seat claim without payment gets 402 with what it costs; a test payment claims it;
 a payment can't be reused, forged or underpaid; a remote caller can't mint test payments; real-money mode refuses to start.
 
-    ~/.venvs/table/bin/python table/tests/x402_gate_test.py
+    python3 table/tests/x402_gate_test.py
 """
 from __future__ import annotations
 
 import base64
 import json
 import os
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import socket
 import subprocess
 import sys
@@ -21,7 +22,7 @@ HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 import x402_gate  # noqa: E402
 
-DECKS = Path(os.environ.get("TABLE_TEST_DECKS") or os.path.expanduser("~/.divinci/star-trek-mtg/live/decks"))
+DECKS = cards_path.decks_dir()
 FAILS: list[str] = []
 
 

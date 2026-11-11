@@ -6,13 +6,14 @@
   4  Dr. McCoy, Surly Surgeon: the +1/+1 counter replacement for destruction
   5  smart payment (plan_payment leaves the hand's other cards castable)
 
-    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 TABLE_TEST_DECKS=$(python tests/fixture_decks.py) ~/.venvs/table/bin/python table/tests/retro_round4_test.py
+    PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 TABLE_TEST_DECKS=$(python tests/fixture_decks.py) python3 table/tests/retro_round4_test.py
     R4_ONLY="reveal|holodeck"   only the sections whose title names one of these
 """
 from __future__ import annotations
 
 import json
 import os
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 import pickle
 import re
 import sys
@@ -43,7 +44,7 @@ def card_any(n):
     """A card of any set (the commander precons, trc, are not in the draft pool CARDS holds, but their text runs through the same engine)."""
     if n in CARDS:
         return card(n)
-    raw = next(c for c in json.load(open(os.path.expanduser("~/.divinci/star-trek-mtg/cards.json"))) if c["name"] == n)
+    raw = next(c for c in json.load(open(cards_path.cards_json())) if c["name"] == n)
     return R.shim.entry(raw)
 
 
@@ -718,6 +719,9 @@ def table_reveal_bot():
     import subprocess
     import time
     bot = Path(os.environ.get("AUTOPILOT") or Path.home() / ".divinci/star-trek-mtg/review-20261109/bot-v7/claude_autopilot.py")
+    if not bot.exists():
+        print(f"  ⏭️  skipped: no bot at {bot} (AUTOPILOT=<claude_autopilot.py>)")
+        return
     t = R.Table()
     proc = None
     try:
