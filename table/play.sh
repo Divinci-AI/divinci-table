@@ -52,7 +52,7 @@ if [ "${TLS:-}" = 1 ]; then
 fi
 LOG=table/.cache/game-$(date +%Y%m%d-%H%M).log
 mkdir -p table/.cache
-env -u TYPESAFE_API_KEY ${MODELS[@]+"${MODELS[@]}"} HF_HUB_OFFLINE=1 HF_DEACTIVATE_ASYNC_LOAD=1 ~/.venvs/table/bin/python table/server.py \
+env -u TYPESAFE_API_KEY ${MODELS[@]+"${MODELS[@]}"} HF_HUB_OFFLINE=1 HF_DEACTIVATE_ASYNC_LOAD=1 "${TABLE_PY:-$HOME/.venvs/table/bin/python}" table/server.py \
   --any-card --brain external "${AIS[@]}" "${HUMANS[@]}" ${HOST[@]+"${HOST[@]}"} "${FAIR[@]}" --port 8800 > "$LOG" 2>&1 &
 for _ in $(seq 1 90); do grep -q -E "Gemma loaded|voices:|could not|Traceback" "$LOG" && break; sleep 1; done
 grep -E "AI players|Gemma|voices:|Traceback" "$LOG" || true

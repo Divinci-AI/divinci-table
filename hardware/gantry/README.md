@@ -310,8 +310,8 @@ Write each number in the Results line at the end: they replace guesses that `fit
 With the printer powered and connected, home X and Y only:
 
 ```bash
-~/.venvs/table/bin/python table/gantry.py home
-~/.venvs/table/bin/python table/gantry.py info
+python3 table/gantry.py home
+python3 table/gantry.py info
 ```
 
 Cut the **non-slip shelf liner** to the bed and lay it flat: the bed moves in Y, and bare it lets cards slide.

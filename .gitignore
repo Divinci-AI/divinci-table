@@ -24,3 +24,21 @@ harness/results/*/current.*
 # Card art is copyrighted: never in the repo (review S4). The table serves it from TABLE_ART_DIR.
 table/assets/art/
 table/assets/art-index.js
+
+# The table's local state. table/.cache holds the Oracle download AND every game's research record
+# (private hands, full logs, invite codes): a stray `git add .` must never publish it.
+table/.cache/
+table/.cache
+# a game's live folder, seat keys and tokens, saved games, and keys of any kind
+live/
+saves/
+*.pkl
+*.key
+*.pem
+*.token
+*token*.txt
+*-seat.key
+*-link.txt
+.env
+.env.*
+node_modules/

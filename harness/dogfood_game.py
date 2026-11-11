@@ -2,8 +2,8 @@
 """A dogfood game: two model players (named for the models) play a full Commander game against each other through the table's own API,
 exactly as remote players would, on a local server with its own research folder. Nothing outside this laptop is contacted.
 
-  ~/.venvs/table/bin/python harness/dogfood_game.py start [--run DIR] [--port 8841] [--first Sonnet] [--turns 3]   # server up, seats claimed, per-seat ./tc wrappers written
-  ~/.venvs/table/bin/python harness/dogfood_game.py stop  [--run DIR]                                               # game over, bundle collected, server stopped
+  python3 harness/dogfood_game.py start [--run DIR] [--port 8841] [--first Sonnet] [--turns 3]   # server up, seats claimed, per-seat ./tc wrappers written
+  python3 harness/dogfood_game.py stop  [--run DIR]                                               # game over, bundle collected, server stopped
 
 Per seat the run folder holds `<Seat>/tc` (a wrapper that sets the seat's env and runs table/tablectl.py), `<Seat>/key` (0600, never printed) and
 `<Seat>/findings.md` (where that player writes what in the interface confused it, refused it or broke). The same brief goes to both players

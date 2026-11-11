@@ -61,7 +61,7 @@ def _cv2(cv2=None):
     try:
         import cv2 as real
     except ImportError as e:
-        raise CameraError("OpenCV is not installed: run this with ~/.venvs/table/bin/python") from e
+        raise CameraError("OpenCV is not installed: run this with python3") from e
     return real
 
 

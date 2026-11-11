@@ -5,15 +5,15 @@ every line goes through `safe()`, which allows moves, homing and status queries 
 rest. Moves are clamped to the machine's travel, which comes from table/.cache/gantry.json or
 from the printer's MACHINE_TYPE.
 
-  ~/.venvs/table/bin/python table/gantry.py ports             # what's plugged in
-  ~/.venvs/table/bin/python table/gantry.py info              # firmware, machine, position
-  ~/.venvs/table/bin/python table/gantry.py home              # X and Y only (see Z below)
-  ~/.venvs/table/bin/python table/gantry.py zero-z [H]        # declare Z: nozzle H mm above the bed (default 0); required before any Z move
-  ~/.venvs/table/bin/python table/gantry.py flip --dry-run    # the edge flip's checked lines, nothing sent
-  ~/.venvs/table/bin/python table/gantry.py goto 110 110 [Z]
-  ~/.venvs/table/bin/python table/gantry.py snap              # one photo where the camera is now
-  ~/.venvs/table/bin/python table/gantry.py plan --area all --z 300   # how many shots, no motion
-  ~/.venvs/table/bin/python table/gantry.py scan --area south [--z 300] [--post]
+  python3 table/gantry.py ports             # what's plugged in
+  python3 table/gantry.py info              # firmware, machine, position
+  python3 table/gantry.py home              # X and Y only (see Z below)
+  python3 table/gantry.py zero-z [H]        # declare Z: nozzle H mm above the bed (default 0); required before any Z move
+  python3 table/gantry.py flip --dry-run    # the edge flip's checked lines, nothing sent
+  python3 table/gantry.py goto 110 110 [Z]
+  python3 table/gantry.py snap              # one photo where the camera is now
+  python3 table/gantry.py plan --area all --z 300   # how many shots, no motion
+  python3 table/gantry.py scan --area south [--z 300] [--post]
 
 Z: homing Z drives the head DOWN until the endstop or probe triggers, so with a camera hanging off
 the carriage it can hit the table. `home` leaves Z alone; `home --z` is for when the camera
@@ -28,9 +28,9 @@ printer sends M107 the moment it connects; a timer turns the magnet off after `m
 default 20 s: the maker warns against long unloaded energising); leaving `with Printer(...)`, an error, or
 SIGTERM all turn it off. Tapping is a quarter-circle arc (G2/G3) around a card corner pinned on a rubber foot.
 
-  ~/.venvs/table/bin/python table/gantry.py magnet on|off
-  ~/.venvs/table/bin/python table/gantry.py carry X1 Y1 X2 Y2  # pick at 1, put down at 2 (needs touch_z)
-  ~/.venvs/table/bin/python table/gantry.py tap CX CY X Y [--ccw]   # card held at X Y, corner pinned at CX CY
+  python3 table/gantry.py magnet on|off
+  python3 table/gantry.py carry X1 Y1 X2 Y2  # pick at 1, put down at 2 (needs touch_z)
+  python3 table/gantry.py tap CX CY X Y [--ccw]   # card held at X Y, corner pinned at CX CY
 """
 from __future__ import annotations
 

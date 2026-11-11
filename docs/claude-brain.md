@@ -14,7 +14,7 @@ won it. It only starts with `--brain external`, because without a brain nothing 
 **Someone joins late:** the page's **+ Add player** button (or `POST /api/players {"name","commander"}`)
 adds them at 40 life; they enroll their voice with "This is Jess." like everyone else.
 
-**A board everyone can read:** `~/.venvs/table/bin/python table/boardview.py` serves
+**A board everyone can read:** `python3 table/boardview.py` serves
 http://localhost:8803: each player's battlefield, command zone, graveyard and live life, with every
 card's Oracle text from the offline card file. The brain keeps it current by editing
 `table/.cache/boardview/board.json` (public information only, never a hand).
@@ -160,10 +160,10 @@ heats or extrudes: every G-code line passes one gate that allows only moves, hom
 moves are clamped to the machine's travel (from `MACHINE_TYPE`, or `table/.cache/gantry.json`).
 
 ```bash
-~/.venvs/table/bin/python table/gantry.py ports                 # printer serial port + Canon
-~/.venvs/table/bin/python table/gantry.py info                  # firmware, machine, travel, position
-~/.venvs/table/bin/python table/gantry.py home                  # X and Y only
-~/.venvs/table/bin/python table/gantry.py scan --cols 3 --rows 2 --post
+python3 table/gantry.py ports                 # printer serial port + Canon
+python3 table/gantry.py info                  # firmware, machine, travel, position
+python3 table/gantry.py home                  # X and Y only
+python3 table/gantry.py scan --cols 3 --rows 2 --post
 ```
 
 `home` leaves Z alone because homing Z drives the head down, and a camera hanging off it can hit

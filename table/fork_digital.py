@@ -13,7 +13,7 @@ cannot know what is in their physical hands or libraries, so for each human seat
   * keeps the recorded board, counters, graveyard, life and commander tax.
 Everything about the branch is written to integrity-notes.jsonl.
 
-    ~/.venvs/table/bin/python table/fork_digital.py --snapshot <game>/snapshot.pkl \\
+    python3 table/fork_digital.py --snapshot <game>/snapshot.pkl \\
         --seat "Michael=decks/inspirit.json" --seat "Sam=decks/aminatou.json"
 """
 import argparse

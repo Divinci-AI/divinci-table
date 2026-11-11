@@ -14,7 +14,7 @@ public lobby is Michael's decision (hosting, Access, terms).
 Each game runs `table/server.py` on a free port with TABLE_NO_VOICE=1 (~170 MB, see multi_table_probe), its own token file and
 temp dir. At most --max-tables run at once (memory, not CPU, is the limit); a finished game is stopped after --reap-minutes.
 
-    ~/.venvs/table/bin/python table/lobby.py --port 8830 --token-file ~/.divinci/star-trek-mtg/live/lobby.token
+    python3 table/lobby.py --port 8830 --token-file ~/.divinci/star-trek-mtg/live/lobby.token
 """
 from __future__ import annotations
 

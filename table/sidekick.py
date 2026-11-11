@@ -4,7 +4,7 @@ It reads each person's recorded board (/api/board3d carries every card's rules t
 begins, posts a talk line (🗨 — never read as a move) naming the triggers that fire then. It only reads
 public information: the cards on the battlefield. Runs alongside the table:
 
-  ~/.venvs/table/bin/python table/sidekick.py
+  python3 table/sidekick.py
 """
 from __future__ import annotations
 

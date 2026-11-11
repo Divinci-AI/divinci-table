@@ -2,7 +2,7 @@
 """Carry a game that is running on an OLDER server (no snapshot support) into a snapshot the new
 server can --restore, without stopping it and without printing any hidden card.
 
-    ~/.venvs/table/bin/python table/migrate_live.py --order "Fusion,Sam,Claude,Michael" \\
+    python3 table/migrate_live.py --order "Fusion,Sam,Claude,Michael" \\
         --turn Sam --step "main 1" --human "Michael|Kilo, Apogee Mind" --human "Sam|Captain N'ghathrod"
 
 Reads each AI seat through the brain API (hand, board, graveyard, life, commander) and its library

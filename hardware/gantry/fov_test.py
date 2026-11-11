@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """The head camera's field-of-view test (manual Step 2), so it is one command per stage instead of a page of arithmetic.
 
-  ~/.venvs/table/bin/python hardware/gantry/fov_test.py capture  --out DIR [--heights 100 150 200 250 300 400] [--index 0]
-  ~/.venvs/table/bin/python hardware/gantry/fov_test.py analyze  DIR --cols 8 --rows 5 --square-mm 20 [--write]
-  ~/.venvs/table/bin/python hardware/gantry/fov_test.py calibrate DIR --cols 8 --rows 5 --square-mm 20 [--write]
+  python3 hardware/gantry/fov_test.py capture  --out DIR [--heights 100 150 200 250 300 400] [--index 0]
+  python3 hardware/gantry/fov_test.py analyze  DIR --cols 8 --rows 5 --square-mm 20 [--write]
+  python3 hardware/gantry/fov_test.py calibrate DIR --cols 8 --rows 5 --square-mm 20 [--write]
 
 Setup: print a chessboard (OpenCV counts INNER corners: a board of 9 x 6 squares has 8 x 5), glue it flat to something
 rigid, and measure one square with calipers. Fix the camera facing straight down at each measured height, measured from

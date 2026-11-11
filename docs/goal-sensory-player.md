@@ -34,10 +34,10 @@ It checks two things on every step:
 ## Running it
 
 ```bash
-~/.venvs/table/bin/python table/tests/sense_run.py                        # everything (~2 min)
-~/.venvs/table/bin/python table/tests/sense_run.py --only see-,hear-      # by id prefix
-~/.venvs/table/bin/python table/tests/sense_run.py --tier goal            # just the goals
-~/.venvs/table/bin/python table/tests/sense_run.py --list
+python3 table/tests/sense_run.py                        # everything (~2 min)
+python3 table/tests/sense_run.py --only see-,hear-      # by id prefix
+python3 table/tests/sense_run.py --tier goal            # just the goals
+python3 table/tests/sense_run.py --list
 ```
 
 It starts its **own** server on :8801 with its own brain-token file, so a live game on :8800 is

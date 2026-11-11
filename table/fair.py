@@ -13,7 +13,7 @@ After the game the record is revealed (seed inputs + order). Anyone can recomput
 (or whoever runs the server) couldn't have chosen the order; the commit came first, so it couldn't be
 changed afterwards.
 
-  ~/.venvs/table/bin/python table/fair.py verify table/.cache/fairness/<game>-<seat>.json
+  python3 table/fair.py verify table/.cache/fairness/<game>-<seat>.json
 """
 from __future__ import annotations
 

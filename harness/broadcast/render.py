@@ -26,14 +26,15 @@ sys.path.insert(0, str(HERE)); sys.path.insert(0, str(HERE.parent))
 import serve_static  # noqa: E402
 import table_loop  # noqa: E402  (its samplers)
 
-PW_CANDIDATES = ["/Users/michael/Documents/divinci-landing-template/node_modules/playwright", "/Users/michael/.divinci/baa-chat-check/node_modules/playwright"]
+# Where a Playwright install might be, nearest first: $PW, then a node_modules next to the repo or the current directory.
+PW_CANDIDATES = [str(HERE.parent.parent / "node_modules" / "playwright"), str(Path.cwd() / "node_modules" / "playwright")]
 
 
 def find_pw() -> str:
     for c in [os.environ.get("PW", "")] + PW_CANDIDATES:
         if c and Path(c).exists():
             return c
-    sys.exit("no playwright module found: set PW=/path/to/node_modules/playwright")
+    sys.exit("no playwright module found: `npm i playwright` in the repo root, or set PW=/path/to/node_modules/playwright")
 
 
 def sample_loop(stop, samples, interval):

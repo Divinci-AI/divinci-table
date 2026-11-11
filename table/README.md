@@ -24,7 +24,7 @@ hand private, and announces every play out loud. Currently: **Ellivere of the Wi
 (*Virtue and Valor*, Wilds of Eldraine Commander), from MTGJSON's deck data in `decks/ellivere.json`.
 
 ```bash
-HF_HUB_OFFLINE=1 ~/.venvs/table/bin/python table/server.py --any-card \
+HF_HUB_OFFLINE=1 python3 table/server.py --any-card \
   --ai "Ellivere|Ellivere of the Wild Court|Moira" --ai-deck decks/ellivere.json \
   --human "Michael|Ghalta, Primal Hunger"
 open http://localhost:8800/table        # "▶ Ellivere's turn", or just say "Ellivere, your turn."
@@ -63,7 +63,7 @@ everything they do is announced at the table in the AI's voice. That can be a pe
 an agent such as Claude Code that knows the rules.
 
 ```bash
-HF_HUB_OFFLINE=1 ~/.venvs/table/bin/python table/server.py --any-card --brain external \
+HF_HUB_OFFLINE=1 python3 table/server.py --any-card --brain external \
   --ai "Claude|Ellivere of the Wild Court|Moira" --ai-deck decks/ellivere.json \
   --human "Michael|" --human "Sam|"
 open http://localhost:8800/table
@@ -112,7 +112,7 @@ writes each AI player's replies, and the Mac's built-in voices speak them.
 
 ```bash
 ollama pull gemma4:e2b          # once; ~2 GB loaded
-HF_HUB_OFFLINE=1 ~/.venvs/table/bin/python table/server.py \
+HF_HUB_OFFLINE=1 python3 table/server.py \
   --deck decks/example.txt \
   --ai "Talrand|Talrand, Sky Summoner|Daniel" \
   --human "Michael|Ghalta, Primal Hunger"          # one AI opponent; repeat --ai / --human for more
@@ -179,22 +179,22 @@ still checks every reply before it is spoken.
 ## Tests (2026-09-24, M4 Pro, fully offline: Ollama gemma4:e2b)
 
 ```bash
-~/.venvs/table/bin/python table/tests/route_eval.py            # router regression set (23 lines)
-~/.venvs/table/bin/python table/tests/ai_turn_e2e.py           # virtual-deck AI opponent (Ellivere config)
-~/.venvs/table/bin/python table/tests/brain_e2e.py             # external brain via the API (--brain external)
+python3 table/tests/route_eval.py            # router regression set (23 lines)
+python3 table/tests/ai_turn_e2e.py           # virtual-deck AI opponent (Ellivere config)
+python3 table/tests/brain_e2e.py             # external brain via the API (--brain external)
 table/tests/run_all.sh                                        # EVERYTHING below, one summary (~15 min; `quick` ~6 min)
-~/.venvs/table/bin/python table/tests/engine_rules.py          # engine arithmetic from real positions (mana Auras, anthems…)
-~/.venvs/table/bin/python table/tests/sense_run.py             # 125 scenarios through camera + mic only; AI's voice heard back
-~/.venvs/table/bin/python table/tests/game_sim.py              # whole games by voice vs. a simulator's own ledger (--brain external: you play)
-~/.venvs/table/bin/python table/tests/voice_audit.py           # which card names survive the AI's voice (per voice, raw vs lexicon)
-~/.venvs/table/bin/python table/tests/hearing_names.py         # every misheard card name seen so far: recovered, or none — never wrong
-~/.venvs/table/bin/python table/tests/speaker_eval.py          # who is speaking: enrolled voices × clean/room/noisy (0 wrong allowed)
-~/.venvs/table/bin/python table/tests/vision_eval.py           # full-frame vs per-card crops by distance/angle/light (0 wrong allowed)
-~/.venvs/table/bin/python table/tests/stt_bench.py             # Whisper sizes × preprocessing on degraded plays (measurement, not a gate)
+python3 table/tests/engine_rules.py          # engine arithmetic from real positions (mana Auras, anthems…)
+python3 table/tests/sense_run.py             # 125 scenarios through camera + mic only; AI's voice heard back
+python3 table/tests/game_sim.py              # whole games by voice vs. a simulator's own ledger (--brain external: you play)
+python3 table/tests/voice_audit.py           # which card names survive the AI's voice (per voice, raw vs lexicon)
+python3 table/tests/hearing_names.py         # every misheard card name seen so far: recovered, or none — never wrong
+python3 table/tests/speaker_eval.py          # who is speaking: enrolled voices × clean/room/noisy (0 wrong allowed)
+python3 table/tests/vision_eval.py           # full-frame vs per-card crops by distance/angle/light (0 wrong allowed)
+python3 table/tests/stt_bench.py             # Whisper sizes × preprocessing on degraded plays (measurement, not a gate)
 PW=<path to node_modules/@playwright/test> node table/tests/brain_page_e2e.cjs  # /table follows the brain
-~/.venvs/table/bin/python table/tests/board_eval.py            # can one overhead frame be read? (see below)
-~/.venvs/table/bin/python table/tests/e2e_offline.py           # API-level game session
-~/.venvs/table/bin/python table/tests/make_fake_media.py       # fake camera + mic from the fixtures
+python3 table/tests/board_eval.py            # can one overhead frame be read? (see below)
+python3 table/tests/e2e_offline.py           # API-level game session
+python3 table/tests/make_fake_media.py       # fake camera + mic from the fixtures
 PW=<path to node_modules/@playwright/test> node table/tests/browser_e2e.cjs   # the three pages at once
 PW=<path to node_modules/@playwright/test> node table/tests/table_e2e.cjs     # /table: camera + mic, one page
 ```

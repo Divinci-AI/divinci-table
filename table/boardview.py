@@ -5,7 +5,7 @@ The board itself is kept by hand (by the brain, from what the table announces an
 table/.cache/boardview/board.json; life comes live from the table server. This page re-renders
 every few seconds, so editing the JSON updates the screen.
 
-  ~/.venvs/table/bin/python table/boardview.py        # http://localhost:8803
+  python3 table/boardview.py        # http://localhost:8803
 """
 from __future__ import annotations
 
