@@ -29,6 +29,15 @@ def check(name, cond, detail=""):
         FAILED.append(name)
 
 
+def free_port():
+    import socket
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    p = s.getsockname()[1]
+    s.close()
+    return p
+
+
 class Srv:
     def __init__(self, port, order, secs=SECS):
         self.port = port
@@ -94,7 +103,7 @@ class Srv:
 
 
 def main():
-    a = Srv(8820, "Claude,Michael,Sam")
+    a = Srv(free_port(), "Claude,Michael,Sam")
     try:
         print("in the pilot's turn (people must pass)")
         check("before the game starts there is no deadline", "deadline" not in a.passes())
@@ -119,7 +128,7 @@ def main():
     finally:
         a.stop()
 
-    b = Srv(8821, "Michael,Claude,Sam")
+    b = Srv(free_port(), "Michael,Claude,Sam")
     try:
         print("in a person's own turn, and holds")
         code, d = b.start()
@@ -128,7 +137,7 @@ def main():
         p = b.passes()
         check("the active player is never timed out, and nobody behind them is passed for either",
               p["passed"] == [] and "deadline" not in p, str(p))
-        c = Srv(8822, "Claude,Michael,Sam", secs=0)
+        c = Srv(free_port(), "Claude,Michael,Sam", secs=0)
         try:
             c.start()
             time.sleep(SECS + 1.0)
@@ -137,7 +146,7 @@ def main():
                   p["passed"] == [] and "deadline" not in p, str(p))
         finally:
             c.stop()
-        d_ = Srv(8823, "Claude,Michael,Sam")
+        d_ = Srv(free_port(), "Claude,Michael,Sam")
         try:
             d_.start()
             code, _ = d_.call("POST", "/api/phase/hold", {"on": True, "by": "Sam"})

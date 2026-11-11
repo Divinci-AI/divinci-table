@@ -20,3 +20,7 @@ scripts/printer/watch/
 # dogfood loop results: game folders hold private hands and full logs; only reports are shared deliberately
 harness/results/*/game-*/
 harness/results/*/current.*
+
+# Card art is copyrighted: never in the repo (review S4). The table serves it from TABLE_ART_DIR.
+table/assets/art/
+table/assets/art-index.js

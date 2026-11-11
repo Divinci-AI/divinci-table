@@ -16,10 +16,21 @@
   addEventListener("storage", e => { if (e.key === KEY) { mine = load(); chip(); } });
   const post = (p, b) => fetch(p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) })
     .then(async r => ({ ok: r.ok, d: await r.json().catch(() => ({})) }));
+  const gameId = async () => { try { return (await (await fetch("/api/phase", { cache: "no-store" })).json()).game_id || ""; } catch { return ""; } };
   async function claim(name, key, invite) {
     const r = await post("/api/seat/claim", { name, key, invite });
-    if (r.ok) { mine = { name: r.d.name, key: r.d.key }; save(mine); chip(); }
+    if (r.ok) { mine = { name: r.d.name, key: r.d.key, game: await gameId() }; save(mine); chip(); }
     return r;
+  }
+  // T2: a tab holding last round's key. The table was restarted (a new game), so that key is unknown here and every seat reads "claimed on
+  // another device". Say what really happened, and what to do, instead of offering seats this device can't take.
+  function staleNotice(old, now) {
+    const el = document.createElement("div");
+    el.setAttribute("role", "alert");
+    el.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:10002;background:#3a2a05;color:#ffe9a8;border-bottom:3px solid #f2b705;padding:12px 14px;font:600 16px system-ui,sans-serif";
+    el.innerHTML = `This game was restarted${old && now && old !== now ? " (a new game started on this table)" : ""}: the seat link this tab used belongs to the earlier game. ` +
+      `Open your new seat link (the host has it), or ask the host to send it again. <button style="margin-left:8px" onclick="this.parentNode.remove()">OK</button>`;
+    document.body.appendChild(el);
   }
   const chipEl = document.createElement("button");
   chipEl.style.cssText = "position:fixed;right:12px;top:12px;z-index:62;padding:5px 10px;border-radius:999px;border:1px solid #3a3f4a;" +
@@ -29,7 +40,8 @@
   sheet.style.cssText = "position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.55);display:none;align-items:flex-start;justify-content:center;padding:70px 12px;font:14px/1.45 system-ui,-apple-system,sans-serif;color:#eee";
   async function pick() {
     let c = {}; try { c = await (await fetch("/api/seat/claims")).json(); } catch {}
-    const link = mine.name && mine.key ? `${location.origin}/me?player=${encodeURIComponent(mine.name)}&key=${encodeURIComponent(mine.key)}` : "";
+    // the key goes after "#": a browser never sends the fragment, so no server, tunnel edge or proxy log ever sees it (S2)
+    const link = mine.name && mine.key ? `${location.origin}/me?player=${encodeURIComponent(mine.name)}#key=${encodeURIComponent(mine.key)}` : "";
     sheet.innerHTML = `<div style="width:min(420px,100%);background:#14161b;border:1px solid #3a3f4a;border-radius:14px;padding:14px 16px">
       <div style="display:flex;justify-content:space-between"><b style="font-size:16px">👤 Who is playing on this device?</b>
         <button data-x style="border:0;background:#2a2e37;color:#eee;border-radius:7px;padding:3px 10px;cursor:pointer">✕</button></div>
@@ -72,7 +84,8 @@
   function mount() { document.body.appendChild(chipEl); document.body.appendChild(sheet); chip(); }
   if (document.body) mount(); else addEventListener("DOMContentLoaded", mount);
   // a phone link names its player: claim it (or add this device with ?key=)
-  const q = new URLSearchParams(location.search), qp = q.get("player"), qk = q.get("key"), qi = q.get("invite");
+  const q = new URLSearchParams(location.search), hq = new URLSearchParams(location.hash.slice(1));
+  const qp = q.get("player"), qk = hq.get("key") || q.get("key"), qi = hq.get("invite") || q.get("invite");   // # (new links), ? (old ones)
   let proxied = false;                                  // this page plays a seat someone lent to my player
   const ready = (async () => {
     if (qp && qi) {                                   // an open-market invite: take the seat, hide the token
@@ -89,12 +102,15 @@
     }
     if (mine.name && mine.key && !qk) {               // check in with my key: the server records this device,
       const sent = mine.key, r = await post("/api/seat/claim", { name: mine.name, key: mine.key });   // so this laptop's other windows
+      if (r.ok && !mine.game) { mine.game = await gameId(); save(mine); }
       if (r.ok && r.d.key && r.d.key !== sent) {      // the table did not know that key (an old room's, one site shares them all) and issued a new one: keep it
         if (load().key === sent || !load().key) { mine = { name: r.d.name, key: r.d.key }; save(mine); } else mine = load();   // unless another tab already did
         chip();
       } else if (!r.ok && r.d && /claimed on another device|only a person/.test(r.d.error || "")) {
+        const old = mine.game || "", now = await gameId();
         if (load().key === sent) { mine = {}; save(mine); } else mine = load();          // forget it only if no other tab has replaced it meanwhile
         chip();
+        if (!mine.name) staleNotice(old, now);                                         // (another tab had a fresh key: nothing to say)
       }
     }                                                 // (any address, any tab) pick up the same seat
     if (!mine.name && !qp) {
@@ -105,7 +121,7 @@
     }
     if (qp && (mine.name !== qp || qk)) {
       const r = await claim(qp, qk || undefined);
-      if (qk && r.ok) history.replaceState(null, "", location.pathname + "?player=" + encodeURIComponent(qp));   // don't leave the key in the bar
+      if (qk && r.ok) history.replaceState(null, "", location.pathname + "?player=" + encodeURIComponent(qp));   // don't leave the key in the bar (query or #)
     }
   })();
   // Every POST this page makes to its own table carries this device's seat key (X-Seat-Key), so the table can

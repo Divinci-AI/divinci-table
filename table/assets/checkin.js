@@ -11,7 +11,7 @@
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const box = document.createElement("div");
   box.id = "checkin";
-  box.style.cssText = "position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:70;width:min(94vw,440px);background:#0d1d25f2;color:#ece4cf;" +
+  box.style.cssText = "position:fixed;left:50%;bottom:calc(var(--hud-h,0px) + 14px);transform:translateX(-50%);z-index:70;width:min(94vw,440px);background:#0d1d25f2;color:#ece4cf;" +
     "border-radius:14px;box-shadow:0 0 0 1px #d9b46a55,0 10px 40px #000a;padding:12px 14px;font:14px/1.4 system-ui,-apple-system,sans-serif;display:none;" +
     "max-height:calc(100vh - 28px);overflow:auto";
   const btn = "font:600 14px system-ui;border-radius:8px;border:1px solid #d9b46a66;background:#10242d;color:#ece4cf;padding:7px 12px;cursor:pointer;margin:6px 6px 0 0";
@@ -50,7 +50,7 @@
     r.textContent = cur.ready ? "Not ready" : blocked ? "I'm ready (name your commander first)" : "I'm ready";
   }
   function draw(p) {
-    const ci = p.checkin; if (p.player || !ci) { box.style.display = "none"; return; }
+    const ci = p.checkin; if (p.player || !ci || (p.mulligan && p.mulligan.on)) { box.style.display = "none"; return; }   // (opening hands are being kept: check-in is over)
     need = !!p.checkin_required;
     cur = ci.seats.find(s => s.name.toLowerCase() === me().toLowerCase()) || null;
     const rows = ci.seats.map(s => {

@@ -59,7 +59,7 @@
   const css = document.createElement("style");
   css.textContent = `.mb-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
     .mb-row.tapped .mb-name{opacity:.6;font-style:italic}.mb-name{flex:1;min-width:0;overflow-wrap:anywhere}
-    .mb-row button{min-width:36px;padding:6px 8px;font-size:16px}.mb-cnt{display:flex;align-items:center;gap:4px}
+    .mb-row button{min-width:44px;min-height:44px;padding:6px 8px;font-size:16px}.mb-cnt{display:flex;align-items:center;gap:4px}
     .mb-cnt b{min-width:22px;text-align:center}.mb-add{display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap}
     .mb-add input[type=text],#mbName{flex:1;min-width:150px;margin:0}`;
   document.head.appendChild(css);

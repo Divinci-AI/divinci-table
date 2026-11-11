@@ -7,7 +7,7 @@
   const esc = t => String(t ?? "").replace(/[<>&"']/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c]));
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch {} return null; };
   const box = document.createElement("div");
-  box.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:50;width:min(420px,calc(100vw - 24px));" +
+  box.style.cssText = "position:fixed;right:12px;bottom:calc(var(--hud-h,0px) + 12px);z-index:50;width:min(420px,calc(100vw - 24px));" +
     "font:13px/1.35 system-ui,-apple-system,sans-serif;color:#eee;background:#0e1016;border:1px solid #3a3f4a;" +
     "border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.4)";
   document.body.appendChild(box);
@@ -58,10 +58,13 @@
   let hidden = new Set(JSON.parse(store("history.hidden") || '["talk"]'));
   let placed = new Set(), placedSig = "", seatNames = [];
   const urlPlayer = new URLSearchParams(location.search).get("player");
-  const seatsForChat = () => seatNames.length ? seatNames : [urlPlayer || "someone"];
-  const chatAs = () => urlPlayer || store("chat.as") || seatsForChat()[0];
+  let orderAll = [], aiAll = [];
+  const mySeat = () => (window.TableSeat && window.TableSeat.name && window.TableSeat.name()) || "";
+  const seatsForChat = () => { const n = orderAll.filter(x => !aiAll.includes(x) || x === mySeat()); return n.length ? n : seatNames.length ? seatNames : [urlPlayer || "someone"]; };
+  const chatAs = () => urlPlayer || (seatsForChat().includes(store("chat.as")) ? store("chat.as") : "") || mySeat() || seatsForChat()[0];
   fetch("/api/phase").then(r => r.json()).then(p => {
-    seatNames = (p.order || []).filter(n => !(p.ai || []).includes(n));          // the people at the table
+    orderAll = p.order || []; aiAll = p.ai || [];                                  // the people, and this device's own virtual-deck seat (checked at each draw)
+    seatNames = orderAll.filter(n => !aiAll.includes(n));
     drawn = -1; render();
   }).catch(() => {});
   async function sayIt() {
@@ -85,7 +88,7 @@
   const belowBar = () => { const tb = document.querySelector(".tb"); return Math.ceil((tb ? tb.getBoundingClientRect().bottom : 0)) + 8 + "px"; };   // the tab bar sits above everything: never put the log's buttons under it
   function place() {                                   // compact (bottom-right), tall (full-height right), or the page
     const s = box.style;
-    if (PAGE) { Object.assign(s, { top: "0", bottom: "0", right: "0", left: "0", width: "auto", borderRadius: "0", border: "0" }); return; }
+    if (PAGE) { Object.assign(s, { top: "var(--tb-h, 0px)", bottom: "var(--hud-h, 0px)", right: "0", left: "0", width: "auto", borderRadius: "0", border: "0" }); return; }
     if (open && phone()) { Object.assign(s, { top: belowBar(), bottom: "0", right: "0", left: "0", width: "auto", borderRadius: "0", zIndex: "95" }); return; }
     Object.assign(s, { left: "auto", right: "12px", zIndex: "50" });
     if (open && tall) Object.assign(s, { top: belowBar(), bottom: "12px", width: "min(460px,calc(100vw - 24px))" });
@@ -219,4 +222,8 @@
   fetch("/api/phase").then(r => r.json()).then(p => { turnOf = p.player; }).catch(() => {});
   setInterval(watchCasts, 1500);
   render(); poll(); setInterval(poll, 2500);
+  // a phone keyboard covers the bottom of the screen: while it is up the chat box rides above it (the page itself scrolls the field into view)
+  if (window.visualViewport) { const vv = window.visualViewport, home = box.style.bottom;
+    const fit = () => { const kb = Math.max(0, innerHeight - vv.height - vv.offsetTop); box.style.bottom = kb > 80 ? (kb + 8) + "px" : home; };
+    vv.addEventListener("resize", fit); vv.addEventListener("scroll", fit); }
 })();

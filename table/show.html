@@ -70,6 +70,7 @@ label{color:var(--muted);display:flex;gap:8px;align-items:center}
   <ol class="history" id="history"></ol>
 </div>
 <canvas id="canvas" hidden></canvas>
+<script src="/assets/voices.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 let stream=null, busy=false, timer=null, ai=[], voices={};
@@ -77,14 +78,14 @@ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&g
 function setStatus(k,t){ const p=$("status"); p.className="pill "+k; p.textContent=t; }
 
 function assignVoices(){
-  if(!window.speechSynthesis) return;
-  const all=speechSynthesis.getVoices(), en=all.filter(v=>v.lang.startsWith("en"));
-  ai.forEach((p,i)=>{ const named=p.voice && all.find(v=>v.name===p.voice||v.name.startsWith(p.voice+" "));
-    voices[p.name]=named || en[(i*3)%Math.max(1,en.length)]; });
+  // natural voices by default, the AI's own declared voice/pace/pitch when it has one (assets/voices.js)
+  if(!window.speechSynthesis || !window.TableVoices) return;
+  const plan=TableVoices.voicePlan(ai, speechSynthesis.getVoices());
+  for(const k in plan) voices[k]=plan[k];
 }
 function say(who,text){
   if(!$("speak").checked || !window.speechSynthesis) return;
-  speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); if(voices[who]) u.voice=voices[who]; speechSynthesis.speak(u);
+  speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); const vv=voices[who]; if(vv&&vv.voice) u.voice=vv.voice; if(vv){ u.rate=vv.rate||1; u.pitch=vv.pitch||1; } speechSynthesis.speak(u);
 }
 
 async function tick(){

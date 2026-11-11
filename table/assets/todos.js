@@ -6,7 +6,7 @@
   if (window.__todos) return; window.__todos = true;
   const esc = t => String(t ?? "").replace(/[<>&"']/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c]));
   const box = document.createElement("div");
-  box.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:50;max-width:min(380px,calc(100vw - 24px));" +
+  box.style.cssText = "position:fixed;left:12px;bottom:calc(var(--hud-h,0px) + 12px);z-index:50;max-width:min(380px,calc(100vw - 24px));" +
     "font:13px/1.35 system-ui,-apple-system,sans-serif;color:#eee;background:rgba(14,16,22,.92);border:1px solid #3a3f4a;" +
     "border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.4);display:none";
   document.body.appendChild(box);

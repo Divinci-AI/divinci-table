@@ -35,14 +35,17 @@
   .empty { color: var(--mute); font-size: 12.5px; }
   @media (max-width: 420px) { main { padding: 10px 16px 40px; } .card { width: 96px; } }
 </style>
+<script src="/art/index.js"></script><script src="/assets/art.js"></script>
 <script src="/assets/seat.js" defer></script>
 <script src="/assets/urgent.js" defer></script>
+<script src="/assets/gameover.js" defer></script>
 <script src="/assets/tablebar.js" defer></script>
 <script src="/assets/dice3d.js" defer></script>
 <script src="/assets/checkin.js" defer></script>
 </head>
 <body>
-<header><b>Table board</b><span id="phase">—</span><button id="gyOrder" style="margin-left:auto;background:#2a2e37;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font:inherit;font-size:12.5px;cursor:pointer"></button><a href="/xr?view=top" style="background:#2a2e37;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:12.5px;text-decoration:none">3D table ↗</a><a href="/me" style="background:#2a2e37;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:12.5px;text-decoration:none">Phone ↗</a><span class="meta">public information only · tap or hover a card</span></header>
+<header><b>Table board</b><span id="phase">—</span><button id="gyOrder" style="margin-left:auto;background:#2a2e37;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font:inherit;font-size:12.5px;cursor:pointer"></button><a href="/3d" style="background:#2a2e37;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:12.5px;text-decoration:none">3D table ↗</a><a href="/xr?view=top" style="background:#2a2e37;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:12.5px;text-decoration:none">AR/VR ↗</a><a href="/me" style="background:#2a2e37;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:12.5px;text-decoration:none">Phone ↗</a><span class="meta">public information only · tap or hover a card</span></header>
+<div id="watchbar" hidden style="padding:8px 14px;border-bottom:1px solid var(--line);font-size:13.5px;line-height:1.5"></div>
 <main id="seats"></main>
 <div id="tip"></div>
 <script>
@@ -73,7 +76,7 @@ function card(c, extra = "") {
   const tags = [c.token && "token", c.counters && `${c.counters > 0 ? "+" : ""}${c.counters}`, c.zone, c.n > 1 && `×${c.n}`].filter(Boolean)
     .map(t => `<span class="tag">${esc(t)}</span>`).join("");
   return `<div class="card${c.tapped ? " tapped" : ""}" data-i="${i}" style="background:${bg(c)}">
-    <div class="n">${esc(c.name)}</div><div class="t">${esc((c.type || "").replace(/^Legendary /, "").split("—")[0])}</div>${tags}${extra}
+    ${window.CardArt ? CardArt.img(c.name, "bd") : ""}<div class="n">${esc(c.name)}</div><div class="t">${esc((c.type || "").replace(/^Legendary /, "").split("—")[0])}</div>${tags}${extra}
     ${c.pt ? `<span class="pt">${esc(c.pt)}</span>` : ""}</div>`;
 }
 function group(list, label) {
@@ -114,11 +117,23 @@ function showTip(ev) {
   tip.style.left = Math.min(x + 14, innerWidth - 336) + "px"; tip.style.top = Math.min(y + 14, innerHeight - 180) + "px"; tip.style.display = "block";
 }
 addEventListener("mousemove", showTip);
+const WATCH = location.pathname === "/watch";
+function watchbar(d) {                                    // spectators: what just happened, in words, a turn behind
+  const el = document.getElementById("watchbar"); el.hidden = false;
+  if (!d.board) { el.textContent = "📺 Watching · the first turn is still being played"; return; }
+  const life = Object.entries(d.life || {}).map(([n, v]) => `${esc(n)} ${esc(String(v))}`).join(" · ");
+  const over = d.game_over ? ` · <b>game over: ${esc(d.winner || "")} wins</b>` : "";
+  const give = d.donate && /^https:\/\//.test(d.donate.url)
+    ? ` · <a href="${esc(d.donate.url)}" target="_blank" rel="noopener noreferrer">Donate to ${esc(d.donate.name)} ↗</a>` : "";
+  const said = (d.events || []).filter(e => e.type === "say" && e.text).slice(-5)
+    .map(e => `<div style="opacity:.85">${esc(e.speaker || "")}: ${esc(e.text)}</div>`).join("");
+  el.innerHTML = `<div>📺 <b>Watching</b>, one turn behind · ${esc(d.turn_of || "")}'s turn just ended · ${life}${over}${give}</div>${said}`;
+}             // spectator view: no action menus, a turn behind
 addEventListener("click", ev => {                       // a person's own card: the action menu; anything else: details
   if (ev.target.closest("#menu")) return;
   const el = ev.target.closest(".card"); if (!el) { closeMenu(); return; }
   const c = cardsById[+el.dataset.i];
-  if (c && c._mine && c._ix != null) { tip.style.display = "none"; openMenu(c, ev); } else showTip(ev);
+  if (!WATCH && c && c._mine && c._ix != null) { tip.style.display = "none"; openMenu(c, ev); } else showTip(ev);
 });
 
 // ── card actions: abilities from the card's own text, tap/untap, counters, moving it ──────────
@@ -169,6 +184,11 @@ menu.addEventListener("click", async ev => {
 let last = "";
 async function refresh() {
   try {
+    if (WATCH) {                                         // spectators: a turn behind, read-only
+      const t = await (await fetch("/api/spectate")).text();
+      if (t !== last) { last = t; const d = JSON.parse(t); if (d.board) render(d.board); watchbar(d); }
+      return;
+    }
     const t = await (await fetch("/api/board3d")).text();
     if (t !== last) { last = t; render(JSON.parse(t)); }
   } catch {}

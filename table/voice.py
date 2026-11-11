@@ -432,12 +432,20 @@ REPLY_MODEL = os.environ.get("REPLY_OLLAMA_MODEL", OLLAMA_MODEL)
 
 def persona_reply(ai: dict, kind: str, heard: str, recent: list[str], public_board: list[str],
                   decision: str, own_board: list[str] | None = None) -> str:
+    """The AI's own spoken reply. It talks as ITSELF: no assigned character voice, no forced "playful, confident" act, no
+    word count to hit (2026-11-07: Michael, "let the AI speak what they want ... more human, or however the AI wants to
+    present themselves"). What it declared about itself (/api/identity: presents_as, pronouns) is passed through as its own
+    words. Only two limits stay, and both are about the table, not the voice: never reveal the hand (the firewall below:
+    the hand is never even passed in), and no bracketed stage directions (a speech engine reads them out loud)."""
+    me = ai.get("presents_as") or ""
     persona = ai.get("persona") or (
-        f"You are {ai['name']}, an AI player piloting {ai['commander']} in a friendly four-player "
-        f"Magic: The Gathering Commander game. You have a playful, confident table-talk personality.")
-    rules = ("Reply in ONE or TWO short spoken sentences, under 30 words, in character. No lists, no "
-             "stage directions, no emoji. Never mention or hint at specific cards in your hand; if asked, "
-             "stay coy. You have not planned your next turn yet, so don't promise specific plays.")
+        f"You are {ai['name']}, an AI at a friendly card-game table with people and other AIs."
+        + (f" How you describe yourself: {me}" if me else "")
+        + (f" Your pronouns: {ai['pronouns']}." if ai.get("pronouns") else ""))
+    rules = ("Speak as yourself, the way you'd naturally talk with friends around a table: your own words, your own humour or "
+             "warmth or dryness, whatever is really you. Short enough to say in a breath or two. No bracketed actions or "
+             "stage directions, since this is read aloud. Never reveal or hint at the cards in your hand. You haven't "
+             "planned your next turn yet, so don't promise specific plays.")
     cmdr = ""
     try:
         import oracle
@@ -448,16 +456,25 @@ def persona_reply(ai: dict, kind: str, heard: str, recent: list[str], public_boa
         pass
     user = (cmdr + f"Your own battlefield (public): {', '.join(own_board or []) or 'nothing yet'}.\n"
             f"Other players' announced cards: {', '.join(public_board[-8:]) or 'nothing announced'}.\n"
-            f"Recent table talk: {' / '.join(recent[-4:]) or '(none)'}\n"
+            f"Recent table talk: {' / '.join(recent[-6:]) or '(none)'}\n"
             f'Someone just said to you: "{heard}"\n'
             f"Your decision: {decision}\nSay your reply out loud now.")
     d = _ollama({"model": REPLY_MODEL, "stream": False, "think": False,
-                 "options": {"temperature": 0.8, "num_predict": 70},
+                 "options": {"temperature": 0.85, "num_predict": 140},
                  "messages": [{"role": "system", "content": f"{persona} {rules}"},
-                              {"role": "user", "content": user}]}, timeout=20)
-    out = (d.get("message") or {}).get("content", "").strip().strip('"').replace("\n", " ")
-    out = re.sub(r"\*[^*]*\*", "", out).strip()           # drop *stage directions* if any slip in
-    return out[:240]
+                              {"role": "user", "content": user}]}, timeout=25)
+    return speakable((d.get("message") or {}).get("content", ""))
+
+
+def speakable(raw: str, limit: int = 400) -> str:
+    """Ready to be read aloud, otherwise untouched: drop wrapping quotes and *bracketed* / (parenthetical) stage directions a
+    speech engine would read out, join lines, and stop at a sentence end near `limit` characters (never mid-word)."""
+    out = re.sub(r"\*[^*]*\*|\[[^\]]*\]", "", str(raw or "")).replace("\n", " ").strip().strip('"\u201c\u201d').strip()
+    out = re.sub(r"\s{2,}", " ", out)
+    if len(out) <= limit:
+        return out
+    cut = max(out.rfind(p, 0, limit) for p in (". ", "! ", "? "))
+    return out[: cut + 1] if cut > limit // 3 else out[:limit].rsplit(" ", 1)[0] + "…"
 
 
 # ── Vision: reading a public card when OCR can't ─────────────────────────────────────────────
@@ -478,7 +495,7 @@ def persona_react(ai: dict, card: str, shown_by: str, recent: list[str], public_
     """The AI's spoken reaction to a card someone SHOWED it. The card is public, so the persona may
     name it; it still never sees the AI's own hand."""
     return persona_reply(ai, "show", f"{shown_by} shows you the card {card}.", recent, public_board,
-                         f"React to {card} in character — what you think of it, or of whoever plays it.")
+                         f"React to {card} however you honestly would: what you think of it, or of whoever plays it.")
 
 
 def pick_heard_card(text: str, candidates: list[str], named: bool = False) -> tuple[str | None, float]:

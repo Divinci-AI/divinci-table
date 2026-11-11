@@ -20,16 +20,155 @@ button{font:600 15px system-ui;border-radius:8px;border:1px solid #d9b46a55;back
 button.gold{background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));color:#1a1206;border-color:var(--gold-lo)}
 button:disabled{opacity:.4;cursor:default}
 select{padding:7px;border-radius:8px;background:#071820;color:var(--ink);border:1px solid #d9b46a55;font:15px system-ui}
-.card{padding:9px 0;border-bottom:1px solid #ffffff10}.card:last-child{border:0}
+.mull-hand{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.mull-c{flex:1 1 130px;max-width:190px;min-height:64px;padding:8px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--line);cursor:pointer;user-select:none}
+.mull-c img{width:100%;border-radius:7px;display:block;margin-bottom:4px;pointer-events:none}.mull-c *{pointer-events:none}.mull-c.sel{box-shadow:inset 0 0 0 3px #ff6b5e;opacity:.6}
+.mull-row{display:flex;flex-wrap:wrap;gap:10px;position:sticky;top:calc(var(--tb-h,0px));z-index:55;background:var(--panel);padding:8px 0}.mull-row button{flex:1 1 150px;min-height:52px;font-size:17px}
+.mull-c img{max-height:150px;object-fit:cover;object-position:top}@media (max-width:700px){.mull-c{flex:1 1 92px;max-width:32%;padding:5px;font-size:13px}.mull-c img{max-height:96px}}
+.card{padding:9px 0;border-bottom:1px solid #ffffff10;overflow:auto}.card:last-child{border:0}
 .card b{color:var(--gold-hi)}.card .t{color:var(--dim);font-size:13.5px}.card .x{font-size:13.5px;color:#cfdcdc;margin:3px 0}
 .tag{display:inline-block;font-size:12px;padding:1px 7px;border-radius:999px;background:#ffffff14;margin-left:4px}
 .life{font:800 28px ui-monospace,Menlo,monospace}
 #err{color:var(--warn);min-height:1.2em}
 #log{max-height:180px;overflow:auto;font-size:14px;color:#cfdcdc}
+
+/* the hand, fanned like cards held in your fingers (wide screens; a phone keeps the list below) */
+#fanpanel{display:none;overflow:visible}
+#fan{position:relative;height:calc(var(--fw,170px) * 1.4 + 20px);margin-top:6px}
+#fanpanel{background:none!important;border:0!important;box-shadow:none!important;padding:0 4px!important;margin-top:4px}
+#fanpanel h2{margin:0;opacity:.7}
+.fc{position:absolute;bottom:6px;width:var(--fw,170px);aspect-ratio:5/7;transform-origin:50% 190%;cursor:pointer}
+.fi{width:100%;height:100%;border-radius:9px;overflow:hidden;background:#10242d;transform-origin:50% 190%;box-shadow:0 6px 14px #000a;
+  transition:transform .18s ease,box-shadow .18s ease}
+.fc img{width:100%;height:100%;display:block;pointer-events:none;user-select:none}
+#fan .fc{touch-action:none;-webkit-user-drag:none;user-select:none}
+.fc.txt .fi{padding:8px;font-size:11px;line-height:1.25;color:#ece4cf;border:1px solid #d9b46a55}.fc.txt b{display:block;color:#f4dc9b;font-size:12.5px}
+.fc.ok .fi{box-shadow:0 0 0 2px #3fd0c9,0 0 16px #3fd0c988,0 6px 14px #000a}
+.fc.land .fi{box-shadow:0 0 0 2px #6fd07a,0 0 16px #6fd07a88,0 6px 14px #000a}
+/* the lift happens on the inner card, so the cursor's hit box never moves out from under it (no flicker at the edge) */
+.fc:hover,.fc.sel{z-index:200!important}
+.fc:hover .fi,.fc.sel .fi{transform:rotate(calc(var(--r) * -1)) translateY(-78px) scale(1.2)}
+.fc.sel .fi{box-shadow:0 0 0 3px #f4dc9b,0 10px 24px #000c}
+#fanact{min-height:46px;margin-top:54px;position:relative;z-index:400;background:linear-gradient(#0d1d25f2,#0d1d25f2);padding-top:6px;border-radius:8px}#fanact .nm{font-weight:700;color:#f4dc9b}#fanact .x{font-size:13px;color:#cfdcdc;margin:3px 0 6px;max-width:720px}
+
+.paywith{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0 2px}.paywith button{min-height:44px;padding:6px 14px}
+.paypiles{margin:4px 0 8px;padding:8px;border-radius:10px;background:#ffffff08;box-shadow:inset 0 0 0 1px var(--line)}
+.payg{display:flex;align-items:center;gap:8px;min-height:48px}.payg .payn{flex:1;min-width:0}.payg button{width:48px;min-height:44px;font-size:22px;padding:0;margin:0}.payk{min-width:1.6em;text-align:center;font:800 18px ui-monospace,Menlo,monospace}
+.payc{display:inline-flex;gap:2px;min-width:30px}.pmp{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font:800 12px system-ui;border:1px solid #0008}
+#swapbar{position:fixed;left:8px;right:8px;bottom:calc(var(--hud-h,0px) + 8px);z-index:9400}#swapbar button{display:block;width:100%;margin:0;min-height:48px;font-size:16px;background:#2a1f10;border-color:var(--gold)}
+@media (min-width:700px){#swapbar{left:auto;right:12px;width:320px;bottom:calc(var(--hud-h,0px) + 12px)}}
+/* H2: the pinned Attack control and the declare-attackers sheet (phones; wide screens keep the mat) */
+#atkpin{display:none}
+.as-pinsub{font-size:13px;color:#ffd9c2;margin-top:2px;text-align:center}
+.as-status{font:700 17px system-ui;text-align:center;padding:4px 6px}
+#atksheet{position:fixed;inset:0;z-index:9997;background:#000c;display:none;align-items:stretch;justify-content:center}
+.as-box{display:flex;flex-direction:column;width:min(560px,100%);height:100%;background:var(--bg);padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+.as-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);font:800 19px Cinzel,Georgia,serif;color:var(--gold-hi)}
+.as-head button{min-height:44px}
+.as-list{flex:1;overflow:auto;padding:10px 12px;-webkit-overflow-scrolling:touch}
+.as-row{display:flex;gap:12px;align-items:flex-start;min-height:64px;padding:12px;margin:8px 0;border-radius:12px;background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent}
+.as-row.sel{box-shadow:inset 0 0 0 3px var(--gold);background:#1b2a1e}
+.as-row.no{opacity:.62;cursor:default}
+.as-tick{font-size:30px;line-height:1}
+.as-body{flex:1;min-width:0}.as-body b{color:var(--gold-hi);font-size:17px}
+.as-why{color:var(--warn);font-size:14px}
+.as-none{padding:12px;border-radius:12px;background:#3a2a10;box-shadow:inset 0 0 0 2px var(--gold);margin-bottom:8px}
+.as-targets{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}.as-targets button{flex:1 1 40%;min-height:48px}
+.as-foot{padding:10px 12px;border-top:1px solid var(--line);background:var(--panel)}
+.as-foot button{display:block;width:100%;margin:6px 0 0}
+button.big{min-height:52px;font-size:17px}
+@media (max-width:700px){
+  #atkpin.on{display:block;position:fixed;left:8px;right:8px;bottom:calc(var(--hud-h,0px) + 8px);z-index:9400;padding:8px;border-radius:14px;background:#0d1d25f5;box-shadow:0 0 0 2px var(--gold),0 8px 24px #000c}
+  #atkpin button{display:block;width:100%;margin:0;min-height:56px;font-size:19px}
+  main{padding-bottom:calc(80px + var(--pin-h,0px))}
+  body.as-open{overflow:hidden}
+  main button,#matgy button{min-height:44px}
+  .atkbox{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 8px 0 2px}.atkbox input{width:24px;height:24px}
+  #steprow button{min-height:48px;padding:8px 14px}
+}
+@media (min-width:700px){#fanpanel{display:block}#handpanel{display:none}}
+/* ── the playmat (wide screens): the opponent's side mirrored on top, yours below, piles at the side, hand fan underneath ── */
+#matpanel{display:none;padding:10px}
+.mat{background:radial-gradient(1200px 500px at 50% 50%,#173847 0%,#0b1a21 70%);border:1px solid #d9b46a33;border-radius:14px;padding:10px}
+.half{display:grid;grid-template-columns:92px 1fr 210px;gap:8px;align-items:start}
+.half .piles{grid-column:1;grid-row:1/span 2;display:flex;flex-direction:column;gap:8px;align-items:center}
+.half .others{grid-column:3;grid-row:1/span 2;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;min-height:100px;padding:6px;border-radius:10px;background:#ffffff05}
+.half.opp .lands,.half.me .crea{grid-column:2;grid-row:1}.half.opp .crea,.half.me .lands{grid-column:2;grid-row:2}
+.mrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:116px;padding:6px 8px;border-radius:10px;background:#ffffff06}
+.mlab{font:700 10.5px system-ui;letter-spacing:.1em;color:#9fb0b0;text-transform:uppercase;width:100%;margin:-2px 0 2px}
+.mc{position:relative;width:76px;aspect-ratio:5/7;border-radius:6px;cursor:pointer;transition:transform .15s,margin .15s;flex:0 0 auto}
+.mc img{width:100%;height:100%;border-radius:6px;display:block;box-shadow:0 3px 8px #000a;pointer-events:none}
+.mc .tx{width:100%;height:100%;border-radius:6px;background:#10242d;border:1px solid #d9b46a55;font-size:9.5px;line-height:1.15;padding:4px;color:#ece4cf;overflow:hidden}
+.mc.tapped{transform:rotate(90deg);margin:0 16px}.mc.sel{outline:2px solid #f4dc9b;outline-offset:2px}
+.mc.atk{outline:2px solid #ff6b4a;outline-offset:2px}.mc.atk:not(.tapped){transform:translateY(-10px)}
+.mc .bd{position:absolute;font:800 10.5px system-ui;padding:1px 5px;border-radius:6px;background:#000c;color:#fff}
+.mc .pt{right:2px;bottom:2px;background:#f4dc9bee;color:#111}
+.mc .cbs{position:absolute;left:2px;top:22%;display:flex;flex-direction:column;gap:2px;align-items:flex-start;max-width:calc(100% - 4px);z-index:3}
+.mc .cbs.noart{top:52%}.mc .cbs span{font:800 10px/1.25 system-ui;padding:1px 5px;border-radius:6px;color:#fff;border:1px solid #0007;white-space:nowrap;box-shadow:0 1px 3px #000a}.mc .ct{left:2px;bottom:2px;background:#2a6;}.mc .zz{left:2px;top:2px}
+.pile{width:76px;aspect-ratio:5/7;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font:800 15px system-ui;color:#f4dc9b;cursor:default;
+  background:repeating-linear-gradient(45deg,#1a2f3a,#1a2f3a 6px,#213a47 6px,#213a47 12px);border:1px solid #d9b46a55;box-shadow:0 3px 8px #000a}
+.pile small{font:600 10px system-ui;color:#9fb0b0}.pile.gy{cursor:pointer;background:#0e1b22;position:relative;overflow:hidden}.pile.gy img{position:absolute;inset:0;width:100%;height:100%;opacity:.55}
+.pile.gy span{position:relative}
+.pile.ex{cursor:pointer;background:#1a1330;position:relative;overflow:hidden;border-color:#b79bff88}.pile.ex img{position:absolute;inset:0;width:100%;height:100%;opacity:.6}.pile.ex span,.pile.ex small{position:relative;text-align:center;padding:0 3px}.pile.ex .nm{font:700 11px system-ui;line-height:1.15;word-break:break-word}
+.bline{display:flex;align-items:center;justify-content:center;gap:10px;margin:8px 0;padding:6px;border-top:1px dashed #d9b46a44;border-bottom:1px dashed #d9b46a44;min-height:30px;color:#9fb0b0;font-size:13px}
+.ohead{display:flex;justify-content:space-between;color:#cfdcdc;font-size:13px;margin:0 2px 6px}.ohead b{color:#f4dc9b}
+#matpop{position:fixed;z-index:9000;display:none;background:#0d1d25f5;border:1px solid #d9b46a66;border-radius:10px;padding:8px;box-shadow:0 10px 30px #000c;max-width:260px}
+#matpop .nm{font-weight:700;color:#f4dc9b;margin-bottom:4px}#matpop button{margin:3px 4px 0 0}
+#matgy{position:fixed;inset:0;z-index:9500;background:#000b;display:none;align-items:center;justify-content:center;padding:calc(var(--tb-h,52px) + 8px) 0 calc(var(--hud-h,50px) + 8px)}
+#matgy .box{background:#0d1d25;border:1px solid #d9b46a66;border-radius:12px;padding:12px;max-width:min(860px,94vw);max-height:100%;overflow:auto}
+@media (min-width:900px){#matpanel{display:block}#fieldpanel,#oppspanel{display:none}}
+
+
+/* Arena-style on a wide screen: the hand is fixed along the bottom, over the battlefield; cards peek up and rise when pointed at */
+@media (min-width:900px){
+  #fanpanel{position:fixed!important;left:0;right:0;bottom:var(--hud-h,50px);height:calc(var(--fw,170px) * 1.05);z-index:300;pointer-events:none;margin:0!important}
+  #fanpanel h2{display:none}
+  #fan{height:calc(var(--fw,170px) * 1.05)!important;margin-top:0!important;pointer-events:none}
+  #fan .fc{pointer-events:auto;bottom:calc(var(--fw,170px) * -0.38)}
+  #fanact{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--hud-h,50px) + var(--fw,170px) * 1.1);width:min(760px,92vw);z-index:350;pointer-events:auto;
+    box-shadow:0 8px 24px #000b;border:1px solid #d9b46a55;padding:8px 12px!important}
+  #matpanel{margin-bottom:calc(var(--fw,170px) * 1.05)}
+}
+/* drag a card from the hand onto the battlefield (as in Arena) */
+.fghost{position:fixed;z-index:9600;width:150px;aspect-ratio:5/7;pointer-events:none;border-radius:9px;overflow:hidden;box-shadow:0 14px 34px #000c;transform:translate(-50%,-60%) rotate(-3deg) scale(1.05)}
+.fghost img{width:100%;height:100%;display:block}
+body.fdragging .canvas{outline:3px dashed #3fd0c9;outline-offset:-6px}
+body.fdragging.fdrop .canvas{outline-color:#6fd07a;background-color:#163c32}
+/* the canvas: full width on a wide screen; cards placed by zone, then wherever you drag them (saved on this device) */
+@media (min-width:900px){main{max-width:none!important;padding-left:14px!important;padding-right:14px!important}}
+.canvas{position:relative;height:max(660px,calc(100vh - var(--tb-h,52px) - var(--hud-h,50px) - 70px));border-radius:14px;overflow:hidden;
+  background:radial-gradient(1400px 700px at 50% 50%,#173847 0%,#0b1a21 72%);border:1px solid #d9b46a33;touch-action:none}
+.canvas .mc{position:absolute;width:var(--cw);margin:0;user-select:none}.canvas .mc.tapped{margin:0}
+.canvas .mc.drag{z-index:500;opacity:.9;cursor:grabbing;transition:none}
+.canvas .pile{position:absolute;width:var(--cw)}
+.canvas .lstack{position:absolute;z-index:1}.canvas .lstack.drag{z-index:500;opacity:.9;cursor:grabbing}
+.canvas .lstack .cnt{position:absolute;right:-6px;top:-10px;z-index:60;min-width:30px;min-height:26px;padding:2px 7px;margin:0;border-radius:999px;font:800 13px system-ui;background:#d9b46a;color:#1a1408;border:1px solid #1a1408;cursor:pointer}
+.canvas .zl{position:absolute;font:700 11px system-ui;letter-spacing:.12em;color:#9fb0b066;text-transform:uppercase;pointer-events:none}
+.canvas .mid{position:absolute;left:0;right:0;top:calc(41% - 20px);height:40px;display:flex;align-items:center;justify-content:center;gap:10px;
+  border-top:1px dashed #d9b46a44;border-bottom:1px dashed #d9b46a44;color:#9fb0b0;font-size:13px;z-index:400}
+.canvas .tidy{position:absolute;right:10px;top:8px;z-index:450}.canvas .who{position:absolute;left:12px;font-size:13px;color:#cfdcdc;z-index:450}.canvas .who b{color:#f4dc9b}
+
+
+#stepbar{display:flex;flex-wrap:wrap;gap:3px;margin-top:8px;font:600 11px system-ui,sans-serif}
+#stepbar span{padding:3px 7px;border-radius:999px;background:#ffffff0f;color:#9fb0b0;white-space:nowrap}
+#stepbar span.done{color:#6d7c7c}
+#stepbar span.now{background:#d9b46a;color:#1a1408}
+#steprow{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.slots{margin:4px 0}.slots label{display:block;font-size:12px;color:#cfdcdc;margin-top:3px}.slots select{max-width:280px}
+.note{font-size:12px;color:#ffcf8f;margin-top:3px}
+.alert button{font-size:16px;padding:10px 14px;margin:4px 4px 0 0;min-height:44px}
+@media (max-width:700px){ #alert .alert{font-size:17px} }
+.u-bar{top:calc(var(--tb-h,0px) + var(--ca-h,0px) + 8px)!important;flex-wrap:wrap;row-gap:4px}
+.u-bar .u-hint{flex-basis:100%;font-weight:500;font-size:13px;color:#ffe08a}.u-bar .u-hint:empty{display:none}
+body.u-on .tbs [data-s="next"]{display:none}
+@media (max-width:700px){ .u-bar{left:8px!important;right:8px;transform:none!important;max-width:none!important} .u-bar{padding:6px 10px!important;gap:6px 8px!important} .u-bar .u-msg{flex-basis:100%} .u-bar .u-msg:empty{display:none} }
 </style>
+<script src="/art/index.js"></script><script src="/assets/art.js"></script>
 <script src="/assets/seat.js" defer></script>
 <script src="/assets/urgent.js" defer></script>
+<script src="/assets/gameover.js" defer></script>
+<script src="/assets/choicealert.js" defer></script>
 <script src="/assets/tablebar.js" defer></script>
+<script src="/assets/sfx.js" defer></script>
 <script src="/assets/brand.js" defer></script>
 <script src="/assets/dice3d.js" defer></script>
 <script src="/assets/checkin.js" defer></script>
@@ -39,25 +178,41 @@ select{padding:7px;border-radius:8px;background:#071820;color:var(--ink);border:
   <h1>Your hand</h1>
   <div class="sub" id="who">Claim your seat (👤, top right) to see your cards. Only your device sees them.</div>
   <div id="alert"></div>
+  <div id="heldbox"></div>
+  <div id="mullpanel"></div>
+  <div id="choicepanel"></div>
+  <div id="effpanel"></div>
   <div class="panel"><div style="display:flex;justify-content:space-between;align-items:center">
     <div><span class="life" id="life">—</span> <span class="sub">life</span></div>
     <div class="sub" id="phase">—</div></div>
     <div id="startrow" style="display:none;margin-top:8px"><button class="gold" id="start">Start the game</button>
       <span class="sub">or roll for who goes first on the stage</span></div>
-    <div style="margin-top:8px"><button class="gold" id="begin" disabled>Begin my turn (untap, draw)</button><button id="pass">Pass</button>
+    <div id="stepbar" aria-label="Steps of the turn"></div>
+    <div id="steprow"><button class="gold" id="begin" disabled>Begin my turn (untap, draw)</button><button class="gold" id="next" disabled title="on to the next step of your turn">Next step</button>
+      <button id="attackgo" style="display:none" title="Choose your attackers, then attack">⚔ Attack</button><button id="pass">Pass</button>
       <button id="end">End my turn</button></div>
     <div class="sub" id="mana" style="margin-top:6px"></div>
+    <div id="gyrow" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"></div>
     <div id="err" role="alert"></div></div>
-  <div class="panel"><h2>Hand</h2><div id="hand"></div></div>
-  <div class="panel"><h2>Battlefield</h2><div id="field"></div>
+  <div class="panel" id="matpanel"><div id="mat"></div></div>
+  <div id="beampanel"></div>
+  <div id="toppanel"></div>
+  <div id="exilepanel"></div>
+  <div id="manualpanel"></div>
+  <div id="zonebox"></div>
+  <div id="paypanel"></div>
+  <div class="panel" id="fanpanel"><h2>Hand</h2><div id="fan"></div><div id="fanact"></div></div>
+  <div class="panel" id="handpanel"><h2>Hand</h2><div id="hand"></div></div>
+  <div class="panel" id="fieldpanel"><h2>Battlefield</h2><div id="field"></div>
     <div id="atk" style="margin-top:8px"></div></div>
-  <div class="panel"><h2>The other players</h2><div id="opps"><div class="sub">Nobody else yet.</div></div></div>
+  <div class="panel" id="oppspanel"><h2>The other players</h2><div id="opps"><div class="sub">Nobody else yet.</div></div></div>
   <div class="panel"><h2>What happened</h2><div id="log"></div></div>
 </main>
+<div id="swapbar" style="display:none"></div><div id="atkpin"></div><div id="atksheet" style="display:none"></div>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-let S = null, PH = null, since = "latest", attackers = new Set(), lastAttack = [], alert = null;
+let myTurnShown = null, S = null, PH = null, since = "latest", attackers = new Set(), lastAttack = [], alert = null;
 const me = () => (window.TableSeat && TableSeat.name()) || "";
 const key = () => (window.TableSeat && TableSeat.body().key) || "";
 async function call(method, path, body) {
@@ -70,81 +225,1174 @@ async function act(action, body = {}) {
   $("err").textContent = "";
   for (let i = 0; i < 20; i++) {                        // my turn walks its steps: wait while the others pass
     const { ok, code, d } = await call("POST", "/api/brain/" + action, { seat: me(), ...body });
+    if (!ok && (d.stale || /^stale pass/i.test(d.error || ""))) {    // the table moved on since the list was read: read it again, no error (nothing was done)
+      $("err").textContent = ""; handSig0 = ""; fanSig = ""; choiceSig = ""; matSig = ""; exileSig = ""; await load(); refreshPhase(); return null; }
     const w = Array.isArray(d.waiting) ? d.waiting.join(", ") : (d.waiting || "");   // the server sends a string ("Ben, Ann"); a refusal carries [] and no wait
     if (code === 409 && w) { $("err").textContent = `waiting on ${w}…`; await new Promise(r => setTimeout(r, 2000)); continue; }
-    if (!ok) { $("err").textContent = d.error || "refused"; return null; }
+    if (!ok) { $("err").textContent = d.error || "refused"; window.TableSfx && TableSfx.fx("error"); return null; }
     (d.said || []).forEach(x => logLine(x)); $("err").textContent = "";
-    await load(); refreshPhase(); return d;
+    await load(); refreshPhase(); return d;  // (a surveil the table now waits on shows itself in draw())
   }
 }
 function logLine(t) { $("log").insertAdjacentHTML("afterbegin", `<div>${esc(t)}</div>`); }
+let loadFails = 0, handSig0 = "";
+// End turn with something still open in your main phase (an unplayed land, a Station): warn once; a second press ends it
+// T16: the table says, per creature, whether it may attack now and why not (summoning sick, tapped, defender, can't attack alone with no
+// partner): the Attack button, the "N ready" count and End's reminder all use that. An older table sends no can_attack: the page's own guess.
+const whyNoAttack = p => (p && p.pt && p.can_attack === false && p.why_not) ? p.why_not : "";
+function canAttack(p) { const kw = p.keywords || [];
+  if (p.can_attack !== undefined) return !!(p.pt && p.can_attack && !(S.attacked_ids || []).includes(p.id));
+  return !!(p.pt && !p.tapped && (!p.sick || kw.includes("Haste")) && !kw.includes("Defender") && (/\bCreature\b/.test(p.type || "") || !/\bLand\b/.test(p.type || "")) && !(S.attacked_ids || []).includes(p.id)); }
+const readyAttackers = () => (S && S.permanents || []).filter(canAttack);
+function beforeCombatEnds() { return !!PH && (PH.steps || []).indexOf(PH.step) <= (PH.steps || []).indexOf("declare attackers"); }
+function endWarning() {
+  if (!S || !PH || PH.player !== S.seat) return "";
+  const open = [];
+  if (!S.land_played && [...(S.hand || []), ...(S.exile_playable || [])].some(c => c.land)) open.push("play a land");
+  const ship = (S.permanents || []).some(p => p.has_station && !(p.station_top != null && (+p.charge || 0) >= p.station_top));
+  if (/^main/.test(PH.step || "") && ship && (S.permanents || []).some(p => /\bCreature\b/.test(p.type || "") && !p.tapped && p.pt))
+    open.push("Station a Spacecraft");
+  const n = readyAttackers().length;
+  if (beforeCombatEnds() && n && !(S.attacked_ids || []).length) open.push(`attack with ${n} ready creature${n === 1 ? "" : "s"}`);
+  return open.length ? "You still can: " + open.join(", ") + ". Press End again to end your turn." : "";
+}
+window.__endCheck = endWarning;
+let endArmed = 0;
 async function load() {
   if (!me()) return;
   const { ok, code, d } = await call("GET", "/api/brain/state?seat=" + encodeURIComponent(me()));
-  if (!ok) { $("who").textContent = code === 403 ? `${me()} isn't a virtual-deck seat at this table (or this device's key is old: claim again).` : d.error; S = null; draw(); return; }
+  if (!ok) { loadFails = code === 403 ? loadFails + 1 : 0;
+    if (S && code === 403 && loadFails < 3) { $("err").textContent = "the table didn't accept this page's seat key just now; retrying (if it keeps happening, reopen your link)"; return; }   // keep the hand on screen
+    $("who").textContent = code === 403 ? `${me()} isn't a virtual-deck seat at this table (or this device's key is old: claim again).` : d.error; S = null; draw(); return; }
   S = d; draw();
+}
+
+// ── surveil / scry from an "enters" trigger happen once: hide the button after it was used ──
+const effKey = () => "effused:" + (me() || "");
+let effUsedIds = new Set(), effUsedNames = new Set();
+try { effUsedIds = new Set(JSON.parse(localStorage.getItem(effKey()) || "[]")); } catch {}
+const effOnce = p => /\bwhen (this|it)\b[^]*?\benters\b[^]*?\b(surveil|scry) 1\b/i.test(p.text || "");
+const effOpen = p => !effOnce(p) || !(effUsedIds.has(String(p.id)) || effUsedNames.has(p.name));
+function effMarkUsed(id) { effUsedIds.add(String(id)); try { localStorage.setItem(effKey(), JSON.stringify([...effUsedIds])); } catch {} }
+(async () => {                                             // uses before this page loaded: "<card>: I surveil 1 …" said by me in the game log
+  try { const d = await (await fetch("/api/events?since=0")).json();
+    for (const e of d.events || []) { const m = e.type === "say" && e.speaker === me() && /^(.+?): I (surveil|scry) 1/.exec(e.text || ""); if (m) effUsedNames.add(m[1]); }
+    if (S) draw(); } catch {}
+})();
+// "Choose one —" cards: one Cast button per mode (the engine needs the mode number, 1-based)
+function modesOf(c) {
+  const t = c.text || ""; if (!/Choose one\s*[—-]/i.test(t)) return [];
+  if (c.type && !/\b(Instant|Sorcery)\b/.test(c.type)) return [];   // a permanent's "when this enters, choose one": the table asks when it enters (a choice), not the Cast button
+  return t.split("\n").filter(l => /^\s*•/.test(l)).map(l => { const x = l.replace(/^\s*•\s*/, ""), m = /^(.+?)\s+[—-]\s+(.+)$/.exec(x); return m ? { name: m[1], text: m[2] } : { name: x.slice(0, 30), text: x }; });
+}
+
+// ── a mana pool you fill by hand: tap your own sources (it really taps them); Cast first returns them, then pays (same mana) ──
+let MPOOL = { key: "", items: [] };
+const poolKey = () => "mpool:" + (S && S.seat || "");
+const stepKey = () => (PH ? `${PH.player}|${PH.step}` : "");
+function poolLoad() { try { MPOOL = JSON.parse(localStorage.getItem(poolKey()) || '{"key":"","items":[]}'); } catch { MPOOL = { key: "", items: [] }; }
+  if (MPOOL.key !== stepKey()) MPOOL = { key: stepKey(), items: [] };            // mana empties when the step ends
+  window.__manaPool = MPOOL.items.map(i => i.color); }
+function poolSave() { MPOOL.key = stepKey(); try { localStorage.setItem(poolKey(), JSON.stringify(MPOOL)); } catch {} window.__manaPool = MPOOL.items.map(i => i.color); }
+function colorsOf(p) {                                         // what a source can make, from its text
+  const t = (p.text || "").replace(/"[^"]*"/g, ""); if (/mana of any colou?r|any one colou?r/i.test(t)) return ["W", "U", "B", "R", "G"];
+  const out = new Set(); for (const part of t.match(/Add ([^.]+)\./g) || []) for (const m of part.matchAll(/\{([WUBRGC])\}/g)) out.add(m[1]);
+  for (const [b, c] of [["Plains", "W"], ["Island", "U"], ["Swamp", "B"], ["Mountain", "R"], ["Forest", "G"]]) if ((p.type || "").includes(b)) out.add(c);
+  return [...out];
+}
+const isManaSrc = p => /\{T\}[^:]*: Add /.test((p.text || "").replace(/"[^"]*"/g, "")) || colorsOf(p).length > 0 && /\bLand\b/.test(p.type || "");
+async function poolTap(p, color) {
+  if (!(await act("tap", { ref: "#" + p.id, announce: true }))) return;
+  poolLoad(); MPOOL.items.push({ id: p.id, color, name: p.name }); poolSave(); window.TableSfx && TableSfx.fx("tap"); matSig = ""; draw();
+}
+async function poolUndo(p) {
+  if (!(await act("untap", { ref: "#" + p.id }))) return;
+  poolLoad(); MPOOL.items = MPOOL.items.filter(i => i.id !== p.id); poolSave(); matSig = ""; draw();
+}
+async function spendPool() {                                    // before a cast: return the pooled sources so the table's payment can tap them
+  poolLoad(); for (const it of MPOOL.items) await act("untap", { ref: "#" + it.id });
+  MPOOL.items = []; poolSave();
+}
+// T12: an {X} spell asks for X (the table taps that much more, and the effect uses it)
+const xVals = {}, kickVals = {}; let xZeroArm = 0;
+// Kicker: an optional extra cost (mana, or a sacrifice named before anything is paid). Ticking it sends kicked:true (and kick_sac) with the cast.
+const kickSacOptions = k => (S.permanents || []).filter(q => !q.face_down && String(k.cost).split(/ or /i).some(w => new RegExp("\\b" + w.trim() + "\\b", "i").test(q.type || "")))
+  .sort((a, b) => (parseInt(a.pt) || 0) - (parseInt(b.pt) || 0));
+function kickPicker(c) {
+  const k = c.kicker; if (!k) return "";
+  const v = kickVals[c.name] || {}, esc2 = esc(c.name);
+  if (k.payable === false) return `<div class="sub" style="color:#ffb38f;margin-top:4px">Kicker (${k.kind === "sac" ? "sacrifice " + esc(k.cost) : esc(k.cost)}): can't use it now: ${k.kind === "sac" ? "you have no " + esc(k.cost) + " to sacrifice" : `the spell and the kicker together cost more than you can pay (${(S.mana_sources || []).length} untapped source${(S.mana_sources || []).length === 1 ? "" : "s"})`}.</div>`;
+  const sacs = k.kind === "sac" ? kickSacOptions(k) : [];
+  return `<div class="slots" style="margin-top:4px"><label style="font-size:15px"><input type="checkbox" data-kickfor="${esc2}" data-kickwhy="${c.castable_now ? "" : esc(c.why_not || "no")}" ${v.on ? "checked" : ""}> Kicker: ${k.kind === "sac" ? "sacrifice " + esc(k.cost) : "pay " + esc(k.cost) + " more"}</label>
+    ${k.kind === "sac" ? `<select data-ksacfor="${esc2}" style="max-width:260px;${v.on ? "" : "display:none"}">${sacs.map(q => `<option value="#${q.id}" ${v.sac === "#" + q.id ? "selected" : ""}>sacrifice #${q.id} ${esc(q.name)}${q.pt ? " " + esc(q.pt) : ""}</option>`).join("")}</select>` : ""}</div>`;
+}
+// kicked, a counterspell may aim at any spell (not only the cheap ones the plain list holds): add the spell being cast to its list
+function kickRefresh(box) {
+  if (!box) return; const on = !!(box.querySelector("[data-kickfor]") || {}).checked, H = PH && PH.held;
+  const sac = box.querySelector("[data-ksacfor]"); if (sac) sac.style.display = on ? "" : "none";
+  const kcb = box.querySelector("[data-kickfor]"), btn = box.querySelector("[data-cast],[data-fancast],[data-xcast]");
+  for (const sel of box.querySelectorAll("select[data-slot]")) {
+    const val = H ? `card|${H.by}|${H.spell}` : "", extra = sel.querySelector("option[data-kickadd]");
+    if (extra && !on) extra.remove();
+    if (on && H && val && ![...sel.options].some(o => o.value === val) && /being cast|counter/i.test((sel.closest("label") || {}).textContent || "")) sel.insertAdjacentHTML("beforeend", `<option data-kickadd value="${esc(val)}">${esc(H.by)}'s ${esc(H.spell)} (being cast)</option>`); }
+  // the plain spell has no legal target (a counter for cheap spells and the one being cast costs more), the kicked one may: let Cast through, the table checks
+  if (btn && kcb) { if (btn.dataset.was === undefined) btn.dataset.was = btn.disabled ? "1" : "0";
+    const needs = [...box.querySelectorAll("select[data-slot]")].some(x => !x.value && !(x.options[0] && x.options[0].value === ""));
+    btn.disabled = on && /no legal target/i.test(kcb.dataset.kickwhy || "") ? needs : btn.dataset.was === "1"; }
+}
+document.addEventListener("change", e => { const el = e.target; if (!el || !el.dataset) return;
+  if (el.dataset.kickfor !== undefined) { (kickVals[el.dataset.kickfor] ||= {}).on = el.checked; kickRefresh(el.closest(".card, #fanact") || document); }
+  if (el.dataset.ksacfor !== undefined) (kickVals[el.dataset.ksacfor] ||= {}).sac = el.value; });
+document.addEventListener("input", e => { const el = e.target; if (el && el.dataset && el.dataset.xfor !== undefined) xVals[el.dataset.xfor] = el.value; });
+const xPicker = c => /\{X\}/.test(c.cost || "") ? `<label class="sub" style="margin-right:6px;font-size:16px">X = <input type="number" inputmode="numeric" min="0" max="30" value="${esc(xVals[c.name] ?? 0)}" data-xfor="${esc(c.name)}" style="width:4.5em;font-size:18px;padding:6px"></label>` : "";
+// Item 3: "Pay with: Auto / Choose lands" next to every Cast button. Auto = the table picks. Choose = piles of your untapped sources (×N, colours), "+" / "−"
+// per pile; what is chosen goes with the cast as pay_with (they must pay the whole cost between them: the table refuses less). With a choice made the control
+// says whether the other cards in your hand could still be cast from the lands that are left.
+let payMode = "auto", payFor = "";                 // payFor: the card the choice is for (the picks go with that card's Cast only)
+const PAYCOL = { W: "#f4efc9", U: "#3a8fe0", B: "#5b4a63", R: "#e0523a", G: "#3f9d52", C: "#9aa3ab" };
+function payGroups() {
+  const g = new Map();
+  for (const p of (S.permanents || []).filter(q => !q.tapped && !q.face_down && isManaSrc(q))) { const cols = colorsOf(p), key = p.name + "|" + cols.join("");
+    if (!g.has(key)) g.set(key, { key, name: p.name, cols, ids: [] }); g.get(key).ids.push(p.id); }
+  return [...g.values()];
+}
+function costNeeds(cost) {                                     // {2}{G}{W/U} -> { generic, pips: [[allowed colours]] }; null when a symbol isn't understood
+  let generic = 0; const pips = [];
+  for (const m of String(cost || "").matchAll(/\{([^}]+)\}/g)) { const t = m[1];
+    if (/^\d+$/.test(t)) generic += +t; else if (t === "X") continue; else if (/^[WUBRGC]$/.test(t)) pips.push([t]);
+    else if (/^[WUBRGC]\/[WUBRGC]$/.test(t)) pips.push(t.split("/")); else if (/^2\/[WUBRG]$/.test(t)) generic += 2; else return null; }
+  return { generic, pips };
+}
+function canPayFrom(sources, cost) {                           // sources: [[colours it can make]]; true when they can pay the cost between them
+  const n = costNeeds(cost); if (!n) return null;
+  const owner = new Array(sources.length).fill(-1);
+  const place = (i, seen) => { for (let s = 0; s < sources.length; s++) if (!seen[s] && n.pips[i].some(c => sources[s].includes(c))) { seen[s] = true; if (owner[s] < 0 || place(owner[s], seen)) { owner[s] = i; return true; } } return false; };
+  for (let i = 0; i < n.pips.length; i++) if (!place(i, [])) return false;
+  return sources.length - n.pips.length >= n.generic;
+}
+const pipHtml = cols => cols.map(c => `<span class="pmp" style="background:${PAYCOL[c] || "#9aa3ab"};color:${c === "W" ? "#111" : "#fff"}">${esc(c)}</span>`).join("");
+function payControl(c) {
+  if (!c || c.land || !S) return ""; const groups = payGroups(); if (!groups.length) return "";
+  const ids = new Set(groups.flatMap(g => g.ids)); for (const id of [...payPick]) if (!ids.has(id)) payPick.delete(id);
+  const choose = payFor === c.name && (payMode === "choose" || payPick.size > 0), n = costNeeds(c.cost);
+  const head = `<div class="paywith"><span class="sub">Pay with:</span><button data-paymode="auto" data-payfor="${esc(c.name)}" class="${choose ? "" : "gold"}" aria-pressed="${!choose}">Auto</button><button data-paymode="choose" data-payfor="${esc(c.name)}" class="${choose ? "gold" : ""}" aria-pressed="${choose}">Choose lands</button></div>`;
+  if (!choose) return head;
+  const total = n ? n.generic + n.pips.length : null;
+  const piles = groups.map(g => { const k = g.ids.filter(id => payPick.has(id)).length;
+    return `<div class="payg"><span class="payc">${pipHtml(g.cols.length > 2 ? ["★"] : g.cols)}</span><span class="payn"><b>${esc(g.name)}</b> <span class="t">×${g.ids.length}</span></span>
+      <button data-paygrp="${esc(g.key)}" data-payfor="${esc(c.name)}" data-d="-1" ${k ? "" : "disabled"} aria-label="one fewer ${esc(g.name)}">−</button><span class="payk">${k}</span><button data-paygrp="${esc(g.key)}" data-payfor="${esc(c.name)}" data-d="1" ${k < g.ids.length ? "" : "disabled"} aria-label="one more ${esc(g.name)}">+</button></div>`; }).join("");
+  const chosen = payPick.size, left = (S.permanents || []).filter(q => !q.tapped && !q.face_down && isManaSrc(q) && !payPick.has(q.id));
+  let hint = "";
+  if (!chosen) hint = `<div class="sub">Nothing chosen yet: the table picks. Tap + on the lands you want to pay with${total != null ? ` (it costs ${total})` : ""}.</div>`;
+  else { const enough = canPayFrom((S.permanents || []).filter(q => payPick.has(q.id)).map(q => colorsOf(q).length ? colorsOf(q) : ["C"]), c.cost);
+    hint = enough === false ? `<div class="sub" style="color:#ffb38f">${chosen} chosen: not enough to pay ${esc(c.cost)}${total != null ? ` (needs ${total}, with the right colours)` : ""}.</div>`
+      : `<div class="sub">${chosen} chosen to pay ${esc(c.cost)}.</div>`;
+    if (enough !== false) { const others = [...new Map((S.hand || []).filter(h => !h.land && h.name !== c.name).map(h => [h.name, h])).values()];
+      const rem = left.map(q => colorsOf(q).length ? colorsOf(q) : ["C"]), ok = [], no = [];
+      for (const h of others) { const r = canPayFrom(rem, h.cost); (r === null ? no : r ? ok : no).push(h.name); }
+      hint += others.length ? `<div class="sub" style="color:${ok.length ? "#9be3a6" : "#ffb38f"}">Still castable after this: ${ok.length ? esc(ok.join(", ")) : "nothing else in your hand"}${ok.length && no.length ? ` (not ${esc(no.join(", "))})` : ""}.</div>` : ""; } }
+  return head + `<div class="paypiles">${piles}${hint}</div>`;
+}
+async function castWith(body) {
+  if (body && body.kicked === undefined) {
+    const kc = [...document.querySelectorAll("[data-kickfor]")].find(el => el.dataset.kickfor === body.name && el.offsetParent !== null);
+    if (kc && kc.checked) {
+      const ks = [...document.querySelectorAll("[data-ksacfor]")].find(el => el.dataset.ksacfor === body.name && el.offsetParent !== null);
+      body = { ...body, kicked: true, ...(ks ? { kick_sac: ks.value } : {}) };
+      if (ks && !ks.value) { $("err").textContent = `Kicker needs something to sacrifice: ${body.name} wasn't cast.`; return null; }
+    }
+  }
+  if (body && body.x === undefined) {
+    const xi = [...document.querySelectorAll("[data-xfor]")].find(el => el.dataset.xfor === body.name && el.offsetParent !== null) || [...document.querySelectorAll("[data-xfor]")].find(el => el.dataset.xfor === body.name);
+    if (xi) { body = { ...body, x: Math.max(0, Math.min(30, +xi.value || 0)) };
+      if (!body.x && Date.now() - xZeroArm > 8000) { xZeroArm = Date.now(); $("err").textContent = `X is 0 for ${body.name}: set X first, or press Cast again to cast it with X = 0.`; return null; }
+      xZeroArm = 0; delete xVals[body.name]; }
+  }
+  await spendPool();
+  const pw = (!payFor || payFor === body.name) ? [...payPick].filter(id => (S.permanents || []).some(p => p.id === id && !p.tapped)).map(id => "#" + id) : [];   // the sources you chose to pay, if any (for this card)
+  const r = await act("cast", pw.length ? { ...body, pay_with: pw } : body);
+  if (r) { payPick.clear(); payMode = "auto"; payFor = ""; paySig = ""; handSig0 = ""; fanSig = ""; }
+  return r;
+}
+// ── which sources pay: pick them before casting (unticked = the table picks), and swap one the table tapped for another in the same step ──
+let payPick = new Set(), paySig = "";
+let swapOpen = false, swapHtml = "";
+function drawPay() {
+  const box = $("paypanel"); if (!box || !S) return;
+  const perms = S.permanents || [], srcs = perms.filter(p => !p.tapped && !p.face_down && isManaSrc(p)), paid = S.paid_this_step || [];
+  const sig = JSON.stringify([srcs.map(p => p.id), [...payPick], paid]); if (sig === paySig) return; paySig = sig;
+  const byId = {}; for (const x of paid) (byId[x.id] = byId[x.id] || []).push(x.color);
+  swapHtml = Object.entries(byId).map(([id, cols]) => { const p = perms.find(q => String(q.id) === id); if (!p) return "";
+    const alts = srcs.filter(q => q.id !== p.id);
+    return `<div class="card">${esc(p.name)} paid ${esc(cols.map(c => c ? "{" + c + "}" : "generic").join(", "))}
+      ${alts.length ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select data-swapto="${p.id}" style="min-height:44px">${alts.map(q => `<option value="#${q.id}">${esc(q.name)} (#${q.id})</option>`).join("")}</select><button data-swap="${p.id}" style="min-height:44px">Pay with that instead</button></div>` : '<span class="sub">(no other untapped source)</span>'}</div>`; }).join("");
+  // Item 3: the swap stays reachable after a cast: a pinned chip opens it (the picks themselves are the "Pay with" control beside each Cast button)
+  const sb = $("swapbar"); if (sb) { sb.style.display = swapHtml ? "block" : "none"; sb.innerHTML = swapHtml ? `<button data-swapopen="1">↔ Swap a land that paid (${Object.keys(byId).length})</button>` : ""; }
+  layoutPins();
+  if (swapOpen && !swapHtml) { swapOpen = false; $("matgy").style.display = "none"; }
+  if (swapOpen) swapView();
+  box.innerHTML = srcs.length ? `<details class="panel"><summary><b>Pick individual lands</b> <span class="sub">(or use "Pay with" next to Cast)</span></summary><div class="sub">Tick the sources that pay for your next spell (none ticked: the table picks).</div>${srcs.map(p => `<label style="margin-right:10px;display:inline-block;min-height:32px"><input type=checkbox data-paypick="${p.id}" ${payPick.has(p.id) ? "checked" : ""}> ${esc(p.name)} #${p.id}</label>`).join("")}</details>` : "";
+}
+function swapView() { $("matgy").innerHTML = `<div class="box"><div style="display:flex;justify-content:space-between;align-items:center"><b>Swap a land that paid</b><button data-gyclose>Close</button></div>
+  <div class="sub" style="margin:6px 0">Tapped to pay this step: swap one for another source that makes the same mana.</div>${swapHtml}<div id="gyerr" role="alert" style="color:#ffb38f"></div></div>`; $("matgy").style.display = "flex"; gyOpen = ""; }
+function showFanErr() { const e = $("err") ? $("err").textContent : ""; if (e && $("fanact")) $("fanact").style.display = ""; if (e && $("fanact")) $("fanact").insertAdjacentHTML("beforeend", `<div class="x" style="color:#ffb38f">${esc(e)}</div>`); }
+
+// ── activated abilities (what the Cards page offered): the same list, in the same order, as the engine's ability_list ──
+const ACT_LINE = /^((?:(?:\{[^}]+\})+|Sacrifice [^:,]+)(?:, ?(?:(?:\{[^}]+\})+|Sacrifice [^:,]+))*): (.+)$/;
+function abilityList(p) {
+  if (Array.isArray(p.abilities)) return p.face_down ? [] : p.abilities.map(a => ({ cost: a.cost, eff: a.effect, modes: a.modes || [], can: a.can, why: a.why_not }));   // the engine's own list (same order, same numbers)
+  const lines = (p.face_down ? "" : (p.text || "")).split("\n"), out = [];
+  lines.forEach((line, i) => {
+    const m = ACT_LINE.exec(line.trim());
+    if (!m || /Add \{|add \{|Add one mana/.test(line.replace(/"[^"]*"/g, ""))) return;
+    const modes = [];
+    if (/^choose one\b/i.test(m[2].trim())) for (const nxt of lines.slice(i + 1)) { if (!nxt.trim().startsWith("•")) break; modes.push(nxt.trim().replace(/^•\s*/, "")); }
+    out.push({ cost: m[1], eff: m[2], modes });
+  });
+  return out;
+}
+// Ward {N}: aiming at an opponent's permanent that has it costs N more, paid with the spell; the table leaves out what you can't pay for.
+const WARD_RE = /(?:^|\n)(?:[A-Za-z' -]+, )*ward \{(\d+)\}/i;
+function wardFor(seat, id) {
+  if (!S || seat === S.seat) return 0;
+  const o = ((B3 && B3.seats) || []).find(x => x.name === seat), q = o && (o.permanents || []).find(x => String(x.id) === String(id));
+  if (!q) return 0; if (q.face_down && q.ward) return 2;
+  const m = WARD_RE.exec(String(q.text || "").replace(/\s*\([^)]*\)/g, "")); return m ? +m[1] : 0;
+}
+const wardOpt = v => { const [a, r] = String(v).split("|"); return a && r && r[0] === "#" ? wardFor(a, r.slice(1)) : 0; };
+const wardTag = w => w ? ` (ward {${w}}: ${w} more)` : "";
+// ward permanents that are not on a target list because their ward can't be paid right now: say so instead of leaving them out silently
+function wardMissing(sl) {
+  if (!S || !sl || sl.zone || sl.players_only || sl.side === "own") return "";
+  const have = (S.mana_sources || []).length, on = new Set((sl.options || []).map(o => o.at + "|" + o.ref)), out = [];
+  for (const o of (B3 && B3.seats) || []) { if (o.name === S.seat) continue;
+    for (const q of o.permanents || []) { const w = wardFor(o.name, q.id);
+      if (w && have < w && !on.has(`${o.name}|#${q.id}`) && (!sl.kinds || !sl.kinds.length || sl.kinds.some(k => new RegExp("\\b" + k + "\\b", "i").test(q.type || "")))) out.push(`${q.name} (ward {${w}})`); } }
+  return out.length ? `<div class="note">Not listed: ${esc(out.join(", "))}: you can't pay its ward.</div>` : "";
+}
+function targetOptions() {
+  const all = [];
+  for (const p of (S.permanents || [])) if (!p.face_down) all.push([S.seat, p.id, p.name]);
+  for (const o of (B3 && B3.seats || []).filter(x => x.name !== S.seat)) for (const p of o.permanents || []) if (!p.face_down) all.push([o.name, p.id, p.name]);
+  return all.map(([seat, id, n]) => `<option value="${esc(seat)}|#${id}">${seat === S.seat ? "your" : esc(seat) + "'s"} ${esc(n)}${wardTag(wardFor(seat, id))}</option>`).join("");
+}
+// "When this … enters, exile/destroy/return target …": the engine doesn't resolve the trigger itself, so its controller picks the
+// target here. The server checks the source's text says that effect and allows it once per turn (effect action).
+function etbKind(p) {
+  const t = p.face_down ? "" : (p.text || "");
+  const m = /When(?:ever)? [^.]*?\benters\b[^.]*?,\s*([^.]*\btarget\b[^.]*)/i.exec(t); if (!m) return null;
+  const eff = m[1], kind = /^\s*exile\b/i.test(eff) ? "exile" : /^\s*destroy\b/i.test(eff) ? "destroy" : /\breturn target\b.*\bhand\b/i.test(eff) ? "bounce" : null;
+  return kind ? { kind, eff, oppOnly: /\ban opponent controls\b|\byou don't control\b/i.test(eff), nonland: /\bnonland\b/i.test(eff),
+    creature: /target (?:nonland )?creature\b/i.test(eff) } : null;
+}
+// "When this … enters, choose one — • …": one button per mode. The ones the table can do for you run here (gain life is your own
+// life total; surveil/scry/draw go through the engine's effect check); any other mode is shown so you can do it by hand.
+const ETB_DONE = (() => { try { return new Set(JSON.parse(localStorage.getItem("etbdone") || "[]")); } catch { return new Set(); } })();
+function etbModes(p) {
+  const t = p.face_down ? "" : (p.text || ""), m = /When(?:ever)? [^\n.]*?\benters\b[^\n]*?,\s*choose (?:one|up to one)\s*[—-]\s*\n((?:\s*•[^\n]*\n?)+)/i.exec(t);
+  if (!m) return null;
+  return m[1].split("\n").map(x => x.trim()).filter(x => x.startsWith("•")).map(x => x.replace(/^•\s*/, "").replace(/\s*\([^)]*\)/g, "").trim());
+}
+function etbModeAction(mode) {
+  let m;
+  if ((m = /^you gain (\d+) life\.?$/i.exec(mode))) return { act: "life", n: +m[1] };
+  if ((m = /^(surveil|scry) (\d+)\.?$/i.exec(mode))) return { act: m[1].toLowerCase(), n: +m[2] };
+  if ((m = /^(?:you )?draw (a|one|two|three) cards?\.?$/i.exec(mode))) return { act: "draw", n: { a: 1, one: 1, two: 2, three: 3 }[m[1].toLowerCase()] };
+  return null;
+}
+function etbModeButtons(p) {
+  const ms = etbModes(p); if (!ms || p.modal_asked || ETB_DONE.has(`${S.seat}|${p.id}`)) return "";   // (modal_asked: the table asked the mode itself, as a choice)
+  return `<div class="sub" style="margin-top:6px">Enters trigger: choose one</div>` + ms.map((md, i) => { const a = etbModeAction(md);
+    return a ? `<button class="gold" data-etbm="${p.id}" data-etbmi="${i}">${esc(md)}</button>`
+             : `<button disabled title="the table can't do this one yet: do it by hand and say it">${esc(md)} (by hand)</button>`; }).join("") +
+    `<button data-etbmskip="${p.id}" title="hide this">Done</button>`;
+}
+function showEffPanel(eff, src, r) {
+  const d = { eff, src };
+  const pv = (r.private && r.private.top) || r.top;                       // the table nests what only you may see under "private"
+  const top = (Array.isArray(pv) ? pv[0] : pv) || "";
+  const art = top && window.CardArt ? CardArt.img(top, "") : "";
+  $("effpanel").innerHTML = `<div class="panel"><h2>${d.eff === "scry" ? "Scry 1" : "Surveil 1"}</h2><div class="card">${art}
+    <b>${top ? esc(top) : "your top card"}</b> <span class="t">is on top of your library (only you can see this).</span>
+    <div style="margin-top:8px"><button data-effput="top" data-effk="${d.eff}" data-effsrc="${d.src}">Keep it on top</button>
+    <button class="gold" data-effput="${d.eff === "scry" ? "bottom" : "graveyard"}" data-effk="${d.eff}" data-effsrc="${d.src}">${d.eff === "scry" ? "Put it on the bottom" : "Put it into the graveyard"}</button></div></div></div>`;
+  return;
+}
+function etbButtons(p) {
+  const k = etbKind(p); if (!k) return etbModeButtons(p);
+  const rows = [];
+  const seats = [[S.seat, S.permanents || []], ...((B3 && B3.seats) || []).filter(x => x.name !== S.seat).map(o => [o.name, o.permanents || []])];
+  for (const [seat, perms] of seats) { if (k.oppOnly && seat === S.seat) continue;
+    for (const q of perms) { if (q.face_down || (seat === S.seat && q.id === p.id)) continue;
+      const ty = q.type || "", land = /\bLand\b/.test(ty) || /^(Plains|Island|Swamp|Mountain|Forest)$/.test(q.name);
+      if (k.nonland && land) continue; if (k.creature && !(q.pt || /\bCreature\b/.test(ty))) continue;
+      rows.push(`<option value="${esc(seat)}|#${q.id}">${seat === S.seat ? "your" : esc(seat) + "'s"} #${q.id} ${esc(q.name)}${wardTag(wardFor(seat, q.id))}</option>`); } }
+  const verb = { exile: "Exile", destroy: "Destroy", bounce: "Return" }[k.kind];
+  return `<div class="sub" style="margin-top:6px">Enters trigger</div><div style="margin-top:3px" title="${esc(k.eff)}">
+    <select data-etbt="${p.id}" style="max-width:240px">${rows.join("") || '<option value="">(no legal target)</option>'}</select>
+    <button class="gold" data-etb="${p.id}" data-etbk="${k.kind}" ${rows.length ? "" : "disabled"}>${verb} it</button></div>`;
+}
+function abilityButtons(p) {
+  const abs = abilityList(p); if (!abs.length) return "";
+  return `<div class="sub" style="margin-top:6px">Abilities</div>` + abs.map((a, i) => {
+    const tsel = /\btarget\b/i.test(a.eff) ? `<select data-atgt="${p.id}-${i}" style="max-width:240px;margin-top:3px"><option value="">(no target)</option>${targetOptions()}</select>` : "";
+    const sm = /Sacrifice (another|an?|one) ([A-Za-z' -]+)/i.exec(a.cost), sacs = sm ? (S.permanents || []).filter(q => (sm[1].toLowerCase() !== "another" || q.id !== p.id) && sm[2].toLowerCase().split(" or ").some(w => new RegExp("\\b" + w.trim() + "\\b", "i").test(q.type || "") || new RegExp("\\b" + w.trim() + "\\b", "i").test(q.name || ""))) : [];
+    const ssel = sm ? `<select data-asac="${p.id}-${i}" style="max-width:240px;margin-top:3px">${sacs.map(q => `<option value="#${q.id}">sacrifice ${esc(q.name)}</option>`).join("")}</select>` : "";
+    const off = a.can === false ? "disabled" : "", why = a.can === false && a.why ? `<div class="sub" style="color:#ffb38f">Can't now: ${esc(a.why)}</div>` : "";   // T18: the table's own check
+    const btns = a.modes.length ? a.modes.map((m, k) => `<button data-abil="${p.id}" data-idx="${i}" data-amode="${k}" ${off} title="${esc(m)}">${esc(a.cost)}: ${esc(m.slice(0, 40))}</button>`).join("")
+      : `<button data-abil="${p.id}" data-idx="${i}" ${off} title="${esc(a.eff)}">${esc(a.cost)}: ${esc(a.eff.slice(0, 46))}${a.eff.length > 46 ? "…" : ""}</button>`;
+    return `<div style="margin-top:3px">${btns}${a.can === false ? "" : tsel + ssel}${why}</div>`;
+  }).join("");
+}
+
+// ── drag from the fan onto the battlefield: a land is played, a spell is cast; cards that need a choice stay selected ──
+let fanDrag = null, fanJustDragged = false;
+function overBoard(x, y) {
+  const cv = document.querySelector(".canvas"); if (!cv) return false; const r = cv.getBoundingClientRect();
+  const onHand = document.elementsFromPoint(x, y).some(el => el.closest && el.closest("#fan .fc, #fanact"));   // back onto the hand = no play
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom && !onHand;
+}
+async function playFromHand(i) {
+  const c = (S.hand || [])[i]; if (!c) return;
+  const myTurn = !!(PH && PH.player === S.seat);
+  fanSel = i; fanSig = "";
+  if (c.land) {
+    if (!myTurn || S.land_played) { draw(); $("err").textContent = !myTurn ? "a land only on your own turn" : "you already played a land this turn"; window.TableSfx && TableSfx.fx("error"); return showFanErr(); }
+    if (c.shock_land) { draw(); $("fanact").insertAdjacentHTML("beforeend", `<div class="x" style="color:#f4dc9b">Pay the life, or play it tapped.</div>`); return; }
+    const r = await act("land", { name: c.name }); if (!r) return showFanErr(); fanSel = -1; fanSig = ""; return draw();
+  }
+  if (modesOf(c).length || c.aura_targets || (c.slots || []).length) { draw(); $("fanact").insertAdjacentHTML("beforeend", `<div class="x" style="color:#f4dc9b">${modesOf(c).length ? "Choose a mode to cast it." : c.aura_targets ? "Choose what it enchants." : "Choose what it aims at, then Cast."}</div>`); return; }
+  if (!c.castable_now) { draw(); $("err").textContent = "not castable right now (mana or timing)"; window.TableSfx && TableSfx.fx("error"); return showFanErr(); }
+  const r = await castWith({ name: c.name }); if (!r) return showFanErr(); fanSel = -1; fanSig = ""; draw();
+}
+document.addEventListener("pointerdown", e => {
+  const fc = e.target.closest && e.target.closest("#fan .fc"); if (!fc || e.button !== 0) return;
+  fanDrag = { fc, i: +fc.dataset.fan, sx: e.clientX, sy: e.clientY, moved: false, ghost: null };
+});
+document.addEventListener("pointermove", e => {
+  const d = fanDrag; if (!d) return;
+  if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 10) return;
+  if (!d.moved) {
+    d.moved = true; const g = document.createElement("div"); g.className = "fghost";
+    const inner = d.fc.querySelector(".fi"); g.innerHTML = inner ? inner.innerHTML : ""; document.body.appendChild(g); d.ghost = g;
+    d.fc.style.opacity = ".35"; document.body.classList.add("fdragging");
+  }
+  d.ghost.style.left = e.clientX + "px"; d.ghost.style.top = e.clientY + "px";
+  document.body.classList.toggle("fdrop", overBoard(e.clientX, e.clientY));
+});
+document.addEventListener("pointerup", e => {
+  const d = fanDrag; fanDrag = null; if (!d || !d.moved) return;
+  d.ghost && d.ghost.remove(); d.fc.style.opacity = ""; document.body.classList.remove("fdragging", "fdrop");
+  fanJustDragged = true; setTimeout(() => { fanJustDragged = false; }, 300);
+  if (overBoard(e.clientX, e.clientY)) playFromHand(d.i);
+});
+// ── the fanned hand ──
+let fanSel = -1, fanSig = "";
+function drawFan(hand, myTurn) {
+  const fan = $("fan"); if (!fan || fan.offsetParent === null && fan.clientWidth === 0) return;
+  const sig = JSON.stringify([payMode, payFor, [...payPick], (S.mana_sources || []).length, hand.map(c => [c.name, !!c.castable_now, !!c.land, c.slots, c.mode_slots]), myTurn, !!S.land_played, fanSel, fan.clientWidth]);
+  if (sig === fanSig) return; fanSig = sig;
+  if (fanSel >= hand.length) fanSel = -1;
+  const cw = Math.round(Math.min(210, Math.max(160, innerWidth * 0.12)));          // bigger cards on a bigger screen
+  document.documentElement.style.setProperty("--fw", cw + "px");
+  const n = hand.length, W = fan.clientWidth || 700, step = n > 1 ? Math.min(cw * 0.62, (W - cw - 20) / (n - 1)) : 0;
+  const maxA = Math.min(30, 4.2 * Math.max(0, n - 1)), left0 = W / 2 - cw / 2;
+  fan.innerHTML = n ? hand.map((c, i) => {
+    const t = n > 1 ? (i / (n - 1)) * 2 - 1 : 0, rot = t * maxA / 2, drop = t * t * 26, x = left0 + t * (n - 1) * step / 2;
+    const playable = c.land ? (myTurn && !S.land_played) : !!c.castable_now;
+    const src = window.CardArt ? CardArt.src(c.name) : "";
+    const inner = src ? `<img src="${src}" alt="${esc(c.name)}" draggable="false">` : `<b>${esc(c.name)} ${esc(c.cost || "")}</b>${esc(c.type || "")}<br>${esc((c.text || "").slice(0, 150))}`;
+    return `<div class="fc ${src ? "" : "txt"} ${playable ? (c.land ? "land" : "ok") : ""} ${i === fanSel ? "sel" : ""}" data-fan="${i}" style="left:${x}px;z-index:${i};transform:translateY(${drop}px) rotate(${rot}deg);--r:${rot}deg" title="${esc(c.name)}"><div class="fi">${inner}</div></div>`;
+  }).join("") : `<div class="sub">No cards in hand.</div>`;
+  const c = hand[fanSel];
+  $("fanact").style.display = c || innerWidth < 900 ? "" : "none";
+  $("fanact").innerHTML = !c ? `<div class="sub">${n ? "Click a card to play it." : ""}</div>` :
+    `<div class="nm">${esc(c.name)} <span class="sub">${esc(c.cost || "")} · ${esc(c.type || "")}${c.pt ? " · " + esc(c.pt) : ""}</span></div><div class="x">${esc(c.text || "")}</div>` +
+    (c.land ? (c.shock_land ? `<button data-fanland="${fanSel}" data-pay="1" ${S.land_played || !myTurn ? "disabled" : ""}>Play it, paying the life</button><button data-fanland="${fanSel}" ${S.land_played || !myTurn ? "disabled" : ""}>Play it tapped</button>`
+                            : `<button data-fanland="${fanSel}" ${S.land_played || !myTurn ? "disabled" : ""}>Play land</button>`) : "") +
+    (!c.land && !c.aura_targets && !modesOf(c).length ? slotsHtml(c.slots, "fan") + xPicker(c) + kickPicker(c) + payControl(c) + `<button data-fancast="${fanSel}" ${c.castable_now && slotsReady(c.slots) ? "" : "disabled"}>Cast</button>${c.castable_now && !slotsReady(c.slots) ? '<div class="x" style="color:#ffb38f">Nothing it can aim at right now.</div>' : ""}` : "") +
+    (!c.land && modesOf(c).length ? modesOf(c).map((m, k) => { const ms = (c.mode_slots || [])[k]; return `<div>` + slotsHtml(ms, "fanm" + k) + `<button data-fanmode="${fanSel}" data-mode="${k + 1}" ${c.castable_now && slotsReady(ms) ? "" : "disabled"} title="${esc(m.text)}">Cast: ${esc(m.name)}</button></div>`; }).join("") : "") +
+    (!c.land && !c.castable_now ? `<div class="x" style="color:#ffb38f;margin-top:6px">${c.why_not ? "Can't cast now: " + esc(c.why_not) : (S.permanents || []).some(p => /Land/.test(p.type || "") && p.tapped) && !(S.mana_sources || []).length ? "Your lands are tapped, so there is no mana left to pay with. Cast taps your lands for you, so don't tap them first." : "Not castable right now (not enough mana, or the wrong time)."}</div>` : "") +
+    (c.aura_targets ? `<select id="fanon">${c.aura_targets.map(t => `<option>${esc(t)}</option>`).join("")}</select><button data-fanaura="${fanSel}" ${c.castable_now ? "" : "disabled"}>Cast on it</button>` : "") +
+    (c.cycle_cost ? `<button data-fancycle="${fanSel}" ${c.cycle_can === false ? "disabled" : ""} title="pay it, discard this, and take a basic land from your library">Landcycle ${esc(c.cycle_cost)}</button>${c.cycle_can === false && c.cycle_why ? `<div class="sub" style="color:#ffb38f">Can't landcycle now: ${esc(c.cycle_why)}</div>` : ""}` : "") + zoneAbilRows("hand", c.name) +
+    (c.face_down_castable ? `<button data-fanfd="${fanSel}">Cast face down {3}</button>` : "");
+}
+addEventListener("resize", () => { fanSig = ""; matSig = ""; if (S) draw(); });
+document.body.insertAdjacentHTML("beforeend", '<div id="matpop"></div><div id="matgy"></div>');
+setTimeout(pollBoard, 400);
+let lastHoverSfx = 0;
+document.addEventListener("mouseover", e => { const c = e.target.closest && e.target.closest(".fc"); if (!c || c.contains(e.relatedTarget)) return; const t = Date.now(); if (t - lastHoverSfx > 90) { lastHoverSfx = t; window.TableSfx && TableSfx.fx("hover"); } });
+
+// ── Station (Spacecraft): tap another untapped creature you control; charge counters equal to its power; only as a sorcery ──
+function stationButtons(sc) {
+  const main = PH && PH.player === S.seat && /^main/.test(PH.step || "");
+  const tot = +sc.charge || 0, need = sc.station_at, top = sc.station_top;
+  const cs = Array.isArray(sc.station_crew) ? (S.permanents || []).filter(c => sc.station_crew.includes(c.id))   // M8: the engine's own crew list (tokens too)
+    : (S.permanents || []).filter(c => c.id !== sc.id && !c.tapped && /\bCreature\b/.test(c.type || "") && c.pt);
+  const lines = (sc.text || "").match(/^\d+\+ \| .+$/gm) || [];
+  const head = `<div class="sub" style="margin-top:4px">Station · ⚡ ${tot} charge counter${tot === 1 ? "" : "s"}${need ? (tot >= need ? ` (${need}+: it's a creature now)` : ` of ${need}`) : top ? ` of ${top}` : ""}${lines.length ? " · " + esc(lines.join("; ")) : ""}</div>`;
+  if (!main) return head + `<div class="sub">Station only in your main phase.</div>`;
+  if (top != null && tot >= top) return head;
+  return head + (cs.length ? cs.map(c => `<button data-station="${sc.id}" data-crew="${c.id}">Tap ${esc(c.name)} (${esc(String(c.pt).split("/")[0])})</button>`).join("") : `<div class="sub">No untapped creature to tap.</div>`);
+}
+// ── Equip: pay its cost, in your main phase, onto one of your creatures. It stays on the battlefield when that creature leaves. ──
+function equipButtons(p) {
+  if (!p.equip_cost) return "";
+  const main = PH && PH.player === S.seat && /^main/.test(PH.step || "");
+  const on = p.attached_to ? (S.permanents || []).find(x => x.id === p.attached_to) : null;
+  const cs = (S.permanents || []).filter(c => c.id !== p.id && c.id !== p.attached_to && (/\bCreature\b/.test(c.type || "") || c.face_down));
+  const head = `<div class="sub" style="margin-top:4px">Equip ${esc(p.equip_cost)}${on ? ` · on ${esc(on.face_down ? "a face-down creature" : on.name)}` : " · not attached"}</div>`;
+  if (!main) return head + `<div class="sub">Equip only in your main phase.</div>`;
+  if (p.equip_can === false) return head + `<div class="sub" style="color:#ffb38f">Can't equip now: ${esc(p.equip_why || "")}</div>`;   // T18
+  return head + (cs.length ? cs.map(c => `<button data-equip="${p.id}" data-eqon="${c.id}">Equip ${esc(c.face_down ? "the face-down creature" : c.name)}</button>`).join("") : `<div class="sub">No creature to equip.</div>`);
+}
+// ── what a card aims at: one list per target it names, offering what the table says is legal right now ──
+const optValue = o => o.player ? "player|" + o.player : o.card ? "card|" + o.at + "|" + o.card : o.at + "|" + o.ref;
+const optTarget = v => { if (!v) return {}; const [a, r, c] = v.split("|"); return a === "player" ? { player: r } : a === "card" ? { at: r, card: c } : { at: a, ref: r }; };
+function slotsHtml(slots, key) {
+  if (!slots || !slots.length) return "";
+  return `<div class="slots">` + slots.map((sl, i) => `<label>${esc(sl.label || "target")}${sl.optional ? " (optional)" : ""}
+    <select data-slot="${esc(key)}" data-sloti="${i}">${sl.optional ? '<option value="">(none)</option>' : ""}${(sl.options || []).map(o => `<option value="${esc(optValue(o))}">${esc(o.label)}${wardTag(wardOpt(optValue(o)))}</option>`).join("")}</select></label>${wardMissing(sl)}`).join("") + `</div>`;
+}
+function slotsReady(slots) { return (slots || []).every(sl => sl.optional || (sl.options || []).length); }
+function readTargets(key, slots) {
+  if (!slots || !slots.length) return undefined;
+  return slots.map((sl, i) => { const el = document.querySelector(`[data-slot="${key}"][data-sloti="${i}"]`), v = el ? el.value : "";
+    return optTarget(v); });
+}
+// ── the playmat ──
+let B3 = null, matSig = "", matSel = null;
+let oppCtrSig = "";
+async function pollBoard() { try { B3 = await (await fetch("/api/board3d", { cache: "no-store" })).json(); } catch {}
+  try { const sg = JSON.stringify(((B3 && B3.seats) || []).filter(o => S && o.name !== S.seat).map(o => (o.permanents || []).map(q => [q.id, q.counters, q.quest, q.lore, q.stun, q.promo, q.charge])));
+    if (sg !== oppCtrSig) { oppCtrSig = sg; if (S) draw(); } } catch {}   // an opponent's counters changed: the phone list shows them
+  if (S) drawMat(); setTimeout(pollBoard, 2500); }
+const isLandT = t => /\bLand\b/.test(t || ""), isCreT = t => /\bCreature\b/.test(t || "");
+// a permanent that is a creature right now: by type, or a non-land with power/toughness (a stationed Spacecraft at its creature level)
+const isCreP = p => isCreT(p.type) || (!!p.pt && !isLandT(p.type));
+// Counters on a permanent, as [text, spelled-out title, colour]: +1/+1 (loyalty on a planeswalker), quest, lore (a Saga's chapter), stun, promotion, and charge.
+// The mat shows every kind but charge as a stack under the card's name (charge keeps its own ⚡ badge); the lists show them all.
+const ROMANS = { I: 1, V: 5, X: 10 }, romanN = r => [...r].reduce((a, c, i, A) => a + ((ROMANS[c] || 0) < (ROMANS[A[i + 1]] || 0) ? -(ROMANS[c] || 0) : (ROMANS[c] || 0)), 0), roman = n => ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][n] || String(n);
+function sagaChapters(text) { let m, hi = 0; const re = /(?:^|\n)\s*((?:[IVX]+, )*[IVX]+)\s*[—–-]/g; while ((m = re.exec(String(text || "")))) for (const r of m[1].split(", ")) hi = Math.max(hi, romanN(r)); return hi; }
+function counterList(p, withCharge, skipPlus) {
+  const n = k => Math.max(0, Math.floor(+p[k] || 0)), out = [], pw = /\bPlaneswalker\b/.test(p.type || "");
+  if (n("counters") && (pw || !skipPlus)) out.push(pw ? ["◈ " + n("counters"), `${n("counters")} loyalty counter${n("counters") === 1 ? "" : "s"}`, "#7a3a8a"]
+    : [`+${n("counters")}/+${n("counters")}`, `${n("counters")} +1/+1 counter${n("counters") === 1 ? "" : "s"}`, "#2a6"]);
+  if (n("quest")) out.push(["◆ " + n("quest"), `${n("quest")} quest counter${n("quest") === 1 ? "" : "s"}`, "#b5542f"]);
+  if (n("lore")) { const tot = /\bSaga\b/.test(p.type || "") ? sagaChapters(p.text) : 0;
+    out.push([`📖 ${n("lore")}${tot ? "/" + tot : ""}`, `${n("lore")} lore counter${n("lore") === 1 ? "" : "s"}${/\bSaga\b/.test(p.type || "") ? ": chapter " + roman(n("lore")) + (tot ? " of " + roman(tot) : "") : ""}`, "#6a4fb0"]); }
+  if (n("stun")) out.push(["❄ " + n("stun"), `${n("stun")} stun counter${n("stun") === 1 ? "" : "s"}: it doesn't untap (a counter comes off instead)`, "#3a6a8a"]);
+  if (n("promo")) out.push(["★ " + n("promo"), `${n("promo")} promotion counter${n("promo") === 1 ? "" : "s"}`, "#a07a1a"]);
+  if (withCharge && n("charge")) out.push(["⚡ " + n("charge"), `${n("charge")} charge counter${n("charge") === 1 ? "" : "s"}`, "#3a8fe0"]);
+  return out;
+}
+const counterTags = p => counterList(p, true).map(([t, ti, bg]) => ` <span class="tag" style="background:${bg}" title="${esc(ti)}">${esc(t)}</span>`).join("");
+function mcard(p, mine) {
+  const src = !p.face_down && window.CardArt ? CardArt.src(p.name) : "";
+  const inner = src ? `<img src="${src}" alt="${esc(p.name)}">` : `<div class="tx"><b>${esc(p.face_down ? "Face down" : p.name)}</b><br>${esc((p.type || "").split("—")[0])}</div>`;
+  const pw = p.pt || "", cl = counterList(p, false, true), plus = Math.max(0, Math.floor(+p.counters || 0)), ct = (plus && !/\bPlaneswalker\b/.test(p.type || "") ? `<span class="bd ct" title="${plus} +1/+1 counter${plus === 1 ? "" : "s"}">+${plus}</span>` : "") + (cl.length ? `<div class="cbs${src ? "" : " noart"}">${cl.map(([t, ti, bg]) => `<span style="background:${bg}" title="${esc(ti)}">${esc(t)}</span>`).join("")}</div>` : "");
+  const chg = +p.charge || 0, gear = p.attached_names || [];
+  return `<div class="mc${p.tapped ? " tapped" : ""}${mine && matSel === p.id ? " sel" : ""}${mine && attackers.has(p.id) ? " atk" : ""}" data-mc="${p.id}" data-mine="${mine ? 1 : ""}" data-name="${esc(p.face_down ? "" : p.name)}" title="${esc(p.face_down ? "Face-down card" : p.name)}">${inner}${pw ? `<span class="bd pt">${esc(pw)}</span>` : ""}${ct}${chg ? `<span class="bd" style="right:2px;top:2px;background:#3a8fe0" title="charge counters">⚡${chg}</span>` : ""}${gear.length ? `<span class="bd" style="left:2px;bottom:${plus ? 20 : 2}px;background:#7a5a1a" title="${esc(gear.join(", "))}">⚔${gear.length}</span>` : ""}${(p.equip_cost || p.equipment) && p.attached_to ? `<span class="bd" style="left:2px;top:2px;background:#7a5a1a" title="attached to #${p.attached_to}">→#${p.attached_to}</span>` : ""}${mine && (window.__manaPool || []).length && MPOOL.items.some(i => i.id === p.id) ? `<span class="bd" style="left:2px;top:2px;background:#2a6" title="in your mana pool: click to take it back">${esc((MPOOL.items.find(i => i.id === p.id) || {}).color || "")}</span>` : ""}${mine && p.sick && isCreT(p.type) ? '<span class="bd zz" title="summoning sick">💤</span>' : ""}</div>`;
+}
+// default spots, as fractions of the canvas: the opponent mirrored on top, you below; piles left, artifacts and enchantments right
+const ZONES = { opp: { lands: 0.04, crea: 0.21, piles: 0.05, other: 0.05 }, me: { crea: 0.47, lands: 0.64, piles: 0.46, other: 0.46 } };
+const posKey = () => "matpos:" + (S && S.seat || "");
+let POS = {}; try { POS = JSON.parse(localStorage.getItem(posKey()) || "{}"); } catch {}
+const savePos = () => { try { localStorage.setItem(posKey(), JSON.stringify(POS)); } catch {} };
+let matDrag = null, matJustDragged = false;
+// the rows, top to bottom: their lands, their creatures, the battle line, your creatures, your lands. Each row is a card high plus room for a pile's badge.
+const ROW_PAD = 16, MID_H = 40;
+let ROWX0 = 0;      // where the rows of cards start (a fraction of the canvas, or further right when the exile piles take a second column)
+const exOf = n => !S ? [] : n === S.seat ? (S.exile || []) : (((S.opponents || {})[n] || {}).exile || (((B3 && B3.seats) || []).find(x => x.name === n) || {}).exile || []);
+const rowY = (side, kind, ch) => side === "opp" ? (kind === "lands" ? 22 : 22 + ch + ROW_PAD) : 22 + 2 * (ch + ROW_PAD) + MID_H + ROW_PAD + (kind === "lands" ? ch + ROW_PAD : 0);
+const midY = ch => 22 + 2 * (ch + ROW_PAD) + 2;
+function placeAll(list, side, kind, W, H, cw, ch) {               // auto spots for a zone: a row from the left (lands, creatures) or a grid on the right
+  const out = [], gap = cw * 0.18, z = ZONES[side]; let acc = 0;
+  list.forEach((p, i) => {
+    let x, y;
+    if (kind === "other") { const cols = 2; x = W * 0.80 + (i % cols) * (cw + gap); y = (side === "me" ? rowY("me", "crea", ch) : H * z.other) + Math.floor(i / cols) * (ch * 0.55); }
+    else if (kind === "lands") { x = ROWX0 + acc; acc += (p.span || cw * (p.tapped ? 1.45 : 1.1)) + gap * 0.4; y = rowY(side, kind, ch); }
+    else { x = ROWX0 + i * (cw * (p.tapped ? 1.45 : 1.1) + gap * 0.4); y = rowY(side, kind, ch); }
+    out.push([p, x, y]);
+  });
+  return out;
+}
+let POSSEAT = null;
+// identical lands share one pile: same name, same controller, same tapped state, nothing on them that makes a copy different
+let FANNED = new Set();
+function landPiles(lands, seat, mine, cw) {
+  const groups = new Map(), out = [];
+  for (const p of lands) {
+    const odd = p.face_down || p.pt || +p.counters || +p.charge || +p.lore || +p.stun || +p.quest || (p.attached_names || []).length || p.attached_to != null || p.equip_cost || p.equipment || attackers.has(p.id);
+    const pool = mine && (window.__manaPool || []).length ? ((MPOOL.items.find(i => i.id === p.id) || {}).color || "") : "";
+    const g = odd ? null : `${seat}:stack:${p.name}:${p.tapped ? "T" : "U"}${pool}`;
+    if (g && groups.has(g)) { groups.get(g).push(p); continue; }
+    const arr = [p]; if (g) groups.set(g, arr); out.push([g, arr]);
+  }
+  return out.map(([g, arr]) => {
+    if (arr.length < 2) return arr[0];
+    const t = !!arr[0].tapped, fan = FANNED.has(g), step = fan ? cw * (t ? 1.45 : 1.1) : cw * (t ? 0.2 : 0.14);
+    return { stack: g, cards: arr, tapped: t, fan, step, span: fan ? arr.length * step : cw * (t ? 1.45 : 1.1) + (arr.length - 1) * step };
+  });
+}
+function drawMat() {
+  const box = $("mat"); if (!box || !S || $("matpanel").offsetParent === null || matDrag) return;
+  if (POSSEAT !== S.seat) { POSSEAT = S.seat; try { POS = JSON.parse(localStorage.getItem(posKey()) || "{}"); } catch { POS = {}; } }   // saved spots are per seat
+  const opp = (B3 && B3.seats || []).filter(s => s.name !== S.seat);
+  const atk = $("atk") ? $("atk").innerHTML : "";
+  const W = box.clientWidth || 1200, H = Math.max(640, innerHeight - (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--tb-h")) || 52) - (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--hud-h")) || 50) - 8), cw = Math.max(64, Math.min(124, W / 15, (H - 22 - 5 * ROW_PAD - MID_H - 30) / 4 / 1.4)), ch = cw * 1.4;
+  const anyEx = [S.seat, ...opp.map(o => o.name)].some(n => exOf(n).length);
+  ROWX0 = W * 0.12 + (anyEx ? Math.max(0, W * 0.015 + 2 * cw + 14 - W * 0.12) : 0);
+  const sig = JSON.stringify([opp, S.permanents, S.graveyard, S.exile, S.library, [...attackers], matSel, atk, W, H, POS, [...FANNED]]);
+  if (sig === matSig) return; matSig = sig;
+  const cards = [];
+  const zone = (side, seat, perms) => {
+    const top = perms.filter(p => p.attached_to == null || p.equip_cost || p.equipment);   // Equipment stays visible (and clickable) when attached
+    const lands = top.filter(p => isLandT(p.type)), crea = top.filter(p => !isLandT(p.type) && (isCreP(p) || p.face_down)), oth = top.filter(p => !isLandT(p.type) && !isCreP(p) && !p.face_down);
+    for (const [list, kind] of [[landPiles(lands, seat, side === "me", cw), "lands"], [crea, "crea"], [oth, "other"]])
+      for (const [p, x, y] of placeAll(list, side, kind, W, H, cw, ch)) cards.push({ p, seat, mine: side === "me", x, y });
+  };
+  opp.forEach(o => zone("opp", o.name, (o.permanents || []).map(p => ({ ...p, _seat: o.name }))));
+  zone("me", S.seat, S.permanents || []);
+  const pile = (seat, side, info) => {
+    const gy = info.graveyard || [], gyTop = gy.length ? gy[gy.length - 1] : "", src = gyTop && window.CardArt ? CardArt.src(gyTop) : "";
+    const y = side === "me" ? rowY("me", "crea", ch) : H * ZONES[side].piles, lib = posFor(`pile:${seat}:lib`, W * 0.015, y, W, H), gp = posFor(`pile:${seat}:gy`, W * 0.015, y + ch * 1.12, W, H);
+    const ex = exOf(seat), exTop = ex.length ? ex[ex.length - 1] : "", exSrc = exTop && window.CardArt && CardArt.has(exTop) ? CardArt.src(exTop) : "";
+    const ep = posFor(`pile:${seat}:ex`, W * 0.015 + cw + 10, y + ch * 1.12, W, H);
+    const exPile = ex.length ? `<div class="pile ex" data-ex="${esc(seat)}" data-pos="pile:${esc(seat)}:ex" style="left:${ep[0]}px;top:${ep[1]}px" title="${esc(seat)}'s exile (${ex.length}): click to see it">${exSrc ? `<img src="${exSrc}" alt="">` : `<span class="nm">${esc(exTop)}</span>`}<span>${ex.length}</span><small><span>exile</span></small></div>` : "";
+    return exPile + `<div class="pile" data-pos="pile:${esc(seat)}:lib" style="left:${lib[0]}px;top:${lib[1]}px" title="${esc(seat)}'s library">${esc(info.library ?? "?")}<small>library</small></div>` +
+      `<div class="pile gy" data-gy="${esc(seat)}" data-pos="pile:${esc(seat)}:gy" style="left:${gp[0]}px;top:${gp[1]}px" title="${esc(seat)}'s graveyard: click to see it">${src ? `<img src="${src}" alt="">` : ""}<span>${gy.length}</span><small><span>graveyard</span></small></div>`;
+  };
+  if (!window.__matScrolled && !(S.mulligan && S.mulligan.open && !S.mulligan.kept)) { window.__matScrolled = true;   // (the opening-hand question is at the top: stay there)
+    setTimeout(() => { const cv = document.querySelector(".canvas"); if (cv) cv.scrollIntoView({ block: "start" }); }, 50); }
+  box.innerHTML = `<div class="canvas" style="--cw:${cw}px;height:${H}px">` +
+    opp.map(o => `<div class="who" style="top:8px"><b>${esc(o.name)}</b> ♥ ${esc(o.life)} · ${esc(o.hand ?? "?")} in hand</div>` + pile(o.name, "opp", o)).join("") +
+    `<div class="who" style="bottom:8px"><b>${esc(S.seat)}</b> ♥ ${esc(S.life ?? "")} · drag cards anywhere; click yours for its actions</div>` + pile(S.seat, "me", { library: S.library, graveyard: S.graveyard || [] }) +
+    `<div class="zl" style="left:${ROWX0}px;top:${rowY("opp", "lands", ch) - 15}px">their lands</div><div class="zl" style="left:${ROWX0}px;top:${rowY("opp", "crea", ch) - 15}px">their creatures</div>` +
+    `<div class="zl" style="left:${ROWX0}px;top:${rowY("me", "crea", ch) - 15}px">your creatures</div><div class="zl" style="left:${ROWX0}px;top:${rowY("me", "lands", ch) - 15}px">your lands</div>` +
+    `<div class="zl" style="left:${W * 0.80}px;top:${rowY("me", "crea", ch) - 15}px">artifacts · enchantments</div>` +
+    `<div class="mid" style="top:${midY(ch)}px">${atk || "the battle line"}</div><button class="tidy" data-tidy title="put every card back in its zone">Tidy up</button>` +
+    cards.map(c => { if (c.p.stack) return pileHtml(c, W, H, cw, ch);
+      const k = `${c.seat}:${c.p.id}`, [x, y] = posFor(k, c.x, c.y, W, H);
+      return mcard(c.p, c.mine).replace('<div class="mc', `<div data-pos="${esc(k)}" style="left:${x}px;top:${y}px" class="mc`); }).join("") + `</div>`;
+}
+// a pile: one draggable slot; collapsed, a click acts on its top card; the ×N badge spreads it out (and back)
+function pileHtml(c, W, H, cw, ch) {
+  const st = c.p, k = st.stack, n = st.cards.length, top = st.cards[n - 1];
+  const saved = POS[k] ? k : (st.cards.map(p => `${c.seat}:${p.id}`).find(q => POS[q]) || k), [x, y] = posFor(saved, c.x, c.y, W, H);
+  return `<div class="lstack${st.fan ? " fan" : ""}" data-pos="${esc(k)}" style="left:${x}px;top:${y}px;width:${st.span}px;height:${ch}px">` +
+    st.cards.map((p, i) => mcard(p, c.mine).replace('<div class="mc', `<div style="left:${i * st.step}px;top:${st.fan ? 0 : -i * 1.5}px;z-index:${i + 1}" class="mc${i === n - 1 ? " top" : ""}`)).join("") +
+    `<button class="cnt" data-lfan="${esc(k)}" title="${n} × ${esc(top.name)}${st.tapped ? " (tapped)" : ""}: ${st.fan ? "stack them again" : "spread them out"}">×${n}</button></div>`;
+}
+function posFor(k, x, y, W, H) { const p = POS[k]; return p ? [p[0] * W, p[1] * H] : [x, y]; }
+// dragging: a press that moves more than 5px is a drag (saved on this device); anything less is a click
+document.addEventListener("pointerdown", e => {
+  const el = e.target.closest && e.target.closest(".canvas [data-pos]"); if (!el || e.button !== 0) return;
+  const cv = el.closest(".canvas").getBoundingClientRect();
+  matDrag = { el, k: el.dataset.pos, sx: e.clientX, sy: e.clientY, ox: el.offsetLeft, oy: el.offsetTop, cv, moved: false };
+});
+document.addEventListener("pointermove", e => {
+  const d = matDrag; if (!d) return;
+  const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+  if (!d.moved && Math.hypot(dx, dy) < 5) return;
+  if (!d.moved) { d.moved = true; d.el.classList.add("drag"); const pp = $("matpop"); if (pp) pp.style.display = "none"; }
+  d.el.style.left = Math.max(0, Math.min(d.cv.width - d.el.offsetWidth, d.ox + dx)) + "px";
+  d.el.style.top = Math.max(0, Math.min(d.cv.height - d.el.offsetHeight, d.oy + dy)) + "px";
+});
+document.addEventListener("pointerup", () => {
+  const d = matDrag; matDrag = null; if (!d) return;
+  if (d.moved) { d.el.classList.remove("drag"); POS[d.k] = [d.el.offsetLeft / d.cv.width, d.el.offsetTop / d.cv.height]; savePos(); matJustDragged = true; matSig = ""; }
+});
+function matPopup(el, ev) {
+  const p = (S.permanents || []).find(x => String(x.id) === el.dataset.mc); if (!p) return;
+  const myTurn = !!(PH && PH.player === S.seat), ready = myTurn && canAttack(p);
+  const mana = /\{T\}[^:]*: Add /.test((p.text || "").replace(/"[^"]*"/g, ""));
+  const pop = $("matpop");
+  pop.innerHTML = `<div class="nm">#${p.id} ${esc(p.face_down ? "Face-down" : p.name)}${p.pt ? " · " + esc(p.pt) : ""}</div><div class="sub" style="font-size:12px;max-height:120px;overflow:auto">${esc(p.text || p.type || "")}</div>` +
+    (() => { poolLoad(); const pooled = MPOOL.items.some(i => i.id === p.id);
+      if (mana && !p.tapped) return colorsOf(p).map(c => `<button data-mpool="${p.id}" data-color="${c}">Add ${c} to pool</button>`).join("");
+      if (mana && p.tapped && pooled) return `<button data-mpoolundo="${p.id}">Take it back from the pool</button>`;
+      return p.tapped ? `<button data-tap="${p.id}">Untap</button>` : `<button data-tap="${p.id}">Tap</button>`; })() +
+    (ready ? `<button data-atkt="${p.id}">${attackers.has(p.id) ? "Don't attack" : "Attack"}</button>` : myTurn && whyNoAttack(p) ? `<button disabled title="${esc(whyNoAttack(p))}">Can't attack: ${esc(whyNoAttack(p))}</button>` : "") +
+    (p.face_down && p.turn_up_cost ? `<button data-up="${p.id}">Turn face up (${esc(p.turn_up_cost)})</button>` : "") +
+    (!p.face_down && /\bsurveil 1\b/i.test(p.text || "") && effOpen(p) ? `<button data-eff="surveil" data-src="${p.id}">Surveil 1</button>` : "") +
+    (!p.face_down && /\bscry 1\b/i.test(p.text || "") && effOpen(p) ? `<button data-eff="scry" data-src="${p.id}">Scry 1</button>` : "") +
+    (!p.face_down && p.has_station ? stationButtons(p) : "") + equipButtons(p) + abilityButtons(p) + etbButtons(p) +
+    (p.by_hand && p.by_hand.length ? `<div class="note" title="the table doesn't do this: do it by hand">By hand: ${esc(p.by_hand.join(" · "))}</div>` : "") +
+    (!p.face_down && window.CardArt && CardArt.has(p.name) ? `<button data-zoom="${esc(p.name)}" data-zid="${p.id}">🔍 Read it</button>` : "");
+  pop.style.display = "block";
+  const r = el.getBoundingClientRect();
+  pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + "px";
+  { const cs = getComputedStyle(document.documentElement), tb = parseInt(cs.getPropertyValue("--tb-h")) || 52, hud = parseInt(cs.getPropertyValue("--hud-h")) || 50, ph = pop.offsetHeight;
+    const want = r.top - ph - 8 < tb + 8 ? r.bottom + 8 : r.top - ph - 8;       // above the card when there is room, else below it; always clear of the two bars
+    pop.style.top = Math.max(tb + 8, Math.min(want, innerHeight - hud - ph - 8)) + "px"; }
+}
+// The enlarged card keeps its state under the art. The engine's own seat view has no +1/+1 counters and cuts the text, so those come from the public board.
+function zoomPerm(id, mine) {
+  const seats = (B3 && B3.seats) || [], own = mine ? (S.permanents || []).find(x => String(x.id) === String(id)) : null;
+  const seat = mine ? seats.filter(s => s.name === S.seat) : seats.filter(s => s.name !== S.seat);
+  for (const s of seat) { const b = (s.permanents || []).find(x => String(x.id) === String(id)); if (b) return { ...b, ...(own || {}), text: b.text || (own && own.text) || "", counters: b.counters, _seat: s.name }; }
+  return own ? { ...own, _seat: S.seat } : null;
+}
+function zoomChips(p) {
+  const out = [], chg = +p.charge || 0;
+  if (p.pt) out.push(p.pt);
+  if (p.counters) out.push(`${p.counters > 0 ? "+" : ""}${p.counters}/${p.counters > 0 ? "+" : ""}${p.counters} counter${Math.abs(p.counters) === 1 ? "" : "s"} (×${Math.abs(p.counters)})`);
+  if (chg) { const m = /creature at (\d+)\+/i.exec(p.text || ""); out.push(`⚡ ${chg} charge${m ? (chg >= +m[1] ? " (creature)" : ` of ${m[1]}`) : ""}`); }
+  for (const k of p.keywords || []) out.push(k.toLowerCase());
+  if (+p.lore) out.push(`lore ${p.lore}`);
+  if (+p.stun) out.push(`${p.stun} stun counter${+p.stun === 1 ? "" : "s"}`);
+  if (+p.damage) out.push(`${p.damage} damage this turn`);
+  for (const n of p.attached_names || []) out.push(`⚔ ${n}`);
+  for (const b of p.by_hand || []) out.push(`by hand: ${b.length > 70 ? b.slice(0, 70) + "…" : b}`);
+  if (p.role) out.push(`${p.role} role`);
+  if (p.attached_to) { const host = (B3 && B3.seats || []).flatMap(s => s.permanents || []).find(x => x.id === p.attached_to); out.push(`attached to ${host && host.name ? host.name : "#" + p.attached_to}`); }
+  if (p.token) out.push("token");
+  if (p.tapped) out.push("tapped");
+  if (p.sick && isCreP(p)) out.push("summoning sick");
+  return out;
+}
+function matZoom(name, p) {
+  const bx = document.getElementById("artbox"); if (!bx || !window.CardArt || !CardArt.src(name)) return;
+  const old = bx.querySelector("#artinfo"); if (old) old.remove();
+  const chips = p ? zoomChips(p) : [];
+  bx.style.flexDirection = "column"; bx.style.gap = "10px";
+  bx.firstChild.src = CardArt.src(name); bx.firstChild.style.maxHeight = chips.length ? "80vh" : "";
+  if (chips.length) bx.insertAdjacentHTML("beforeend", `<div id="artinfo" style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;max-width:92vw;font:600 16px system-ui,sans-serif;color:#fff">${chips.map(c => `<span style="background:#1f2a3a;border:1px solid #5a6b82;border-radius:999px;padding:4px 12px">${esc(c)}</span>`).join("")}</div>`);
+  bx.onclick = () => { bx.style.display = "none"; const i = bx.querySelector("#artinfo"); if (i) i.remove(); bx.firstChild.style.maxHeight = ""; };
+  bx.style.display = "flex";
+}
+// Every enlarge goes through the same chips: art.js asks here first. A card in your hand is just a card; on the battlefield it has its state.
+window.__artChips = im => {
+  const name = im.alt || ""; if (!name || !window.CardArt || !CardArt.src(name)) return false;
+  if (im.closest("#hand,#fan,#fanact,#effpanel,#matgy")) return false;
+  const row = im.closest("[data-zid]");
+  if (row) { matZoom(name, zoomPerm(row.dataset.zid, true)); return true; }
+  const all = (B3 && B3.seats || []).flatMap(s => (s.permanents || []).map(p => ({ ...p, _seat: s.name }))).filter(p => p.name === name);
+  if (all.length) { matZoom(name, all[0]); return true; }
+  return false;
+};
+// Abilities of cards that are not on the battlefield (a graveyard card's "exile this card: …", a hand card's own ability): the table lists them
+// in S.zone_abilities with whether each can be used now; the button sends the action the legal list names (POST /api/brain/activate).
+function zoneAbilRows(zone, name, pfx = "za") {
+  const list = ((S && S.zone_abilities) || []).map((a, i) => [a, i]).filter(([a]) => a.zone === zone && (name === undefined || a.name === name));
+  return list.map(([a, i]) => `<div class="card" style="margin-top:6px"><b>${esc(a.name)}</b> <span class="t">${esc(a.cost || "")}${a.how ? ", " + esc(a.how) : ""}</span>
+      <div class="x">${esc(a.effect || "")}${a.sorcery ? " (only as a sorcery)" : ""}</div>${a.can === false ? "" : slotsHtml(a.slots, pfx + i)}
+      <button class="gold" data-zact="${i}" data-zk="${pfx}${i}" ${a.can === false ? "disabled" : ""}>Activate</button>${a.can === false && a.why_not ? `<div class="sub" style="color:#ffb38f">Can't now: ${esc(a.why_not)}</div>` : ""}</div>`).join("");
+}
+let gyOpen = "", gyBeam = null;
+// Item 2: Beam me up where the player is looking: in the graveyard viewer a card with it carries its own button; the button asks which creature to
+// return (it loses its counters), and is disabled with the reason when you can't pay, have no creature, or it is a sorcery and not your main phase.
+const myCreatures = () => (S.permanents || []).filter(p => /\bCreature\b/.test(p.type || "") && p.pt && !p.face_down);
+function beamWhy(c) {
+  const mine = !!(PH && S && PH.player === S.seat), main = mine && /^main/.test((PH && PH.step) || ""), n = (S.mana_sources || []).length;
+  if (!myCreatures().length) return "you control no creature to return to your hand";
+  if (!/\bInstant\b/.test(c.type || "") && !main) return mine ? "it is a sorcery: wait for your main phase" : "it is a sorcery: only on your own turn, in your main phase";
+  if (c.payable === false) return `you can't pay ${c.cost}: you have ${n} untapped mana source${n === 1 ? "" : "s"}`;
+  if (!slotsReady(c.slots)) return "it has no legal target right now";
+  return "";
+}
+const loseNote = p => (+p.counters || +p.charge || +p.lore || +p.stun || +p.quest || (p.attached_names || []).length) ? " · loses its counters" + ((p.attached_names || []).length ? " and its attachments" : "") : "";
+function gyBeamHtml() {
+  const list = S.beam_cards || []; if (!list.length) return "";
+  if (gyBeam && list[gyBeam.i]) { const c = list[gyBeam.i], cre = myCreatures(), pick = cre.some(p => "#" + p.id === gyBeam.pick) ? gyBeam.pick : "";
+    return `<div class="card" style="outline:2px solid #d9b46a;border-radius:10px;padding:10px"><b>Beam me up: ${esc(c.name)}</b> <span class="t">${esc(c.cost)}</span>
+      <div class="sub">Cast it from your graveyard for ${esc(c.cost)} and return one creature of yours to your hand. The spell is exiled afterwards. Which creature goes back?</div>
+      ${cre.map(p => `<div class="as-row${pick === "#" + p.id ? " sel" : ""}" data-gybeampick="#${p.id}" role="radio" aria-checked="${pick === "#" + p.id}" tabindex="0"><span class="as-tick">${pick === "#" + p.id ? "◉" : "○"}</span><span class="as-body"><b>${esc(p.name)}</b> <span class="t">${esc(p.pt)}</span><span class="sub">${esc(loseNote(p))}</span></span></div>`).join("")}
+      ${slotsHtml(c.slots, "gybeam" + gyBeam.i)}
+      <div id="gyerr" role="alert" style="color:#ffb38f;margin-top:6px"></div>
+      <button class="gold big" data-gybeamgo="${gyBeam.i}" ${pick ? "" : "disabled"} style="width:100%">${pick ? "Confirm: cast " + esc(c.name) + ", return " + esc((cre.find(p => "#" + p.id === pick) || {}).name || "") : "Choose a creature to return"}</button>
+      <button class="big" data-gybeamback style="width:100%">Back</button></div>`; }
+  return `<div class="sub" style="margin-top:8px">Beam me up: cast from your graveyard, returning a creature of yours</div>` + list.map((c, i) => { const why = beamWhy(c);
+    return `<div class="card"><b>${esc(c.name)}</b> <span class="t">${esc(c.type || "")}</span>
+      <button class="gold big" data-gybeam="${i}" ${why ? "disabled" : ""} style="width:100%">Beam me up (${esc(c.cost)})</button>${why ? `<div class="sub" style="color:#ffb38f">Can't now: ${esc(why)}</div>` : ""}</div>`; }).join("");
+}
+function matGy(name) {
+  const gy = name === S.seat ? (S.graveyard || []) : ((S.opponents || {})[name] || {}).graveyard || (((B3 && B3.seats) || []).find(s => s.name === name) || {}).graveyard || [];
+  $("matgy").innerHTML = `<div class="box"><div style="display:flex;justify-content:space-between;align-items:center"><b>${esc(name)}'s graveyard (${gy.length})</b><button data-gyclose>Close</button></div>
+    ${name === S.seat ? gyBeamHtml() : ""}
+    ${name === S.seat && !gyBeam && zoneAbilRows("graveyard") ? `<div class="sub" style="margin-top:8px">Abilities you can use from your graveyard</div>${zoneAbilRows("graveyard")}<div id="gyerr" role="alert" style="color:#ffb38f;margin-top:6px"></div>` : ""}
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">${gy.slice().reverse().map(n => window.CardArt && CardArt.has(n) ? `<img src="${CardArt.src(n)}" alt="${esc(n)}" title="${esc(n)}" style="width:120px;border-radius:7px;cursor:zoom-in" data-zoom="${esc(n)}">` : `<span class="tag">${esc(n)}</span>`).join("") || '<span class="sub">empty</span>'}</div>
+</div>`;
+  $("matgy").style.display = "flex"; gyOpen = name; if (!gyBeam || !(S.beam_cards || [])[gyBeam.i]) gyBeam = null;
+}
+// the exile of one player: every card face up with art (or its name), the cards you may still play from it marked. Names only: it is public information.
+function matEx(name) {
+  const ex = exOf(name), mine = name === S.seat, playable = new Map(mine ? (S.exile_playable || []).map(c => [c.name, c.until]) : []);
+  const cell = n => { const pl = playable.has(n) ? `<div class="tag" style="background:#b5542f;margin-top:3px;display:block;border-radius:6px;font-size:11px;line-height:1.2;padding:3px 4px">playable${playable.get(n) ? ": " + esc(playable.get(n)) : ""}</div>` : "";
+    const xi = mine ? (S.exile_playable || []).findIndex(c => c.name === n) : -1, xc = xi >= 0 ? S.exile_playable[xi] : null, myT = !!(PH && S && PH.player === S.seat);
+    // Item 2: a card you may play from exile has its button here: a land plays, a plain spell casts; one that needs a target / X / a mode is chosen in "Playable from exile"
+    const simple = xc && !xc.land && !(xc.slots || []).length && !modesOf(xc).length && !xc.aura_targets && !/\{X\}/.test(xc.cost || "") && !xc.kicker;
+    const btn = !xc ? "" : xc.land ? `<button class="gold" data-xland="${xi}" data-gyx="1" ${S.land_played || !myT ? "disabled" : ""} style="width:100%;min-height:44px">Play land</button>${S.land_played ? '<div class="sub" style="color:#ffb38f">a land was already played</div>' : !myT ? '<div class="sub" style="color:#ffb38f">not your turn</div>' : ""}`
+      : simple ? `<button class="gold" data-xcast="${xi}" data-gyx="1" ${xc.castable_now ? "" : "disabled"} style="width:100%;min-height:44px">Cast (${esc(xc.cost)})</button>${xc.castable_now ? "" : `<div class="sub" style="color:#ffb38f">Can't now: ${esc(xc.why_not || "not enough mana, or the wrong time")}</div>`}`
+      : `<button data-gyx-go="1" style="width:100%;min-height:44px">Choose &amp; cast…</button>`;
+    return `<div style="width:120px;text-align:center">${window.CardArt && CardArt.has(n) ? `<img src="${CardArt.src(n)}" alt="${esc(n)}" title="${esc(n)}" style="width:120px;border-radius:7px;cursor:zoom-in" data-zoom="${esc(n)}">` : `<span class="tag">${esc(n)}</span>`}${pl}${btn}</div>`; };
+  $("matgy").innerHTML = `<div class="box"><div style="display:flex;justify-content:space-between;align-items:center"><b>${esc(name)}'s exile (${ex.length})</b><button data-gyclose>Close</button></div>
+    <div class="sub" style="margin-top:6px">Exiled face up. Every card here belongs to ${esc(name)}${mine && playable.size ? "; the marked ones you may still play (see “Playable from exile”)" : ""}.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">${ex.slice().reverse().map(cell).join("") || '<span class="sub">empty</span>'}</div></div>`;
+  $("matgy").style.display = "flex"; gyOpen = "";
 }
 function draw() {
   if (!S) { $("hand").innerHTML = ""; $("field").innerHTML = ""; return; }
   $("who").textContent = `${S.seat} · ${S.commander || ""} · ${S.library ?? "?"} cards in library`;
   $("life").textContent = S.life ?? (S.life_table || {})[S.seat] ?? "—";
-  $("mana").textContent = S.mana_sources?.length ? "Mana: " + S.mana_sources.join(", ") : "";
+  $("mana").textContent = (S.mana_sources?.length ? "Mana: " + S.mana_sources.join(", ") : "No untapped mana") + " · Cast taps your lands for you: don't tap them first.";
   $("alert").innerHTML = alert ? `<div class="alert">${alert.html}</div>` : "";
+  { const gyOf = n => n === S.seat ? (S.graveyard || []) : (((S.opponents || {})[n] || {}).graveyard || (((B3 && B3.seats) || []).find(s => s.name === n) || {}).graveyard || []);
+    $("gyrow").innerHTML = [S.seat, ...Object.keys(S.opponents || {})].map(n => exOf(n).length ? `<button data-ex="${esc(n)}" title="open ${esc(n)}'s exile">📦 ${n === S.seat ? "My" : esc(n) + "'s"} exile (${exOf(n).length})</button>` : "").join("") + [S.seat, ...Object.keys(S.opponents || {})].map(n => `<button data-gy="${esc(n)}" title="open ${esc(n)}'s graveyard">🪦 ${n === S.seat ? "My" : esc(n) + "'s"} graveyard (${gyOf(n).length})${n === S.seat && (S.zone_abilities || []).some(a => a.zone === "graveyard") ? ` · ${(S.zone_abilities || []).filter(a => a.zone === "graveyard" && a.can !== false).length} usable` : ""}</button>`).join(""); }
   const hand = S.hand || [];
-  $("hand").innerHTML = (hand.length ? hand.map((c, i) => `<div class="card"><b>${esc(c.name)}</b> <span class="t">${esc(c.cost)} · ${esc(c.type)}${c.pt ? " · " + esc(c.pt) : ""}</span>
-      <div class="x">${esc(c.text || "")}</div>
-      ${c.land ? `<button data-land="${i}" ${S.land_played ? "disabled" : ""}>Play land</button>` : ""}
-      ${!c.land && !c.aura_targets ? `<button data-cast="${i}" ${c.castable_now ? "" : "disabled"}>Cast</button>` : ""}
+  const myTurn = !!(PH && PH.player && S && PH.player === S.seat);       // land, attack and end-turn are for your own turn
+  const handSig = JSON.stringify([hand, payMode, payFor, [...payPick], myTurn, S.land_played, S.commander_card, S.commander_in_zone, !!window.CardArt, (S.zone_abilities || []).filter(a => a.zone === "hand"), (S.mana_sources || []).length, hand.length && B3 ? ((B3.seats || []).map(o => (o.permanents || []).length)) : 0]);
+  if (handSig !== handSig0) { handSig0 = handSig; $("hand").innerHTML = (hand.length ? hand.map((c, i) => `<div class="card">${window.CardArt ? CardArt.img(c.name, "") : ""}<b>${esc(c.name)}</b> <span class="t">${esc(c.cost)} · ${esc(c.type)}${c.pt ? " · " + esc(c.pt) : ""}</span>
+      <div class="x">${esc(c.text || "")}</div>${!c.land && c.can_cast === false && c.why_not ? `<div class="sub" style="color:#ffb38f">Can't cast now: ${esc(c.why_not)}</div>` : ""}
+      ${c.land && c.shock_land ? `<button data-land="${i}" data-pay="1" ${S.land_played || !myTurn ? "disabled" : ""}>Play it, paying the life</button>` : ""}
+      ${c.land ? `<button data-land="${i}" ${S.land_played || !myTurn ? "disabled" : ""} ${myTurn ? "" : 'title="not your turn"'}>${c.shock_land ? "Play it tapped" : "Play land"}</button>` : ""}
+      ${!c.land && !c.aura_targets ? (modesOf(c).length ? modesOf(c).map((m, k) => { const ms = (c.mode_slots || [])[k]; return `<div>` + slotsHtml(ms, "listm" + i + "-" + k) + `<button data-listmode="${i}" data-mode="${k + 1}" ${c.castable_now && slotsReady(ms) ? "" : "disabled"} title="${esc(m.text)}">Cast: ${esc(m.name)}</button></div>`; }).join("")
+        : slotsHtml(c.slots, "list" + i) + xPicker(c) + kickPicker(c) + payControl(c) + `<button data-cast="${i}" ${c.castable_now && slotsReady(c.slots) ? "" : "disabled"}>Cast</button>`) : ""}
       ${c.aura_targets ? `<select data-on="${i}">${c.aura_targets.map(t => `<option>${esc(t)}</option>`).join("")}</select><button data-auracast="${i}" ${c.castable_now ? "" : "disabled"}>Cast on it</button>` : ""}
-      ${c.face_down_castable ? `<button data-fd="${i}">Cast face down {3}</button>` : ""}</div>`).join("") : `<div class="sub">No cards in hand.</div>`) +
+      ${c.face_down_castable ? `<button data-fd="${i}">Cast face down {3}</button>` : ""}
+      ${c.cycle_cost ? `<button data-cycle="${i}" ${c.cycle_can === false ? "disabled" : ""} title="pay it, discard this, and take a basic land from your library">Landcycle ${esc(c.cycle_cost)}</button>${c.cycle_can === false && c.cycle_why ? `<div class="sub" style="color:#ffb38f">Can't landcycle now: ${esc(c.cycle_why)}</div>` : ""}` : ""}
+      ${hand.findIndex(x => x.name === c.name) === i ? zoneAbilRows("hand", c.name) : ""}</div>`).join("") : `<div class="sub">No cards in hand.</div>`) +
     (S.commander_card && S.commander_in_zone !== false ? `<div class="card"><b>${esc(S.commander_card.name)}</b> <span class="tag">commander</span>
       <span class="t">${esc(S.commander_card.cost)}</span><div class="x">${esc(S.commander_card.text || "")}</div>
-      <button data-cmd ${S.commander_card.castable_now ? "" : "disabled"}>Cast commander</button></div>` : "");
+      <button data-cmd ${S.commander_card.castable_now ? "" : "disabled"}>Cast commander</button></div>` : ""); }
+  poolLoad();
+  drawFan(hand, myTurn);
   const perms = S.permanents || [];
+  drawMulligan(); drawSurveil(); drawChoices(); drawBeam(myTurn); drawTop(); drawExile(myTurn); drawManual(); drawPay();
   $("field").innerHTML = perms.length ? perms.map(p => {
-    const ready = p.pt && !p.tapped && !p.sick;
-    return `<div class="card"><b>#${p.id} ${esc(p.face_down ? "Face-down" : p.name)}</b> <span class="t">${esc(p.type || "")}${p.pt ? " · " + esc(p.pt) : ""}</span>
+    const ready = myTurn && canAttack(p);
+    const chg = +p.charge || 0;
+    return `<div class="card" data-zid="${p.id}">${p.face_down || !window.CardArt ? "" : CardArt.img(p.name, "")}<b>#${p.id} ${esc(p.face_down ? "Face-down" : p.name)}</b>${chg ? ` <span class="tag" style="background:#3a8fe0">⚡ ${chg} charge</span>` : ""} ${counterTags({ ...p, charge: 0 })}${(p.attached_names || []).length ? ` <span class="tag" style="background:#7a5a1a">⚔ ${esc(p.attached_names.join(", "))}</span>` : ""} <span class="t">${esc(p.type || "")}${p.pt ? " · " + esc(p.pt) : ""}</span>
       ${p.tapped ? '<span class="tag">tapped</span>' : ""}${p.sick ? '<span class="tag">summoning sick</span>' : ""}${p.token ? '<span class="tag">token</span>' : ""}
       ${p.face_down ? `<span class="tag">really ${esc(p.name)}</span>` : ""}<div>
-      ${ready ? `<label><input type=checkbox data-atk="${p.id}" ${attackers.has(p.id) ? "checked" : ""}> attack</label>` : ""}
+      ${ready ? `<label class="atkbox"><input type=checkbox data-atk="${p.id}" ${attackers.has(p.id) ? "checked" : ""}> attack${p.attack_needs_partner ? " (not alone)" : ""}</label>` : myTurn && whyNoAttack(p) ? `<span class="sub">can't attack: ${esc(whyNoAttack(p))}</span>` : ""}
       ${p.face_down && p.turn_up_cost ? `<button data-up="${p.id}">Turn face up (${esc(p.turn_up_cost)})</button>` : ""}
-      ${p.tapped && !canUntap() ? "" : `<button data-tap="${p.id}">${p.tapped ? "Untap" : "Tap"}</button>`}</div></div>`; }).join("") : `<div class="sub">Nothing on the battlefield yet.</div>`;
+      ${p.tapped ? `<button data-tap="${p.id}" title="your untap step, or undo your own tap in the same step">Untap</button>` : /\{T\}[^:]*: Add /.test(p.text || "") ? `<span class="tag" title="Cast taps it for you">mana · Cast taps it</span>` : `<button data-tap="${p.id}">Tap</button>`}
+      ${(!p.face_down && p.has_station ? stationButtons(p) : "")}${equipButtons(p)}
+      ${!p.face_down && /\bsurveil 1\b/i.test(p.text || "") && effOpen(p) ? `<button data-eff="surveil" data-src="${p.id}">Surveil 1</button>` : ""}
+      ${!p.face_down && /\bscry 1\b/i.test(p.text || "") && effOpen(p) ? `<button data-eff="scry" data-src="${p.id}">Scry 1</button>` : ""}
+      ${matShown() ? "" : abilityButtons(p)}</div></div>`; }).join("") : `<div class="sub">Nothing on the battlefield yet.</div>`;
   const inc = S.incoming || [];
-  $("alert").innerHTML = ($("alert").innerHTML || "") + (inc.length && !alert ? `<div class="alert">${inc.map(i => `${esc(i.attacker)} attacks you with ${esc(i.creature)} for ${i.power}${i.trample ? " (trample)" : ""}`).join("<br>")}<br>
-      <button class="gold" data-take>Take it</button>${(S.permanents || []).filter(p => p.pt && !p.tapped).map(p => `<button data-blk="${p.id}">Block with ${esc(p.name)} ${esc(p.pt)}</button>`).join("")}</div>` : "");
+  const CB = S.combat || {}, you = CB.you || {};
+  // v6c (M1, M6): ONE block declaration for the whole attack. Tick a blocker under each attacker (a creature blocks one attacker), then
+  // "Declare blocks"; or "No block: take it" (two taps). Nothing is dealt until every block is in and both players have passed after it.
+  for (const k of Object.keys(blockPick)) if (!inc.some(i => (i.ref || i.creature) === k)) delete blockPick[k];
+  const picked = new Set(Object.values(blockPick).flat()), takeAll = inc.reduce((a, i) => a + (+(i.damage ?? i.power) || 0), 0);
+  const blockRow = i => { const ref = i.ref || i.creature, ids = i.can_block || (S.block_options || {})[ref] || [], can = perms.filter(p => ids.includes(p.id)), mine = blockPick[ref] || [];
+    if (!can.length) return `<div class="sub">${i.unblockable ? "It can't be blocked this turn." : "Nothing of yours can block it."}</div>`;
+    return (i.menace ? `<div class="sub">Menace: it takes two or more blockers.</div>` : "") +
+      can.map(p => `<button data-blkm="${p.id}" data-batk="${esc(ref)}" ${mine.includes(p.id) ? 'style="outline:2px solid #d9b46a"' : ""}>${mine.includes(p.id) ? "✓ " : picked.has(p.id) ? "↪ " : "Block with "}${esc(p.name)} ${esc(p.pt)}${can.filter(q => q.name === p.name).length > 1 ? ` #${p.id}` : ""}</button>`).join(""); };
+  const armed = takeArm.all && Date.now() - takeArm.all < 6000;      // T6: "no block" takes a second tap, so a stray tap can't cost you the block
+  const blockPanel = inc.length ? `<div class="alert" id="blockpanel"><b>${esc(inc[0].attacker)} attacks you with ${inc.length} creature${inc.length === 1 ? "" : "s"}: declare your blocks</b> <span class="sub">(one answer for all; damage comes after)</span>
+    ${inc.map(i => `<div style="margin:6px 0">${esc(i.creature)} for ${esc(i.damage ?? i.power)}${i.trample ? " (trample)" : ""}${i.menace ? " (menace)" : ""}<br>${blockRow(i)}</div>`).join("")}
+    ${picked.size ? `<button class="gold big" data-blkgo>Declare blocks (${picked.size} blocker${picked.size === 1 ? "" : "s"})</button>` : ""}
+    <button class="${picked.size ? "" : "gold "}big" data-take title="No block: take it">${armed ? `Tap again: no blocks, take ${takeAll}` : `No block: take it (${takeAll})`}</button></div>` : "";
+  const mineAtk = (CB.attacks || []).find(a => a.attacker === S.seat && a.stage !== "done");
+  const combatNote = (you.triggers_first || []).length && !inc.length ? `<div class="alert">${esc(you.triggers_first.join(", "))} is choosing for an attack trigger: your blocks come after that.</div>`
+    : you.window ? `<div class="alert">Blocks are declared. Before damage you may cast an instant or a flash card; when you are done, press <b>Pass</b> in the bar at the top.</div>`
+    : you.deal ? `<div class="alert">Blocks are in${mineAtk ? ": " + mineAtk.attackers.map(r => `${esc(r.name)} ${r.blocked ? "blocked by " + (r.blockers.map(x => esc(x.name)).join(" and ") || "a creature that has left") : "unblocked"}`).join("; ") : ""}. Act now if you want to, then <button class="gold big" data-dmg>Deal combat damage</button></div>`
+    : mineAtk && (mineAtk.waiting_on || []).length ? `<div class="alert">${mineAtk.stage === "blocks" ? "Waiting for " + esc(mineAtk.waiting_on.join(", ")) + " to declare blocks." : mineAtk.stage === "window" ? "Blocks are in. Waiting for " + esc(mineAtk.waiting_on.join(", ")) + " to pass; then the damage is dealt." : "Your attack's trigger is waiting on " + esc(mineAtk.waiting_on.join(", ")) + "."}</div>` : "";
+  $("alert").innerHTML = ($("alert").innerHTML || "") + blockPanel + combatNote;
   const o = S.opponents || {}, pb = S.public_boards || {};
   $("opps").innerHTML = Object.keys(o).length || Object.keys(pb).length ? Object.entries(o).map(([n, v]) => `<div class="card"><b>${esc(n)}</b>
       <span class="tag">${v.life} life</span><span class="tag">${v.hand} in hand</span><span class="tag">${v.library} in library</span>
       <div class="x">Lands: ${v.lands} (${v.tapped_lands || 0} tapped)${(v.lands_list || []).length ? " — " + esc([...new Set(v.lands_list)].join(", ")) : ""}</div>
       <div class="x">${(v.creatures || []).length ? (v.creatures || []).map(c => `${esc(c.name)} ${esc(c.pt)}${c.tapped ? " (tapped)" : ""}`).join("; ") : "No creatures."}</div>
+      ${window.CardArt && ((v.creatures || []).length || (v.battlefield || []).length) ? `<div class="artrow">${[...(v.creatures || []).map(c => c.name), ...(v.battlefield || [])].map(n => CardArt.img(String(n).replace(/ \(.*$/, ""), "sm")).join("")}</div>` : ""}
       ${(v.battlefield || []).length ? `<div class="t">Also: ${esc((v.battlefield || []).join("; "))}</div>` : ""}
-      ${(v.graveyard || []).length ? `<div class="t">Graveyard: ${esc(v.graveyard.join(", "))}</div>` : ""}</div>`).join("") +
+      ${(() => { const so = ((B3 && B3.seats) || []).find(x => x.name === n), rows = ((so && so.permanents) || []).map(q => [q, counterList(q, true)]).filter(([, l]) => l.length);
+        return rows.length ? `<div class="t">Counters: ${rows.map(([q, l]) => esc(q.name) + " " + l.map(([t, ti]) => `<span title="${esc(ti)}">${esc(t)}</span>`).join(" ")).join("; ")}</div>` : ""; })()}
+      ${(v.graveyard || []).length ? `<div class="t">Graveyard: ${esc(v.graveyard.join(", "))}</div>` : ""}
+      ${(v.exile || []).length ? `<div class="t">Exiled face up: ${esc(v.exile.join(", "))}</div>` : ""}
+      ${(v.playable_from_exile || []).length ? `<div class="t">They may play from exile: ${esc(v.playable_from_exile.map(x => x.name + " (" + x.until.replace("your", "their") + ")").join(", "))}</div>` : ""}</div>`).join("") +
     Object.entries(pb).map(([n, v]) => `<div class="card"><b>${esc(n)}</b> <span class="t">(a real deck, from photos and what they said)</span>
       <div class="x">${esc((v.permanents || []).map(p => p.name || p).join("; ") || "nothing recorded yet")}</div></div>`).join("") : `<div class="sub">Nobody else yet.</div>`;
   const opps = Object.entries(S.life_table || {}).filter(([n, l]) => n !== S.seat && l > 0).map(([n]) => n);
+  setTimeout(drawMat, 0);
   $("atk").innerHTML = (attackers.size ? `<select id="target">${opps.map(o => `<option>${esc(o)}</option>`).join("")}</select>
-      <button class="gold" id="attack">Attack with ${attackers.size}</button>` : "") +
-    (lastAttack.length ? `<button id="dmg">Finish combat damage</button>` : "");
+      <button class="gold" id="attack" title="One declaration a turn: it is locked once sent (M19)">Confirm attack with ${attackers.size}</button>` : "") +
+    (lastAttack.length && !(S && S.combat) ? `<button id="dmg">Finish combat damage</button>` : "");   // (v6c: the table deals it; its own prompt says when)
+  atkSheetRefresh();
 }
 document.body.addEventListener("click", async e => {
   const t = e.target, d = t.dataset || {}, h = S?.hand || [];
-  if (d.land !== undefined) return act("land", { name: h[+d.land].name });
-  if (d.cast !== undefined) return act("cast", { name: h[+d.cast].name });
+  if (matJustDragged) { matJustDragged = false; return; }
+  if (fanJustDragged) { fanJustDragged = false; return; }
+  if (d.tidy !== undefined) { POS = {}; FANNED = new Set(); savePos(); matSig = ""; return drawMat(); }
+  if (d.lfan !== undefined) { FANNED.has(d.lfan) ? FANNED.delete(d.lfan) : FANNED.add(d.lfan); matSig = ""; return drawMat(); }
+  const stk = t.closest && t.closest(".lstack");                                  // a stacked pile acts on its top card
+  const mc = stk && !stk.classList.contains("fan") ? stk.querySelector(".mc.top") : t.closest && t.closest(".mc");
+  if (mc && mc.dataset.mine) { const mp = (S.permanents || []).find(x => String(x.id) === mc.dataset.mc);
+    if (mp && isManaSrc(mp) && /\bLand\b/.test(mp.type || "")) { poolLoad();       // lands: one click taps for mana; other sources open their menu const inPool = MPOOL.items.some(i => i.id === mp.id);
+      if (mp.tapped && inPool) return poolUndo(mp);
+      if (!mp.tapped) { const cols = colorsOf(mp); if (cols.length === 1) return poolTap(mp, cols[0]);
+        const pop = $("matpop"); pop.innerHTML = `<div class="nm">${esc(mp.name)}: add which mana?</div>` + cols.map(c => `<button data-mpool="${mp.id}" data-color="${c}">${c}</button>`).join("");
+        pop.style.display = "block"; const r = mc.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(r.left, innerWidth - 270)) + "px"; pop.style.top = Math.max(60, r.top - 80) + "px"; return; } } }
+  if (d.mpoolundo !== undefined) { const mp = (S.permanents || []).find(x => String(x.id) === d.mpoolundo); $("matpop").style.display = "none"; if (mp) return poolUndo(mp); return; }
+  if (d.mpool !== undefined) { const mp = (S.permanents || []).find(x => String(x.id) === d.mpool); $("matpop").style.display = "none"; if (mp) return poolTap(mp, d.color); return; }
+  if (mc) { if (mc.dataset.mine) { matSel = +mc.dataset.mc; matSig = ""; drawMat(); const el = document.querySelector(`.mc[data-mc="${mc.dataset.mc}"][data-mine="1"]`); if (el) matPopup(el, e); window.TableSfx && TableSfx.fx("select"); }
+    else if (mc.dataset.name) matZoom(mc.dataset.name, zoomPerm(mc.dataset.mc, false)); return; }
+  if (!(t.closest && t.closest("#matpop"))) { const pp = $("matpop"); if (pp) pp.style.display = "none"; if (matSel !== null && !(t.closest && t.closest("#matgy"))) { matSel = null; matSig = ""; drawMat(); } }
+  if (d.station !== undefined) {
+    await spendPool(); const r = await act("station", { ship: "#" + d.station, crew: "#" + d.crew });
+    if (r) { $("matpop").style.display = "none"; matSig = ""; draw(); } return;
+  }
+  if (d.equip !== undefined) {
+    await spendPool(); const r = await act("equip", { equipment: "#" + d.equip, creature: "#" + d.eqon });
+    if (r) { $("matpop").style.display = "none"; matSig = ""; draw(); } return;
+  }
+  const mullc = t.closest && t.closest("[data-mullc]");                          // T15: opening hand: pick what goes on the bottom, keep, or mulligan
+  if (mullc && S && S.mulligan) { const i = +mullc.dataset.mullc; if (!S.mulligan.bottom) return;
+    mullPick = mullPick.includes(i) ? mullPick.filter(x => x !== i) : mullPick.length < S.mulligan.bottom ? [...mullPick, i] : [...mullPick.slice(1), i]; return drawMulligan(); }
+  if (d.mullkeep !== undefined) { const res = await act("keep", { bottom: mullPick.map(i => h[i].name) }); if (res) { mullPick = []; mullSig = ""; draw(); } return; }
+  if (d.mullagain !== undefined) { if (!(mullArm && Date.now() - mullArm < 6000)) { mullArm = Date.now(); drawMulligan(); setTimeout(drawMulligan, 6100); return; }
+    mullArm = 0; const res = await act("mulligan"); if (res) { mullPick = []; mullSig = ""; draw(); } return; }
+  if (d.choose !== undefined) { const v = d.cv !== undefined ? d.cv : (document.querySelector(`[data-chooseopt="${d.choose}"]`) || {}).value || "";
+    const res = await act("choose", { id: +d.choose, target: optTarget(v) }); if (res) { matSig = ""; draw(); } return; }
+  if (d.heldpass !== undefined) { t.disabled = true; return passNow(); }
+  if (d.choosenone !== undefined) { const res = await act("choose", { id: +d.choosenone, target: {} }); if (res) { matSig = ""; draw(); } return; }
+  if (d.beam !== undefined) { const c = (S.beam_cards || [])[+d.beam]; if (!c) return; const tg = readTargets("beam" + d.beam, c.slots);
+    await spendPool(); const r = await act("cast", { name: c.name, beam: document.querySelector(`[data-beamcre="${d.beam}"]`).value, ...(tg ? { targets: tg } : {}) }); if (r) { matSig = ""; beamSig = ""; draw(); } return; }
+  if (d.topcast !== undefined) { const c = S.library_top; if (!c) return; const tg = readTargets("top", c.slots);
+    await spendPool(); const r = await act("cast", { name: c.name, from: "library-top", ...(tg ? { targets: tg } : {}) }); if (r) { topSig = ""; draw(); } return; }
+  if (d.survt !== undefined) { const k = +d.survt; survBin.has(k) ? survBin.delete(k) : survBin.add(k); return drawSurveil(true); }
+  if (d.survup !== undefined) { survMove(+d.survup, -1); return drawSurveil(true); }
+  if (d.survdn !== undefined) { survMove(+d.survdn, 1); return drawSurveil(true); }
+  if (d.survdone !== undefined) {
+    const L = lookNow(), cards = L.cards, gone = survOrder.filter(k => survBin.has(k)).map(k => cards[k]), kept = survOrder.filter(k => !survBin.has(k)).map(k => cards[k]);
+    const r = await act(L.kind, { [L.kind === "scry" ? "bottom" : "graveyard"]: gone, top_order: kept });
+    if (r) { survBin = new Set(); survSig = ""; $("effpanel").innerHTML = ""; draw(); } return;
+  }
+  if (d.abil !== undefined) {
+    const sel = document.querySelector(`[data-atgt="${d.abil}-${d.idx}"]`), tv = sel ? sel.value : "";
+    const body = { source: "#" + d.abil, index: +d.idx };
+    if (d.amode !== undefined) body.mode = +d.amode;
+    if (tv) { const [at, ref] = tv.split("|"); body.target = ref; body.at = at; }
+    const sacEl = document.querySelector(`[data-asac="${d.abil}-${d.idx}"]`); if (sacEl && sacEl.value) body.sac = sacEl.value;
+    await spendPool(); const r = await act("activate", body);
+    if (r) { $("matpop").style.display = "none"; matSig = ""; draw(); } return;
+  }
+  if (d.etbmskip !== undefined) { ETB_DONE.add(`${S.seat}|${d.etbmskip}`); try { localStorage.setItem("etbdone", JSON.stringify([...ETB_DONE])); } catch {} $("matpop").style.display = "none"; return; }
+  if (d.etbm !== undefined) {
+    const p = (S.permanents || []).find(x => String(x.id) === d.etbm); if (!p) return;
+    const md = (etbModes(p) || [])[+d.etbmi], a = md && etbModeAction(md); if (!a) return;
+    let r;
+    if (a.act === "life") r = await act("life", { delta: a.n, text: `${p.name} enters: I gain ${a.n} life.` });
+    else if (a.act === "draw") r = await act("effect", { kind: "draw", source: "#" + p.id, n: a.n });
+    else { $("matpop").style.display = "none"; ETB_DONE.add(`${S.seat}|${p.id}`); try { localStorage.setItem("etbdone", JSON.stringify([...ETB_DONE])); } catch {}
+      $("err").textContent = a.n > 1 ? `${a.act} ${a.n}: choose for the top card, then use ${a.act === "scry" ? "Scry" : "Surveil"} 1 on ${p.name} for the next one (${a.n} in all).` : "";
+      const rr = await act("effect", { kind: a.act, source: "#" + p.id, put: "top" }); if (rr) showEffPanel(a.act, p.id, rr); return; }
+    if (r) { ETB_DONE.add(`${S.seat}|${p.id}`); try { localStorage.setItem("etbdone", JSON.stringify([...ETB_DONE])); } catch {} $("matpop").style.display = "none"; matSig = ""; draw(); }
+    return;
+  }
+  if (d.etb !== undefined) {
+    const v = (document.querySelector(`[data-etbt="${d.etb}"]`) || {}).value || ""; if (!v) return;
+    const [at, target] = v.split("|");
+    const r = await act("effect", { kind: d.etbk, source: "#" + d.etb, at, target });
+    if (r) { $("matpop").style.display = "none"; matSig = ""; draw(); } return;
+  }
+  if (d.atkt !== undefined) { attackers.has(+d.atkt) ? attackers.delete(+d.atkt) : attackers.add(+d.atkt); $("matpop").style.display = "none"; return draw(); }
+  if (d.zoom !== undefined) { $("matpop").style.display = "none"; return matZoom(d.zoom, zoomPerm(d.zid, true)); }
+  const exp = t.closest && t.closest("[data-ex]"); if (exp && !matJustDragged) return matEx(exp.dataset.ex);
+  const gyp = t.closest && t.closest("[data-gy]"); if (gyp) return matGy(gyp.dataset.gy);
+  if (d.gyclose !== undefined || t.id === "matgy") { $("matgy").style.display = "none"; gyOpen = ""; gyBeam = null; swapOpen = false; return; }
+  if (t.closest && t.closest("#matgy")) {                                          // Item 2: Beam me up from the graveyard viewer
+    const bp = t.closest("[data-gybeampick]"), bb = t.closest("[data-gybeam]"), bg = t.closest("[data-gybeamgo]"), bk = t.closest("[data-gybeamback]");
+    if (bb && !bb.disabled) { gyBeam = { i: +bb.dataset.gybeam, pick: myCreatures().length === 1 ? "#" + myCreatures()[0].id : "" }; return matGy(S.seat); }
+    if (bp) { gyBeam.pick = bp.dataset.gybeampick; return matGy(S.seat); }
+    if (bk) { gyBeam = null; return matGy(S.seat); }
+    if (bg) { const c = (S.beam_cards || [])[+bg.dataset.gybeamgo]; if (!c || !gyBeam || !gyBeam.pick) return;
+      const tg = readTargets("gybeam" + bg.dataset.gybeamgo, c.slots); await spendPool();
+      const pw = [...payPick].filter(id => (S.permanents || []).some(q => q.id === id && !q.tapped)).map(id => "#" + id);
+      const r = await act("cast", { name: c.name, beam: gyBeam.pick, ...(tg ? { targets: tg } : {}), ...(pw.length ? { pay_with: pw } : {}) });
+      if (!r) { const e = $("gyerr"); if (e) e.textContent = $("err").textContent; return; }
+      gyBeam = null; beamSig = ""; matSig = ""; paySig = ""; $("matgy").style.display = "none"; gyOpen = ""; draw(); return; }
+  }
+  if (d.zact !== undefined) { const a = (S.zone_abilities || [])[+d.zact]; if (!a) return;
+    const tg = readTargets(d.zk || "za" + d.zact, a.slots); await spendPool();
+    const r = await act("activate", { card: a.name, zone: a.zone, ...(tg ? { targets: tg } : {}) });
+    if (!r) { const msg = $("err").textContent; if ($("gyerr") && t.closest("#matgy")) $("gyerr").textContent = msg;
+      else if (msg && t.closest) { const row = t.closest(".card") || t.parentElement; const e = row.querySelector(".zerr") || row.appendChild(Object.assign(document.createElement("div"), { className: "zerr x" })); e.style.color = "#ffb38f"; e.textContent = msg; } }
+    if (r) { handSig0 = ""; fanSig = ""; matSig = ""; draw(); if (gyOpen) matGy(gyOpen); } return; }
+  const fc = t.closest && t.closest("[data-fan]");
+  if (fc) { fanSel = fanSel === +fc.dataset.fan ? -1 : +fc.dataset.fan; fanSig = ""; window.TableSfx && TableSfx.fx(fanSel >= 0 ? "select" : "tap"); return draw(); }
+  if (d.fanland !== undefined) { const r = await act("land", { name: h[+d.fanland].name, pay_life: d.pay === "1" }); fanSel = -1; fanSig = ""; draw(); return r; }
+  if (d.fanmode !== undefined) { const c = h[+d.fanmode], tg = readTargets("fanm" + (+d.mode - 1), (c.mode_slots || [])[+d.mode - 1]); const r = await castWith({ name: c.name, modes: [+d.mode], ...(tg ? { targets: tg } : {}) }); if (!r) return showFanErr(); fanSel = -1; fanSig = ""; draw(); return r; }
+  if (d.fancast !== undefined) { const c = h[+d.fancast], tg = readTargets("fan", c.slots); const r = await castWith({ name: c.name, ...(tg ? { targets: tg } : {}) }); if (!r) return showFanErr(); fanSel = -1; fanSig = ""; draw(); return r; }
+  if (d.fanaura !== undefined) { const on = $("fanon").value.split(" ")[0]; const r = await castWith({ name: h[+d.fanaura].name, on }); if (!r) return showFanErr(); fanSel = -1; fanSig = ""; draw(); return r; }
+  if (d.cycle !== undefined) { await spendPool(); const r = await act("cycle", { name: h[+d.cycle].name }); if (r) { handSig0 = ""; draw(); } return r; }
+  if (d.fancycle !== undefined) { await spendPool(); const r = await act("cycle", { name: h[+d.fancycle].name }); if (!r) return showFanErr(); fanSel = -1; fanSig = ""; draw(); return r; }
+  if (d.fanfd !== undefined) { const r = await castWith({ name: h[+d.fanfd].name, face_down: true }); if (!r) return showFanErr(); fanSel = -1; fanSig = ""; draw(); return r; }
+  if (d.land !== undefined) return act("land", { name: h[+d.land].name, pay_life: d.pay === "1" });
+  if (d.cast !== undefined) { const c = h[+d.cast], tg = readTargets("list" + d.cast, c.slots); return castWith({ name: c.name, ...(tg ? { targets: tg } : {}) }); }
+  if (d.listmode !== undefined) { const c = h[+d.listmode], k = +d.mode - 1, tg = readTargets(`listm${d.listmode}-${k}`, (c.mode_slots || [])[k]); return castWith({ name: c.name, modes: [+d.mode], ...(tg ? { targets: tg } : {}) }); }
   if (d.auracast !== undefined) { const on = document.querySelector(`[data-on="${d.auracast}"]`).value.split(" ")[0]; return act("cast", { name: h[+d.auracast].name, on }); }
+  if (t.closest && t.closest("[data-manualtoggle] > summary")) { manualOpen = !t.closest("details").open; return; }
+  if (d.mmove !== undefined) { manualSig = ""; const r = await act("manual", { op: "move", ref: $("mfrom").value, to: $("mto").value }); if (r) { matSig = ""; draw(); } return; }
+  if (d.mcount !== undefined) { manualSig = ""; const r = await act("manual", { op: "counter", ref: $("mcperm").value, kind: $("mckind").value, n: +d.mcount }); if (r) { matSig = ""; draw(); } return; }
+  if (d.mtoken !== undefined) { manualSig = ""; const r = await act("manual", { op: "token", name: $("mtname").value, power: +$("mtp").value, toughness: +$("mtt").value, n: +$("mtn").value }); if (r) { matSig = ""; draw(); } return; }
+  if (d.swapopen !== undefined) { swapOpen = true; return swapView(); }
+  if (d.paymode !== undefined) { if (payFor !== d.payfor) payPick.clear(); payMode = d.paymode; payFor = d.payfor || ""; if (payMode === "auto") payPick.clear(); paySig = ""; handSig0 = ""; fanSig = ""; return draw(); }
+  if (d.paygrp !== undefined) { const g = payGroups().find(x => x.key === d.paygrp); if (!g) return; payMode = "choose"; payFor = d.payfor || payFor;
+    const on = g.ids.filter(id => payPick.has(id)), off = g.ids.filter(id => !payPick.has(id));
+    if (+d.d > 0 && off.length) payPick.add(off[0]); else if (+d.d < 0 && on.length) payPick.delete(on[on.length - 1]);
+    paySig = ""; handSig0 = ""; fanSig = ""; return draw(); }
+  if (d.paypick !== undefined) { const k = +d.paypick; t.checked ? payPick.add(k) : payPick.delete(k); handSig0 = ""; fanSig = ""; return draw(); }
+  if (d.swap !== undefined) { const to = (document.querySelector(`[data-swapto="${d.swap}"]`) || {}).value; if (!to) return; paySig = ""; const r = await act("swap", { from: "#" + d.swap, to }); if (r) { matSig = ""; draw(); } else if ($("gyerr")) $("gyerr").textContent = $("err").textContent; return; }
+  const xs = S?.exile_playable || [];
+  if (d.gyxGo !== undefined) { $("matgy").style.display = "none"; gyOpen = ""; const ep = $("exilepanel"); if (ep) ep.scrollIntoView({ block: "start" }); return; }
+  if (d.xland !== undefined) { const c = xs[+d.xland]; if (!c) return; exileSig = ""; const r = await act("land", { name: c.name, from_exile: true }); if (t.closest("#matgy")) { if (r) { $("matgy").style.display = "none"; gyOpen = ""; } else { const e = $("gyerr") || t.parentElement.appendChild(Object.assign(document.createElement("div"), { id: "gyerr", className: "sub" })); e.style.color = "#ffb38f"; e.textContent = $("err").textContent; } } return r; }
+  if (d.xcast !== undefined) { const c = xs[+d.xcast]; if (!c) return; const tg = readTargets("x" + d.xcast, c.slots); exileSig = ""; const r = await castWith({ name: c.name, from_exile: true, ...(tg ? { targets: tg } : {}) }); if (t.closest("#matgy")) { if (r) { $("matgy").style.display = "none"; gyOpen = ""; } else { const e = $("gyerr") || t.parentElement.appendChild(Object.assign(document.createElement("div"), { id: "gyerr", className: "sub" })); e.style.color = "#ffb38f"; e.textContent = $("err").textContent; } } return r; }
+  if (d.xmode !== undefined) { const c = xs[+d.xmode]; if (!c) return; const k = +d.mode - 1, tg = readTargets(`xm${d.xmode}-${k}`, (c.mode_slots || [])[k]); exileSig = ""; return castWith({ name: c.name, modes: [+d.mode], from_exile: true, ...(tg ? { targets: tg } : {}) }); }
+  if (d.xaura !== undefined) { const c = xs[+d.xaura]; if (!c) return; const on = document.querySelector(`[data-xon="${d.xaura}"]`).value.split(" ")[0]; exileSig = ""; return castWith({ name: c.name, on, from_exile: true }); }
   if (d.fd !== undefined) return act("cast", { name: h[+d.fd].name, face_down: true });
   if (d.cmd !== undefined) return act("cast", { name: "commander", commander: true });
   if (d.up !== undefined) return act("turn-up", { ref: "#" + d.up });
+  if (d.eff !== undefined) {                              // surveil / scry 1: look at the top card (only you see it), then choose
+    const r = await act("effect", { kind: d.eff, source: "#" + d.src, put: "top" }); if (!r) return;
+    showEffPanel(d.eff, d.src, r); return;
+  }
+  if (d.effput !== undefined) {
+    effMarkUsed(d.effsrc); draw();
+    if (d.effput !== "top") await act("effect", { kind: d.effk, source: "#" + d.effsrc, put: d.effput });
+    $("effpanel").innerHTML = ""; return;
+  }
   if (d.tap !== undefined) { const p = S.permanents.find(x => x.id == d.tap); return act(p.tapped ? "untap" : "tap", { ref: "#" + d.tap, announce: true }); }
-  if (d.atk !== undefined) { t.checked ? attackers.add(+d.atk) : attackers.delete(+d.atk); return draw(); }
-  if (t.id === "attack") { const who = $("target").value, ids = [...attackers];
-    const r = await act("attack", { assign: Object.fromEntries(ids.map(i => ["#" + i, who])) });
-    if (r) { lastAttack = ids.map(i => ["#" + i, who]); attackers.clear(); draw(); } return; }
+  if (d.atk !== undefined) { t.checked ? attackers.add(+d.atk) : attackers.delete(+d.atk); draw(); return renderSteps(); }
+  if (t.id === "attack") return attackNow();
   if (t.id === "dmg") { await act("damage", { hits: {} }); lastAttack = []; return draw(); }
-  if (d.take !== undefined) { await act("block", { attacker: alert ? alert.attacker : undefined }); alert = null; return draw(); }
-  if (d.blk !== undefined) { await act("block", { blocker: "#" + d.blk, attacker: alert ? alert.attacker : undefined }); alert = null; return draw(); }
+  if (d.take !== undefined) {                           // v6c: no blocks at all, for every attacker, on the second tap
+    if (!(takeArm.all && Date.now() - takeArm.all < 6000)) { takeArm.all = Date.now(); return draw(); }
+    delete takeArm.all; blockPick = {}; await act("block", { none: true }); alert = null; return draw(); }
+  if (d.blkm !== undefined) { const k = +d.blkm, had = (blockPick[d.batk] || []).includes(k);   // a creature blocks one attacker: ticking it elsewhere moves it
+    for (const r of Object.keys(blockPick)) blockPick[r] = blockPick[r].filter(x => x !== k);
+    if (!had) (blockPick[d.batk] = blockPick[d.batk] || []).push(k); return draw(); }
+  if (d.blkgo !== undefined) { const blocks = Object.fromEntries(Object.entries(blockPick).filter(([, a]) => a.length).map(([r, a]) => [r, a.map(i => "#" + i)]));
+    const r = await act("block", { blocks }); if (r) blockPick = {}; alert = null; return draw(); }   // every attacker not named gets no block
+  if (d.dmg !== undefined) { await act("damage", { hits: {} }); lastAttack = []; return draw(); }
   if (d.pass !== undefined) { alert = null; draw(); return passNow(); }
   if (d.dismiss !== undefined) { alert = null; return draw(); }
 });
+let blockPick = {}, survBin = new Set(), takeArm = {};
+// An aimed trigger is waiting on you (a Landfall counter, an enters trigger you didn't aim when you cast it): the table holds the turn until you answer.
+// Beam me up: a card in your graveyard you can cast again, returning a creature of yours to your hand. The spell is exiled after.
+let beamSig = "";
+function drawBeam(myTurn) {
+  const box = $("beampanel"), main = myTurn && PH && /^main/.test(PH.step || ""), list = main ? (S.beam_cards || []) : [], cre = (S.permanents || []).filter(p => /\bCreature\b/.test(p.type || "") && p.pt);
+  const sig = JSON.stringify([list, cre.map(c => c.id)]); if (sig === beamSig) return; beamSig = sig;
+  box.innerHTML = list.length && cre.length ? `<div class="panel"><h2>Beam me up</h2><div class="sub">From your graveyard: pay its Beam me up cost and return a creature of yours to your hand. The spell is then exiled.</div>${list.map((c, i) => `<div class="card"><b>${esc(c.name)}</b> <span class="t">${esc(c.cost)}</span>${slotsHtml(c.slots, "beam" + i)}
+    <label class="sub">return <select data-beamcre="${i}">${cre.map(p => `<option value="#${p.id}">${esc(p.name)}</option>`).join("")}</select></label>
+    <button data-beam="${i}" ${c.payable && slotsReady(c.slots) ? "" : "disabled"}>Beam it up</button></div>`).join("")}</div>` : "";
+}
+// Zefram Cochrane: the top card of your library, which only you see; an artifact can be cast from there once each of your turns.
+let topSig = "";
+function drawTop() {
+  const box = $("toppanel"), c = S && S.library_top, sig = JSON.stringify(c || null); if (sig === topSig) return; topSig = sig;
+  box.innerHTML = c ? `<div class="panel"><h2>Top of your library</h2><div class="sub">Only you can see this.</div><div class="card">${window.CardArt ? CardArt.img(c.name, "") : ""}<b>${esc(c.name)}</b> <span class="t">${esc(c.cost)} · ${esc(c.type)}${c.pt ? " · " + esc(c.pt) : ""}</span>
+    <div class="x">${esc(c.text || "")}</div>${/\bArtifact\b/.test(c.type || "") && !/\bLand\b/.test(c.type || "") ? slotsHtml(c.slots, "top") + `<button data-topcast="1" ${c.castable_now && slotsReady(c.slots) ? "" : "disabled"}>Cast from top of library</button>` : ""}</div></div>` : "";
+}
+// Impulse draw (Exploratory Mission, Reckless Impulse, Silicate Surveyor): cards exiled face up that you may play for a while, cast or played
+// like the hand's. Everyone can see these (they are face up); only you can play them, and only until the window closes.
+let exileSig = "";
+function drawExile(myTurn) {
+  const box = $("exilepanel"), list = S.exile_playable || [], pool = S.floating_mana || [];
+  const sig = JSON.stringify([list, pool, myTurn, !!S.land_played, PH && PH.step]); if (sig === exileSig) return; exileSig = sig;
+  const poolHtml = pool.length ? `<div class="sub" style="margin-bottom:6px">Mana in your pool: ${esc(pool.map(c => "{" + c + "}").join(""))} (spent first; it empties when the step ends)</div>` : "";
+  box.innerHTML = list.length || pool.length ? `<div class="panel" style="outline:1px solid #b5542f"><h2>Playable from exile</h2>${poolHtml}${list.length ? '<div class="sub">Exiled face up: play them as if they were in your hand. When the time runs out they stay in exile.</div>' : ""}${list.map((c, i) => `<div class="card">${window.CardArt ? CardArt.img(c.name, "") : ""}<b>${esc(c.name)}</b> <span class="t">${esc(c.cost)} · ${esc(c.type)}${c.pt ? " · " + esc(c.pt) : ""}</span>
+    <span class="tag" style="background:#b5542f">${esc(c.until)}</span>${c.by ? ` <span class="sub">(${esc(c.by)})</span>` : ""}
+    <div class="x">${esc(c.text || "")}</div>
+    ${c.land ? `<button data-xland="${i}" ${S.land_played || !myTurn ? "disabled" : ""} ${myTurn ? "" : 'title="not your turn"'}>Play land from exile</button>` : ""}
+    ${!c.land && !c.aura_targets ? (modesOf(c).length ? modesOf(c).map((m, k) => { const ms = (c.mode_slots || [])[k]; return `<div>` + slotsHtml(ms, "xm" + i + "-" + k) + `<button data-xmode="${i}" data-mode="${k + 1}" ${c.castable_now && slotsReady(ms) ? "" : "disabled"} title="${esc(m.text)}">Cast from exile: ${esc(m.name)}</button></div>`; }).join("")
+      : slotsHtml(c.slots, "x" + i) + xPicker(c) + kickPicker(c) + `<button data-xcast="${i}" ${c.castable_now && slotsReady(c.slots) ? "" : "disabled"}>Cast from exile</button>`) : ""}
+    ${c.aura_targets ? `<select data-xon="${i}">${c.aura_targets.map(t => `<option>${esc(t)}</option>`).join("")}</select><button data-xaura="${i}" ${c.castable_now ? "" : "disabled"}>Cast on it from exile</button>` : ""}
+    ${!c.land && !c.castable_now ? `<div class="x" style="color:#ffb38f">${c.why_not ? "Can't cast now: " + esc(c.why_not) : "Not castable right now (not enough mana, or the wrong time)."}</div>` : ""}</div>`).join("")}</div>` : "";
+}
+// By hand (T10, "think of Cockatrice"): your own cards, any zone to any zone, counters, tokens. Everything is said in the log for everyone;
+// a card going from a hidden zone to a hidden one is only "a card". Kept closed until opened, and as plain selects so it works on a phone.
+let manualSig = "", manualOpen = false;
+function drawManual() {
+  const box = $("manualpanel"); if (!box || !S) return;
+  const perms = S.permanents || [], hand = S.hand || [], gy = S.graveyard || [], ex = S.exile || [];
+  const sig = JSON.stringify([perms.map(p => [p.id, p.name, p.counters, p.charge]), hand.map(c => c.name), gy, ex, manualOpen]); if (sig === manualSig) return; manualSig = sig;
+  const opt = (v, t) => `<option value="${esc(v)}">${esc(t)}</option>`;
+  const from = [...perms.map(p => opt("#" + p.id, `battlefield: ${p.face_down ? "face-down #" + p.id : p.name}`)), ...hand.map(c => opt("hand:" + c.name, "hand: " + c.name)),
+    ...gy.map(n => opt("graveyard:" + n, "graveyard: " + n)), ...ex.map(n => opt("exile:" + n, "exile: " + n)), opt("library-top", "library: the top card")].join("");
+  const zones = [["battlefield", "battlefield"], ["hand", "hand"], ["graveyard", "graveyard"], ["exile", "exile"], ["library-top", "library, on top"], ["library-bottom", "library, on the bottom"]]
+    .map(([v, t]) => opt(v, t)).join("");
+  const kinds = ["+1/+1", "charge", "quest", "lore", "stun", "promotion", "loyalty"].map(k => opt(k, k)).join("");
+  box.innerHTML = `<div class="panel"><details ${manualOpen ? "open" : ""} data-manualtoggle><summary><b>By hand</b> <span class="sub">move your cards, counters, tokens (everyone sees it in the log)</span></summary>
+    <div style="margin-top:6px">Move <select id="mfrom" style="max-width:260px">${from}</select> to <select id="mto">${zones}</select> <button data-mmove>Move</button></div>
+    <div style="margin-top:6px">Counter on <select id="mcperm" style="max-width:220px">${perms.map(p => opt("#" + p.id, p.face_down ? "face-down #" + p.id : p.name)).join("")}</select>
+      <select id="mckind">${kinds}</select> <button data-mcount="1">+1</button><button data-mcount="-1">−1</button></div>
+    <div style="margin-top:6px">Token <input id="mtname" placeholder="name" size="10" maxlength="40"> <input id="mtp" type="number" value="1" style="width:3em">/<input id="mtt" type="number" value="1" style="width:3em">
+      × <input id="mtn" type="number" value="1" min="1" max="20" style="width:3em"> <button data-mtoken>Create</button></div></details></div>`;
+}
+// T15: the opening-hand step. Before turn 1 the table asks every seat: keep, or mulligan (London: a new seven, then one card on the bottom of
+// the library per mulligan taken when you keep). S.mulligan is this seat's own view; the suggestion is the table's, from the land count.
+let mullSig = "", mullPick = [], mullArm = 0;        // mullArm: Mulligan takes a second tap (the page's pattern for what can't be undone)
+function drawMulligan() {
+  const box = $("mullpanel"), m = S && S.mulligan, hand = (S && S.hand) || [];
+  // while the question is open, the fan and the hand list are hidden: the prompt shows the same cards, and nothing may cover Keep / Mulligan
+  const asking = !!(m && m.open && !m.kept);
+  for (const id of ["fanpanel", "handpanel"]) { const el = $(id); if (el) el.style.display = asking ? "none" : ""; }
+  if (!m || !m.open) { if (mullSig) { box.innerHTML = ""; mullSig = ""; mullPick = []; } return; }
+  mullPick = mullPick.filter(i => i < hand.length).slice(0, m.bottom);
+  const armed = mullArm && Date.now() - mullArm < 6000;
+  const sig = JSON.stringify([m, hand.map(c => c.name), mullPick, armed]);
+  if (sig === mullSig) return; mullSig = sig;
+  const W = ["zero", "one", "two", "three", "four", "five", "six", "seven"], others = (m.waiting || []).filter(n => n !== S.seat);
+  if (m.kept) { box.innerHTML = `<div class="panel" style="outline:2px solid #d9b46a"><h2>Opening hand</h2><div>You kept ${W[m.keeps] || m.keeps}. ${others.length ? "Waiting for " + esc(others.join(", ")) + "…" : "The first turn is starting…"}</div></div>`; return; }
+  const col = { keep: "#4caf6a", risky: "#e0a030", mulligan: "#ff6b5e" }[(m.advice || {}).verdict] || "#d9b46a", need = m.bottom - mullPick.length;
+  box.innerHTML = `<div class="panel" style="outline:2px solid #d9b46a"><h2>Opening hand: keep or mulligan?</h2>
+    <div style="font-weight:700;color:${col}">${esc((m.advice || {}).text || "")}</div>
+    <div class="sub">${m.taken ? `You have taken ${m.taken} mulligan${m.taken > 1 ? "s" : ""}. To keep, tap ${m.bottom} card${m.bottom > 1 ? "s" : ""} to put on the bottom of your library (${need > 0 ? need + " more" : "chosen"}).` : "Only you can see this. A mulligan draws a new seven; you then keep one card fewer."}</div>
+    <div class="mull-row"><button class="gold" data-mullkeep ${need > 0 ? "disabled" : ""}>Keep ${W[m.keeps] || m.keeps}${m.bottom ? ` (bottom ${m.bottom})` : ""}</button>
+      <button data-mullagain ${m.can_mulligan ? "" : "disabled"}>${armed ? "Tap again: mulligan to " + W[Math.max(0, m.keeps - 1)] : "Mulligan to " + W[Math.max(0, m.keeps - 1)]}</button></div>
+    <div class="mull-hand">${hand.map((c, i) => `<div class="mull-c${mullPick.includes(i) ? " sel" : ""}" data-mullc="${i}">${window.CardArt ? CardArt.img(c.name, "") : ""}<b>${esc(c.name)}</b><div class="sub">${esc(c.land ? "Land" : c.cost || "")}${mullPick.includes(i) ? " · to the bottom" : ""}</div></div>`).join("")}</div></div>`;
+}
+let choiceSig = "";
+function drawChoices() {
+  const box = $("choicepanel"), list = (S && S.pending_choices) || [], sig = JSON.stringify(list);
+  if (sig === choiceSig) return; choiceSig = sig;
+  // an "option" (a mode, a yes/no): one button per answer, its whole text readable on a phone; a target: the dropdown
+  const isOpt = c => c.kind === "option" || (c.slot || {}).zone === "option";
+  box.innerHTML = list.length ? `<div class="panel" style="outline:2px solid #d9b46a"><h2>${list.every(isOpt) ? "Your choice" : "Choose a target"}</h2>${list.map(c => `<div class="card"><b>${esc(c.source)}</b><div class="x">${isOpt(c) ? "" : esc(String(c.text).replace(" ||then|| ", ". If you do, "))}</div><div class="sub">${esc(c.slot.label || "")}${(c.picked || []).length ? " · chosen so far: " + esc(c.picked.length) : ""}</div>
+    ${isOpt(c) ? (c.slot.options || []).map(o => `<button data-choose="${c.id}" data-cv="${esc(optValue(o))}" style="display:block;width:100%;text-align:left;margin-top:6px;white-space:normal">${esc(o.label)}</button>`).join("")
+      : `<select data-chooseopt="${c.id}" style="max-width:320px">${(c.slot.options || []).map(o => `<option value="${esc(optValue(o))}">${esc(o.label)}${wardTag(wardOpt(optValue(o)))}</option>`).join("")}</select>${wardMissing(c.slot)}
+    <button class="gold" data-choose="${c.id}">Choose</button>`}${c.slot.optional ? `<button data-choosenone="${c.id}">${isOpt(c) ? "None of these" : /\bmay\b/i.test(String(c.text)) ? "No, skip it" : "No target"}</button>` : ""}</div>`).join("")}</div>` : "";
+}
+// The surveil / scry the table is waiting on: choose what goes away (graveyard, or the bottom for a scry); the rest go back on top IN THE ORDER YOU
+// SET (▲ ▼). A scry's bottom cards keep the order shown too. Only you see these.
+let survOrder = [], survSig = "";
+function lookNow() { const sc = S && S.pending_scry; return sc ? { kind: "scry", n: sc, cards: S.scry_cards || [] } : { kind: "surveil", n: S && S.pending_surveil, cards: (S && S.surveil_cards) || [] }; }
+function drawSurveil(force) {
+  const box = $("effpanel"), L = lookNow(), n = L.n, cards = L.cards;
+  if (!n) { if (box.dataset.surv) { box.innerHTML = ""; delete box.dataset.surv; } return; }
+  const sig = JSON.stringify([L.kind, cards]);
+  if (sig !== survSig) { survSig = sig; survOrder = cards.map((_, k) => k); survBin = new Set(); }
+  if (box.dataset.surv === sig && !force) return;
+  box.dataset.surv = sig;
+  const away = L.kind === "scry" ? "bottom" : "graveyard";
+  const row = (k, list) => { const pos = list.indexOf(k), c = cards[k];
+    return `<div class="card">${window.CardArt ? CardArt.img(c, "") : ""}<b>${esc(c)}</b>
+    <button data-survup="${k}" ${pos <= 0 ? "disabled" : ""} title="higher">▲</button><button data-survdn="${k}" ${pos >= list.length - 1 ? "disabled" : ""} title="lower">▼</button>
+    <button data-survt="${k}">${survBin.has(k) ? "Keep it on top instead" : L.kind === "scry" ? "Put it on the bottom" : "Put it into the graveyard"}</button></div>`; };
+  const kept = survOrder.filter(k => !survBin.has(k)), gone = survOrder.filter(k => survBin.has(k));
+  box.innerHTML = `<div class="panel"><h2>${L.kind === "scry" ? "Scry" : "Surveil"} ${n}</h2><div class="sub">Only you can see these. Back on top, in this order (the first is the new top card):</div>${kept.map(k => row(k, kept)).join("") || '<div class="sub">(none)</div>'}
+    ${gone.length ? `<div class="sub" style="margin-top:6px">${away === "bottom" ? "On the bottom, in this order (top to bottom):" : "Into your graveyard:"}</div>${gone.map(k => row(k, gone)).join("")}` : ""}
+    <div style="margin-top:8px"><button class="gold" data-survdone>Done</button></div></div>`;
+}
+function survMove(k, dir) {                  // move card k up/down among the cards in its own group (kept, or away)
+  const grp = survOrder.filter(x => survBin.has(x) === survBin.has(k)), pos = grp.indexOf(k), other = grp[pos + dir];
+  if (other === undefined) return; const a = survOrder.indexOf(k), b = survOrder.indexOf(other); [survOrder[a], survOrder[b]] = [survOrder[b], survOrder[a]];
+}
+const matShown = () => { const m = $("matpanel"); return !!m && m.offsetParent !== null; };
+// ── H2: attacking on a phone. A big pinned "⚔ Attack" while your own combat can begin; it opens a sheet that lists EVERY creature with the table's
+// own can_attack / why_not: tap a row to choose it (tick box), who it attacks (more than one opponent), one Confirm, and a plain "no creature can
+// attack (reason)" state. After Confirm the same pin says who the table is waiting on (blocks), and carries "Deal combat damage" when it is yours.
+let asOpen = false, asWho = {}, asTarget = "", asSig = "", asPinSig = "";
+const liveOpps = () => Object.entries((S && S.life_table) || {}).filter(([n, l]) => n !== S.seat && l > 0).map(([n]) => n);
+const creaturesMine = () => ((S && S.permanents) || []).filter(p => p.pt && (/\bCreature\b/.test(p.type || "") || p.can_attack !== undefined));
+const attackWindow = () => !!(S && PH && PH.player === S.seat && PH.begun !== false && ["main 1", "beginning of combat", "declare attackers"].includes(PH.step) && !(S.attacked_ids || []).length);
+function attackSelection() { const ok = new Set(readyAttackers().map(p => p.id)); for (const id of [...attackers]) if (!ok.has(id)) attackers.delete(id); return [...attackers]; }
+function attackBlocker(sel) {                                    // why Confirm can't be pressed yet ("" = it can)
+  if (!sel.length) return "Tick at least one creature.";
+  const ps = (S.permanents || []).filter(p => sel.includes(p.id));
+  if (ps.every(p => p.attack_needs_partner)) return `${ps[0].name} can't attack alone: tick another creature that can attack too.`;
+  return ""; }
+function drawAtkPin() {
+  const pin = $("atkpin"); if (!pin) return;
+  const CB = (S && S.combat) || {}, you = CB.you || {}, mineAtk = S && (CB.attacks || []).find(a => a.attacker === S.seat && a.stage !== "done");
+  const win = attackWindow(), n = win ? readyAttackers().length : 0;
+  let html = "", cls = "";
+  if (win && !asOpen) { const why = n ? "" : creaturesMine().map(whyNoAttack).filter(Boolean)[0] || (creaturesMine().length ? "" : "you have no creatures");
+    html = `<button class="gold big" data-asopen="1">⚔ Attack${n ? ` · ${n} can` : " · none can"}</button>` + (n ? "" : `<div class="as-pinsub">No creature can attack${why ? ": " + esc(why) : ""}. Tap to see each one.</div>`); cls = "on"; }
+  else if (S && PH && PH.player === S.seat && mineAtk && !asOpen) {
+    cls = "on wait";
+    if (you.deal) html = `<button class="gold big" data-dmg>⚔ Deal combat damage</button>`;
+    else if ((mineAtk.waiting_on || []).length) html = `<div class="as-status">⚔ Attack declared. Waiting for <b>${esc(mineAtk.waiting_on.join(", "))}</b> to ${mineAtk.stage === "blocks" ? "block" : mineAtk.stage === "window" ? "pass (blocks are in)" : "answer"}…</div>`;
+    else html = `<div class="as-status">⚔ Attack declared.</div>`; }
+  const sig = cls + html; if (sig === asPinSig) return; asPinSig = sig;
+  pin.className = cls; pin.innerHTML = html; document.body.classList.toggle("atk-pinned", !!cls);
+}
+function drawAtkSheet() {
+  const box = $("atksheet"); if (!box) return;
+  if (!asOpen || !attackWindow()) { if (asOpen && !attackWindow()) asOpen = false; if (box.innerHTML) box.innerHTML = ""; box.style.display = "none"; asSig = ""; document.body.classList.remove("as-open"); return; }
+  const sel = attackSelection(), opps = liveOpps(), cre = creaturesMine(); if (!opps.includes(asTarget)) asTarget = opps[0] || "";
+  const sig = JSON.stringify([cre.map(p => [p.id, p.name, p.pt, p.tapped, p.sick, p.can_attack, p.why_not, p.counters]), sel, opps, asTarget, asWho, readyAttackers().length]);
+  if (sig === asSig) return; asSig = sig;
+  const row = p => { const ok = canAttack(p), on = attackers.has(p.id), why = ok ? "" : (whyNoAttack(p) || (p.tapped ? "it is tapped" : p.sick ? "summoning sick" : "can't attack now"));
+    const chips = [p.tapped ? "tapped" : "", p.sick && !ok ? "summoning sick" : "", +p.counters ? `${p.counters > 0 ? "+" : ""}${p.counters}/${p.counters > 0 ? "+" : ""}${p.counters} counters` : "", +p.charge ? `${p.charge} charge` : ""].filter(Boolean);
+    return `<div class="as-row${on ? " sel" : ""}${ok ? "" : " no"}" ${ok ? `data-asrow="${p.id}" role="checkbox" aria-checked="${on}" tabindex="0"` : 'aria-disabled="true"'}>
+      <span class="as-tick">${ok ? (on ? "☑" : "☐") : "⊘"}</span>
+      <span class="as-body"><b>${esc(p.name)}</b> <span class="t">${esc(p.pt)}</span>${chips.map(c => `<span class="tag">${esc(c)}</span>`).join("")}
+        ${ok ? (p.attack_needs_partner ? `<div class="sub">can't attack alone: needs another attacker</div>` : "") : `<div class="as-why">Can't attack: ${esc(why)}</div>`}
+        ${ok && on && opps.length > 1 ? `<label class="sub">attacks <select data-aswho="${p.id}">${opps.map(o => `<option ${(asWho[p.id] || asTarget) === o ? "selected" : ""}>${esc(o)}</option>`).join("")}</select></label>` : ""}</span></div>`; };
+  const ready = readyAttackers().length, why = attackBlocker(sel);
+  box.style.display = "flex"; document.body.classList.add("as-open");
+  box.innerHTML = `<div class="as-box" role="dialog" aria-label="Declare attackers">
+    <div class="as-head"><b>⚔ Declare attackers</b><button data-asclose="1">✕ Close</button></div>
+    <div class="as-list">${ready ? `<div class="sub">Tap a creature to choose it. One declaration: it is final once you confirm.</div>` : `<div class="as-none"><b>No creature can attack this turn.</b><div class="sub">Each one below says why. Close this and use Next step to go on without attacking.</div></div>`}
+      ${cre.length ? cre.map(row).join("") : `<div class="sub">You have no creatures.</div>`}
+      ${ready && opps.length > 1 ? `<div class="sub" style="margin-top:10px">Attack which player?</div><div class="as-targets">${opps.map(o => `<button data-astarget="${esc(o)}" class="${o === asTarget ? "gold" : ""}">${esc(o)} · ${esc((S.life_table || {})[o])} life</button>`).join("")}</div>` : ""}
+      ${ready && opps.length === 1 ? `<div class="sub" style="margin-top:10px">Attacking ${esc(opps[0])} (${esc((S.life_table || {})[opps[0]])} life).</div>` : ""}</div>
+    <div class="as-foot"><div id="aserr" role="alert" class="as-why">${esc(ready ? why : "")}</div>
+      ${ready ? `<button class="gold big" data-asgo="1" ${why ? "disabled" : ""}>Confirm: attack${opps.length === 1 ? " " + esc(opps[0]) : ""} with ${sel.length}</button>` : ""}
+      <button class="big" data-asclose="1">${ready ? "Cancel" : "Close"}</button></div></div>`;
+}
+async function attackSheetGo() {
+  const sel = attackSelection(), why = attackBlocker(sel), opps = liveOpps();
+  if (why || !opps.length) { const e = $("aserr"); if (e) e.textContent = why || "Nobody left to attack."; return; }
+  const assign = Object.fromEntries(sel.map(i => ["#" + i, (asWho[i] && opps.includes(asWho[i])) ? asWho[i] : asTarget || opps[0]]));
+  const r = await act("attack", { assign });
+  if (r) { lastAttack = Object.entries(assign); attackers.clear(); asWho = {}; asOpen = false; asSig = ""; asPinSig = ""; draw(); }
+  else { const e = $("aserr"); if (e) e.textContent = $("err").textContent || "The table refused it."; }
+}
+function layoutPins() { const vis = e => !!e && e.offsetHeight > 0 && getComputedStyle(e).display !== "none", a = $("atkpin"), w = $("swapbar"), ah = vis(a) ? a.offsetHeight + 8 : 0, wh = vis(w) ? w.offsetHeight + 8 : 0;
+  if (w) w.style.bottom = `calc(var(--hud-h,0px) + ${8 + ah}px)`; document.documentElement.style.setProperty("--pin-h", (ah + wh) + "px"); }
+function atkSheetRefresh() { try { drawAtkPin(); drawAtkSheet(); layoutPins(); } catch (e) { console.warn("attack sheet", e); } }
+document.addEventListener("click", e => {
+  const t = e.target.closest && e.target.closest("[data-asopen],[data-asclose],[data-asrow],[data-astarget],[data-asgo]"); if (!t) return;
+  const d = t.dataset;
+  if (d.asopen) { asOpen = true; asSig = ""; atkSheetRefresh(); const l = $("atksheet").querySelector(".as-list"); if (l) l.scrollTop = 0; return; }
+  if (d.asclose) { asOpen = false; asSig = ""; atkSheetRefresh(); return; }
+  if (d.asrow !== undefined) { const id = +d.asrow; attackers.has(id) ? attackers.delete(id) : attackers.add(id); asSig = ""; atkSheetRefresh(); matSig = ""; return; }
+  if (d.astarget) { asTarget = d.astarget; asSig = ""; atkSheetRefresh(); return; }
+  if (d.asgo) return attackSheetGo();
+});
+document.addEventListener("change", e => { const el = e.target; if (el && el.dataset && el.dataset.aswho !== undefined) { asWho[+el.dataset.aswho] = el.value; asSig = ""; } });
+document.addEventListener("keydown", e => { if ((e.key === " " || e.key === "Enter") && e.target.dataset && e.target.dataset.asrow !== undefined) { e.preventDefault(); e.target.click(); } });
+async function attackNow() {
+  const sel = $("target"), who = sel ? sel.value : Object.entries(S.life_table || {}).filter(([n, l]) => n !== S.seat && l > 0).map(([n]) => n)[0], ids = [...attackers];
+  if (!who || !ids.length) return;
+  const r = await act("attack", { assign: Object.fromEntries(ids.map(i => ["#" + i, who])) });
+  if (r) { lastAttack = ids.map(i => ["#" + i, who]); attackers.clear(); draw(); } return r;
+}
+$("attackgo").onclick = async () => {
+  if (matchMedia("(max-width:700px)").matches) { asOpen = true; asSig = ""; return atkSheetRefresh(); }   // H2: a phone gets the sheet
+  if (attackers.size) return attackNow();
+  readyAttackers().forEach(p => attackers.add(p.id));          // first press: everything ready is ticked; take any out on the mat, press again to attack
+  $("err").textContent = attackers.size ? `All your ready creatures are chosen. ${matShown() ? "Click one on the mat" : "Untick one in the Battlefield list below"} to take it out, then press Attack again (it is one declaration: final once sent).` : "";
+  draw(); renderSteps();
+};
+// T14: declare attackers is obvious on a phone: a pinned prompt while you have ready creatures and haven't attacked, and Next out of it
+// without attacking takes a second tap ("No attack?").
+function attackPromptDue() { return !!(S && PH && PH.player === S.seat && ["beginning of combat", "declare attackers"].includes(PH.step) && readyAttackers().length && !(S.attacked_ids || []).length); }
+let noAttackArm = 0;
+function drawAttackPrompt() {
+  let el = $("atkprompt"); if (!el) { el = document.createElement("div"); el.id = "atkprompt"; el.setAttribute("role", "alert"); document.body.prepend(el); }
+  const due = attackPromptDue(), n = due ? readyAttackers().length : 0;
+  el.style.cssText = due ? "position:sticky;top:var(--tb-h,0px);z-index:60;background:#5a1a0a;color:#fff;border-bottom:3px solid #ff8a3d;padding:12px 54px 12px 14px;font:600 17px system-ui,sans-serif" : "display:none";
+  el.innerHTML = due ? (matchMedia("(max-width:700px)").matches ? `⚔ Declare attackers: ${n} creature${n === 1 ? "" : "s"} can attack. Tap the big <b>⚔ Attack</b> button at the bottom, choose them, confirm.`
+    : `⚔ Declare attackers: ${n} creature${n === 1 ? "" : "s"} can attack. Tap <b>⚔ Attack</b> (it picks them all; ${matShown() ? "take any out on the mat" : "untick any in the Battlefield list"}), then Attack again.`) +
+    (Date.now() - noAttackArm < 6000 ? " <b>Not attacking? Tap Next step again.</b>" : " Not attacking? Tap Next step twice.") : "";
+}
+setInterval(() => { try { drawAttackPrompt(); } catch {} }, 1000);
+$("next").onclick = async () => {
+  if (attackPromptDue() && Date.now() - noAttackArm > 6000) { noAttackArm = Date.now(); drawAttackPrompt(); $("err").textContent = "You haven't attacked. Tap Next step again to skip combat."; return; }
+  noAttackArm = 0;
+  alert = null; const w = PH && PH.step === "combat damage"; const r = await act("next"); if (r && w) lastAttack = []; if (r) draw(); };
 $("begin").onclick = () => { alert = null; act("begin"); };
 $("start").onclick = async () => {
   const r = await fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(TableSeat.body()) });
@@ -154,27 +1402,28 @@ $("start").onclick = async () => {
 // A real pass: it names the step it was looking at, so a press that arrives after the table moved on is refused, not applied to the next step.
 const passNow = async () => { await refreshPhase(); return act("pass", PH && PH.player ? { player: PH.player, step: PH.step } : {}); };
 $("pass").onclick = () => { alert = null; passNow(); };
-$("end").onclick = () => { lastAttack = []; act("end", { text: "That's my turn." }); };
+$("end").onclick = () => { const w = endWarning(); if (w && Date.now() - endArmed > 8000) { endArmed = Date.now(); $("err").textContent = w; window.TableSfx && TableSfx.fx("hold"); return; }
+  endArmed = 0; lastAttack = []; attackers.clear(); act("end", { text: "That's my turn." }); };
 async function poll() {
   try {
     const r = await (await fetch("/api/events?since=" + since)).json();
+    let needLoad = false;
     if (since !== "latest" && !r.restarted) for (const e of r.events) {
-      if (e.type === "say" && e.speaker === me()) continue;
+      const own = e.type === "say" && e.speaker === me();   // my own lines aren't logged twice, but still reload (turn start: untap + draw)
       if (e.type === "attention" && (e.addressee || "").toLowerCase() === me().toLowerCase()) {
         if (e.kind === "turn") alert = { html: "It's your turn. <button class='gold' data-dismiss>OK</button> Press <b>Begin my turn</b>." };
-        else if (e.kind === "priority") alert = { html: `${esc(e.text || "Priority")}: cast an instant, or <button data-pass>Pass</button> <button data-dismiss>Not now</button>` };
-        else if (e.kind === "attacked") {
-          const blockers = (S?.permanents || []).filter(p => p.pt && !p.tapped);
-          alert = { amount: e.amount || 0, attacker: e.attacker, trample: !!e.trample,
-            html: `${esc(e.attacker || "A creature")} attacks you for ${e.amount || 0}${e.trample ? " (trample)" : ""}.<br>
-              <button class="gold" data-take>Take it</button>${blockers.map(p => `<button data-blk="${p.id}">Block with ${esc(p.name)} ${esc(p.pt)}</button>`).join("")}` };
+        else if (e.kind === "priority" || e.kind === "respond") { needLoad = true; continue; }   // (respond: the held-spell prompt below draws itself from /api/phase)   // T17: the priority chip (top of the page) is the one prompt: no second banner
+        else if (e.kind === "attacked") {                  // the panel under the life total lists every attacker, with what the table lets block it
+          alert = null; needLoad = true;
         } else alert = { html: `${esc(e.text || e.kind)} <button data-dismiss>OK</button>` };
         draw();
       }
-      if (e.type === "say" && e.text) logLine(`${e.speaker || ""}: ${e.text}`);
-      if (["say", "life", "hand", "board3d"].includes(e.type)) load();
+      if (e.type === "say" && e.text && !own) logLine(`${e.speaker || ""}: ${e.text}`);
+      if (e.type === "table-note" && e.text) logLine(`📝 ${e.seat || ""}: ${e.text}`);
+      if (["say", "life", "hand", "board3d", "phase"].includes(e.type)) needLoad = true;   // a step change can untap or draw
     }
     since = r.last;
+    if (needLoad) load();                                   // once per poll, however many events came in
   } catch {}
   setTimeout(poll, 1200);
 }
@@ -183,16 +1432,72 @@ async function poll() {
 function canUntap() { return !!PH && !!S && PH.player === S.seat && PH.step === "untap"; }
 let uiUntap = false;
 function canBegin() { return !!PH && !!me() && PH.player === me() && !PH.begun && PH.index < (PH.steps || []).indexOf("main 1"); }
+const STEP_LABEL = { "untap": "Untap", "upkeep": "Upkeep", "draw": "Draw", "main 1": "Main 1", "beginning of combat": "Combat", "declare attackers": "Attackers", "declare blockers": "Blockers", "combat damage": "Damage", "main 2": "Main 2", "end step": "End", "cleanup": "Cleanup" };
+function renderSteps() {
+  const bar = $("stepbar"), steps = (PH && PH.steps) || [], i = PH ? steps.indexOf(PH.step) : -1, mine = !!(PH && S && PH.player === S.seat);
+  bar.innerHTML = PH && PH.player ? `<b style="margin-right:4px;color:#cfdcdc">${esc(PH.player)}</b>` + steps.filter(x => x !== "cleanup").map((x, k) => `<span class="${k === i ? "now" : k < i ? "done" : ""}">${esc(STEP_LABEL[x] || x)}</span>`).join("") : "";
+  const nx = $("next"), go = $("attackgo");
+  const nextName = i >= 0 ? steps[i + 1] : null, last = PH && (PH.step === "end step" || PH.step === "cleanup");
+  nx.disabled = !mine || i < steps.indexOf("main 1") && !PH.begun && !last;
+  nx.textContent = last ? "End turn" : nextName ? `Next: ${STEP_LABEL[nextName] || nextName}` : "Next step";
+  nx.title = mine ? "" : "not your turn";
+  const can = mine && (PH.step === "main 1" || PH.step === "beginning of combat" || PH.step === "declare attackers") && readyAttackers().length > 0;
+  go.style.display = can ? "" : "none";
+  go.textContent = attackers.size ? `⚔ Attack with ${attackers.size}` : `⚔ Attack (${readyAttackers().length} ready)`;
+}
 function buttons() {
+  renderSteps(); atkSheetRefresh();
   const b = canBegin(); $("begin").disabled = !b;
   $("begin").title = b ? "" : !PH || !PH.player ? "the game has not started" : PH.player !== me() ? `it is ${PH.player}'s turn` : PH.begun ? "you already began this turn" : "begin is for the start of your turn";
 }
 async function refreshPhase() {
   try { const p = await (await fetch("/api/phase")).json(); PH = p; const ps = p.passes || {}, mine = ps.next && ps.next.toLowerCase() === me().toLowerCase();
     $("phase").textContent = p.player ? `${p.player} · ${p.step}` + (ps.next ? ` · waiting on ${ps.next}${ps.seconds_left != null ? ` (${Math.ceil(ps.seconds_left)}s${mine ? " — then the table passes for you" : ""})` : ""}` : "") : "game not started";
-    $("startrow").style.display = p.player || !me() ? "none" : ""; } catch {}
-  buttons();
+    $("startrow").style.display = p.player || !me() || (p.mulligan && p.mulligan.on) ? "none" : ""; } catch {}
+  buttons(); drawPrio(); drawHeld(); drawZone();
+  { const mt = !!(S && PH && PH.player === S.seat); const eb = $("end"); if (eb) { eb.disabled = !mt; eb.title = mt ? "" : "not your turn"; } if (S && mt !== myTurnShown) { myTurnShown = mt; draw(); } }
   if (canUntap() !== uiUntap) { uiUntap = canUntap(); if (S) draw(); }   // Untap appears / goes away with the step
+}
+// T17: the one priority prompt is the chip urgent.js pins to the top (countdown, Pass, bell: the same POST /api/brain/pass this page's Pass made).
+// Here it gets whose step it is and, when something in hand can be cast right now, what. The step row's Pass shows only when that chip can't
+// (priority in my own turn), and the bottom bar's Pass is hidden while the chip is up.
+// A spell that is being held for answers (a counterspell window): the seats asked get ONE prompt with the countdown, what they could cast at it,
+// and Pass (the same POST /api/brain/pass); the caster sees who is being waited for. It goes away by itself when the window closes.
+// Abilities of cards in your graveyard ("exile this card from your graveyard: …") on the page itself, not only in the graveyard viewer.
+let zoneSig = "";
+function drawZone() {
+  const box = $("zonebox"); if (!box || !S) return;
+  const list = (S.zone_abilities || []).filter(a => a.zone === "graveyard"), sig = JSON.stringify([list, (S.mana_sources || []).length]); if (sig === zoneSig) return; zoneSig = sig;
+  box.innerHTML = list.length ? `<div class="panel"><h2>From your graveyard</h2><div class="sub">Abilities of cards in your graveyard (open the graveyard to see the cards).</div>${zoneAbilRows("graveyard", undefined, "zb")}</div>` : "";
+}
+function drawHeld() {
+  const box = $("heldbox"); if (!box) return;
+  const H = PH && PH.held, seat = S && S.seat;
+  if (!H || !seat) { if (box.innerHTML) box.innerHTML = ""; return; }
+  const secs = H.seconds_left != null ? ` · ${Math.max(0, Math.ceil(H.seconds_left))}s` : "", asked = (H.waiting || []).includes(seat) && !H.paying;
+  if (H.paying) {      // the answer was a counter "unless its controller pays": the caster decides (the choice is in the panel above); at zero it is countered
+    const pc = ((S.pending_choices || []).find(c => c.source === H.spell) || {}).text || "", tax = (/pay (\{[^ ,]*)/i.exec(pc) || [])[1] || "";
+    box.innerHTML = H.by === seat ? `<div class="alert" id="heldpanel"><b>${esc(H.spell)} is countered unless you pay${tax ? " " + esc(tax) : ""}.</b> Answer in "Your choice"${esc(secs)}: when the time runs out it is countered.</div>`
+      : `<div class="alert">${esc(H.by)} is deciding whether to pay${esc(secs)} to keep ${esc(H.spell)}; at zero it is countered.</div>`;
+    return; }
+  const stacky = c => [...(c.slots || []), ...((c.mode_slots || []).flat().filter(Boolean))].some(sl => sl && sl.zone === "stack");
+  const can = asked ? [...new Set((S.hand || []).filter(c => c.castable_now && stacky(c)).map(c => c.name))] : [];
+  box.innerHTML = asked ? `<div class="alert" id="heldpanel"><b>${esc(H.by)} casts ${esc(H.spell)}.</b> You may respond${esc(secs)}: ${can.length ? `cast ${esc(can.join(" or "))} at it (in your hand, below), or pass.` : "you have nothing to cast at it."}
+      <br><button class="gold big" data-heldpass>Pass: let it resolve</button></div>`
+    : H.by === seat && (H.waiting || []).length ? `<div class="alert">Your ${esc(H.spell)} is waiting: ${esc(H.waiting.join(", "))} may respond${esc(secs)}.</div>` : "";
+}
+function drawPrio() {
+  const bar = document.querySelector(".u-bar"), mine = !!(PH && PH.passes && PH.passes.next && PH.passes.next.toLowerCase() === me().toLowerCase());
+  const heldAsks = !!(PH && PH.held && (PH.held.waiting || []).some(n => String(n).toLowerCase() === me().toLowerCase()) && !PH.held.paying);   // the held-spell panel's Pass is the one
+  const blocksDue = !!(PH && PH.passes && PH.passes.decision === "blocks") || heldAsks;   // v6c: the block panel (or the held-spell panel) is that prompt; no pass chip beside it
+  const chip = mine && !blocksDue && PH.player && PH.player.toLowerCase() !== me().toLowerCase();
+  $("pass").style.display = mine && !chip && !blocksDue ? "" : "none";
+  if (!bar) return;
+  const b = bar.querySelector("b"); if (b) b.textContent = chip ? `${PH.player}'s ${PH.step}: your priority` : "Pass priority";
+  let h = bar.querySelector(".u-hint"); if (!h) { h = document.createElement("span"); h.className = "u-hint"; bar.appendChild(h); }
+  const can = chip && S ? [...(S.hand || []), ...(S.exile_playable || [])].filter(c => c.castable_now && !c.land && (/\bInstant\b/.test(c.type || "") || /\bFlash\b/.test(c.text || ""))).map(c => c.name) : [];
+  h.textContent = can.length ? `You can cast: ${[...new Set(can)].slice(0, 4).join(", ")}${new Set(can).size > 4 ? "…" : ""}` : "";
+  const m = document.querySelector("main"); if (m) m.style.paddingTop = chip && matchMedia("(max-width:700px)").matches ? (bar.offsetHeight + 14) + "px" : "";   // a phone: the chip takes room, it doesn't cover the page
 }
 async function phase() {
   await refreshPhase();
@@ -200,6 +1505,10 @@ async function phase() {
   setTimeout(phase, 2000);
 }
 addEventListener("load", () => { setTimeout(() => { load(); poll(); phase(); }, 300); });
+</script>
+<script>
+// a phone keyboard must not cover the field being typed in: bring it to the middle of what is left
+document.addEventListener("focusin", e => { const t = e.target; if (t && t.matches && t.matches("input:not([type=checkbox]):not([type=radio]),textarea")) setTimeout(() => { try { t.scrollIntoView({ block: "center", behavior: "smooth" }); } catch {} }, 350); });
 </script>
 </body>
 </html>

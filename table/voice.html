@@ -66,6 +66,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
   <ol class="feed" id="feed" aria-live="polite"></ol>
 </div>
 
+<script src="/assets/voices.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 let ctx=null, node=null, stream=null, muted=false, aiPlayers=[], voices={};
@@ -127,7 +128,7 @@ async function sendUtterance(frames){
 // ---- output ---------------------------------------------------------------------------------
 function say(who, text){
   if(!$("speak").checked || !window.speechSynthesis){ setStatus("on","listening"); return; }
-  const u=new SpeechSynthesisUtterance(text); if(voices[who]) u.voice=voices[who];
+  const u=new SpeechSynthesisUtterance(text); const vv=voices[who]; if(vv&&vv.voice) u.voice=vv.voice; if(vv){ u.rate=vv.rate||1; u.pitch=vv.pitch||1; }
   u.onend=()=>setStatus("on","listening"); setStatus("say", who+" speaking");
   speechSynthesis.speak(u);
 }
@@ -170,13 +171,10 @@ $("mic").onclick=async ()=>{
 $("mute").onclick=()=>{ muted=!muted; $("mute").textContent=muted?"Unmute":"Mute"; if(ctx) setStatus(muted?"":"on", muted?"muted":"listening"); };
 
 function assignVoices(){
-  if(!window.speechSynthesis) return;
-  const en=speechSynthesis.getVoices().filter(v=>v.lang.startsWith("en"));
-  aiPlayers.forEach((p,i)=>{
-    // the configured macOS voice ("Daniel", "Moira"…) if this browser has it, else a distinct fallback
-    const named = p.voice && speechSynthesis.getVoices().find(v=>v.name===p.voice || v.name.startsWith(p.voice+" "));
-    if(named) voices[p.name]=named; else if(en.length) voices[p.name]=en[(i*3)%en.length];
-  });
+  // natural voices by default, the AI's own declared voice/pace/pitch when it has one (assets/voices.js)
+  if(!window.speechSynthesis || !window.TableVoices) return;
+  const plan=TableVoices.voicePlan(aiPlayers, speechSynthesis.getVoices());
+  for(const k in plan) voices[k]=plan[k];
 }
 if(window.speechSynthesis) speechSynthesis.onvoiceschanged=assignVoices;
 fetch("/api/voice-config").then(r=>r.json()).then(c=>{

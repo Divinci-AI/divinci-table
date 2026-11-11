@@ -56,6 +56,19 @@
     photo:   () => { noise(0, 0.05, { freq: 5000, vol: 0.2 }); noise(0.09, 0.05, { freq: 3500, vol: 0.15 }); },
     dice:    () => { for (let i = 0; i < 7; i++) noise(i * 0.06 + Math.random() * 0.02, 0.04, { freq: 2500 + Math.random() * 1500, vol: 0.14 }); },
     win:     () => chord([523, 659, 784, 1047], 0, 1.2, { type: "triangle", vol: 0.09, strum: 0.08 }),
+    // the game itself: what a player does with a card
+    land:    () => { noise(0, 0.14, { freq: 220, vol: 0.28, type: "lowpass" }); tone(130, 0, 0.22, { vol: 0.22, glide: 0.6 }); tone(523, 0.12, 0.3, { type: "triangle", vol: 0.07 }); },
+    cast:    () => { noise(0, 0.35, { freq: 1500, vol: 0.14, q: 2 }); tone(392, 0.05, 0.4, { type: "triangle", vol: 0.1, glide: 1.8 }); [988, 1319, 1760].forEach((f, i) => tone(f, 0.28 + i * 0.07, 0.35, { vol: 0.06 })); },
+    flip:    () => { noise(0, 0.08, { freq: 3500, vol: 0.18, q: 2 }); tone(300, 0.04, 0.18, { type: "triangle", vol: 0.1, glide: 2 }); },
+    block:   () => { noise(0, 0.05, { freq: 4200, vol: 0.2, q: 4 }); tone(1245, 0, 0.35, { type: "square", vol: 0.05, glide: 0.9 }); tone(622, 0.02, 0.4, { type: "square", vol: 0.04 }); },
+    tap:     () => { tone(500, 0, 0.07, { type: "triangle", vol: 0.1, glide: 0.6 }); },
+    turnOver:() => STEP["turn over"](),
+    hold:    () => { tone(300, 0, 0.18, { type: "square", vol: 0.06 }); tone(225, 0.12, 0.25, { type: "square", vol: 0.06 }); },
+    release: () => { tone(300, 0, 0.12, { type: "triangle", vol: 0.08 }); tone(450, 0.09, 0.2, { type: "triangle", vol: 0.09 }); },
+    join:    () => { tone(784, 0, 0.12, { vol: 0.08 }); tone(1175, 0.1, 0.22, { vol: 0.08 }); },
+    hover:   () => { tone(2200, 0, 0.025, { type: "sine", vol: 0.03 }); },
+    select:  () => { tone(620, 0, 0.06, { type: "triangle", vol: 0.1 }); tone(930, 0.05, 0.1, { type: "triangle", vol: 0.09 }); },
+    error:   () => { tone(150, 0, 0.18, { type: "sawtooth", vol: 0.09 }); tone(158, 0.02, 0.18, { type: "sawtooth", vol: 0.07 }); },
   };
 
   // every button press: a soft click (the pass button gets its own)
@@ -80,6 +93,9 @@
         else if (e.type === "declare") FX.attack();
         else if (e.type === "chat") (e.photo ? FX.photo : FX.chat)();
         else if (e.type === "highroll") (e.winner ? FX.win : FX.dice)();
+        else if (e.type === "say") { const k = { land: FX.land, cast: FX.cast, block: FX.block, "turn-up": FX.flip, manifest: FX.flip, end: FX.turnOver }[e.action]; if (k) k(); }
+        else if (e.type === "phase" && e.kind === "hold") (e.on === false ? FX.release : FX.hold)();
+        else if (e.type === "seat" && e.kind === "claimed") FX.join();
       }
       if (++tick % 3) return;                                      // the phase only every ~3 s (fewer connections)
       const p = await (await fetch("/api/phase")).json();          // a ping when it becomes your turn to pass
@@ -93,7 +109,7 @@
   // 🔊 / 🔇 toggle, top right under the 👤 seat chip
   const btn = document.createElement("button");
   btn.dataset.sfxToggle = "1";
-  btn.style.cssText = "position:fixed;right:12px;top:46px;z-index:55;width:34px;height:34px;border-radius:999px;border:1px solid #3a3f4a;" +
+  btn.style.cssText = "position:fixed;right:12px;top:calc(var(--tb-h, 0px) + 8px);z-index:9990;width:34px;height:34px;border-radius:999px;border:1px solid #3a3f4a;" +
     "background:#1b1e25;color:#eee;font-size:17px;cursor:pointer;opacity:.85";
   const label = () => { btn.textContent = on ? "🔊" : "🔇"; btn.title = on ? "sounds on (tap to mute)" : "sounds off (tap to turn on)"; };
   btn.onclick = () => { on = !on; store("sfx.on", on ? "1" : "0"); label(); if (on) { ac(); STEP["main 1"](); } };
@@ -101,4 +117,5 @@
   const mount = () => document.body.appendChild(btn);
   if (document.body) mount(); else addEventListener("DOMContentLoaded", mount);
   window.TableSfx = { step: s => STEP[s] && STEP[s](), fx: n => FX[n] && FX[n](), on: () => on };
+  addEventListener("DOMContentLoaded", () => { const r = () => btn.style.top = "calc(var(--tb-h, 0px) + 8px)"; r(); setTimeout(r, 600); });
 })();

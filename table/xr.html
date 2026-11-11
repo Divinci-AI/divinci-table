@@ -36,6 +36,8 @@
   addEventListener("error", e => { const m = document.getElementById("msg"); if (m) m.textContent = "⚠ " + (e.message || e.error); });
   addEventListener("unhandledrejection", e => { const m = document.getElementById("msg"); if (m) m.textContent = "⚠ " + e.reason; });
 </script>
+<script src="/art/index.js"></script>
+<script src="/assets/cardphysics.js"></script>
 <script type="importmap">{ "imports": { "three": "/vendor/three.module.min.js" } }</script>
 <script src="/assets/seat.js" defer></script>
 <script src="/assets/urgent.js" defer></script>
@@ -54,6 +56,7 @@ import { GLTFLoader } from "/vendor/jsm/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "/vendor/jsm/utils/SkeletonUtils.js";
 import { RoomEnvironment } from "/vendor/jsm/environments/RoomEnvironment.js";
 import { createBoard } from "/assets/board3d.js";
+import { createPhysicsBoard } from "/assets/board3d-physics.js";
 import { installXRControls } from "/assets/xr-controls.js";
 import { installPresence } from "/assets/xr-presence.js";
 const escHtml = t => String(t).replace(/[<>&"']/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -346,6 +349,7 @@ renderer.setAnimationLoop((t, frame) => {
   const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
   controls?.update(frame);
   presence?.update(dt);
+  board?.step?.(dt);
   if (frame && hitSource && !placed) {                       // AR: find the real table under the reticle
     const hits = frame.getHitTestResults(hitSource);
     reticle.visible = hits.length > 0;
@@ -384,7 +388,9 @@ renderer.setAnimationLoop((t, frame) => {
 });
 
 // ── every card in play, on the table in front of its owner ────────────────────────────────
-const board = createBoard(THREE, { parent: table, y: 0.752, radius: TABLE_R * 0.62, angleOf: n => actors[n]?.ang,
+// the physics board (cards deal, flip and settle with momentum); ?flatboard=1 keeps the old static one
+const FLAT = new URLSearchParams(location.search).get("flatboard") === "1" || !window.CardPhysics;
+const board = (FLAT ? createBoard : createPhysicsBoard)(THREE, { parent: table, y: 0.752, radius: TABLE_R * 0.62, angleOf: n => actors[n]?.ang,
   colorOf: n => actors[n]?.look.accent || "#e6e6e6" });
 let boardBusy = false;
 async function boardRefresh() {

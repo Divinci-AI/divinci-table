@@ -61,6 +61,7 @@ label{color:var(--muted);display:flex;gap:7px;align-items:center}
 @media (prefers-reduced-motion:reduce){.meter i{transition:none}}
 </style>
 <script src="/assets/seat.js" defer></script>
+<script src="/assets/gameover.js" defer></script>
 </head>
 <body>
 <div class="wrap">
@@ -113,6 +114,7 @@ label{color:var(--muted);display:flex;gap:7px;align-items:center}
   </div>
 </div>
 <canvas id="canvas" hidden></canvas>
+<script src="/assets/voices.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -122,10 +124,10 @@ function pill(id, k, t){ const p=$(id); p.className="pill "+k; p.textContent=t; 
 
 // ── output: one queue of speech for everything the AI says ───────────────────────────────
 function assignVoices(){
-  if(!window.speechSynthesis) return;
-  const all=speechSynthesis.getVoices(), en=all.filter(v=>v.lang.startsWith("en"));
-  ai.forEach((p,i)=>{ const named=p.voice && all.find(v=>v.name===p.voice||v.name.startsWith(p.voice+" "));
-    voices[p.name]=named || en[(i*3)%Math.max(1,en.length)]; });
+  // natural voices by default, the AI's own declared voice/pace/pitch when it has one (assets/voices.js)
+  if(!window.speechSynthesis || !window.TableVoices) return;
+  const plan=TableVoices.voicePlan(ai, speechSynthesis.getVoices());
+  for(const k in plan) voices[k]=plan[k];
 }
 // Never talk over a person: lines wait while the mic hears someone, then go out in order.
 // window.__humanTalking (tests only) overrides the mic's own voice-activity flag.
@@ -135,6 +137,7 @@ function speak(who, text, sounds){
   // No cancel(): a card reaction and an answer can land together, so they queue.
   // `sounds` is the same line respelled for the voice (pronounce.py); the feed shows `text`.
   if(!$("speak").checked || !window.speechSynthesis) return;
+  try{ if(JSON.parse(localStorage.getItem("table.muted")||"[]").includes(who)) return; }catch{}   // muted on this laptop (S18; /3d sets it)
   pending.push([who, sounds||text]); flushSpeech();
 }
 // Chrome's speech engine can hang on a long utterance: speechSynthesis.speaking stays true and every
@@ -146,7 +149,7 @@ function flushSpeech(){
     const [who, line]=pending.shift();
     for(const part of line.match(/[^.!?]+[.!?]*/g) || [line]){
       if(!part.trim()) continue;
-      const u=new SpeechSynthesisUtterance(part.trim()); if(voices[who]) u.voice=voices[who];
+      const u=new SpeechSynthesisUtterance(part.trim()); const vv=voices[who]; if(vv&&vv.voice) u.voice=vv.voice; if(vv){ u.rate=vv.rate||1; u.pitch=vv.pitch||1; }
       u.onstart=()=>{ ttsStarted=Date.now(); }; u.onend=()=>{ ttsStarted=0; };
       speechSynthesis.speak(u);
     }
@@ -267,6 +270,7 @@ async function pollEvents(){
         touched=true;
       } else if(e.type==="life"){ feed(`<span class="meta">life: ${esc(e.player)} ${e.delta>0?"+":""}${e.delta} → ${e.life} (${esc(e.by)})</span>`); touched=true; }
       else if(e.type==="new-game"){ board.length=0; addBoard([]); touched=true; }
+      else if(e.type==="identity"){ feed(`<span class="meta">${esc(e.seat)}${e.presents_as?` — ${esc(e.presents_as)}`:" introduced itself"}${e.pronouns?` (${esc(e.pronouns)})`:""}</span>`); loadConfig(); }
       else if(e.type==="player-added"){ feed(`<span class="meta">${esc(e.player)} joins the table${e.commander?` with ${esc(e.commander)}`:""} at 40 life</span>`); loadConfig(); touched=true; }
       else if(e.type==="hush"){ hush(); feed(`<span class="meta">holding — ${esc(e.by||"someone")} said wait</span>`); }
     }
@@ -406,7 +410,7 @@ function loadConfig(){
     }
     if(first) $("to").innerHTML=ai.map(p=>`<option>${esc(p.name)}</option>`).join("");
     renderPlayers(c); refreshLife();
-    if(first) assignVoices();
+    assignVoices();                        // every load: an AI may declare its own voice mid-game (/api/identity)
   });
 }
 $("addCancel").onclick=()=>{ $("addForm").hidden=true; };

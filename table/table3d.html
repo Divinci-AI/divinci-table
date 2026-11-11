@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Divinci Table · 3D</title>
+<style>
+  :root { --ink: #ece8df; --muted: #a49c8e; --panel: rgba(16, 15, 20, 0.78); --line: rgba(255, 255, 255, 0.12); }
+  html, body { margin: 0; height: 100%; background: #0d0c10; color: var(--ink); font: 14px/1.4 system-ui, sans-serif; overflow: hidden; }
+  canvas { display: block; touch-action: none; }
+  #hud { position: fixed; top: 12px; left: 12px; right: 12px; display: flex; gap: 10px; align-items: center; pointer-events: none; }
+  #hud > * { pointer-events: auto; }
+  .pill { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; backdrop-filter: blur(6px); }
+  #title { font-weight: 700; letter-spacing: .02em; }
+  #phase .p { color: #f0c76a; font-weight: 600; }
+  button { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font: inherit; cursor: pointer; }
+  button[aria-pressed="true"] { border-color: #f0c76a; color: #f0c76a; }
+  #spacer { flex: 1; }
+  #tip { position: fixed; max-width: 300px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
+         pointer-events: none; display: none; font-size: 13px; }
+  #tip b { display: block; margin-bottom: 2px; }
+  #tip .t { color: var(--muted); font-style: italic; margin-bottom: 4px; }
+  #feed { position: fixed; left: 12px; bottom: 12px; max-width: min(460px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+  #feed div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 5px 10px; font-size: 13px; transition: opacity .6s; }
+  #feed .who { font-weight: 700; margin-right: 6px; }
+  #help { position: fixed; right: 12px; bottom: 12px; color: var(--muted); font-size: 12px; }
+  @media (max-width: 640px) { #help { display: none; } #title { display: none; } }
+</style>
+<script src="/art/index.js"></script>
+<script src="/assets/cardphysics.js"></script>
+<script src="/assets/voices.js"></script>
+<script src="/assets/gameover.js" defer></script>
+<script type="importmap">{ "imports": { "three": "/vendor/three.module.min.js" } }</script>
+</head>
+<body>
+<div id="hud">
+  <span class="pill" id="title">Divinci Table · 3D</span>
+  <span class="pill" id="phase">connecting…</span>
+  <span id="spacer"></span>
+  <button id="voice" aria-pressed="false" title="speak what the AIs say, each in its own voice">🔈 voices</button>
+  <button id="orbit" aria-pressed="false" title="slowly circle the table">⟳ orbit</button>
+  <button id="reset" title="back to the default view">⌂ view</button>
+</div>
+<div id="tip"></div>
+<div id="feed"></div>
+<div id="help">drag to look around · scroll to zoom · hover a card</div>
+<script type="module">
+import * as THREE from "three";
+import { RoomEnvironment } from "/vendor/jsm/environments/RoomEnvironment.js";
+import { createPhysicsBoard } from "/assets/board3d-physics.js";
+
+// ?watch=1: the spectator feed (a turn behind, /api/spectate), never the live routes
+const Q = new URLSearchParams(location.search), WATCH = Q.get("watch") === "1";
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const PALETTE = ["#f0c76a", "#7fc4ff", "#ff8f7a", "#9be38f", "#d6a2ff", "#7fe6d6"];
+
+// ── scene ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: !!Q.get("shot") });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d0c10);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene.add(new THREE.HemisphereLight(0xfff4e0, 0x1a1410, 0.35));
+const sun = new THREE.DirectionalLight(0xfff1d6, 2.2);
+sun.position.set(0.6, 2.2, 0.9); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -0.8, right: 0.8, top: 0.8, bottom: -0.8, near: 0.5, far: 5 }); sun.shadow.bias = -0.0004; sun.shadow.radius = 4;
+scene.add(sun);
+
+// the table: felt with a little grain, a wooden rim
+const R = 0.66;                       // the felt: sized so the cards read at a glance
+const feltTex = (() => {
+  const c = document.createElement("canvas"); c.width = c.height = 512; const g = c.getContext("2d");
+  g.fillStyle = "#1f4a35"; g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 9000; i++) { g.fillStyle = `rgba(${Math.random() < .5 ? "255,255,255" : "0,0,0"},${Math.random() * 0.05})`; g.fillRect(Math.random() * 512, Math.random() * 512, 1.5, 1.5); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(4, 4); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+const felt = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.04, 96), new THREE.MeshStandardMaterial({ map: feltTex, roughness: 0.95 }));
+felt.position.y = -0.02; felt.receiveShadow = true; scene.add(felt);
+const rim = new THREE.Mesh(new THREE.TorusGeometry(R + 0.02, 0.035, 18, 128), new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.45, metalness: 0.1 }));
+rim.rotation.x = Math.PI / 2; rim.position.y = 0.005; rim.castShadow = true; rim.receiveShadow = true; scene.add(rim);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(6, 64), new THREE.MeshStandardMaterial({ color: 0x141217, roughness: 1 }));
+floor.rotation.x = -Math.PI / 2; floor.position.y = -0.75; floor.receiveShadow = true; scene.add(floor);
+
+// ── seats: the first seat nearest the camera, the rest round the table ────────────────────────────────────────────────
+let order = [];
+const angleOf = name => { const i = order.indexOf(name); return i < 0 ? null : Math.PI / 2 + i * 2 * Math.PI / Math.max(2, order.length); };
+const colorOf = name => PALETTE[Math.max(0, order.indexOf(name)) % PALETTE.length];
+const board = createPhysicsBoard(THREE, { parent: scene, y: 0, radius: R * 0.9, angleOf, colorOf });
+window.__board = board;
+
+// ── camera: drag to orbit, scroll/pinch to zoom ─────────────────────────────────────────────────────────────────────────
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.01, 30);
+const view = { theta: 0, phi: 0.66, r: 1.62 }, home = { ...view };
+let auto = WATCH || Q.get("orbit") === "1", lastInput = performance.now();
+$("orbit").setAttribute("aria-pressed", String(auto));
+function placeCamera() {
+  view.phi = Math.min(1.35, Math.max(0.18, view.phi)); view.r = Math.min(4, Math.max(0.7, view.r));
+  camera.position.set(view.r * Math.sin(view.phi) * Math.sin(view.theta), view.r * Math.cos(view.phi), view.r * Math.sin(view.phi) * Math.cos(view.theta));
+  camera.lookAt(0, -0.05, 0);
+}
+placeCamera();
+const pointers = new Map(); let pinch0 = 0;
+renderer.domElement.addEventListener("pointerdown", e => { pointers.set(e.pointerId, [e.clientX, e.clientY]); renderer.domElement.setPointerCapture(e.pointerId); lastInput = performance.now(); });
+renderer.domElement.addEventListener("pointerup", e => { pointers.delete(e.pointerId); pinch0 = 0; });
+renderer.domElement.addEventListener("pointermove", e => {
+  mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); mouseAt = [e.clientX, e.clientY];
+  if (!pointers.has(e.pointerId)) return;
+  const [x0, y0] = pointers.get(e.pointerId); pointers.set(e.pointerId, [e.clientX, e.clientY]); lastInput = performance.now();
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    if (pinch0) view.r *= pinch0 / d; pinch0 = d;
+  } else { view.theta -= (e.clientX - x0) * 0.006; view.phi -= (e.clientY - y0) * 0.005; }
+  placeCamera();
+});
+renderer.domElement.addEventListener("wheel", e => { e.preventDefault(); view.r *= Math.exp(e.deltaY * 0.001); placeCamera(); lastInput = performance.now(); }, { passive: false });
+renderer.domElement.addEventListener("dblclick", () => { Object.assign(view, home); placeCamera(); });
+$("reset").onclick = () => { Object.assign(view, home); placeCamera(); };
+$("orbit").onclick = () => { auto = !auto; $("orbit").setAttribute("aria-pressed", String(auto)); };
+addEventListener("resize", () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+// ── hover: what a card is ──────────────────────────────────────────────────────────────────────────────────────────────
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(-9, -9); let mouseAt = [0, 0];
+function hover() {
+  ray.setFromCamera(mouse, camera);
+  const c = board.pick(ray), tip = $("tip");
+  if (!c || (!c.name && !c.face_down)) { tip.style.display = "none"; return; }
+  tip.innerHTML = c.face_down && !c.name ? `<b>a face-down card</b>` :
+    `<b>${esc(c.name)}${c.pt ? ` · ${esc(c.pt)}` : ""}</b>${c.type ? `<div class="t">${esc(c.type)}</div>` : ""}${esc(c.text || "").slice(0, 320)}` +
+    `${c.tapped ? "<div class='t'>tapped</div>" : ""}`;
+  tip.style.display = "block";
+  tip.style.left = Math.min(innerWidth - 320, mouseAt[0] + 16) + "px"; tip.style.top = Math.min(innerHeight - 160, mouseAt[1] + 16) + "px";
+}
+
+// ── talk: bubbles over the seats, an optional voice for each AI ───────────────────────────────────────────────────────
+const ACTION = /^(I (play|cast|attack|tap|untap|create|search|block|put|sacrifice|discard|draw|surveil|scry|choose|return|exile|destroy|gain|lose|take)\b|No blocks|That's my turn|\w+, turn \d+\.|[A-Z][\w' -]+: I |done for this turn)/;
+let voiceOn = false, plan = {}, aiPlayers = [];
+// a per-seat mute (S18): this browser stops showing and speaking a seat's talk; the game log still has every line.
+// ?mute=Name,Name or click a name in the feed; shared with the table page through localStorage ("table.muted")
+const MUTED = new Set((() => { try { return JSON.parse(localStorage.getItem("table.muted") || "[]"); } catch { return []; } })());
+(Q.get("mute") || "").split(",").map(x => x.trim()).filter(Boolean).forEach(n => MUTED.add(n));
+const saveMuted = () => { try { localStorage.setItem("table.muted", JSON.stringify([...MUTED])); } catch {} };
+saveMuted();
+async function loadVoices() {
+  if (WATCH) return;
+  try { aiPlayers = (await (await fetch("/api/voice-config")).json()).ai_players || []; } catch { return; }
+  if (window.speechSynthesis && window.TableVoices) plan = TableVoices.voicePlan(aiPlayers, speechSynthesis.getVoices());
+}
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = loadVoices;
+$("voice").onclick = () => { voiceOn = !voiceOn; $("voice").setAttribute("aria-pressed", String(voiceOn)); $("voice").textContent = voiceOn ? "🔊 voices" : "🔈 voices";
+  if (voiceOn && window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance("")); };
+function feed(who, text) {
+  const d = document.createElement("div"); d.innerHTML = `<span class="who" style="color:${colorOf(who)};cursor:pointer;pointer-events:auto" title="mute ${esc(who)}">${esc(who)}</span>${esc(text)}`;
+  d.querySelector(".who").onclick = () => { MUTED.add(who); saveMuted(); d.remove(); };
+  $("feed").appendChild(d); while ($("feed").children.length > 5) $("feed").firstChild.remove();
+  setTimeout(() => { d.style.opacity = "0"; setTimeout(() => d.remove(), 700); }, 14000);
+}
+function heard(e) {
+  const who = e.speaker, text = (e.text || "").trim();
+  if (!who || !text || ACTION.test(text) || MUTED.has(who)) return;      // moves are shown by the cards themselves; muted seats are quiet
+  board.say(who, text); feed(who, text);
+  if (voiceOn && window.speechSynthesis) {
+    const u = new SpeechSynthesisUtterance(e.speech || text), v = (plan[who] || {});
+    if (v.voice) u.voice = v.voice; u.rate = v.rate || 1; u.pitch = v.pitch || 1; speechSynthesis.speak(u);
+  }
+}
+
+// ── the game: live (board + long-poll events) or the spectator feed ───────────────────────────────────────────────────
+function apply(data) {
+  if (!data || !data.seats) return;
+  const names = data.seats.map(s => s.name);
+  if (names.join("|") !== order.join("|")) order = names;
+  board.update(data);
+  const life = data.seats.map(s => `${esc(s.name)} ♥ ${esc(s.life ?? "—")}`).join(" · ");
+  $("phase").innerHTML = (data.turn ? `<span class="p">${esc(data.turn)}</span> · ${esc(data.step || "")} · ` : "") + life + (WATCH ? " · <i>a turn behind</i>" : "");
+}
+async function live() {
+  let since = 0;
+  try { since = (await (await fetch("/api/events?since=latest")).json()).last || 0; } catch {}
+  let pending = null;
+  const refresh = () => { clearTimeout(pending); pending = setTimeout(async () => { try { apply(await (await fetch("/api/board3d")).json()); } catch {} }, 120); };
+  refresh(); loadVoices();
+  for (;;) {
+    try {
+      const d = await (await fetch(`/api/events?since=${since}&wait=20`)).json();
+      if (d.restarted) { since = 0; refresh(); continue; }
+      for (const e of d.events || []) {
+        since = Math.max(since, e.id);
+        if (e.type === "say") heard(e);
+        if (e.type === "identity") loadVoices();
+      }
+      if ((d.events || []).some(e => e.type !== "pass" && e.type !== "attention")) refresh();
+    } catch { await new Promise(r => setTimeout(r, 2000)); }
+  }
+}
+async function watch() {
+  let asOf = -1;
+  for (;;) {
+    try {
+      const d = await (await fetch("/api/spectate")).json();
+      if (d.board && d.as_of_event !== asOf) {
+        const fresh = (d.events || []).filter(e => e.id > asOf && asOf >= 0);
+        asOf = d.as_of_event; apply(d.board);
+        fresh.filter(e => e.type === "say").slice(-4).forEach(heard);
+      } else if (!d.board) $("phase").textContent = "the first turn is still being played";
+    } catch {}
+    await new Promise(r => setTimeout(r, 2500));
+  }
+}
+(WATCH ? watch : live)();
+
+// ── the loop ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+let last = performance.now(); window.__frames = 0;
+renderer.setAnimationLoop(now => {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (auto && now - lastInput > 4000) { view.theta += dt * 0.06; placeCamera(); }
+  board.step(dt); hover();
+  renderer.render(scene, camera); window.__frames++;
+});
+</script>
+</body>
+</html>

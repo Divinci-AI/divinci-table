@@ -17,9 +17,12 @@
   const css = document.createElement("style");
   css.textContent = `
   .u-glow{position:fixed;inset:0;pointer-events:none;z-index:9998;opacity:0;transition:opacity .25s;
+    box-shadow:inset 0 0 0 4px rgba(242,183,5,.9),inset 0 0 50px 8px rgba(242,183,5,.25)}
+  .u-on .u-glow{opacity:.8}                               /* your move: a steady amber edge, at once */
+  .u-urgent .u-glow{opacity:1;animation:u-pulse 1s ease-in-out infinite;    /* the last seconds: red, pulsing */
     box-shadow:inset 0 0 0 5px rgba(255,59,48,.95),inset 0 0 70px 14px rgba(255,59,48,.55)}
-  .u-on .u-glow{opacity:.85}
-  .u-urgent .u-glow{opacity:1;animation:u-pulse 1s ease-in-out infinite}
+  .u-bar{border-color:#f2b705!important}.u-bar button{background:#c98f00!important}
+  .u-urgent .u-bar{border-color:#ff3b30!important}.u-urgent .u-bar button{background:#ff3b30!important}
   @keyframes u-pulse{0%,100%{opacity:.4}50%{opacity:1}}
   @media (prefers-reduced-motion:reduce){.u-urgent .u-glow{animation:none;opacity:1}}
   .u-bar{position:fixed;left:50%;top:calc(var(--tb-h,0px) + 8px);transform:translateX(-50%);z-index:9999;display:none;align-items:center;gap:10px;
@@ -60,10 +63,12 @@
   const me = () => ((window.TableSeat && window.TableSeat.name && window.TableSeat.name()) || "").toLowerCase();
   async function poll() {
     try {
-      if (!me()) return;                                   // (also while the tab is in the background: that is when it matters)
+      if (!me()) { st.mine = false; return; }              // no seat on this device (a stale key was just dropped): nothing to pass
+                                                           // (polls also while the tab is in the background: that is when it matters)
       const p = await (await fetch("/api/phase", { cache: "no-store" })).json();
       const ps = p.passes || {};
-      st.mine = !!ps.next && ps.next.toLowerCase() === me() && p.player !== null && p.player.toLowerCase() !== me();
+      st.mine = !!ps.next && ps.next.toLowerCase() === me() && p.player !== null && p.player.toLowerCase() !== me() && ps.decision !== "blocks"   // (blocks owed: the block panel is the one prompt)
+        && !(p.held && (p.held.waiting || []).some(n => String(n).toLowerCase() === me()) && !p.held.paying);   // (a spell held for my answer: that panel's Pass is the one)
       st.turn = !!p.player && p.player.toLowerCase() === me();       // my own turn: the page I act from is /me
       st.pilot = (p.ai || []).some(n => n.toLowerCase() === me());   // a virtual-deck seat: it passes with its own call, NEXT refuses it
       st.player = p.player; st.step = p.step;
@@ -105,7 +110,7 @@
         : await fetch("/api/phase/next", { method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify(window.TableSeat ? window.TableSeat.body() : { by: me() }) });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) { st.err = d.error || "couldn't pass"; st.errUntil = Date.now() + 4000; }
+      if (!r.ok && !(d.stale || /^stale pass/i.test(d.error || ""))) { st.err = d.error || "couldn't pass"; st.errUntil = Date.now() + 4000; }   // (a stale pass: the table moved on; just read it again)
       await poll();
     } catch { st.err = "no connection"; st.errUntil = Date.now() + 4000; }
     render();

@@ -15,6 +15,8 @@ if [ "${1:-}" != quick ] && [ "${FORCE:-}" != 1 ] && lsof -ti tcp:8800 -sTCP:LIS
   fi
 fi
 PY=~/.venvs/table/bin/python
+# Test decks come from the set's card data, never from a real game's decks (live/decks holds people's picks).
+export TABLE_TEST_DECKS=${TABLE_TEST_DECKS:-$($PY table/tests/fixture_decks.py)}
 export TABLE_RESEARCH_DIR=$(mktemp -d)/research   # simulated games never land in the real research data
 PW=${PW:-$HOME/Documents/server/workspace/clients/tests/node_modules/@playwright/test}
 LOG=$(mktemp -d)/table-server.log
@@ -68,9 +70,41 @@ run remote-guard  $PY table/tests/remote_guard_test.py
 run openmic-room  $PY table/tests/openmic_room_test.py
 run xr-math       node table/tests/xr_math_test.mjs
 run cloud-policy  node --experimental-strip-types --test cloud/test/policy.test.ts
+# the game-2/3 retro rows, security, and the agents-at-the-table work (2026-11-07): each starts its own throwaway server on a
+# free port, so these are safe during a live game
+run retro-game1   $PY table/tests/retro_game1_test.py
+run retro-game2   $PY table/tests/retro_game2_test.py
+run security      $PY table/tests/security_review_test.py
+run two-headed    $PY table/tests/two_headed_test.py
+run hand-leak     $PY table/tests/hand_leak_test.py
+run seat-legal    $PY table/tests/seat_legal_test.py
+run table-mcp     $PY table/tests/table_mcp_test.py
+run x402-gate     $PY table/tests/x402_gate_test.py
+run lobby         $PY table/tests/lobby_test.py
+run flying-block  $PY table/tests/flying_block_test.py
+run retro-game4   $PY table/tests/retro_game4_test.py
+run restore-old   $PY table/tests/restore_old_snapshot_test.py
+run impulse       $PY table/tests/impulse_test.py
+run effect-order  $PY table/tests/effect_order_test.py
+run rewind        $PY table/tests/rewind_test.py
+run manual        $PY table/tests/manual_test.py
+run look-pay-saavik $PY table/tests/look_pay_saavik_test.py
+run game-over     $PY table/tests/game_over_test.py
+run janeway       $PY table/tests/janeway_test.py
+run combat-acct   $PY table/tests/combat_account_test.py
+run retro5        $PY table/tests/retro5_test.py
+[ -d "$PW" ] && run hand-mechanics env PW=$PW node table/tests/hand_mechanics_e2e.cjs
+run golden-path   $PY table/tests/agent_golden_path_test.py
+[ -d "$PW" ] && run seat-link env PW=$PW node table/tests/seat_link_e2e.cjs
+run voices        node table/tests/voices_test.cjs
+run card-physics  node table/tests/cardphysics_test.cjs
+[ -d "$PW" ] && run table-3d env PW=$PW node table/tests/table3d_e2e.cjs
 if [ "${1:-}" = quick ]; then
-  run sensory     $PY table/tests/sense_run.py --tier regression
-  run game-sim    $PY table/tests/game_sim.py --games 1 --rounds 6
+  # These two load the Gemma model through Ollama. SKIP_OLLAMA=1 leaves them out when something else needs it (a draft in progress).
+  if [ -z "${SKIP_OLLAMA:-}" ]; then
+    run sensory     $PY table/tests/sense_run.py --tier regression
+    run game-sim    $PY table/tests/game_sim.py --games 1 --rounds 6
+  fi
 else
   run sensory     $PY table/tests/sense_run.py
   run game-sim    $PY table/tests/game_sim.py --games 3 --rounds 8

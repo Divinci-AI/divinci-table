@@ -34,10 +34,17 @@ button.big{flex:1}
 input{font:18px system-ui;width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);margin-top:6px}
 .pick button{display:block;width:100%;margin:8px 0;text-align:left}
 .ok{color:var(--me)} .warn{color:var(--warn)}
+/* T17: one priority prompt: the chip pinned to the top (countdown, Pass, bell). The big NEXT and the bar's Pass step aside while it is up. */
+body.u-on #next, body.u-on .tbs [data-s="next"]{display:none!important}
+.u-bar{top:calc(var(--tb-h,0px) + var(--ca-h,0px) + 8px)!important;flex-wrap:wrap;row-gap:4px}
+@media (max-width:700px){ .u-bar{left:8px!important;right:8px;transform:none!important;max-width:none!important;padding:6px 10px!important;gap:6px 8px!important}
+  .u-bar .u-msg{flex-basis:100%} .u-bar .u-msg:empty{display:none} body.u-on #view::before{content:"";display:block;height:104px} }
 </style>
 <link rel="stylesheet" href="/assets/brand.css">
 <script src="/assets/seat.js" defer></script>
 <script src="/assets/urgent.js" defer></script>
+<script src="/assets/gameover.js" defer></script>
+<script src="/assets/choicealert.js" defer></script>
 <script src="/assets/tablebar.js" defer></script>
 <script src="/assets/brand.js" defer></script>
 <script src="/assets/myboard.js" defer></script>
@@ -84,6 +91,9 @@ async function j(u,o){const r=await fetch(u,o);const t=await r.text();try{return
 async function start(){
   const cfg=await j("/api/voice-config"); AI=(cfg.ai_players||[]).map(p=>p.name);
   const humans=(cfg.humans||[]).map(h=>h.name);
+  const stored=window.TableSeat?(await window.TableSeat.ready, window.TableSeat.name()):"";
+  const pilot = stored && AI.includes(stored) && (!me || me==="watcher" || me===stored);   // a virtual-deck seat: this page is its table view; it plays from ✋ Hand
+  if(pilot){ me=stored; history.replaceState(null,"","?player="+encodeURIComponent(me)); }
   if(!me && window.TableSeat){                   // no ?player= in the address: this device already told the table who it is
     await window.TableSeat.ready; const n=window.TableSeat.name();
     if(n && humans.includes(n)){ me=n; history.replaceState(null,"","?player="+encodeURIComponent(n)); }
@@ -92,13 +102,15 @@ async function start(){
     $("names").innerHTML=humans.map(n=>`<button onclick="location.search='?player=${encodeURIComponent(n)}'">${esc(n)}</button>`).join("")
       +`<button onclick="location.search='?player=watcher'">Just watching</button>`; return; }
   $("title").textContent=`Divinci Table · ${me}`; $("view").hidden=false;
+  if(pilot){ const a=$("auto"); if(a) a.style.display="none";                       // auto-pass for a virtual deck is the 🤖 button in the strip
+    $("view").insertAdjacentHTML("afterbegin",`<div style="margin:0 0 10px;padding:10px 12px;border:1px solid #d9b46a55;border-radius:10px">You play from your <a href="/hand" style="color:#f4dc9b;font-weight:700;display:inline-block;padding:10px 4px;min-height:44px">✋ Hand</a> page (your cards, and <a href="/hand#gyrow" style="color:#f4dc9b;font-weight:700;display:inline-block;padding:10px 4px;min-height:44px">🪦 the graveyards</a>); auto-pass is the 🤖 button in the bar at the top.</div>`); }
   if(humans.includes(me)) $("mybtns").innerHTML=[-5,-1,+1,+5].map(d=>`<button class="big" onclick="life(${d})">${d>0?"+":""}${d}</button>`).join("");
   else $("sendWord").parentElement.parentElement.querySelector("input").disabled=true;
   await life0(); await fair(); phase(); poll();
 }
 async function life(d){ await j("/api/life",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({player:me,delta:d,by:me})}); life0(); }
 async function life0(){ const lt=await j("/api/life");
-  $("life").innerHTML=Object.entries(lt).map(([n,v])=>`<div class="p ${n===me?"me":""} ${AI.includes(n)?"ai":""} ${n===activeP?"active":""}"><div class="n"><span>${esc(n)}</span><span>${AI.includes(n)?"AI":""}</span></div><div class="v">${esc(v)}</div></div>`).join(""); }
+  $("life").innerHTML=Object.entries(lt).map(([n,v])=>`<div class="p ${n===me?"me":""} ${AI.includes(n)?"ai":""} ${n===activeP?"active":""}"><div class="n"><span>${esc(n)}</span><span>${AI.includes(n)?"virtual deck":""}</span></div><div class="v">${esc(v)}</div></div>`).join(""); }
 async function fair(){ const f=await j("/api/fair"); if(f.error){$("fair").innerHTML=`<span class="muted">not available</span>`;return;}
   const rows=Object.entries(f.seats||{}).filter(([,v])=>v).map(([n,v])=>`<div>${esc(n)} <span class="fp">${esc(v.fingerprint)}</span></div>`);
   $("fair").innerHTML=(rows.join("")||`<span class="muted">no sealed decks</span>`)
@@ -219,5 +231,9 @@ start();
 <script src="/assets/photo.js" defer></script>
 <script src="/assets/highroll.js" defer></script>
 <script src="/assets/sfx.js" defer></script>
+<script>
+// a phone keyboard must not cover the field being typed in: bring it to the middle of what is left
+document.addEventListener("focusin", e => { const t = e.target; if (t && t.matches && t.matches("input:not([type=checkbox]):not([type=radio]),textarea")) setTimeout(() => { try { t.scrollIntoView({ block: "center", behavior: "smooth" }); } catch {} }, 350); });
+</script>
 </body>
 </html>

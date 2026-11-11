@@ -5,7 +5,7 @@
   if (!me) return;
   let since = null;
   const bar = document.createElement("div");
-  bar.style.cssText = "position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:70;display:none;gap:8px;align-items:center;" +
+  bar.style.cssText = "position:fixed;left:50%;bottom:calc(var(--hud-h,0px) + 16px);transform:translateX(-50%);z-index:70;display:none;gap:8px;align-items:center;" +
     "padding:10px 14px;border-radius:12px;background:#0d1d25;box-shadow:0 0 0 1px #d9b46a66,0 10px 30px #000a;color:#ece4cf;font:15px system-ui";
   document.addEventListener("DOMContentLoaded", () => document.body.appendChild(bar));
   async function rate(id, r) {

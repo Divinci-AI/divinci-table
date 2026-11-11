@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Table lobby</title>
+<style>
+  :root { --bg: #0f1115; --panel: #171a21; --ink: #e8e6e1; --sub: #9aa0a6; --line: #2a2f3a; --gold: #d9b46a; --ok: #3fb950; --off: #8b949e; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --bg: #f6f5f2; --panel: #fff; --ink: #1d1f23; --sub: #5f6368; --line: #dcdcdc; --gold: #8a6a1f; } }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 4px 0 12px; }
+  .t { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--sub); }
+  .on { color: var(--ok); border-color: var(--ok); } .off { color: var(--off); }
+  a { color: var(--gold); }
+  table { border-collapse: collapse; margin-top: 6px; width: 100%; } td { padding: 3px 8px 3px 0; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lobby</h1>
+  <div class="sub" style="color:var(--sub);margin-bottom:10px">Who is seated where, and which tables are running. Watching shows a game one turn behind.</div>
+  <div id="tables">Loading…</div>
+</main>
+<script>
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function card(t, here) {
+  if (!t.running && !here) return `<div class="t"><div class="row"><b>${esc(t.url)}</b><span class="tag off">not running</span></div></div>`;
+  const base = here ? "" : (t.url || "");
+  const seats = (t.seats || []).map(s => `<tr><td>${esc(s.name)}</td><td>${s.kind === "bot" ? "bot" : "person"}${s.claimed ? " · seated" : ""}</td><td>${s.life == null ? "" : esc(s.life) + " life"}</td></tr>`).join("");
+  const state = t.over ? `game over${t.winner ? ": " + esc(t.winner) + " wins" : ""}` : t.turn ? `${esc(t.turn)}'s turn${t.step ? " · " + esc(t.step) : ""}` : "not started";
+  return `<div class="t"><div class="row"><b>${here ? "This table" : esc(t.url)}</b><span class="tag on">running</span><span class="tag">${state}</span>
+    <a href="${esc(base)}/watch">watch ▸</a>${here ? ` <a href="/me">my seat ▸</a>` : ""}</div>
+    <table>${seats || '<tr><td class="sub">no seats</td></tr>'}</table>
+    <div class="sub" style="color:var(--sub);font-size:12px;margin-top:6px">game ${esc(t.game_id || "")}</div></div>`;
+}
+async function load() {
+  try {
+    const d = await (await fetch("/api/lobby", { cache: "no-store" })).json();
+    document.getElementById("tables").innerHTML = card(d.table || {}, true) + (d.others || []).map(o => card(o, false)).join("");
+  } catch { document.getElementById("tables").textContent = "The table didn't answer."; }
+  setTimeout(load, 5000);
+}
+load();
+</script>
+</body>
+</html>
