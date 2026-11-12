@@ -46,7 +46,7 @@ python3 table/tests/run_core.py            # every test a plain clone can run, t
 ```
 
 Python 3.14 and numpy are enough (`pip install -r table/requirements.txt`); the scan pad, voice and cameras are optional extras. A test that needs something your
-clone doesn't have (the set's card data: `python3 table/fetch_data.py --set trk`; the Claude bot; an older frozen copy of the
+clone doesn't have (the set's card data: `python3 table/fetch_data.py --set trk`; an older frozen copy of the
 table) is **skipped** with the command that fixes it, and the summary lists what was skipped. Tests that are red today are
 named in `run_core.py` (`KNOWN_RED`) with what is known, so a new failure is the only thing that turns the run red.
 
@@ -56,14 +56,14 @@ named in `run_core.py` (`KNOWN_RED`) with what is known, so a new failure is the
   private, checks every move an AI seat makes, and refuses another seat's actions without that seat's key. It is played on
   real game nights with friends and AI players, and the engine, its tests and `docs/security.md` are the record of what broke
   and was fixed.
-- **Tests, measured 2026-11-11 with `table/tests/run_core.py`.** On the author's Mac: 79 pass, 4 skipped (they need the Claude bot or
-  3D assets, which this repo doesn't ship), 4 known red, 0 failed. On a bare clone (a virtualenv with only numpy, an empty home
-  folder, no network, the set's card data fetched): 76 pass, 7 skipped, 4 known red, 0 failed. The four known-red suites
-  are older ones the engine outgrew; each is named in `run_core.py` with what is known.
+- **Tests, measured 2026-11-11 with `table/tests/run_core.py`** (it also runs the `draft/` tests). On the author's Mac: 90 pass, 1 skipped
+  (a comparison with a frozen older table), 1 known red, 0 failed. On a bare clone (a virtualenv with only numpy, an empty home folder,
+  no network, the set's card data fetched): 89 pass, 2 skipped (that, and the 3D assets this repo doesn't ship), 1 known red, 0 failed. The
+  known-red suite (`combat_server_test`) asserts the combat model from before v6c and needs rewriting; `combat_v6_test` covers the current one.
 - **Security, 2026-11-11.** An independent review attacked a throwaway server and a second one tried 69 one-line breakages of the
   engine to see whether the tests notice. Fixed from them, each with a test that fails on the old code: a seat's typed text
   or photo caption could change other seats' life totals, local trust depended on a proxy header, the opening-hand step let
-  a player change their commander after seeing their hand, and a refused cast cost a player their response window. A held spell used to name
+  a player change their commander after seeing their hand, and a refused cast cost a player their response window; a restored room's reply died building (a dropped connection). A held spell used to name
   the seats holding a castable answer; it now lists every opponent. What is still open is in `docs/security.md`.
 - **Not tested in a browser yet:** the private-reveal question, a concede control, and the "who is the table waiting on" banner.
 

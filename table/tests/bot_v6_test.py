@@ -5,7 +5,7 @@ import importlib, os, sys, tempfile, time
 import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 from pathlib import Path
 from v6_harness import R, Table, check, run, cast, answer, choices, says, HERE
-BOT = Path(os.path.expanduser(os.environ.get("BOT_DIR", str(HERE.parent / "bot-v6"))))
+BOT = Path(os.path.expanduser(os.environ.get("BOT_DIR", str(HERE.parent / "bots"))))
 sys.path.insert(0, str(BOT))
 cards_path.need(BOT / "claude_autopilot.py", "the Claude bot", "BOT_DIR=<dir with claude_autopilot.py>")
 M, C = "Michael", "Claude"

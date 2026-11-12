@@ -19,7 +19,7 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
-ROOT = Path(os.environ.get("BOT_DIR") or Path.home() / ".divinci" / "star-trek-mtg").expanduser()
+ROOT = Path(os.environ.get("BOT_DIR") or Path(__file__).resolve().parents[2] / "bots").expanduser()
 cards_path.need(ROOT / "claude_autopilot.py", "the Claude bot", "BOT_DIR=<dir with claude_autopilot.py>")
 DECKS = cards_path.decks_dir()
 FAILS: list[str] = []

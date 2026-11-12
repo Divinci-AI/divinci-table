@@ -6,7 +6,7 @@ import importlib, os, sys, tempfile
 import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
 from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
-BOT = Path(os.path.expanduser(os.environ.get("BOT_DIR", str(HERE.parent / "bot-v6"))))
+BOT = Path(os.path.expanduser(os.environ.get("BOT_DIR", str(HERE.parent / "bots"))))
 sys.path[:0] = [str(HERE), str(HERE / "tests"), str(BOT)]
 cards_path.need(BOT / "claude_autopilot.py", "the Claude bot", "BOT_DIR=<dir with claude_autopilot.py>")
 import retro_game4_test as R

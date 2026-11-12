@@ -49,6 +49,9 @@ def candidates(filt: str):
         if filt and filt not in p.name:
             continue
         yield p
+    for p in sorted((REPO / "draft").glob("test_*.py")):      # the draft engine, deck builder and "I'm ready" handoff
+        if not filt or filt in p.name:
+            yield p
 
 
 def run_one(p: Path, timeout: int):

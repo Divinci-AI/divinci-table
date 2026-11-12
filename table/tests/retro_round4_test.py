@@ -718,7 +718,7 @@ def table_reveal_bot():
     print("Table: the bot answers a look at a hand: the best nonland card")
     import subprocess
     import time
-    bot = Path(os.environ.get("AUTOPILOT") or Path.home() / ".divinci/star-trek-mtg/review-20261109/bot-v7/claude_autopilot.py")
+    bot = Path(os.environ.get("AUTOPILOT") or Path(__file__).resolve().parents[2] / "bots" / "claude_autopilot.py")
     if not bot.exists():
         print(f"  ⏭️  skipped: no bot at {bot} (AUTOPILOT=<claude_autopilot.py>)")
         return

@@ -12,7 +12,7 @@ python3 table/tests/run_core.py retro     # only tests whose file name contains 
 ```
 
 You need Python 3.14 and numpy (`pip install -r table/requirements.txt`); nothing else for the server and its tests. A test that needs something your clone
-doesn't have (the set's card data, the Claude bot, an older frozen copy of the table) says so and counts as **skipped**,
+doesn't have (the set's card data, an older frozen copy of the table) says so and counts as **skipped**,
 not failed; the summary lists exactly what was skipped and how to get it. `run_core.py` never touches ports
 8800/8801/8820/8830/8883, so it is safe beside a live game. The browser suites (`*.cjs`, Playwright), the Gemma/Whisper
 suites and the hardware tests need more setup and are not in `run_core.py`; `table/tests/run_all.sh` is the author's full run.
