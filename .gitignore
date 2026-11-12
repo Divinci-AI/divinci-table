@@ -42,3 +42,6 @@ saves/
 .env
 .env.*
 node_modules/
+
+# the draft tests write results here
+draft/drafts/

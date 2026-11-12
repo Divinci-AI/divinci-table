@@ -17,6 +17,8 @@ and lets only the card's rules show a hand to the player it may be shown to.
 |---|---|
 | `harness/` | simulated four-player games: rules engine, seat agents, the paired comparison, replay viewer. Start with `harness/README.md` — it has every result so far |
 | `table/` | the real-table server: webcam scan pad for the AI's hidden hand + open-mic voice, fully offline (`table/README.md`) |
+| `bots/` | the AI players: autopilot, autopass, banter (see `bots/README.md`) |
+| `draft/` | a live web draft for a small table, and the "I'm ready" match handoff (see `draft/README.md`) |
 | `table/tests/run_core.py` | every test a plain clone can run (see "Run the tests" below) |
 | `table/fetch_data.py` | one-time download of card names, rules text and a set's cards from Scryfall; after it the table is offline |
 | `docs/security.md`, `SECURITY.md` | who may do what at a table, which test holds each rule, and how to report a problem |
