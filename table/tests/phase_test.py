@@ -492,7 +492,7 @@ try:
     while (p["player"] != "Ben" or p["step"] in ("untap", "cleanup")) and _more():
         code, p = nxt(p["player"] if p["player"] in ("Ann", "Ben") else "Ben")
     step = p["step"]
-    check(p["passes"]["need"] == ["Ben", "Ann"] and p["passes"]["next"] == "Ben",
+    check(p["passes"]["need"] == ["Ben", "Ann", "Claude"] and p["passes"]["next"] == "Ben",      # AI seats are in the round since NEXT waits for their window
           "the active player passes first, then the others in turn order")
     code, p = call("POST", "/api/phase/next", pb("Ann"))
     check(code == 409 and "Ben passes first" in p.get("error", ""), "a player can't pass out of turn order")
@@ -509,6 +509,8 @@ try:
           "an activated ability sends priority round again from the active player")
     code, p = call("POST", "/api/phase/next", pb("Ben"))
     code, p = call("POST", "/api/phase/next", pb("Ann"))
+    brain("pass", quiet=True)                                # …and the AI seat, last in the round
+    code, p = call("GET", "/api/phase")
     check(code == 200 and p["step"] != step, "when everyone has passed in a row, the step ends")
     code, p = call("GET", "/api/phase")
     _more = guard("p['step'] != 'cleanup'")
@@ -550,22 +552,36 @@ try:
     code, p = call("POST", "/api/autopass", pb(other, mode="others"))
     check(code == 200 and p["autopass"][other] == "others", f"{other} switches on auto-pass for others' turns")
     step0 = p["step"]
-    code, p = call("POST", "/api/phase/next", pb(active))
+
+    def press(who):
+        """who's NEXT; the AI seat, in every round since NEXT waits for its window, then passes its window."""
+        c_, p_ = call("POST", "/api/phase/next", pb(who))
+        if c_ == 200 and (p_.get("passes") or {}).get("next") == "Claude":
+            brain("pass", quiet=True)
+            c_, p_ = call("GET", "/api/phase")
+        return c_, p_
+    code, p = press(active)
     check(code == 200 and p["step"] != step0, f"in {active}'s turn, {active}'s pass ends the step — {other} is passed for automatically")
     code, p = call("POST", "/api/autopass", pb(other, mode="others-no-combat"))
     code, p = call("GET", "/api/phase")
     _more = guard("p['step'] != 'beginning of combat'")
     while (p["step"] != "beginning of combat") and _more():
-        code, p = call("POST", "/api/phase/next", pb(active))
+        code, p = press(active)
     code, p = call("POST", "/api/phase/next", pb(active))
+    if code == 200 and (p.get("passes") or {}).get("next") == "Claude":      # the AI seat sits between them in the round
+        brain("pass", quiet=True)
+        code, p = call("GET", "/api/phase")
     check(code == 200 and p["step"] == "beginning of combat" and p["passes"]["next"] == other,
           "…'stops for combat' still asks them to pass in combat")
     call("POST", "/api/phase/next", pb(other))
     _more = guard("p['player'] == active")
     while (p["player"] == active) and _more():
-        code, p = call("POST", "/api/phase/next", pb(active))
+        code, p = press(active)
+        if p.get("passes", {}).get("next") == "Claude":
+            brain("pass", quiet=True)
+            code, p = call("GET", "/api/phase")
         if p.get("passes", {}).get("next") == other:
-            code, p = call("POST", "/api/phase/next", pb(other))
+            code, p = press(other)
     code, p = call("GET", "/api/phase")
     if p["player"] == other:
         check(p["passes"]["next"] == other, "and in their own turn auto-pass never passes for them")

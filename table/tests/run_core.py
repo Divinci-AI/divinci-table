@@ -38,10 +38,7 @@ EXCLUDE = {
 # here, with what is known, so a fresh clone's run shows them as expected and goes red only for something NEW. A test that starts
 # passing is reported so its line can be deleted. (Fix the test, then remove the line: this is a to-do list, not a place to hide.)
 KNOWN_RED = {
-    "stage1_guard_test.py": "assertions predate the opening-hand step (mulligan is a pilot action now) and the order of the sorcery-speed refusal; the harness is fine",
-    "phase_test.py": "the 'everyone passes in turn order' section never advances past the first turn (the 150-step guard trips); cause not yet diagnosed",
-    "combat_server_test.py": "19 checks about the pass clock and block answers; built on stage1_guard_test's harness, same staleness suspected; not yet diagnosed",
-    "declare_deck_test.py": "its room-restore step is refused ('this process already holds the room's game'); the commander-lock checks before it pass; not yet diagnosed",
+    "combat_server_test.py": "17 of 72 checks are the pre-v6c combat model (the table dealt damage at once on 'I take it'); v6c asks every defender for an explicit block answer and deals damage at the damage step. combat_v6_test covers the new model; this file needs rewriting against it, not patching",
 }
 
 

@@ -66,7 +66,7 @@ class Server:
                "--ai", "Claude|Kaust, Eyes of the Glade|", "--ai-deck", str(REPO / "decks/kaust.json"),
                "--ai", "Fusion|Tuvasa the Sunlit|", "--ai-deck", str(REPO / "decks/tuvasa.json"),
                "--pilot", "Claude", "--pilot", "Fusion", *(["--human", "Michael|", "--human", "Sam|"] if self.humans else []),
-               "--order", self.order, "--priority-window", "0.2", "--fair-seed", "off", "--seat-rate", "1000", *self.extra]   # a test polls faster than the 10/s default; --seat-rate has its own tests
+               "--order", self.order, "--priority-window", "0.2", "--fair-seed", "off", "--seat-rate", "1000", "--pilot-auto-begin", "off", "--pilot-autopass", "off", *self.extra]   # a test polls faster than the 10/s default; --seat-rate has its own tests
         self.proc = subprocess.Popen(cmd, cwd=REPO, env=env, stdout=open(self.tmp / "server.log", "w"), stderr=subprocess.STDOUT)
         for _ in range(180):
             if self.proc.poll() is not None:
@@ -242,7 +242,7 @@ ALLOWED = ("say", "begin", "land", "cast", "turn-up", "tap", "untap", "attack", 
 REFUSED = {"draw": {"n": 3}, "search": {"name": "Sol Ring"}, "peek": {"n": 2}, "topdeck": {"name": "Sol Ring"},
            "put": {"name": "Sol Ring"}, "token": {"name": "Treasure", "power": 9, "toughness": 9, "n": 3},
            "counter": {"ref": "#1", "n": 5}, "animate": {"ref": "#1", "power": 9, "toughness": 9},
-           "bottom": {"name": "Sol Ring"}, "shuffle": {}, "mulligan": {}, "discard": {"name": "Sol Ring"}, "mill": {"n": 3},
+           "bottom": {"name": "Sol Ring"}, "shuffle": {}, "discard": {"name": "Sol Ring"}, "mill": {"n": 3},
            "role": {"ref": "#1", "kind": "Young Hero"}, "destroy": {"ref": "#1"}, "exile": {"ref": "#1"}, "bounce": {"ref": "#1"},
            "blink": {"ref": "#1"}, "graveyard-out": {"name": "x"}, "manifest": {"n": 2}, "no-such-action": {}}
 
@@ -283,6 +283,14 @@ def item3():
         c, d = S.brain("Claude", "pass")
         check("allowed: pass is not blocked by the allowlist (its own rules are item 5)", c != 403 or "pilot" not in str(d.get("error", "")).lower(), (c, d))
         # a discount the client names is ignored for a pilot key
+        S.act_walk("Claude", "begin")                          # Sol Ring is sorcery speed: walk the turn to main 1 first
+        for _ in range(20):
+            if S.phase().get("step") == "main 1":
+                break
+            S.act_walk("Claude", "next")
+        for p_ in S.state("Claude")["permanents"]:             # no mana: tap everything the turn's untap gave back
+            if "Land" in (p_.get("type") or ""):
+                S.host_brain("Claude", "tap", ref="#%d" % p_["id"])
         S.host_brain("Claude", "search", name="Sol Ring", to="hand")
         c0, d0 = S.brain("Claude", "cast", name="Sol Ring")
         c1, d1 = S.brain("Claude", "cast", name="Sol Ring", discount=5)
@@ -324,7 +332,7 @@ def item4():
         lands, flands = plain("Claude"), plain("Fusion")
         check("(both pilots hold a land to work with)", bool(lands) and bool(flands), (lands, flands))
         c1, d1 = S.brain("Claude", "land", name=lands[0])
-        c2, d2 = S.brain("Fusion", "land", name=flands[0])
+        c2, d2 = S.host_brain("Fusion", "land", name=flands[0])   # out of turn a pilot may not play a land; the host's token may
         cl, fl = perm_of(S, "Claude", lands[0]), perm_of(S, "Fusion", flands[0])
         check("(both lands were played onto the battlefield)", bool(cl) and bool(fl), (c1, str(d1)[:120], c2, str(d2)[:120]))
         if not (cl and fl):
@@ -333,7 +341,7 @@ def item4():
         check("tap is legal (Claude taps its land at its own untap step)", c == 200 and perm_of(S, "Claude", lands[0])["tapped"], (c, d))
         c, d = S.brain("Claude", "untap", ref="#%d" % cl["id"])
         check("the active pilot may untap in its own untap step", c == 200 and not perm_of(S, "Claude", lands[0])["tapped"], (c, str(d)[:140]))
-        S.brain("Fusion", "tap", ref="#%d" % fl["id"])
+        S.host_brain("Fusion", "tap", ref="#%d" % fl["id"])   # a pilot may undo ITS OWN tap in the same step; a host tap is not that
         c, d = S.brain("Fusion", "untap", ref="#%d" % fl["id"])
         check("a pilot who is NOT the active player cannot untap", c in (403, 409) and perm_of(S, "Fusion", flands[0])["tapped"], (c, str(d)[:140]))
         check("…and the refusal says why", "untap" in str(d.get("error", "")) and "Claude" in str(d.get("error", "")), d)
@@ -342,7 +350,7 @@ def item4():
         S.brain("Claude", "tap", ref="#%d" % cl["id"])
         c, d = S.act_walk("Claude", "begin")
         check("begin still untaps everything at the start of the turn", c == 200 and not perm_of(S, "Claude", lands[0])["tapped"], (c, str(d)[:120]))
-        S.brain("Claude", "tap", ref="#%d" % cl["id"])
+        S.host_brain("Claude", "tap", ref="#%d" % cl["id"])
         c, d = S.brain("Claude", "untap", ref="#%d" % cl["id"])
         check("after begin (main 1) a manual untap is refused, the land stays tapped", c in (403, 409) and perm_of(S, "Claude", lands[0])["tapped"], (c, str(d)[:140]))
         check("…naming the step", "untap step" in str(d.get("error", "")), d)

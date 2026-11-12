@@ -5185,7 +5185,7 @@ class H(BaseHTTPRequestHandler):
             ROOM_ADOPTED[0] = True
             tmp.unlink(missing_ok=True)
             snapshot()                                     # re-save under the restored game's research folder
-            self._send(200, {"ok": True, "rev": _ev_id[0], "phase": PHASE})
+            self._send(200, {"ok": True, "rev": _ev_id[0], "phase": phase_public()})      # PHASE itself holds sets now (not JSON): the reply died and the Worker saw a failed restore
             return True
         self._send(404, {"error": "not found"})
         return True

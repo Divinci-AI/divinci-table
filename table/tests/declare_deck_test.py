@@ -145,7 +145,8 @@ with Server() as S:                                     # Claude (pilot), Fusion
 with Server() as S2:
     req = urllib.request.Request(G.BASE + "/api/room/restore", data=snap, method="POST",
                                  headers={"X-Room-Token": os.environ["ROOM_TOKEN"], "Content-Type": "application/octet-stream"})
-    urllib.request.urlopen(req, timeout=60).read()
+    rr = urllib.request.urlopen(req, timeout=60)
+    check("the room restores from its snapshot, and the reply arrives (it was dropped: PHASE is not JSON)", rr.status == 200 and json.loads(rr.read()).get("ok"), rr.status)
     mi = seat(S2, "Michael")
     dd = S2.call("GET", "/api/deckdecl?seat=Michael")[1]
     b3 = next(x for x in S2.call("GET", "/api/board3d")[1]["seats"] if x["name"] == "Michael")
