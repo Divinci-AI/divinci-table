@@ -61,8 +61,8 @@ named in `run_core.py` (`KNOWN_RED`) with what is known, so a new failure is the
 - **Security, 2026-11-11.** An independent review attacked a throwaway server and a second one tried 69 one-line breakages of the
   engine to see whether the tests notice. Fixed from them, each with a test that fails on the old code: a seat's typed text
   or photo caption could change other seats' life totals, local trust depended on a proxy header, the opening-hand step let
-  a player change their commander after seeing their hand, and a refused cast cost a player their response window. Still
-  open and written down in `docs/security.md`: a held spell names the seats that may respond.
+  a player change their commander after seeing their hand, and a refused cast cost a player their response window. A held spell used to name
+  the seats holding a castable answer; it now lists every opponent. What is still open is in `docs/security.md`.
 - **Not tested in a browser yet:** the private-reveal question, a concede control, and the "who is the table waiting on" banner.
 
 ## Harness results (2026-09-24)

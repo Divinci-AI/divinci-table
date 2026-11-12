@@ -2855,7 +2855,7 @@ def waiting_on() -> list[dict]:
                 if MULL.get("on") and not v.__dict__.get("mull_kept"):
                     cur[(n, "the mulligan")] = now
             if HELD.get("seat"):
-                for n in list(HELD.get("waiting") or ()):
+                for n in held_audience():
                     cur[(n, f"a response to {HELD.get('name')}")] = now
             nxt = PASS.get("waiting_on")
             if nxt and PHASE.get("player") is not None and nxt != PHASE["player"] and not MULL.get("on"):
@@ -4048,10 +4048,21 @@ def counter_holders(caster: str, card: dict) -> list[str]:
     return out
 
 
+def held_audience(caster: str | None = None) -> list[str]:
+    """What the TABLE is told about who may answer a held spell: every opponent seat that could be asked, never just the ones that hold a
+    castable answer (that is hidden information: it would say who has the counterspell). Only the real holders are asked (private
+    `attention`); a window with no holder is never opened, so "someone may answer" is all this can reveal."""
+    caster = caster or HELD.get("seat")
+    if not caster or not HELD.get("waiting"):
+        return []
+    team = {caster, *teammates(caster)}
+    return sorted(n for n in VPS if n not in team and n in PILOTS and not is_out(n))
+
+
 def held_public() -> dict:
     v_ = VPS.get(HELD["seat"])
     paying = bool(v_ and any(x.get("kind") == "option" and (x.get("then") or {}).get("tax") for x in v_.__dict__.get("pending_choices") or []))
-    return {"by": HELD["seat"], "spell": HELD["name"], "waiting": sorted(HELD["waiting"]) or ([HELD["seat"]] if paying else []), "mv": HELD.get("mv", 0),
+    return {"by": HELD["seat"], "spell": HELD["name"], "waiting": held_audience() or ([HELD["seat"]] if paying else []), "mv": HELD.get("mv", 0),
             **({"paying": True, "note": f"{HELD['seat']} decides whether to pay; at zero the spell is countered"} if paying else {}),
             "seconds_left": round(max(0.0, HELD["until"] - time.time()), 1)}
 
@@ -4064,7 +4075,7 @@ def held_open(caster: str, card: dict, holders: list, after: dict):
     for n in holders:
         emit("attention", kind="respond", addressee=n, by=caster, spell=card["name"], seconds=RESPOND_SECS, mv=float(card.get("manaValue") or 0),
              text=f"{caster} casts {card['name']}. You may respond now (cast a counterspell at it), or Pass to let it resolve.")
-    emit("held", by=caster, spell=card["name"], waiting=sorted(holders), seconds=RESPOND_SECS)
+    emit("held", by=caster, spell=card["name"], waiting=held_audience(caster), seconds=RESPOND_SECS)
 
     def late():
         with VP_LOCK:
@@ -4148,7 +4159,7 @@ def held_gate(sn: str, act: str):
             return None
         if sn != caster and sn not in teammates(caster) and sn in PILOTS and act in ("cast", "activate", "turn-up"):
             return None                                 # an opponent's response (a counterspell names the held spell as its target)
-        who = ", ".join(sorted(HELD["waiting"])) or caster
+        who = ", ".join(held_audience()) or caster
         return 409, {**phase_public(), "waiting": who,
                      "error": f"waiting on passes: {who} may respond to {caster}'s {HELD['name']} ({max(0.0, HELD['until'] - time.time()):.0f} s at most)"}
 

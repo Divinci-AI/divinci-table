@@ -63,17 +63,16 @@ what, and which test holds each rule.*
 11. **Surveys and photos.** Seat-gated (any device but the laptop: since 2026-11-11 not only in cloud rooms), recorded
    under the key's own seat whatever `X-By` says, size- and count-capped (300), stored in the room's research folder
    (0600); the public log says who answered a survey, never what. *remote_authority_test.*
-12. **The laptop is addressed as itself.** Host-level trust needs a loopback peer, a loopback `Host`, and no forwarding
+12. **A held spell does not say who holds the answer.** The table is told every opponent may respond (`/api/phase`
+   `held` and `waiting_on`, the public `held` event, the 409 text); only the seats that really hold a castable answer are asked,
+   privately. *retro_round4_gaps_test.py (fails on the earlier code).*
+13. **The laptop is addressed as itself.** Host-level trust needs a loopback peer, a loopback `Host`, and no forwarding
    header (a tunnel keeps its own host name, so trust never depends on a proxy remembering to add one). A POST's
    `Origin` must be this table's own address, port included, so another page on a localhost port is as foreign as
    another site. *remote_authority_test, security_review_test.*
 
 ## Known limits (accepted for now)
 
-- **A held spell names who may respond.** While a seat's spell waits for a counter, the public stream and
-  `/api/phase` (`waiting_on`) list the seats that hold a castable answer, which is information a real table keeps
-  hidden. Fix options: list every opponent as waited-on while only the holders are asked, or always open the window.
-  Not changed yet (it alters what players see).
 - **`/api/deckdecl` lists a virtual seat's whole deck** under the default `--decklists auto` (Commander-style open
   lists). A table where a deck list is an edge (draft tables, agents) starts with `--decklists declared`.
 - **Held connections cost file descriptors.** The server raises its own limit to 8192; a flood of idle long-polls from

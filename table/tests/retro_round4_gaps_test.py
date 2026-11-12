@@ -166,6 +166,36 @@ def table_refused_cast_keeps_priority():
         t.stop()
 
 
+def table_held_does_not_name_the_holder():
+    print("Table (held), THREE seats: only Claude holds a counterspell; the table is told every opponent may answer, never which one does")
+    R.POOL.update({"Highly Illogical": 6, "Tricorder": 6})
+    R.DECK_CLAUDE = R.deck_file("Claude-held")
+    R.DECK_MICHAEL = R.deck_file("Michael-held")
+    t = Table3()
+    try:
+        t.start()
+        t.call("POST", "/api/phase/windows", {"on": True, "by": "host"}, host=False)
+        t.lands(C, 2, "Island")
+        set_hand(t, C, ["Highly Illogical", "Plains"])
+        set_hand(t, S, ["Plains", "Plains"])
+        set_hand(t, M, ["Tricorder", "Plains"])
+        t.lands(M, 1, "Plains")
+        c, d = t.call("POST", "/api/brain/cast", {"seat": M, "name": "Tricorder"}, key=t.keys[M])
+        ph = t.call("GET", "/api/phase")[1]
+        held = ph.get("held") or {}
+        check(c == 200 and held.get("spell") == "Tricorder", "Michael's spell is held", (c, held, d))
+        check(held.get("waiting") == [C, S], "/api/phase held.waiting lists both opponents, not only the holder", held.get("waiting"))
+        evs = [e for e in t.events() if e.get("type") == "held" and e.get("waiting") is not None]
+        check(evs and evs[-1]["waiting"] == [C, S], "the public held event lists both opponents", [e.get("waiting") for e in evs])
+        wo = {(w["seat"]) for w in ph.get("waiting_on", []) if "response" in w.get("what", "")}
+        check(wo == {C, S}, "waiting_on names both for the response", ph.get("waiting_on"))
+        # the real holder is still the only one ASKED (a private attention)
+        asked = [e.get("addressee") for e in t.events() if e.get("type") == "attention" and e.get("kind") == "respond"]
+        check(asked == [C], "only the seat that holds an answer is asked", asked)
+    finally:
+        t.stop()
+
+
 def table_waiting_on_blocks():
     print("Table (i5, n): while a defender owes its blocks the phase says so, and the entry is gone once it has answered")
     t = R.Table()
@@ -279,7 +309,7 @@ def engine_pay_gaps():
         check(keeps in left, f"lands {spec}, casting {cast} with {len(hand) - 1} other cards in hand: {keeps} is still castable afterwards", left)
 
 
-SECTIONS = [("concede auth", table_concede_auth), ("concede three seats", table_concede_three_seats), ("reveal other seats", table_reveal_other_seats), ("priority after a spell", table_priority_after_a_spell), ("refused cast keeps priority", table_refused_cast_keeps_priority), ("waiting on blocks", table_waiting_on_blocks), ("stall note", table_stall_note),
+SECTIONS = [("concede auth", table_concede_auth), ("concede three seats", table_concede_three_seats), ("reveal other seats", table_reveal_other_seats), ("priority after a spell", table_priority_after_a_spell), ("refused cast keeps priority", table_refused_cast_keeps_priority), ("held does not name the holder", table_held_does_not_name_the_holder), ("waiting on blocks", table_waiting_on_blocks), ("stall note", table_stall_note),
             ("engine mccoy himself", engine_mccoy_himself), ("engine death scope", engine_death_scope), ("engine outpost", engine_outpost_boundary), ("engine pay gaps", engine_pay_gaps)]
 
 
