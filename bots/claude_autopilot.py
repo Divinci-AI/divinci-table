@@ -28,7 +28,8 @@ KEY = KEYFILE.read_text().strip()
 
 def call(method, path, body=None, retry=True):
     STATS["requests"] += 1
-    h = {"Content-Type": "application/json", "X-Seat-Key": KEY}
+    # (a name of its own: a table behind Cloudflare refuses Python's default User-Agent with "error code: 1010", before the table sees it)
+    h = {"Content-Type": "application/json", "X-Seat-Key": KEY, "User-Agent": "divinci-table-autopilot"}
     r = urllib.request.Request(BASE + path, method=method, data=None if body is None else json.dumps(body).encode(), headers=h)
     try:
         with urllib.request.urlopen(r, timeout=20) as x:

@@ -136,6 +136,11 @@ def reap(listed: dict):
                 g["proc"].kill()
         g["keyfile"].unlink(missing_ok=True)
         log(f"table {tid}: done ({'the table is closed' if gone else 'time' if late else 'the player stopped'})")
+        try:                                            # the player's last words, for whoever reads the house's log
+            for line in (RUN / f"{tid}.log").read_text().strip().splitlines()[-2:]:
+                log(f"table {tid}:   {line[:160]}")
+        except OSError:
+            pass
         del GAMES[tid]
 
 
