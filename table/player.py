@@ -1310,6 +1310,12 @@ class VirtualPlayer:
             elif re.match(r"Return that card to the battlefield under its owner's control at the beginning of the next end step\.?$", raw) \
                     and out and re.search(r"\bexile (?:up to one )?(?:other )?target (?:creature|nonland permanent) you control\.?$", out[-1], re.I):
                 out[-1] = out[-1].rstrip(".") + " ||then|| " + raw      # one effect: it goes, and comes back at the next end step
+            elif re.match(r"Put (?:that card|those (?:\w+ )?cards|them) (?:onto the battlefield|into your hand)\b", raw) \
+                    and out and re.search(r"\breveal cards from the top of your library until you reveal [^.|]*\.?$", out[-1], re.I):
+                out[-1] = out[-1].rstrip(".") + " ||then|| " + raw      # "Reveal ... until you reveal N land cards. Put those ... and the rest on the bottom": one effect
+            elif re.match(r"Sacrifice (?:those lands|that land|them|it) at the beginning of (?:your|the) next end step\.?$", raw) \
+                    and out and re.search(r"\breveal cards from the top of your library until you reveal [^|]* \|\|then\|\| ", out[-1], re.I):
+                out[-1] = out[-1].rstrip(".") + " ||then|| " + raw      # (Will Riker: the lands it found go at the end step)
             elif re.match(r"(?:Until the end of your next turn, you may play (?:those cards|that card|them)|You may play (?:that card|those cards|them) this turn)\.?$", raw) \
                     and out and re.search(r"\bexile (?:the top|cards from the top)\b", out[-1], re.I):
                 out[-1] = out[-1].rstrip(".") + " ||then|| " + raw     # impulse draw: the exile and what may be played from it are one effect
@@ -1484,6 +1490,55 @@ class VirtualPlayer:
             n = 1 if m.group(1) == "the top card" else num(m.group(2)) if m.group(2) else 1
             return self.impulse_exile(n, until_nonland=bool(m.group(3)), until="next" if m.group(4).startswith("until") else "eot",
                                       by=src.name if src is not None else "")
+        # ── "Reveal cards from the top of your library until you reveal N <kind> card(s). Put those ... and the rest on the bottom in a random order." ──
+        # 2026-11-13 retro: U.S.S. Voyager, Lone Wanderer entered and the table said "By hand"; the host did it with twelve manual moves. The set's
+        # cards with this wording: U.S.S. Voyager (two lands, onto the battlefield tapped), Will Riker, First in the Field (two lands, onto the
+        # battlefield, sacrificed at the end step), Janice Rand, Essential Aide (a land, tapped) and Pavel Chekov, First Posting (a card of a chosen
+        # kind, into the hand). Every revealed card is named in the public log (a reveal is public). Lands that arrive this way enter like any
+        # other land (their own enters text, then Landfall: land_entered). The rest go to the bottom in an order nobody at the table can know
+        # (this seat's own generator, the same one that shuffles its library). Onto the battlefield is done for LAND cards only: another kind of
+        # permanent has enters triggers this sentence has no way to ask about, so that stays by hand rather than half-done.
+        m = re.fullmatch(r"(?:then )?reveal cards from the top of your library until you reveal (a|an|one|two|three|four|five) ((?:non)?[a-z]+) cards?"
+                         r" \|\|then\|\| put (?:that card|those (?:[a-z]+ )?cards|them) (onto the battlefield( tapped)?|into your hand)"
+                         r" and (?:put )?(?:the rest|all other cards revealed this way) on the bottom of your library in a random order"
+                         r"( \|\|then\|\| sacrifice (?:those lands|that land|them|it) at the beginning of (?:your|the) next end step)?", low)
+        if m and (m.group(3) == "into your hand" or m.group(2) == "land"):
+            want, kind, to_field = num(m.group(1)), m.group(2), m.group(3) != "into your hand"
+            shown, found = [], []
+            while self.library and len(found) < want:
+                c = self.library.pop()                      # (the end of the list is the top)
+                shown.append(c)
+                if card_fits(c, kind):
+                    found.append(c)
+            rest = [c for c in shown if not any(c is f for f in found)]
+            self.rng.shuffle(rest)
+            for c in rest:
+                self.library.insert(0, c)
+            what = f"{kind} card" + ("" if want == 1 else "s")
+            said = [(f"{who}: I reveal cards from the top of my library until I reveal {m.group(1) if want > 1 else ('an' if kind[0] in 'aeiou' else 'a')} {what}: "
+                     + ", ".join(c["name"] for c in shown) + ".") if shown else f"{who}: my library is empty: nothing to reveal."]
+            if shown and len(found) < want:
+                said.append(f"That was my whole library: {len(found)} {kind} card{'s' if len(found) != 1 else ''}, not {want}.")
+            entered = []
+            for c in found:
+                if to_field:
+                    q = Perm(c, sick=False, tapped=bool(m.group(4)))
+                    q.sac_at_end = bool(m.group(5))
+                    self.battlefield.append(q)
+                    entered.append(q)
+                else:
+                    self.hand.append(c)
+            if found:
+                names = ", ".join(c["name"] for c in found)
+                said.append(f"I put {names} " + (f"onto the battlefield{' tapped' if m.group(4) else ''}" if to_field else "into my hand")
+                            + (f" and the other {len(rest)} on the bottom of my library in a random order." if rest else ".")
+                            + (f" I sacrifice {'them' if len(found) > 1 else 'it'} at the beginning of my next end step." if m.group(5) and to_field else ""))
+            elif rest:
+                said.append(f"They all go on the bottom of my library in a random order ({len(rest)}).")
+            for q in entered:                               # each land's own enters text ("enters tapped", a Planet's life), then Landfall, one land at a time
+                if q in self.battlefield:
+                    said += self.land_entered(q)
+            return said
         m = re.fullmatch(r"put (a|one|two|three) quest counters? on (?:this \w+|it)", low)
         if m and src is not None:
             src.quest += num(m.group(1))
