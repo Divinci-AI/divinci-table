@@ -51,6 +51,15 @@ select{padding:7px;border-radius:8px;background:#071820;color:var(--ink);border:
 #fanact{min-height:46px;margin-top:54px;position:relative;z-index:400;background:linear-gradient(#0d1d25f2,#0d1d25f2);padding-top:6px;border-radius:8px}#fanact .nm{font-weight:700;color:#f4dc9b}#fanact .x{font-size:13px;color:#cfdcdc;margin:3px 0 6px;max-width:720px}
 
 .paywith{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0 2px}.paywith button{min-height:44px;padding:6px 14px}
+/* 2026-11-13 retro (B1): the cast panel always has a way out; (B3) a tapped source is shown, greyed, where the player chooses what pays */
+#fanact .fanx{float:right;margin:0 0 6px 10px;min-height:40px;padding:6px 12px;font-weight:700}
+.payg.tapped{opacity:.62}.payg.tapped .payn b{text-decoration:line-through;text-decoration-color:#ffb38f}.payg.tapped .payt{color:#ffb38f;font-size:13px;white-space:nowrap}
+.payg.tapped button{width:auto;font-size:13px;padding:4px 10px;min-height:40px}
+#handtoast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--hud-h,50px) + 14px);z-index:9700;display:none;max-width:min(560px,94vw);background:#10242cf7;color:#f1ecd8;
+  border:1px solid #d9b46a;border-radius:12px;padding:10px 14px;box-shadow:0 10px 30px #000c;font-weight:600}
+#handtoast button{margin-left:10px;min-height:40px}
+/* (B2) a choice or a surveil the table is waiting on is never painted under the cast panel or the fan */
+#choicepanel,#effpanel,#mullpanel,#heldbox,#alert{position:relative;z-index:360}
 .paypiles{margin:4px 0 8px;padding:8px;border-radius:10px;background:#ffffff08;box-shadow:inset 0 0 0 1px var(--line)}
 .payg{display:flex;align-items:center;gap:8px;min-height:48px}.payg .payn{flex:1;min-width:0}.payg button{width:48px;min-height:44px;font-size:22px;padding:0;margin:0}.payk{min-width:1.6em;text-align:center;font:800 18px ui-monospace,Menlo,monospace}
 .payc{display:inline-flex;gap:2px;min-width:30px}.pmp{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font:800 12px system-ui;border:1px solid #0008}
@@ -125,7 +134,8 @@ button.big{min-height:52px;font-size:17px}
   #fan{height:calc(var(--fw,170px) * 1.05)!important;margin-top:0!important;pointer-events:none}
   #fan .fc{pointer-events:auto;bottom:calc(var(--fw,170px) * -0.38)}
   #fanact{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--hud-h,50px) + var(--fw,170px) * 1.1);width:min(760px,92vw);z-index:350;pointer-events:auto;
-    box-shadow:0 8px 24px #000b;border:1px solid #d9b46a55;padding:8px 12px!important}
+    box-shadow:0 8px 24px #000b;border:1px solid #d9b46a55;padding:8px 12px!important;
+    max-height:calc(100vh - var(--hud-h,50px) - var(--fw,170px) * 1.1 - var(--tb-h,52px) - var(--ca-h,0px) - 16px);overflow:auto}
   #matpanel{margin-bottom:calc(var(--fw,170px) * 1.05)}
 }
 /* drag a card from the hand onto the battlefield (as in Arena) */
@@ -258,9 +268,15 @@ function endWarning() {
 }
 window.__endCheck = endWarning;
 let endArmed = 0;
+// 2026-11-13 retro (B4): a tab left open from an earlier table. Its key is refused here; say so (seat.js puts up the banner) and stop asking with it.
+function seatIsStale() { if (!(window.TableSeat && TableSeat.dead && TableSeat.dead())) return false;
+  $("who").textContent = TableSeat.staleText; if (S) { S = null; draw(); } return true; }
+addEventListener("seat-stale", seatIsStale);
 async function load() {
+  if (seatIsStale()) return;
   if (!me()) return;
   const { ok, code, d } = await call("GET", "/api/brain/state?seat=" + encodeURIComponent(me()));
+  if (!ok && code === 403 && window.TableSeat && TableSeat.verify && (await TableSeat.verify()) === false) return seatIsStale();
   if (!ok) { loadFails = code === 403 ? loadFails + 1 : 0;
     if (S && code === 403 && loadFails < 3) { $("err").textContent = "the table didn't accept this page's seat key just now; retrying (if it keeps happening, reopen your link)"; return; }   // keep the hand on screen
     $("who").textContent = code === 403 ? `${me()} isn't a virtual-deck seat at this table (or this device's key is old: claim again).` : d.error; S = null; draw(); return; }
@@ -302,12 +318,15 @@ function colorsOf(p) {                                         // what a source 
 }
 const isManaSrc = p => /\{T\}[^:]*: Add /.test((p.text || "").replace(/"[^"]*"/g, "")) || colorsOf(p).length > 0 && /\bLand\b/.test(p.type || "");
 async function poolTap(p, color) {
+  if (tapBlockedByChoice(p)) return;                            // (B3) the table is waiting on my choice: a click taps nothing
   if (!(await act("tap", { ref: "#" + p.id, announce: true }))) return;
-  poolLoad(); MPOOL.items.push({ id: p.id, color, name: p.name }); poolSave(); window.TableSfx && TableSfx.fx("tap"); matSig = ""; draw();
+  poolLoad(); MPOOL.items.push({ id: p.id, color, name: p.name }); poolSave(); window.TableSfx && TableSfx.fx("tap"); matSig = ""; draw(); offerUndo(p, "tap");
 }
 async function poolUndo(p) {
+  if (tapBlockedByChoice(p)) return;
+  poolLoad(); const was = MPOOL.items.find(i => i.id === p.id);
   if (!(await act("untap", { ref: "#" + p.id }))) return;
-  poolLoad(); MPOOL.items = MPOOL.items.filter(i => i.id !== p.id); poolSave(); matSig = ""; draw();
+  poolLoad(); MPOOL.items = MPOOL.items.filter(i => i.id !== p.id); poolSave(); matSig = ""; draw(); offerUndo(p, "untap", was && was.color);
 }
 async function spendPool() {                                    // before a cast: return the pooled sources so the table's payment can tap them
   poolLoad(); for (const it of MPOOL.items) await act("untap", { ref: "#" + it.id });
@@ -371,12 +390,21 @@ function canPayFrom(sources, cost) {                           // sources: [[col
   return sources.length - n.pips.length >= n.generic;
 }
 const pipHtml = cols => cols.map(c => `<span class="pmp" style="background:${PAYCOL[c] || "#9aa3ab"};color:${c === "W" ? "#111" : "#fff"}">${esc(c)}</span>`).join("");
+// (B3) A tapped source used to be simply missing from "Choose lands", which read as "that land isn't there". It is listed, greyed, with why.
+function payTappedRows() {
+  const g = new Map();
+  for (const p of (S.permanents || []).filter(q => q.tapped && !q.face_down && isManaSrc(q))) { const cols = colorsOf(p), key = p.name + "|" + cols.join("");
+    if (!g.has(key)) g.set(key, { name: p.name, cols, ids: [] }); g.get(key).ids.push(p.id); }
+  return [...g.values()].map(x => `<div class="payg tapped"><span class="payc">${pipHtml(x.cols.length > 2 ? ["★"] : x.cols)}</span><span class="payn"><b>${esc(x.name)}</b> <span class="t">×${x.ids.length}</span></span>
+      <span class="payt">tapped — <button data-payuntap="${x.ids[0]}" title="untap it, if the table allows it now (your own tap, in the same step)" aria-label="untap ${esc(x.name)}">untap</button></span></div>`).join("");
+}
 function payControl(c) {
-  if (!c || c.land || !S) return ""; const groups = payGroups(); if (!groups.length) return "";
+  if (!c || c.land || !S) return ""; const groups = payGroups(), tappedRows = payTappedRows();
+  if (!groups.length) return tappedRows ? `<div class="paypiles"><div class="sub" style="color:#ffb38f">Every mana source you have is tapped:</div>${tappedRows}</div>` : "";
   const ids = new Set(groups.flatMap(g => g.ids)); for (const id of [...payPick]) if (!ids.has(id)) payPick.delete(id);
   const choose = payFor === c.name && (payMode === "choose" || payPick.size > 0), n = costNeeds(c.cost);
   const head = `<div class="paywith"><span class="sub">Pay with:</span><button data-paymode="auto" data-payfor="${esc(c.name)}" class="${choose ? "" : "gold"}" aria-pressed="${!choose}">Auto</button><button data-paymode="choose" data-payfor="${esc(c.name)}" class="${choose ? "gold" : ""}" aria-pressed="${choose}">Choose lands</button></div>`;
-  if (!choose) return head;
+  if (!choose) return head + (tappedRows ? `<div class="sub" style="color:#ffb38f">Tapped, so not paying: ${esc((S.permanents || []).filter(q => q.tapped && !q.face_down && isManaSrc(q)).map(q => q.name).join(", "))}. "Choose lands" shows them.</div>` : "");
   const total = n ? n.generic + n.pips.length : null;
   const piles = groups.map(g => { const k = g.ids.filter(id => payPick.has(id)).length;
     return `<div class="payg"><span class="payc">${pipHtml(g.cols.length > 2 ? ["★"] : g.cols)}</span><span class="payn"><b>${esc(g.name)}</b> <span class="t">×${g.ids.length}</span></span>
@@ -391,7 +419,7 @@ function payControl(c) {
       const rem = left.map(q => colorsOf(q).length ? colorsOf(q) : ["C"]), ok = [], no = [];
       for (const h of others) { const r = canPayFrom(rem, h.cost); (r === null ? no : r ? ok : no).push(h.name); }
       hint += others.length ? `<div class="sub" style="color:${ok.length ? "#9be3a6" : "#ffb38f"}">Still castable after this: ${ok.length ? esc(ok.join(", ")) : "nothing else in your hand"}${ok.length && no.length ? ` (not ${esc(no.join(", "))})` : ""}.</div>` : ""; } }
-  return head + `<div class="paypiles">${piles}${hint}</div>`;
+  return head + `<div class="paypiles">${piles}${tappedRows}${hint}</div>`;
 }
 async function castWith(body) {
   if (body && body.kicked === undefined) {
@@ -588,9 +616,73 @@ document.addEventListener("pointerup", e => {
 });
 // ── the fanned hand ──
 let fanSel = -1, fanSig = "";
+// 2026-11-13 retro (B1): the host got stuck in the cast panel three times. It had no Cancel, Escape did nothing, and on a wide screen the panel is
+// fixed OVER the fan, so the card you had to click again to close it was covered. Now: "✕ Close" in the panel, Escape, and a click or tap anywhere
+// that is not the panel, the fan or another control. Closing only forgets which card was selected: it sends nothing to the table.
+function fanClose() { if (fanSel < 0) return false; fanSel = -1; fanSig = ""; window.TableSfx && TableSfx.fx("tap"); if (S) draw(); return true; }
+// A click elsewhere closes the panel and is USED UP by that (capture phase): the click that dismisses the panel must not also tap the land or open
+// the card it happened to land on (B3 was exactly that kind of stray click). A press on a real control (a button, a link, a field, the waiting bar,
+// a choice) is left alone and the panel stays: the player is doing something on purpose.
+const FAN_LEAVE = "button, a, input, select, textarea, label, summary, [role=button], #matpop, #matgy, .ca-bar, #choicepanel, #effpanel, #mullpanel, #heldbox, #paypanel, #handtoast";
+function fanOutsideClick(t) {                                    // what a click on `t` does while a card is selected: "" | "keep" | "close"
+  if (fanSel < 0 || !t || !t.closest) return "";
+  if (t.closest("#fanact, #fan .fc")) return "";               // the panel and the fan handle their own clicks (a second click on the card still toggles)
+  if (t.closest("#mat .mc, #mat .lstack")) return "close";      // a card on the battlefield is never a way to "press a control"
+  return t.closest(FAN_LEAVE) ? "keep" : "close";
+}
+document.addEventListener("click", e => {
+  if (fanJustDragged || matJustDragged) return;                  // the end of a drag is not a click outside
+  if (fanOutsideClick(e.target) !== "close") return;
+  e.stopPropagation(); e.preventDefault(); fanClose();
+}, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && fanSel >= 0) { e.preventDefault(); fanClose(); } });
+addEventListener("ca-show", () => { fanClose(); });              // (B2) the waiting bar's "show it": nothing stays on top of the thing being shown
+
+// 2026-11-13 retro (B3): a stray click on the player's own land tapped it ("Q Continuum is tapped." in the public log) while the table was waiting
+// on that player for a choice; the player then believed the land had entered tapped and could not pay for a spell.
+//   1. While the table waits on this seat for a choice, a click does not tap or untap: it says so and points at the choice.
+//   2. Every tap or untap made by hand shows "Undo" for 6 seconds.
+// The server is unchanged: it still accepts the same taps. This is the page not sending one the player did not mean.
+function waitingOnMyChoice() {
+  if (!S) return "";
+  const c = (S.pending_choices || [])[0];
+  if (c) return `${c.source}: ${(c.slot || {}).label || "your choice"}`;
+  if (S.pending_scry) return `scry ${S.pending_scry}`;
+  if (S.pending_surveil) return `surveil ${S.pending_surveil}`;
+  return "";
+}
+let toastTimer = 0, toastUndo = null;
+function handToast(html, ms) {
+  let el = $("handtoast"); if (!el) { el = document.createElement("div"); el.id = "handtoast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  clearTimeout(toastTimer); el.innerHTML = html; el.style.display = html ? "block" : "none";
+  if (html && ms) toastTimer = setTimeout(() => { el.style.display = "none"; el.innerHTML = ""; toastUndo = null; }, ms);
+}
+function showWaitingPanel() {                                   // scroll to the choice (or the surveil / scry) and flash it
+  const el = [$("choicepanel"), $("effpanel")].find(x => x && x.firstElementChild); fanClose(); if (!el) return scrollTo(0, 0);
+  const top = (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--tb-h")) || 52) + (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--ca-h")) || 0) + 6;
+  scrollTo(0, Math.max(0, scrollY + el.getBoundingClientRect().top - top));
+  el.firstElementChild.animate([{ boxShadow: "0 0 0 6px #ffe08a" }, { boxShadow: "0 0 0 0 #ffe08a00" }], { duration: 1400, iterations: 2 });
+}
+function tapBlockedByChoice(p) {                                // true = nothing was sent
+  const w = waitingOnMyChoice(); if (!w) return false;
+  const pp = $("matpop"); if (pp) pp.style.display = "none";
+  handToast(`${esc(p ? p.name : "That")} was not ${p && p.tapped ? "untapped" : "tapped"}: the table is waiting on you first (${esc(w)}). <button class="gold" data-showchoice>Show it ▴</button>`, 9000);
+  window.TableSfx && TableSfx.fx("hold"); return true;
+}
+function offerUndo(p, did, color) {                             // did: "tap" | "untap" (what was just done by hand to permanent p)
+  toastUndo = { id: p.id, name: p.name, did, color: color || "" };
+  handToast(`${esc(p.name)} ${did === "tap" ? "tapped" : "untapped"}. <button class="gold" data-undotap>Undo</button>`, 6000);
+}
+async function undoTap() {
+  const u = toastUndo; toastUndo = null; if (!u) return handToast("");
+  const r = await act(u.did === "tap" ? "untap" : "tap", u.did === "tap" ? { ref: "#" + u.id } : { ref: "#" + u.id, announce: true });
+  if (!r) return handToast(`Couldn't undo that: ${esc($("err").textContent || "the table refused")}`, 6000);
+  poolLoad(); MPOOL.items = MPOOL.items.filter(i => i.id !== u.id); if (u.did === "untap" && u.color) MPOOL.items.push({ id: u.id, color: u.color, name: u.name }); poolSave();
+  handToast(`${esc(u.name)} is ${u.did === "tap" ? "untapped" : "tapped"} again.`, 2500); matSig = ""; paySig = ""; fanSig = ""; draw();
+}
 function drawFan(hand, myTurn) {
   const fan = $("fan"); if (!fan || fan.offsetParent === null && fan.clientWidth === 0) return;
-  const sig = JSON.stringify([payMode, payFor, [...payPick], (S.mana_sources || []).length, hand.map(c => [c.name, !!c.castable_now, !!c.land, c.slots, c.mode_slots]), myTurn, !!S.land_played, fanSel, fan.clientWidth]);
+  const sig = JSON.stringify([payMode, payFor, [...payPick], (S.mana_sources || []).length, (S.permanents || []).filter(q => q.tapped).map(q => q.id), hand.map(c => [c.name, !!c.castable_now, !!c.land, c.slots, c.mode_slots]), myTurn, !!S.land_played, fanSel, fan.clientWidth]);
   if (sig === fanSig) return; fanSig = sig;
   if (fanSel >= hand.length) fanSel = -1;
   const cw = Math.round(Math.min(210, Math.max(160, innerWidth * 0.12)));          // bigger cards on a bigger screen
@@ -607,7 +699,7 @@ function drawFan(hand, myTurn) {
   const c = hand[fanSel];
   $("fanact").style.display = c || innerWidth < 900 ? "" : "none";
   $("fanact").innerHTML = !c ? `<div class="sub">${n ? "Click a card to play it." : ""}</div>` :
-    `<div class="nm">${esc(c.name)} <span class="sub">${esc(c.cost || "")} · ${esc(c.type || "")}${c.pt ? " · " + esc(c.pt) : ""}</span></div><div class="x">${esc(c.text || "")}</div>` +
+    `<button class="fanx" data-fanclose title="Close this panel without doing anything (Esc, or click anywhere else)">✕ Close</button><div class="nm">${esc(c.name)} <span class="sub">${esc(c.cost || "")} · ${esc(c.type || "")}${c.pt ? " · " + esc(c.pt) : ""}</span></div><div class="x">${esc(c.text || "")}</div>` +
     (c.land ? (c.shock_land ? `<button data-fanland="${fanSel}" data-pay="1" ${S.land_played || !myTurn ? "disabled" : ""}>Play it, paying the life</button><button data-fanland="${fanSel}" ${S.land_played || !myTurn ? "disabled" : ""}>Play it tapped</button>`
                             : `<button data-fanland="${fanSel}" ${S.land_played || !myTurn ? "disabled" : ""}>Play land</button>`) : "") +
     (!c.land && !c.aura_targets && !modesOf(c).length ? slotsHtml(c.slots, "fan") + xPicker(c) + kickPicker(c) + payControl(c) + `<button data-fancast="${fanSel}" ${c.castable_now && slotsReady(c.slots) ? "" : "disabled"}>Cast</button>${c.castable_now && !slotsReady(c.slots) ? '<div class="x" style="color:#ffb38f">Nothing it can aim at right now.</div>' : ""}` : "") +
@@ -1019,6 +1111,12 @@ document.body.addEventListener("click", async e => {
   const t = e.target, d = t.dataset || {}, h = S?.hand || [];
   if (matJustDragged) { matJustDragged = false; return; }
   if (fanJustDragged) { fanJustDragged = false; return; }
+  if (d.fanclose !== undefined) return fanClose();                                 // (B1) ✕ Close: forgets the selection, sends nothing
+  if (d.undotap !== undefined) return undoTap();                                   // (B3) Undo a tap / untap made by hand
+  if (d.showchoice !== undefined) { handToast(""); return showWaitingPanel(); }
+  if (d.payuntap !== undefined) { const p = (S.permanents || []).find(x => String(x.id) === d.payuntap); if (!p || tapBlockedByChoice(p)) return;
+    const r = await act("untap", { ref: "#" + p.id }); if (!r) return showFanErr();
+    poolLoad(); MPOOL.items = MPOOL.items.filter(i => i.id !== p.id); poolSave(); matSig = ""; paySig = ""; fanSig = ""; handSig0 = ""; draw(); offerUndo(p, "untap"); return r; }
   if (d.tidy !== undefined) { POS = {}; FANNED = new Set(); savePos(); matSig = ""; return drawMat(); }
   if (d.lfan !== undefined) { FANNED.has(d.lfan) ? FANNED.delete(d.lfan) : FANNED.add(d.lfan); matSig = ""; return drawMat(); }
   const stk = t.closest && t.closest(".lstack");                                  // a stacked pile acts on its top card
@@ -1158,7 +1256,8 @@ document.body.addEventListener("click", async e => {
     if (d.effput !== "top") await act("effect", { kind: d.effk, source: "#" + d.effsrc, put: d.effput });
     $("effpanel").innerHTML = ""; return;
   }
-  if (d.tap !== undefined) { const p = S.permanents.find(x => x.id == d.tap); return act(p.tapped ? "untap" : "tap", { ref: "#" + d.tap, announce: true }); }
+  if (d.tap !== undefined) { const p = S.permanents.find(x => x.id == d.tap); if (!p || tapBlockedByChoice(p)) return;
+    const did = p.tapped ? "untap" : "tap", r = await act(did, { ref: "#" + d.tap, announce: true }); if (r) { $("matpop").style.display = "none"; offerUndo(p, did); } return r; }
   if (d.atk !== undefined) { t.checked ? attackers.add(+d.atk) : attackers.delete(+d.atk); draw(); return renderSteps(); }
   if (t.id === "attack") return attackNow();
   if (t.id === "dmg") { await act("damage", { hits: {} }); lastAttack = []; return draw(); }

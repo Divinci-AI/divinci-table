@@ -4,8 +4,8 @@ const SRC = fs.readFileSync(path.join(__dirname, "..", "assets", "seat.js"), "ut
 let ok = true; const check = (n, c) => { console.log((c ? "PASS " : "FAIL ") + n); ok = ok && !!c; };
 
 function tab(store, server) {                         // one tab: its own window + document, the SHARED localStorage
-  const listeners = {}, el = () => ({ style: {}, addEventListener() {}, appendChild() {}, querySelector: () => ({}), set innerHTML(v) {}, set textContent(v) { this._t = v; }, get textContent() { return this._t; } });
-  const win = { location: { origin: "https://t.example", search: "", pathname: "/hand", href: "https://t.example/hand" }, history: { replaceState() {} },
+  const listeners = {}, el = () => ({ style: {}, addEventListener() {}, appendChild() {}, setAttribute() {}, remove() {}, querySelector: () => ({}), set innerHTML(v) {}, set textContent(v) { this._t = v; }, get textContent() { return this._t; } });
+  const win = { location: { origin: "https://t.example", search: "", hash: "", pathname: "/hand", href: "https://t.example/hand" }, history: { replaceState() {} },
     localStorage: store, document: { body: el(), createElement: el }, addEventListener: (t, f) => (listeners[t] ||= []).push(f), URL, URLSearchParams, Headers, console,
     fetch: async (u, init = {}) => server(String(u), init) };
   win.window = win; win.fetch = win.fetch.bind(win); win.document.createElement = el;
