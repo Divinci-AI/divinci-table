@@ -613,10 +613,17 @@ def legal_actions(sn: str) -> dict:
                 return
         if "Aura" in (c.get("subtypes") or []):        # an Aura needs a target: one entry per legal one (golden-path test:
             if _pl.is_hostile_aura(c):                 # without it an agent retried an untargeted Aura 1,489 times)
-                foes = [(o, x) for o, ov in VPS.items() if not on_turn(o) and not is_out(o) for x in ov.battlefield
-                        if x.is_("Creature") and not x.face_down]
-                for o, x in foes:
-                    add("cast", {"name": n, "on": x.name, **extra}, f"put it on {o}'s {x.name}")
+                # 2026-11-13 retro (C3): one entry per enemy creature, virtual seat or not. (This used to read "seats that are not on turn",
+                # which is the caster only on the caster's own turn; and it was never reached at an all-virtual table: see hostile_targets.)
+                seen_ = set()
+                for o, x in foe_creatures(sn):
+                    if (o, x.name) not in seen_:               # the cast names its target by name: two of the same creature are one entry
+                        seen_.add((o, x.name))
+                        add("cast", {"name": n, "on": x.name, **extra}, f"put it on {o}'s {x.name}")
+                for oc in v.opponents_cards("Creature"):       # a real-deck player's announced creatures (the table knows them by name only)
+                    if not any(nm == oc.get("name") for _, nm in seen_) and oc.get("name"):
+                        seen_.add(("", oc["name"]))
+                        add("cast", {"name": n, "on": oc["name"], **extra}, f"put it on {oc['name']} (announced by another player)")
             else:
                 for x in v.aura_targets(c):
                     add("cast", {"name": n, "on": f"#{x.id}", **extra}, f"enchant your {v.shown(x)}")
@@ -4518,6 +4525,17 @@ def on_creature_died(owner, dead):
 
 __import__("player").DEATH_HOOK[0] = on_creature_died
 __import__("player").STEP_KEY[0] = lambda: (PHASE.get("player"), PHASE.get("step"))   # mana in a pool empties when the step changes
+
+
+def foe_creatures(seat: str) -> list:
+    """(owner, permanent) for every face-up creature a seat that is not `seat` (nor its teammate, nor out of the game) controls: what an Aura
+    meant for an opponent's creature may go on. One list for "may it be cast" (player.hostile_targets) and "what the legal list offers"."""
+    mates = set(teammates(seat)) if TEAMS.get(seat) else set()
+    return [(o, x) for o, ov in list(VPS.items()) if o != seat and o not in mates and not is_out(o) for x in list(ov.battlefield)
+            if x.is_("Creature") and not x.face_down]
+
+
+__import__("player").FOE_CREATURES[0] = lambda seat: [x.name for _, x in foe_creatures(seat)]
 MANUAL_SAID: set = set()
 NOTED: set = set()
 

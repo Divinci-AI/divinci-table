@@ -397,6 +397,7 @@ DIED_THIS_TURN = [False]                    # "if a creature died this turn" (Pl
 DEATH_TICK = [1]                            # moves on each turn: "this ability triggers only once each turn"
 MANUAL_ZONES = ("hand", "battlefield", "graveyard", "exile", "library-top", "library-bottom")      # a person's manual moves (T10)
 COUNTER_KINDS = {"+1/+1": "counters", "charge": "charge", "quest": "quest", "lore": "lore", "stun": "stun", "promotion": "promo", "loyalty": "counters"}
+FOE_CREATURES = [None]                      # the server sets this: a callable(seat name) -> names of the face-up creatures the OTHER seats control (see hostile_targets)
 DEATH_HOOK = [None]                         # the server sets this: a creature died on some seat, and every seat's "whenever a creature dies" hears it
 STEP_KEY = [None]                           # the server sets this: a callable naming the step the game is in now. Mana added to a pool ("add {R}{R}")
                                             # empties when the step changes; with no server (an engine test) it lasts until the turn ends
@@ -926,6 +927,17 @@ class VirtualPlayer:
             if c and (kind is None or kind in (c.get("type") or "")):
                 out.append(c)
         return out
+
+    def hostile_targets(self) -> list[str]:
+        """Names of the creatures another seat controls that an Aura meant for an opponent's creature could go on.
+        2026-11-13 retro (C3): `castable` asked only `public_board`, which holds what REAL-deck players announced. At a table where every seat
+        is virtual it is always empty, so Vow of Flight, Vow of Wildness and Kenrith's Transformation were never castable (38 soak games, never
+        once listed). The other virtual seats' boards are the table's to know: it tells the engine through FOE_CREATURES."""
+        hook = FOE_CREATURES[0]
+        try:
+            return list(hook(self.name)) if hook else []
+        except Exception:  # noqa: BLE001 — a seat the table does not know (an engine test): nothing of theirs
+            return []
 
     def creatures(self): return [p for p in self.battlefield if p.is_("Creature")]
 
@@ -2744,8 +2756,8 @@ class VirtualPlayer:
                 continue
             seen.add(c["name"])
             if is_hostile_aura(c):
-                if not self.public_board:
-                    continue      # nothing of theirs announced to put it on
+                if not self.public_board and not self.hostile_targets():
+                    continue      # nothing of theirs to put it on
             elif "Aura" in (c.get("subtypes") or []) and not self.aura_targets(c):
                 continue
             if guard_wipes and is_board_wipe(c) and self.creatures():
@@ -2767,7 +2779,7 @@ class VirtualPlayer:
                 continue
             seen.add(c["name"])
             if is_hostile_aura(c):
-                if not self.public_board:
+                if not self.public_board and not self.hostile_targets():
                     continue
             elif "Aura" in (c.get("subtypes") or []) and not self.aura_targets(c):
                 continue
