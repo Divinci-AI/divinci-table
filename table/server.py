@@ -590,6 +590,19 @@ def legal_actions(sn: str) -> dict:
                     if tg_ is not None:
                         add("cast", {"name": n, "modes": [i + 1], **({"targets": tg_} if tg_ else {})}, f"mode {i + 1}: {mtext[:60]}")
                 return
+        # 2026-11-13 retro (C2): "Choose two —" (Austere Command) was listed as a plain cast with no modes, and following the list got
+        # 400 "is modal — choose 2". `modal` above only knows "choose one". One entry per legal pair (or triple), `modes` as the engine
+        # wants them (1-based, in the card's order), with the first legal targets when a chosen mode aims at something; a combination
+        # with a mode that has nothing legal to aim at is left out. No entry at all if there is none: it can't be cast right now.
+        sp = _pl.modal_options(c) if ("Instant" in c["types"] or "Sorcery" in c["types"]) else None
+        if sp and sp[0] > 1:
+            import itertools as _it
+            for combo in _it.combinations(range(len(sp[1])), sp[0]):
+                tg_ = first_legal_aim(sn, [s_ for i in combo for s_ in _pl.card_slots(c, sp[1][i])])
+                if tg_ is not None:
+                    add("cast", {"name": n, "modes": [i + 1 for i in combo], **({"targets": tg_} if tg_ else {})},
+                        "modes " + " + ".join(str(i + 1) for i in combo) + ": " + " / ".join(sp[1][i][:40] for i in combo))
+            return
         if "Aura" not in (c.get("subtypes") or []) and not (modal(c) and ("Instant" in c["types"] or "Sorcery" in c["types"])):
             sl = _pl.card_slots(c)
             tg_ = first_legal_aim(sn, sl)

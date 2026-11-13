@@ -2957,8 +2957,11 @@ class VirtualPlayer:
         def choose_modes(card, spec):
             n, all_modes = spec
             if not modes:
-                raise IllegalAction(f"{card['name']} is modal — choose {n} with --mode (1-based): "
-                                    + " | ".join(f"{i + 1}. {m}" for i, m in enumerate(all_modes)))
+                # 2026-11-13 retro (C2): this named only tablectl's --mode; an agent or a page sends JSON, where the field is "modes".
+                # (fusion_brain.py reads the tail "choose N with --mode (1-based): 1. … | 2. …" with a regex: that part keeps its shape.)
+                eg = ", ".join(str(i + 1) for i in range(n))
+                raise IllegalAction(f"{card['name']} is modal — the JSON field is \"modes\" (a list of mode numbers, e.g. \"modes\": [{eg}]); "
+                                    f"choose {n} with --mode (1-based): " + " | ".join(f"{i + 1}. {m}" for i, m in enumerate(all_modes)))
             picked = [all_modes[int(m) - 1] for m in modes]
             if len(picked) != n:
                 raise IllegalAction(f"{card['name']} needs exactly {n} modes")
