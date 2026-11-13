@@ -7209,6 +7209,15 @@ class H(BaseHTTPRequestHandler):
                             return self._send(409, {**phase_public(), "choose": True, "stale": True,
                                                     "error": f"{tg_['ref']} has left play since that list was made: read your choices again"})
                     said = answer_choice(VP.name, item_, tg_)
+                elif action == "manual" and str(b.get("op", "")) == "temp":
+                    # 2026-11-13 retro (C4): the host undoes or moves a mistaken "until end of turn" change. {"op": "temp", "ref": "#id",
+                    # "power": ±n, "toughness": ±n} on ANY virtual seat's creature (the seat named is its controller). The HOST only: the brain
+                    # token, never a seat's key (a pilot's request carries _pilot; `manual` is otherwise a pilot's own-cards tool, and a
+                    # player must not be able to resize a creature in the middle of combat).
+                    if b.get("_pilot"):
+                        self._refused(action, "host-only", "")
+                        return self._send(403, {"error": "only the table's host can correct an until-end-of-turn change (ask the host; both players should agree)"})
+                    said = VPS[VP.name].host_temp(str(b.get("ref", "")), b.get("power") or 0, b.get("toughness") or 0)
                 elif action == "manual":                 # T10: a person's own cards, by hand, logged in public words (pilot seats; never a bot)
                     if VP.name not in PILOTS:
                         raise IllegalAction("manual moves are for a person's own seat (a pilot); a bot plays its cards through the engine")

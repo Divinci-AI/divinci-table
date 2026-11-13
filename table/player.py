@@ -4075,6 +4075,28 @@ def _manual(cls):
 
     # ── free manual control (T10, "think of Cockatrice"): a PERSON moves their own cards between zones, taps them, puts counters and makes
     # tokens, and the table logs every one in public words. A card coming out of a hidden zone into a hidden one is "a card".
+    def host_temp(self, ref, power=0, toughness=0) -> list[str]:
+        """The HOST corrects an "until end of turn" change on one of this seat's creatures: power / toughness are what to ADD to it (+2/+2
+        takes a mistaken -2/-2 off again; -2/-2 puts it on the creature that was meant). It lives where the engine keeps every such change
+        (Perm.temp), so it ends with the turn like the effect it corrects. State-based actions follow at once: 0 toughness dies, and so does a
+        creature whose damage is now lethal. 2026-11-13 retro (C4): a player aimed "-2/-2 until end of turn" at the wrong creature, both
+        players agreed to move it, and the host had no control for it. Refused before anything changes."""
+        p = self.perm(ref)
+        if not p.is_("Creature"):
+            raise IllegalAction(f"{self.shown(p)} is not a creature: an until-end-of-turn power/toughness correction is for a creature")
+        try:
+            dp, dt = int(power or 0), int(toughness or 0)
+        except (TypeError, ValueError):
+            raise IllegalAction("temp: power and toughness are whole numbers to add (they may be negative)")
+        if not dp and not dt:
+            raise IllegalAction("temp: say what to add, e.g. power 2, toughness 2 (or -2, -2)")
+        if abs(dp) > 20 or abs(dt) > 20:
+            raise IllegalAction("temp: at most 20 either way")
+        name = self.shown(p)
+        p.temp = (p.temp[0] + dp, p.temp[1] + dt)
+        pw, tg = self.stats(p)
+        return [f"Host: {name} gets {dp:+d}/{dt:+d} until end of turn (a correction): it is {pw}/{tg} now."] + self.check_dead(p)
+
     def manual(self, op, ref="", to="", kind="+1/+1", n=1, name="", power=1, toughness=1, tapped=False):
         """op: move (ref = "#id" for a permanent, or "<zone>:<card name>" for hand / graveyard / exile, or "library-top"; to = a zone) |
         counter (ref "#id", kind, n = +/-) | token (name, power, toughness, n, tapped). Tap/untap are the `tap`/`untap` actions. Every refusal
@@ -4852,7 +4874,7 @@ def _manual(cls):
         return said + run()
 
     for f in (mana_words, ability_why_not, zone_abilities, activate_zone, hand_card, hand_or_exile, top_sources, top_cast_card, top_castable, perm, ability_list, abilities, clear_until_eot, station, equip, landcycle, own_death, creature_died, tapped_triggers, begin_combat, end_step, activate, begin_turn, upkeep, manual_land, manual_cast, manual_attack, attack_refusal, attack_report, attack_triggers,
-              combat_damage, move, release_exiled, search_library, make_token, make_tokens, discard, mill, peek, topdeck, take_from_top, manual, bottom,
+              combat_damage, move, release_exiled, search_library, make_token, make_tokens, discard, mill, peek, topdeck, take_from_top, manual, host_temp, bottom,
               shuffle_library, mulligan, put, blink, cast_face_down, manifest, turn_up):
         setattr(cls, f.__name__, f)
     return cls
