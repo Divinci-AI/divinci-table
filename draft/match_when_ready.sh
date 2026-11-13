@@ -100,6 +100,13 @@ START=$(date +%s)
 if [ "$FOUR" = 1 ]; then TABLES=""; for s in $SEATLIST; do TABLES="$TABLES $s=$P0"; done; else TABLES="${1%%:*}=$P0 ${1##*:}=$P0 ${2%%:*}=$P1 ${2##*:}=$P1"; fi
 export TABLES
 
+# 2026-11-13 retro: the host started ONE four-player table when the players had agreed on 1v1. This script has no default format (it wants
+# --four or two pairings), but it also never SAID which it was about to start, and it then waits, unattended, for the last "I'm ready".
+# Say it at the top (while ^C costs nothing) and again in the line that starts the tables.
+if [ "$FOUR" = 1 ]; then PLAN="ONE four-player table (free-for-all): $(echo $SEATLIST | sed 's/ /, /g') on :$P0"
+else PLAN="TWO 1v1 tables: ${1%%:*} vs ${1##*:} on :$P0, and ${2%%:*} vs ${2##*:} on :$P1"; fi
+[ "$PUBONLY" = 1 ] || echo "FORMAT: $PLAN. They start as soon as everyone is ready (^C now if that is not what was agreed)."
+
 if [ "$PUBONLY" = 0 ]; then
   # 1. withdraw an old match link, then wait for the humans (and ready the agents with their own tokens)
   python3 - <<'E' || exit $?
@@ -196,6 +203,7 @@ E
   fi
 
   # 3. the table(s)
+  echo "STARTING: $PLAN"
   if [ "$FOUR" = 1 ]; then
     "$PLAY_FOUR" ${FORCE:+$FORCE} --port "$P0"
   else
