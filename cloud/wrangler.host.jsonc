@@ -29,6 +29,12 @@
   // plan they answer "paused" once that is used up. The open mic's judge stays off unless OPENMIC_JUDGE is "1".
   "ai": { "binding": "AI" },
   "vars": { "PUBLIC_ORIGIN": "https://table.divinci.ai" },
+  // Requests to rooms and the agent API: per address and per seat key, a minute, in each Cloudflare location (approximate
+  // by design). A table of four people on one Wi-Fi makes about 250 a minute; a seat playing fast, about 120.
+  "ratelimits": [
+    { "name": "PER_ADDRESS", "namespace_id": "974201", "simple": { "limit": 900, "period": 60 } },
+    { "name": "PER_SEAT", "namespace_id": "974202", "simple": { "limit": 240, "period": 60 } }
+  ],
   "assets": { "directory": "./public", "binding": "ASSETS" },
   "observability": { "enabled": true }
 }

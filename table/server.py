@@ -641,11 +641,26 @@ def legal_actions(sn: str) -> dict:
             return out
         main = step in ("main 1", "main 2")
         if main and not v.land_played:
+            def offer_land(c_, extra_, why_):
+                """One land's entries. A bounce land (Dimir Aqueduct: "return a land you control to its owner's hand") is refused without
+                its choice, so it is listed once per land it could return (one per name and tapped state: four Islands are one entry, a
+                tapped one first, since it has already made its mana) and last for itself. A listed move must be sendable as it stands:
+                the plain entry was refused every time (the first public agent game, 2026-11-12)."""
+                if "return a land you control to its owner's hand" not in (c_.get("text") or ""):
+                    return add("land", {"name": c_["name"], **extra_}, why_)
+                others_, seen_ = [p_ for p_ in v.battlefield if p_.is_("Land") and not p_.face_down], set()
+                if not others_:                            # the only land it can return is itself: the engine does that unasked
+                    return add("land", {"name": c_["name"], **extra_}, why_ + " (it returns itself to your hand: you control no other land)")
+                for p_ in sorted(others_, key=lambda p_: (not p_.tapped, p_.name, p_.id)):
+                    if (p_.name, p_.tapped) not in seen_:
+                        seen_.add((p_.name, p_.tapped))
+                        add("land", {"name": c_["name"], "bounce": f"#{p_.id}", **extra_}, why_ + f"; it returns {p_.name}{' (tapped)' if p_.tapped else ''} to your hand")
+                add("land", {"name": c_["name"], "bounce": "self", **extra_}, why_ + "; it returns itself to your hand (no land gained)")
             for n in sorted({c["name"] for c in v.hand if "Land" in c["types"]}):
-                add("land", {"name": n}, "your land for the turn")
+                offer_land(next(c for c in v.hand if c["name"] == n), {}, "your land for the turn")
             for e_ in v.impulse_zone():                    # a land it may play from exile (Reckless Impulse): the same land drop
                 if "Land" in (e_["card"].get("types") or []) and not any(a["action"] == "land" and a["body"].get("from_exile") and a["body"]["name"] == e_["card"]["name"] for a in A):
-                    add("land", {"name": e_["card"]["name"], "from_exile": True}, f"from exile ({e_.get('by') or 'impulse'}, {v.impulse_window(e_)}): your land for the turn")
+                    offer_land(e_["card"], {"from_exile": True}, f"from exile ({e_.get('by') or 'impulse'}, {v.impulse_window(e_)}): your land for the turn")
         for hc_ in {c_["name"]: c_ for c_ in v.hand}.values():
             cc_ = _pl.cycle_cost(hc_)
             if cc_ and v.plan_payment(cc_) is not None:
@@ -5829,7 +5844,14 @@ class H(BaseHTTPRequestHandler):
                 if who not in [h["name"] for h in HUMANS] or not seat_key_ok(who, str(b.get("key", ""))):
                     return self._send(403, {"error": "claim your seat first (👤) to rate"})
                 import openmic
-                out = openmic.rate(str(research_dir() / "openmic"), int(b.get("event", 0)), str(b.get("rating", "")), who)
+                try:                                       # (a non-number here answered 500 with a traceback in the log)
+                    ev_ = int(b.get("event", 0))
+                except (TypeError, ValueError, OverflowError):
+                    return self._send(400, {"error": "event is the number of the line you are rating"})
+                rf_ = research_dir() / "openmic" / "ratings.jsonl"
+                if rf_.exists() and rf_.stat().st_size > 500_000:      # ~6,000 ratings: far past any real game; a seat can't fill the disk with them
+                    return self._send(429, {"error": "this game has all the ratings it can keep"})
+                out = openmic.rate(str(research_dir() / "openmic"), ev_, str(b.get("rating", "")), who)
                 return self._send(400 if "error" in out else 200, out)
             if self.path == "/api/host/rule":              # T4: a house rule, applied by the host at the laptop (never from another device)
                 if not self._is_local():

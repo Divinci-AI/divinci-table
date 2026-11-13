@@ -9,8 +9,9 @@ address; this service answers only requests that carry the shared key.
 
   GET  /healthz                         200 when up (no key, no detail)
   GET  /__host/status                   rooms and their state
-  POST /__host/rooms/<id>/ensure        {"config": {...}, "token": "...", "env": {...}} -> start (or reuse) the room,
-                                        fill a fresh process from its saved game; {"running": true, "fresh": bool}
+  POST /__host/rooms/<id>/ensure        {"config": {...}, "token": "...", "env": {...}, "expires_at": ms} -> start (or
+                                        reuse) the room, fill a fresh process from its saved game; {"running": true,
+                                        "fresh": bool}. Past expires_at the room is saved and stopped, in use or not.
   POST /__host/rooms/<id>/sleep         save, then stop the process
   POST /__host/rooms/<id>/release       {"seat": "Sam"}: free a seat whose device is lost
   GET  /__host/assets/<path>            shared files (avatars/..., dnd/...) from --assets, if any
@@ -24,6 +25,12 @@ Each room gets its own copy of the table code under <data>/rooms/<id>/app (5 MB)
 token, photos, research log, restore file) are never another's, as in a container of its own. The saved game
 is <data>/rooms/<id>/snapshot.pkl: written a few seconds after a change, before sleep and on SIGTERM, and
 loaded only into that same room. It is a pickle, so it must never come from anywhere else.
+
+An agent table (config.agents, docs/agents.md) is held to its rules here, where every request passes: from outside,
+the only requests that change anything are a seat's own moves (/api/brain/…) and a few things a seat says about itself.
+Taking a seat and starting the game are done by the lobby (X-Room-Internal carries the room's own token). When
+ROOM_HOST_LOBBY is set, the room host tells that lobby when an agent game ends or has been abandoned, so the table's
+place is free again (POST <lobby>/lobby/host/report, with the shared key).
 
 Every proxied request reaches the table server with X-Forwarded-For set (the table treats a request without
 it, from 127.0.0.1, as the host's own laptop) and with the room's private headers removed. Its value is the
@@ -85,7 +92,19 @@ ENV_OK = {"FUSION_MAX_CALLS", "OPENMIC_ROOM", "ROOM_ORIGIN", "DND_CLOUD_AI", "DN
 SECRET_ENV = ("DIVINCI_FUSION_API_KEY", "FUSION_CONFIG")
 HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade",
        "content-length", "host"}
-PRIVATE = {"x-room-host-key", "x-room-id", "x-room-token", "x-public-host", "x-client-addr"}
+PRIVATE = {"x-room-host-key", "x-room-id", "x-room-token", "x-public-host", "x-client-addr", "x-room-internal"}
+# What changes an agent table from outside: a seat's own moves, and what a seat says about itself. Everything else that a
+# person's table lets any seated player do (start a roll, hold or rewind the turn, switch the windows off, hand a seat on,
+# claim one) would let one agent spoil the game for the others, so it is the lobby's alone.
+AGENT_POST_EXACT = {"/api/identity", "/api/journal", "/api/declare-deck", "/api/chat", "/api/seat/check"}
+# …and of a seat's moves, the ones that are moves of the GAME: what /api/seat/legal can list, plus talk, the answers the table
+# asks for, and giving up. A pilot's key can do more at a people's table (set its own life, put a token down, move a card by
+# hand: "manual", "life", "effect", "tap", "untap", "swap"), because there a person is keeping an honest board in step with
+# real cards. At a table of agents those are a way to cheat, and the result goes on a public record.
+AGENT_BRAIN_OK = {"activate", "attack", "begin", "block", "cast", "choose", "cycle", "damage", "end", "equip", "keep", "land", "mulligan",
+                  "next", "pass", "station", "say", "concede", "scry", "surveil", "turn-up"}
+LOBBY = os.environ.get("ROOM_HOST_LOBBY", "").rstrip("/")      # https://… of the lobby to report finished agent games to
+ABANDON_SECS = int(os.environ.get("ROOM_HOST_ABANDON_SECS", "900"))    # a started agent game with fewer than two seats playing for this long
 MAX_BODY = 30_000_000
 MAX_LOG = 20_000_000              # a room's log is emptied past this (it is for whoever runs the box, not for the game)
 RETRY_FAILED_AFTER = 60           # a room that could not start is not started again for this long
@@ -125,6 +144,11 @@ class Room:
         self.dirty = threading.Event()
         self.saved_at = 0.0
         self.failed_at = 0.0           # the last start that failed
+        self.config: dict = {}
+        self.expires = 0.0             # stop the room at this time (0 = no limit)
+        self.seats_seen: dict[str, float] = {}   # seat key (hashed) -> its last request for its own game: an agent table's signs of life
+        self.up_since = time.time()
+        self.reported = (self.dir / "reported").exists()   # the lobby has been told how this agent game ended
 
     def running(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
@@ -160,6 +184,8 @@ class Room:
             self.last = time.time()
             if self.running():
                 return False
+            self.config = config
+            self.seats_seen, self.up_since = {}, time.time()
             self.dir.mkdir(parents=True, exist_ok=True)
             os.chmod(self.dir, 0o700)
             app = self._app()
@@ -288,6 +314,76 @@ def make_space(for_id: str) -> bool:
     return True
 
 
+def agent_refusal(method: str, path: str, rid: str, internal: bool, body: bytes = b"") -> str | None:
+    """Why a request to an agent table is refused, or None. Reads are the table's own business (it keeps every hand
+    private); of the requests that change something, only a seat's own moves of the game are let through from outside."""
+    if internal or method in ("GET", "HEAD"):
+        return None
+    if method == "POST" and path in AGENT_POST_EXACT:
+        return None
+    if method == "POST" and path.startswith("/api/brain/"):
+        act = path[len("/api/brain/"):]
+        if act in AGENT_BRAIN_OK:
+            return None
+        if act == "effect":                               # the one bookkeeping step the table asks a seat for: removal aimed at it
+            try:
+                if json.loads(body or b"{}").get("kind") == "apply-removal":
+                    return None
+            except (ValueError, AttributeError):
+                pass
+        return f"'{act}' is not a move at an agent table. Send one of the moves GET /api/seat/legal lists (see /agents/skill.md)."
+    if path == "/api/seat/claim":
+        return f"This is an agent table: a seat is taken with an agent key, at POST /agents/tables/{rid}/claim (see /agents/skill.md)."
+    if path == "/api/phase/next":
+        return "At an agent table the game starts by itself when every seat is taken. A seat plays with POST /api/brain/<action>."
+    return "Not available at an agent table. A seat plays with POST /api/brain/<action> (see /agents/skill.md)."
+
+
+def tell_lobby(r: "Room", event: str, extra: dict) -> bool:
+    import urllib.request
+    body = json.dumps({"room": r.id, "event": event, **extra}).encode()
+    req = urllib.request.Request(LOBBY + "/lobby/host/report", data=body, method="POST",
+                                 headers={"Content-Type": "application/json", "X-Room-Host-Key": KEY.decode(), "User-Agent": "divinci-table-roomhost"})
+    class NoRedirect(urllib.request.HTTPRedirectHandler):       # the key goes to the lobby's address and nowhere it points
+        def redirect_request(self, *a, **k):
+            return None
+    try:
+        with urllib.request.build_opener(NoRedirect).open(req, timeout=15) as x:
+            return x.status == 200
+    except Exception as e:  # noqa: BLE001
+        log(f"room {r.id}: could not tell the lobby ({event}): {e}")
+        return False
+
+
+def reporter():
+    """Agent games: tell the lobby when one is over, or abandoned, so its place is free again. Abandoned: a started game in
+    which fewer than two seats have asked or acted for ABANDON_SECS. One seat playing on against an empty chair is not a game
+    (each step would wait a minute for the absent seat, for hours); people watching don't count either."""
+    while True:
+        time.sleep(20)
+        with LOCK:
+            rooms = [r for r in ROOMS.values() if r.running() and r.config.get("agents") and not r.reported]
+        for r in rooms:
+            try:
+                s = json.loads(r.call("GET", "/api/game/summary", timeout=10)[2] or b"{}")
+                if s.get("over"):
+                    turns = (s.get("summary") or {}).get("turns")
+                    done = tell_lobby(r, "over", {"winner": s.get("winner"), "totals": s.get("totals"), "turns": turns})
+                elif (time.time() - r.up_since > ABANDON_SECS
+                      and sum(1 for t in list(r.seats_seen.values()) if time.time() - t < ABANDON_SECS) < min(2, len(r.config.get("pilots") or []))
+                      and json.loads(r.call("GET", "/api/phase", timeout=10)[2] or b"{}").get("player")):
+                    done = tell_lobby(r, "abandoned", {})
+                    if done:
+                        r.stop("abandoned")
+                else:
+                    continue
+                if done:
+                    r.reported = True
+                    (r.dir / "reported").write_text(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+            except Exception as e:  # noqa: BLE001 — one room's trouble must not stop the reporter
+                log(f"room {r.id}: reporter error: {e}")
+
+
 def keeper():
     """Save rooms that changed, stop idle ones, forget dead ones, and clear out old folders."""
     swept = 0.0
@@ -306,6 +402,8 @@ def keeper():
                     r.dirty.clear()
                     with r.lock:
                         r.save("play")
+                elif r.running() and r.expires and now > r.expires:
+                    r.stop("its time is up")
                 elif r.running() and now - r.last > args.idle_secs:
                     r.stop("idle")
                 logf = r.dir / "room.log"
@@ -374,12 +472,23 @@ class H(BaseHTTPRequestHandler):
         pr = re.match(r"^/__r/([a-z0-9]{8})(/.*)$", self.path)
         if pr:                                            # a room's own path: everything after the prefix, and nothing else
             rid, rest = pr.groups()
-            if rest.split("?")[0].startswith("/api/room/"):       # the room's private door: never through the proxy
+            if rest.startswith("//") or rest.split("?")[0].startswith("/api/room/"):   # the room's private door: never through the proxy (and no "//": the table would read it as "/")
                 return self._send(404, {"error": "not found"})
             r = room(rid)
             if not r or not r.running():
                 return self._send(409, {"error": "room not running"}, {"X-Room-Down": "not running"})
-            return self._proxy(r, rest, body)
+            p0 = rest.split("?")[0]
+            if r.config.get("agents"):
+                why = agent_refusal(self.command, p0, rid, hmac.compare_digest(self.headers.get("X-Room-Internal", "").encode(), r.token.encode()), body)
+                if why:
+                    return self._send(403, {"error": why})
+            sk = self.headers.get("X-Seat-Key")
+            seat_call = bool(sk) and p0.startswith(("/api/brain/", "/api/seat/legal"))
+            if self._proxy(r, rest, body) == 200 and seat_call:    # a sign of life: a seat's request the TABLE accepted (a made-up key is not one)
+                if len(r.seats_seen) > 16:
+                    r.seats_seen = dict(sorted(r.seats_seen.items(), key=lambda kv: kv[1])[-8:])
+                r.seats_seen[hashlib.sha256(sk.encode()).hexdigest()[:16]] = time.time()
+            return
         if self.headers.get("X-Room-Id") or not path.startswith("/__host/"):
             return self._send(404, {"error": "not found"})
         if path == "/__host/status" and self.command == "GET":
@@ -404,6 +513,10 @@ class H(BaseHTTPRequestHandler):
                 if not isinstance(cfg, dict) or len(tok) < 32:
                     return self._send(400, {"error": "config and token required"})
                 r = room(rid, create=True)
+                exp = b.get("expires_at")
+                r.expires = exp / 1000 if isinstance(exp, (int, float)) and exp > 0 else 0.0
+                if r.expires and time.time() > r.expires:
+                    return self._send(410, {"error": "the room's time is up"})
                 if not r.running() and time.time() - r.failed_at < RETRY_FAILED_AFTER:
                     return self._send(503, {"error": "the table could not start"}, {"Retry-After": "30"})
                 if not r.running() and not make_space(rid):
@@ -439,8 +552,10 @@ class H(BaseHTTPRequestHandler):
         data = p.read_bytes()
         self._send(200, data, {"Content-Type": "application/octet-stream", "ETag": '"' + hashlib.sha256(data).hexdigest()[:20] + '"'})
 
-    def _proxy(self, r: Room, path: str, body: bytes):
+    def _proxy(self, r: Room, path: str, body: bytes) -> int:
+        """Pass the request to the room's table server; returns the table's status (0 when it did not answer)."""
         r.last = time.time()
+        status = 0
         # Who is asking, as the Worker saw them (X-Client-Addr). Anything a proxy on the way put in X-Forwarded-For is dropped.
         fwd = (self.headers.get("X-Client-Addr") or "unknown").split(",")[0].strip()[:100] or "unknown"
         hs = {k: v for k, v in self.headers.items() if k.lower() not in HOP | PRIVATE and not k.lower().startswith(("x-forwarded-", "forwarded", "cf-"))}
@@ -455,7 +570,9 @@ class H(BaseHTTPRequestHandler):
                 c.request(self.command, path, body=body or None, headers=hs)
                 up = c.getresponse()
             except OSError as e:
-                return self._send(502, {"error": "the table is restarting. Try again in a few seconds."}, {"Retry-After": "5", "X-Room-Down": "no answer"})
+                self._send(502, {"error": "the table is restarting. Try again in a few seconds."}, {"Retry-After": "5", "X-Room-Down": "no answer"})
+                return 0
+            status = up.status
             self.send_response(up.status)
             n = up.getheader("Content-Length")
             for k, v in up.getheaders():
@@ -483,6 +600,7 @@ class H(BaseHTTPRequestHandler):
             r.last = time.time()
             if self.command not in ("GET", "HEAD"):
                 r.dirty.set()
+        return status
 
     def do_GET(self):
         self._handle()
@@ -512,6 +630,10 @@ def main():
     signal.signal(signal.SIGTERM, bye)
     signal.signal(signal.SIGINT, bye)
     threading.Thread(target=keeper, daemon=True).start()
+    if LOBBY.startswith("https://") or LOBBY.startswith("http://127.0.0.1:"):
+        threading.Thread(target=reporter, daemon=True).start()
+    elif LOBBY:
+        sys.exit("ROOM_HOST_LOBBY must be an https:// address")
     log(f"room host on {args.host}:{args.port}, data {DATA}, up to {args.max_rooms} rooms")
     srv.serve_forever()
 

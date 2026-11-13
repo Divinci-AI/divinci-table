@@ -139,7 +139,17 @@ export function dndAssetKey(pathname: string): { key: string; type: string } | n
 }
 
 // ── agents: outside AI players that register, find a table and take a seat with their own key (docs/agents.md) ─────
-export const AGENT_NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{1,30}[\p{L}\p{N}.]$/u;   // 3–32 characters, no leading/trailing space
+// 3–32 plain characters. ASCII only: a name is shown to people as who they are playing, and a letter from another
+// alphabet that looks like a Latin one is how one name passes for another.
+export const AGENT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9 ._-]{1,30}[A-Za-z0-9.]$/;
+// Names only the lobby's admin may register (its own players, and names an agent could pass itself off with).
+const HOUSE_WORDS = /^(fusion|claude|leonardo|divinci|admin|host|house|table|lobby|system|anthropic|official)/;
+/** Is this one of the lobby's own names? Judged on the letters and digits alone, so "House Autopilot", "HouseAutopilot" and
+ *  "h.o.u.s.e" are the same name. */
+export const isHouseName = (name: string) => HOUSE_WORDS.test(name.toLowerCase().replace(/[^a-z0-9]/g, ""));
+
+/** DAILY_REQUEST_BUDGET as a number: anything that is not a positive number means the default, never "closed" or "no limit". */
+export const dailyBudget = (v: string | undefined) => { const n = Number(v); return Number.isFinite(n) && n >= 1000 ? Math.floor(n) : 100_000; };
 export const AGENT_REG_PER_HOUR = 3;            // new agents from one address
 export const AGENT_REG_PER_DAY = 10;
 export const AGENT_REG_GLOBAL_PER_DAY = 200;    // and from everyone: past this, sign-up is closed until tomorrow (UTC)
@@ -159,7 +169,7 @@ export function agentRegRefusal(a: AgentRegAsk): { status: number; error: string
 	if (a.everywhereDay >= AGENT_REG_GLOBAL_PER_DAY) return { status: 429, error: "Sign-up is closed for today. Try again tomorrow (UTC).", retryAfter: 3600 };
 	if (a.hereHour >= AGENT_REG_PER_HOUR) return { status: 429, error: "Too many new agents from this address this hour.", retryAfter: 3600 };
 	if (a.hereDay >= AGENT_REG_PER_DAY) return { status: 429, error: "Too many new agents from this address today.", retryAfter: 6 * 3600 };
-	if (!a.nameOk) return { status: 400, error: "name: 3 to 32 letters, numbers, spaces, dots, dashes or underscores." };
+	if (!a.nameOk) return { status: 400, error: "name: 3 to 32 plain letters (a-z), numbers, spaces, dots, dashes or underscores." };
 	if (a.nameTaken) return { status: 409, error: "That name is taken." };
 	return null;
 }
@@ -199,9 +209,33 @@ export function planAgentTable(ask: AgentTableAsk, known: string[], shuffled: st
 	return { seats, decks, title };
 }
 
-/** Is this room still listed? People's tables for six hours; an agent table nobody filled for thirty minutes. */
-export function roomListed(r: { created: number; agents?: boolean; humans: string[]; claimed?: string[] }, now: number, ttlMs: number): boolean {
+export const AGENT_OVER_LINGER_MS = 10 * 60_000;      // a finished agent game stays listed this long (to look at the last board)
+export const AGENT_RESULTS_KEPT = 50;                 // finished agent games in the public record
+export const REQUEST_SAMPLE = 50;                     // the daily budget counts one request in this many (and adds this many)
+
+/** The agent API has used its requests for the day (DAILY_REQUEST_BUDGET): agent tables rest until midnight UTC. */
+export function budgetRefusal(now = Date.now()): Response {
+	const left = Math.max(60, 86_400 - Math.floor((now % 86_400_000) / 1000));
+	return Response.json({ error: "The agent tables are resting until midnight UTC: today's request budget is used up." }, { status: 503, headers: { "Retry-After": String(left) } });
+}
+
+/** What the room host says about a finished agent game, made safe to keep: an event we know, a winner that is one of the
+ *  table's seats, whole numbers in a sane range. Anything else becomes null (the room host is trusted, a table's JSON less so). */
+export function cleanReport(raw: unknown, seats: string[]): { event: "over" | "abandoned"; winner: string | null; turns: number | null; totals: Record<string, number> } | null {
+	if (!raw || typeof raw !== "object") return null;
+	const r = raw as { event?: unknown; winner?: unknown; turns?: unknown; totals?: unknown };
+	if (r.event !== "over" && r.event !== "abandoned") return null;
+	const int = (v: unknown, lo: number, hi: number) => (typeof v === "number" && Number.isInteger(v) && v >= lo && v <= hi ? v : null);
+	const totals: Record<string, number> = {};
+	if (r.totals && typeof r.totals === "object") for (const s of seats) { const n = int((r.totals as Record<string, unknown>)[s], -100_000, 100_000); if (n !== null) totals[s] = n; }
+	return { event: r.event, winner: typeof r.winner === "string" && seats.includes(r.winner) ? r.winner : null, turns: int(r.turns, 0, 10_000), totals };
+}
+
+/** Is this room still listed? People's tables for six hours; an agent table nobody filled for thirty minutes, and a
+ *  finished agent game for ten minutes after its end. */
+export function roomListed(r: { created: number; agents?: boolean; humans: string[]; claimed?: string[]; over?: number }, now: number, ttlMs: number): boolean {
 	const age = now - r.created;
+	if (r.agents && r.over) return now - r.over < AGENT_OVER_LINGER_MS && age < ttlMs;
 	if (r.agents && (r.claimed ?? []).length < r.humans.length) return age < AGENT_OPEN_TABLE_TTL_MS;
 	return age < ttlMs;
 }

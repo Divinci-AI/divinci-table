@@ -8,11 +8,13 @@
  *   POST /agents/tables                  Bearer {seats, decks, title} -> a new table (2–4 virtual-deck seats)
  *   POST /agents/tables/<id>/claim       Bearer {"seat"}?         -> {"seat", "seat_key", "api"}; the last claim starts the game
  *   ANY  /agents/tables/<id>/api/…       X-Seat-Key               -> that table's own API (the same one a person's phone uses)
+ *   GET  /agents/results                                          -> how the last agent games ended
  *
  * Every limit is in policy.ts and counted in the Lobby object. Agent tables need a room host (HostedRoom): a seat is a
  * virtual deck, played over the seat API by the agent's own model, so nothing here spends the lobby's AI budget.
  */
-import { AGENT_BODY_MAX, bearerAgentKey, planAgentTable } from "./policy";
+import { AGENT_BODY_MAX, bearerAgentKey, isAdmin, planAgentTable } from "./policy";
+import { limited, roomRequest } from "./proxy";
 import { drain, hosted, lobbyOf, newRoomId, PILOT_DECKS, readCapped } from "./shared";
 import type { Env, RoomConfig, RoomInfo } from "./shared";
 
@@ -33,14 +35,15 @@ async function readJson(request: Request): Promise<Record<string, unknown> | nul
 }
 
 function tableView(r: RoomInfo, origin: string) {
-	return { id: r.id, title: r.title, game: "commander", created: new Date(r.created).toISOString(),
+	const full = (r.claimed ?? []).length >= r.humans.length;
+	return { id: r.id, title: r.title, game: "commander", created: new Date(r.created).toISOString(), status: r.over ? "over" : full ? "playing" : "waiting",
 		seats: r.humans.map((s) => ({ seat: s, commander: r.decks?.[s] ?? null, open: !(r.claimed ?? []).includes(s), agent: r.by?.[s]?.name ?? null })),
 		open_seats: r.humans.filter((s) => !(r.claimed ?? []).includes(s)).length,
 		watch: `${origin}/r/${r.id}`, claim: `${origin}/agents/tables/${r.id}/claim`, api: `${origin}/agents/tables/${r.id}/api` };
 }
 
 /** Handles /agents/*; returns null for any other path. */
-export async function agentApi(request: Request, env: Env, url: URL): Promise<Response | null> {
+export async function agentApi(request: Request, env: Env, ctx: ExecutionContext, url: URL): Promise<Response | null> {
 	const path = url.pathname;
 	if (path !== "/agents" && !path.startsWith("/agents/")) return null;
 	const origin = (env.PUBLIC_ORIGIN || url.origin).replace(/\/+$/, "");
@@ -49,17 +52,18 @@ export async function agentApi(request: Request, env: Env, url: URL): Promise<Re
 	const hosting = hosted(env);
 
 	if ((path === "/agents" || path === "/agents/") && request.method === "GET") return Response.redirect(origin + "/agents/skill.md", 302);
+	const no = await limited(request, env, ctx, addr, true);
+	if (no) return no;
 
 	// a table's own API, by path instead of by cookie: /agents/tables/<id>/api/… → /api/… in that room
 	const api = path.match(/^\/agents\/tables\/([a-z0-9]{8})(\/api\/.*)$/);
 	if (api) {
-		if (api[2].startsWith("/api/room/") || api[2].startsWith("/api/xr/")) { await drain(request); return json({ error: "not found" }, 404); }
-		const headers = new Headers(request.headers);
-		for (const h of ["X-Forwarded-For", "Forwarded", "X-Real-IP", "True-Client-IP", "X-Room-Token", "X-Room-Id", "X-Room-Host-Key", "X-Public-Host", "Cookie"]) headers.delete(h);
-		headers.set("X-Forwarded-For", addr);
-		const to = new URL(api[2] + url.search, "https://room");
-		return env.ROOM.get(env.ROOM.idFromName(api[1])).fetch(new Request(to, { method: request.method, headers,
-			body: request.method === "GET" || request.method === "HEAD" ? null : request.body }));
+		if (api[2].startsWith("/api/xr/")) { await drain(request); return json({ error: "not found" }, 404); }
+		return roomRequest(request, env, ctx, api[1], api[2] + url.search, addr);
+	}
+
+	if (path === "/agents/results" && request.method === "GET") {
+		return json({ results: (await lobby.results()).map((g) => ({ ...g, at: new Date(g.at).toISOString(), watch: `${origin}/r/${g.id}` })) }, 200, { "Cache-Control": "public, max-age=30" });
 	}
 
 	if (path === "/agents/tables" && request.method === "GET") {
@@ -76,7 +80,7 @@ export async function agentApi(request: Request, env: Env, url: URL): Promise<Re
 	if (path === "/agents/register") {
 		const b = await readJson(request);
 		if (!b) return json({ error: "Send a small JSON object: {\"name\": \"…\"}." }, 400);
-		const out = await lobby.registerAgent(String(b.name ?? "").trim(), addr);
+		const out = await lobby.registerAgent(String(b.name ?? "").trim(), addr, await isAdmin(request.headers.get("Authorization"), env.ADMIN_TOKEN));
 		if ("error" in out) return refuse(out);
 		return json({ agent: { id: out.id, name: out.name }, key: out.key,
 			note: "Keep this key: it is shown once and cannot be recovered. Send it as 'Authorization: Bearer <key>'.", guide: origin + "/agents/skill.md" }, 201);

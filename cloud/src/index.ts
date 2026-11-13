@@ -14,10 +14,11 @@ import { Container } from "@cloudflare/containers";
 import { DurableObject } from "cloudflare:workers";
 import { aiKeyAllowed, aiRoomRefusal, boardPrompt, parsePose, PRESENCE_MAX_BYTES, PRESENCE_MAX_PER_SEC, speechHint, CODE_FAILS_GLOBAL_PER_HOUR, CODE_FAILS_PER_HOUR, isAdmin, parseBoardReply, sameText,
 	STT_MAX_BYTES, STT_PER_10_MIN, VISION_MAX_BYTES, VISION_PER_HOUR, withinRate, dndAssetKey,
-	AGENT_BAD_KEYS_PER_10_MIN, AGENT_CLAIMS_PER_HOUR, AGENT_OPEN_TABLES_PER_ADDRESS, AGENT_NAME_RE, AGENT_SEATS_AT_ONCE, AGENT_TABLES_PER_HOUR, agentRegRefusal, newAgentKey, roomListed, sha256Hex } from "./policy";
+	AGENT_BAD_KEYS_PER_10_MIN, AGENT_CLAIMS_PER_HOUR, isHouseName, AGENT_OVER_LINGER_MS, AGENT_RESULTS_KEPT, cleanReport, AGENT_OPEN_TABLES_PER_ADDRESS, AGENT_NAME_RE, AGENT_SEATS_AT_ONCE, AGENT_TABLES_PER_HOUR, agentRegRefusal, newAgentKey, roomListed, sha256Hex } from "./policy";
 
-import { AI_DECKS, aiDm, aiSeatsHere, drain, hosted, hostFetch, MAX_CREATES_PER_HOUR, MAX_LIVE_ROOMS, NAME_RE, newRoomId, PILOT_DECKS, ROOM_TTL_MS, toBase64 } from "./shared";
-import type { AiSeat, Env, RoomConfig, RoomInfo } from "./shared";
+import { AI_DECKS, aiDm, aiSeatsHere, drain, hosted, hostFetch, readCapped, MAX_CREATES_PER_HOUR, MAX_LIVE_ROOMS, NAME_RE, newRoomId, PILOT_DECKS, ROOM_TTL_MS, toBase64 } from "./shared";
+import type { AiSeat, Env, GameResult, RoomConfig, RoomInfo } from "./shared";
+import { limited, roomRequest } from "./proxy";
 import { agentApi } from "./agents";
 export { HostedRoom } from "./hosted";
 
@@ -398,6 +399,37 @@ export class Lobby extends DurableObject<Env> {
 		return null;
 	}
 
+	/** The daily budget: `n` more requests today (the Worker samples, proxy.ts). Says whether the day's budget is spent. */
+	async countRequests(n: number, budget: number, addr: string): Promise<{ day: string; over: boolean; addrOver: boolean; total: number }> {
+		const day = new Date().toISOString().slice(0, 10), ak = `reqa:${addr}:${day}`;
+		const total = ((await this.ctx.storage.get<number>("req:" + day)) ?? 0) + n;
+		const mine = ((await this.ctx.storage.get<number>(ak)) ?? 0) + n;
+		await this.ctx.storage.put({ ["req:" + day]: total, [ak]: mine });
+		if (total <= n) await this.sweepSoon();
+		return { day, over: total >= budget, addrOver: mine >= budget / 4, total };
+	}
+
+	/** How the last agent games ended, newest first. */
+	async results(): Promise<GameResult[]> {
+		return (await this.ctx.storage.get<GameResult[]>("results")) ?? [];
+	}
+
+	/** The room host reports the end of an agent game: it goes on the record once, and the table stops counting as in
+	 *  play (a finished game stays listed a few minutes; an abandoned one is delisted at once). */
+	async finish(id: string, raw: unknown): Promise<"over" | "abandoned" | null> {
+		const rooms = await this.list();
+		const r = rooms.find((x) => x.id === id && x.agents);
+		const rep = r && !r.over ? cleanReport(raw, r.humans) : null;
+		if (!r || !rep) return null;
+		const now = Date.now();
+		r.over = rep.event === "over" ? now : now - AGENT_OVER_LINGER_MS;
+		const game: GameResult = { id, title: r.title, at: now, event: rep.event, turns: rep.turns,
+			seats: r.humans.map((s) => ({ seat: s, commander: r.decks?.[s] ?? null, agent: r.by?.[s]?.name ?? null, life: rep.totals[s] ?? null })),
+			winner: rep.winner ? { seat: rep.winner, agent: r.by?.[rep.winner]?.name ?? null } : null };
+		await this.ctx.storage.put({ rooms, results: [game, ...(await this.results())].slice(0, AGENT_RESULTS_KEPT) });
+		return rep.event;
+	}
+
 	/** Counters are kept per address and per agent; once a day the ones nobody has touched for a day are deleted, so the
 	 *  object's storage does not grow with every address that ever called. */
 	private async sweepSoon(): Promise<void> {
@@ -406,7 +438,7 @@ export class Lobby extends DurableObject<Env> {
 
 	override async alarm(): Promise<void> {
 		const now = Date.now(), today = new Date().toISOString().slice(0, 10);
-		for (const prefix of ["abad:", "areg:", "creates:", "codefail:", "atab:", "aclaim:", "aopenaddr:", "ai:"]) {
+		for (const prefix of ["abad:", "areg:", "creates:", "codefail:", "atab:", "aclaim:", "aopenaddr:", "ai:", "req:", "reqa:"]) {
 			let cursor: string | undefined;
 			for (;;) {
 				const page = await this.ctx.storage.list<unknown>({ prefix, limit: 500, ...(cursor ? { startAfter: cursor } : {}) });
@@ -414,7 +446,7 @@ export class Lobby extends DurableObject<Env> {
 				const dead: string[] = [];
 				for (const [k, v] of page) {
 					cursor = k;
-					if (prefix === "ai:" || k.startsWith("areg:day:")) { if (k.slice(-10) < today) dead.push(k); continue; }
+					if (prefix === "ai:" || prefix === "req:" || prefix === "reqa:" || k.startsWith("areg:day:")) { if (k.slice(-10) < today) dead.push(k); continue; }
 					if (prefix === "aopenaddr:") { if (!(await this.list()).some((r) => (v as string[]).includes(r.id))) dead.push(k); continue; }
 					if (!Array.isArray(v) || !v.some((t) => typeof t === "number" && now - t < 86_400_000)) dead.push(k);
 				}
@@ -432,17 +464,21 @@ export class Lobby extends DurableObject<Env> {
 	}
 
 	/** A new agent: a unique name and a key shown once (only its SHA-256 is kept). Limited per address and per day. */
-	async registerAgent(name: string, addr: string): Promise<{ id: string; name: string; key: string } | { status: number; error: string; retryAfter?: number }> {
+	async registerAgent(name: string, addr: string, admin = false): Promise<{ id: string; name: string; key: string } | { status: number; error: string; retryAfter?: number }> {
 		const key = newAgentKey(), keyHash = await sha256Hex(key), id = "a" + (await sha256Hex(key + ":id")).slice(0, 11);
 		// from here on only storage is awaited: the object handles nothing else between the checks and the write
 		const now = Date.now(), dayKey = "areg:day:" + new Date().toISOString().slice(0, 10);
 		const here = await this.recent("areg:" + addr, 86_400_000);
 		const everywhereDay = (await this.ctx.storage.get<number>(dayKey)) ?? 0;
 		const lower = name.toLowerCase();
-		const nameOk = AGENT_NAME_RE.test(name) && !/^(fusion|claude|leonardo|divinci|admin|host)$/i.test(name);
-		const why = agentRegRefusal({ hereHour: here.filter((t) => now - t < 3_600_000).length, hereDay: here.length, everywhereDay,
-			nameOk, nameTaken: nameOk && !!(await this.ctx.storage.get("aname:" + lower)) });
+		const nameOk = AGENT_NAME_RE.test(name) && (admin || !isHouseName(name));      // house names are the lobby's own
+		const why = agentRegRefusal({ hereHour: admin ? 0 : here.filter((t) => now - t < 3_600_000).length, hereDay: admin ? 0 : here.length,
+			everywhereDay: admin ? 0 : everywhereDay, nameOk, nameTaken: nameOk && !!(await this.ctx.storage.get("aname:" + lower)) });
 		if (why) return why;
+		if (admin) {
+			await this.ctx.storage.put({ ["agent:" + keyHash]: { id, name, created: now }, ["aname:" + lower]: id });
+			return { id, name, key };
+		}
 		await this.ctx.storage.put({ ["agent:" + keyHash]: { id, name, created: now }, ["aname:" + lower]: id,
 			["areg:" + addr]: [...here, now], [dayKey]: everywhereDay + 1 });
 		await this.sweepSoon();
@@ -480,7 +516,7 @@ export class Lobby extends DurableObject<Env> {
 		if (open && rooms.some((r) => r.id === open && (r.claimed ?? []).length < r.humans.length)) {
 			return { status: 409, error: "Your last table still has open seats: " + open + ". Fill it before starting another." };
 		}
-		if (rooms.filter((r) => r.agents).length >= Number(this.env.MAX_AGENT_TABLES || 6)) {
+		if (rooms.filter((r) => r.agents && !r.over).length >= Number(this.env.MAX_AGENT_TABLES || 6)) {
 			return { status: 503, error: "Every agent table is in use. Join an open one, or try again later.", retryAfter: 300 };
 		}
 		await this.ctx.storage.put({ rooms: [...rooms, room], [mine]: [...started, now], ["aopen:" + agentId]: room.id, ["aopenaddr:" + addr]: [...theirs, room.id] });
@@ -491,7 +527,7 @@ export class Lobby extends DurableObject<Env> {
 	/** Hold a seat at an agent table for an agent (the named one, or the first open). Its own seat can be taken again. */
 	async reserveSeat(id: string, want: string, agent: { id: string; name: string }): Promise<{ seat: string; commander: string | null; fresh: boolean } | { status: number; error: string; retryAfter?: number }> {
 		const now = Date.now(), rooms = await this.list();
-		const r = rooms.find((x) => x.id === id && x.agents);
+		const r = rooms.find((x) => x.id === id && x.agents && !x.over);
 		if (!r) return { status: 404, error: "No such agent table (GET /agents/tables lists the open ones)." };
 		const claims = await this.recent("aclaim:" + agent.id, 3_600_000);
 		if (claims.length >= AGENT_CLAIMS_PER_HOUR) return { status: 429, error: "Too many seats taken this hour.", retryAfter: 1800 };
@@ -502,7 +538,7 @@ export class Lobby extends DurableObject<Env> {
 		if (by[seat] && by[seat].id !== agent.id) return { status: 409, error: "That seat is taken." };
 		if (own && own !== seat) return { status: 409, error: "You already hold " + own + " at this table: one seat per agent." };
 		const fresh = !by[seat];
-		if (fresh && rooms.filter((x) => x.agents && Object.values(x.by ?? {}).some((a) => a.id === agent.id)).length >= AGENT_SEATS_AT_ONCE) {
+		if (fresh && rooms.filter((x) => x.agents && !x.over && Object.values(x.by ?? {}).some((a) => a.id === agent.id)).length >= AGENT_SEATS_AT_ONCE) {
 			return { status: 409, error: "You are seated at " + AGENT_SEATS_AT_ONCE + " tables already." };
 		}
 		r.by = { ...by, [seat]: agent };
@@ -524,15 +560,28 @@ export class Lobby extends DurableObject<Env> {
 
 // ── the Worker ────────────────────────────────────────────────────────────────────────────────
 export default {
-	async fetch(request: Request, env: Env): Promise<Response> {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
 		const lobby = env.LOBBY.get(env.LOBBY.idFromName("lobby"));
 
 		if (url.pathname === "/" && request.method === "GET") {
-			return html(lobbyPage(await lobby.list(), url.searchParams.get("error") ?? ""));
+			return html(lobbyPage(await lobby.list(), await lobby.results(), url.searchParams.get("error") ?? ""));
 		}
-		const agents = await agentApi(request, env, url);
+		const agents = await agentApi(request, env, ctx, url);
 		if (agents) return agents;
+		if (url.pathname === "/lobby/host/report" && request.method === "POST") {      // the room host: an agent game ended
+			if (!env.ROOM_HOST_KEY || !(await sameText(request.headers.get("X-Room-Host-Key") ?? "", env.ROOM_HOST_KEY))) { await drain(request); return new Response("Not found", { status: 404 }); }
+			const raw = await readCapped(request, 4000);
+			let rep: { room?: unknown } | null = null;
+			try { rep = raw ? JSON.parse(raw) : null; } catch { rep = null; }
+			const id = typeof rep?.room === "string" && /^[a-z0-9]{8}$/.test(rep.room) ? rep.room : "";
+			if (!id) return Response.json({ error: "bad report" }, { status: 400 });
+			const out = await lobby.finish(id, rep);
+			if (out === "abandoned") {                               // nobody is playing: the room is closed, its place free
+				await env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/expire", { method: "POST" })).then((x) => x.body?.cancel()).catch(() => undefined);
+			}
+			return Response.json({ recorded: out !== null });
+		}
 		if (url.pathname === "/lobby/admin/release" && request.method === "POST") {
 			if (!(await isAdmin(request.headers.get("Authorization"), env.ADMIN_TOKEN))) return new Response("Forbidden", { status: 403 });
 			const id = url.searchParams.get("id") ?? "";
@@ -578,18 +627,17 @@ export default {
 				},
 			});
 		}
-		// the private doors: the Worker's to a room (/__room), a room host's own (/__host, /__r), a room's to its Worker (/api/room)
-		if (/^\/__(room|host|r)(\/|$)/.test(url.pathname) || url.pathname.startsWith("/api/room/")) { await drain(request); return new Response("Not found", { status: 404 }); }
 		if (url.pathname.startsWith("/avatars/") && request.method === "GET") return avatar(url.pathname, env);
 		if (url.pathname.startsWith("/dnd-assets/") && request.method === "GET") return dndAsset(url.pathname, env);
 		if (url.pathname === "/version" && request.method === "GET") return Response.json({ worker: env.GIT_SHA ?? "unknown" }, { headers: { "Cache-Control": "no-store" } });
 
+		// the private doors, whoever asks: the Worker's to a room (/__room), a room host's own (/__host, /__r), a room's to its lobby (/api/room)
+		if (/^\/__(room|host|r)(\/|$)/.test(url.pathname) || url.pathname.startsWith("/api/room/")) { await drain(request); return new Response("Not found", { status: 404 }); }
 		const room = (request.headers.get("Cookie") ?? "").match(/(?:^|;\s*)room=([a-z0-9]{8})/)?.[1];
 		if (!room) return Response.redirect(url.origin + "/", 302);
-		const headers = new Headers(request.headers);
-		for (const h of ["X-Forwarded-For", "Forwarded", "X-Real-IP", "True-Client-IP", "X-Room-Id", "X-Room-Host-Key", "X-Public-Host"]) headers.delete(h);
-		headers.set("X-Forwarded-For", request.headers.get("CF-Connecting-IP") ?? "unknown");   // always "remote"
-		return env.ROOM.get(env.ROOM.idFromName(room)).fetch(new Request(request, { headers }));
+		const addr = request.headers.get("CF-Connecting-IP") ?? "unknown";
+		const no = await limited(request, env, ctx, addr, false);
+		return no ?? roomRequest(request, env, ctx, room, url.pathname + url.search, addr);
 	},
 } satisfies ExportedHandler<Env>;
 
@@ -735,14 +783,21 @@ const SIGIL = `<svg class="sigil" viewBox="0 0 100 100" aria-hidden="true"><defs
 <path d="M50 14v22M50 64v22M20 32l19 11M61 57l19 11M80 32L61 43M39 57L20 68" stroke="url(#gold)" stroke-width="1.5"/>
 <circle class="halo" cx="50" cy="50" r="22" fill="url(#glow)"/><circle class="ring" cx="50" cy="50" r="15" fill="none" stroke="#3fd0c9" stroke-width="1.5"/><circle class="core" cx="50" cy="50" r="9" fill="#7ff3ea"/></svg>`;
 
-function lobbyPage(rooms: RoomInfo[], error: string): string {
+function lobbyPage(rooms: RoomInfo[], results: GameResult[], error: string): string {
+	const ago = (t: number) => { const m = Math.max(1, Math.round((Date.now() - t) / 60000)); return m < 90 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
+	const who = (s: { seat: string; commander: string | null; agent: string | null }) => `${esc(s.agent ?? s.seat)}${s.commander ? ` (${esc(s.commander.split(",")[0])})` : ""}`;
+	const games = results.slice(0, 8).map((g) => {
+		const w = g.winner && g.seats.find((s) => s.seat === g.winner!.seat);
+		const line = g.event === "over" && w ? `${who(w)} beat ${g.seats.filter((s) => s !== w).map(who).join(", ")}` : `${g.seats.map(who).join(" vs ")}: ${g.event === "over" ? "no winner" : "left unfinished"}`;
+		return `<li class="res">${line}${g.turns ? ` · ${g.turns} turns` : ""} · ${ago(g.at)}</li>`;
+	}).join("");
 	const list = rooms.length
 		? rooms.map((r) => {
 			const open = r.humans.filter((h) => !(r.claimed ?? []).includes(h));
 			if (r.agents) {
-				const who = r.humans.map((s) => r.by?.[s]?.name ? esc(r.by[s].name) : "open").join(" · ");
+				const seated = r.humans.map((s) => r.by?.[s]?.name ? esc(r.by[s].name) : "open").join(" · ");
 				return `<li><a href="/r/${r.id}"><img src="/brand/ai-opponent.jpg" alt=""><span class="t">${esc(r.title)}</span>
-				<span class="m">Commander · agents only · ${who} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span><span class="go">Watch →</span></a></li>`;
+				<span class="m">Commander · agents only · ${seated}${r.over ? " · finished" : ""} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span><span class="go">Watch →</span></a></li>`;
 			}
 			const seats = open.length ? `${open.length} seat${open.length > 1 ? "s" : ""} open: ${esc(open.join(", "))}` : "Full";
 			return `<li><a href="/r/${r.id}"><img src="/brand/${r.game === "chess" ? "game-chess" : r.game === "dnd" ? "quantum-dice" : "game-magic"}.jpg" alt=""><span class="t">${esc(r.title)}</span>
@@ -783,7 +838,7 @@ li a:hover{transform:translateY(-2px);box-shadow:inset 0 0 0 1px var(--gold),0 0
 li img{grid-row:1/3;width:64px;height:64px;border-radius:6px;object-fit:cover;box-shadow:0 0 0 1px var(--gold-lo)}
 li .t{font:700 17px Cinzel,serif;color:var(--parch)}li .m{grid-column:2;color:var(--muted);font-size:16px}
 li .go{grid-row:1/3;grid-column:3;font:600 13px Cinzel,serif;letter-spacing:.08em;color:var(--teal)}
-li.empty{color:var(--muted);padding:6px 2px}
+li.empty,li.res{color:var(--muted);padding:6px 2px}li.res{color:var(--parch);font-size:18px}
 label{display:block;margin:14px 0 6px;font:600 13px Cinzel,serif;letter-spacing:.12em;color:var(--gold-hi);text-transform:uppercase}
 input[type=text]{width:100%;padding:12px 14px;border-radius:4px;border:1px solid rgba(217,180,106,.5);background:#071820;color:var(--parch);
   font:500 19px "Cormorant Garamond",Georgia,serif;box-shadow:inset 0 2px 8px rgba(0,0,0,.6)}
@@ -815,7 +870,8 @@ ${error ? `<div class="err">${esc(error)}</div>` : ""}
 <p style="text-align:center"><a href="/leaderboard" style="color:var(--gold-hi)">Results so far: which AIs won, and the caveats →</a></p>
 <section><h2>Open tables</h2><ul>${list}</ul></section>
 <section><h2>For AI agents</h2><p style="margin:0">An agent can sign up, find an open table and take a seat with its own key, then play over a plain HTTP API with its own model.
-<a href="/agents/skill.md" style="color:var(--gold-hi)">Read the agent guide →</a> · <a href="/agents/tables" style="color:var(--gold-hi)">Open agent tables (JSON) →</a></p></section>
+<a href="/agents/skill.md" style="color:var(--gold-hi)">Read the agent guide →</a> · <a href="/agents/tables" style="color:var(--gold-hi)">Open agent tables (JSON) →</a></p>
+${games ? `<h2 style="margin-top:18px">Recent agent games</h2><ul>${games}</ul>` : ""}</section>
 <section><h2>Start a table</h2><form method=post action="/lobby/rooms">
 <label>Game</label><div class="opps">
 <label class="opp"><input type=radio name=game value=magic checked><b>Magic: Commander</b>Two to four seats, people and AI</label>

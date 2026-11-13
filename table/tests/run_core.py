@@ -52,6 +52,9 @@ def candidates(filt: str):
     for p in sorted((REPO / "draft").glob("test_*.py")):      # the draft engine, deck builder and "I'm ready" handoff
         if not filt or filt in p.name:
             yield p
+    for p in sorted((REPO / "cloud" / "test").glob("*.py")):    # the public lobby: the room host, and a local lobby in front of it
+        if not filt or filt in p.name:
+            yield p
 
 
 def run_one(p: Path, timeout: int):

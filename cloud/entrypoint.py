@@ -58,7 +58,8 @@ for h in cfg.get("humans", []):
 if cfg.get("order"):
     args += ["--order=" + str(cfg["order"])]
 if cfg.get("agents"):
-    args += ["--decklists", "declared"]             # a seat's deck list is public only once that seat declares it
+    args += ["--decklists", "declared",             # a seat's deck list is public only once that seat declares it
+             "--seat-rate", os.environ.get("AGENT_SEAT_RATE", "5")]   # requests a second per seat (bursts to three times that)
 env = dict(os.environ, TABLE_CLOUD="1", NO_GEMMA="1", ROUTER="code", REPLIES="code",
            TABLE_AI_PASS_SECS=os.environ.get("TABLE_AI_PASS_SECS", "120"))   # a virtual-deck seat (a person on /hand, or a model) thinks for longer than 30 s
 if cfg.get("agents"):                               # agents don't roll dice or tick a check-in box: the first seat starts

@@ -23,6 +23,9 @@ export interface Env {
 	ROOM_HOST_KEY?: string;         // either way it answers only to this key (a secret)
 	MAX_LIVE_ROOMS?: string;        // people's tables listed at once (default 8)
 	MAX_AGENT_TABLES?: string;      // agent tables listed at once (default 6)
+	PER_ADDRESS?: RateLimit;        // requests a minute from one address to rooms and the agent API (wrangler.host.jsonc: ratelimits)
+	PER_SEAT?: RateLimit;           // … and with one seat key
+	DAILY_REQUEST_BUDGET?: string;  // agent-API requests a day before agent tables rest until midnight UTC (default 100000)
 	HOST_AI_SEATS?: string;         // "1" = the room host holds DIVINCI_FUSION_API_KEY and FUSION_CONFIG, so AI seats can be offered
 	OPENMIC_JUDGE?: string;         // "1" = hosted Magic rooms use the Clef-judged open mic (needs Workers AI beyond the free daily amount)
 }
@@ -32,7 +35,12 @@ export interface RoomConfig { humans: string[]; ai: AiSeat[]; pilots?: AiSeat[];
 	mode?: "map" | "theater";       // D&D: the battle map, or theater of the mind (docs/THEATER-GOAL.md)
 	agents?: boolean }               // an agent table: every seat is a virtual deck driven over the seat API (docs/agents.md)
 export interface RoomInfo { id: string; title: string; game: string; humans: string[]; ai: string[]; created: number; claimed?: string[];
-	agents?: boolean; decks?: Record<string, string>; by?: Record<string, { id: string; name: string }> }   // agent tables: seat → commander, seat → the agent in it
+	agents?: boolean; decks?: Record<string, string>; by?: Record<string, { id: string; name: string }>;   // agent tables: seat → commander, seat → the agent in it
+	over?: number }                                                                                        // … and when its game ended (it stays listed a few minutes more)
+
+/** How an agent game ended, as kept for the public record (GET /agents/results). */
+export interface GameResult { id: string; title: string; at: number; event: "over" | "abandoned"; turns: number | null;
+	seats: { seat: string; commander: string | null; agent: string | null; life: number | null }[]; winner: { seat: string; agent: string | null } | null }
 
 // AI opponents a public room may seat. Each is played by a Divinci release (one per deck).
 export const AI_DECKS: Record<string, { commander: string; deck: string }> = {
@@ -78,6 +86,11 @@ export function hostFetch(env: Env, path: string, init: { method?: string; heade
 }
 
 export const aiDm = (env: Env) => env.DND_CLOUD_AI === "1" && !!env.DND_DM_RELEASE_ID && aiSeatsHere(env);
+
+export const restarting = () => Response.json({ error: "The table is restarting. Try again in a few seconds." }, { status: 503, headers: { "Retry-After": "5" } });
+
+/** Headers only the lobby's own code may set on the way to a room: taken off whatever a visitor sent. */
+export const PRIVATE_HEADERS = ["X-Room-Token", "X-Room-Id", "X-Room-Host-Key", "X-Public-Host", "X-Client-Addr", "X-Room-Internal", "Host"];
 
 export const newRoomId = () => [...crypto.getRandomValues(new Uint8Array(8))].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
 

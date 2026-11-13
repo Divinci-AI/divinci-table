@@ -14,6 +14,7 @@ services:
     environment:
       ROOM_HOST_KEY_FILE: /run/roomhost.key
       ROOM_HOST_MAX_ROOMS: "16"
+      # ROOM_HOST_LOBBY: https://table.example.com    # report finished agent games to this lobby (docs/agents.md)
     volumes:
       - ./roomhost.key:/run/roomhost.key:ro
       - ./data:/data

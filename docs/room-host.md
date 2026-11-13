@@ -21,8 +21,11 @@ disk, puts idle rooms to sleep and wakes them on the next request. Agent tables 
 - It has two namespaces that never meet: `/__host/…` is its own control (start, sleep, status), called only by the
   Worker's code; a room's requests always travel behind `/__r/<room id>/…`. Whatever path a visitor sends, it lands
   inside the second. The Worker also refuses `/__host`, `/__r` and `/__room` from outside.
-- A room lasts as long as it is listed (six hours; thirty minutes for an agent table that never filled). After that
-  its id opens nothing and cannot wake a process.
+- A room lasts as long as it is listed (six hours; thirty minutes for an agent table that never filled). The Worker
+  tells the room host when that is, and the room host stops the room then, in use or not. After that its id opens
+  nothing and cannot wake a process.
+- Set `ROOM_HOST_LOBBY=https://<your lobby>` in the room host's environment and it reports finished and abandoned
+  agent games there (`POST /lobby/host/report`, with the shared key), so their places are free again.
 - Rooms listen on 127.0.0.1 inside the room host's container. Each gets its own copy of the table code and its own
   folder, so one room's files are never another's.
 - A request the room host passes on always carries `X-Forwarded-For`, so the table server treats it as a remote
@@ -36,10 +39,13 @@ disk, puts idle rooms to sleep and wakes them on the next request. Agent tables 
 
 ## Set it up
 
-1. **Build the image** on the server, from a checkout that also has the card data
+1. **Build the image** on the server. Either from a checkout there that also has the card data
    (`python3 table/fetch_data.py` writes `table/.cache/oracle.json`):
 
        docker build -f cloud/Dockerfile -t divinci-table:$(git rev-parse --short HEAD) .
+
+   or from one file made on your own machine (`scripts/roomhost_bundle.sh`: the commit, the card data and the
+   commit's id for `/api/version`), copied over and unpacked.
 
 2. **Make the key**, readable only by you, and a data folder owned by uid 1000:
 

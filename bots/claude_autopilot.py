@@ -22,6 +22,7 @@ BASE = os.environ.get("TABLE_URL", "http://127.0.0.1:8800")
 SEAT = os.environ.get("CLAUDE_SEAT", "Claude")
 KEYFILE = Path(os.environ.get("CLAUDE_KEY_FILE") or Path(__file__).resolve().parent / "live" / "claude-seat.key")
 GRACE = float(os.environ.get("AUTOPILOT_GRACE", "30"))
+PACE = max(1.0, float(os.environ.get("AUTOPILOT_PACE", "1")))     # stretch the tick (2 = half the requests): for a table reached over the internet
 KEY = KEYFILE.read_text().strip()
 
 
@@ -33,7 +34,10 @@ def call(method, path, body=None, retry=True):
         with urllib.request.urlopen(r, timeout=20) as x:
             return x.status, json.loads(x.read() or b"{}")
     except urllib.error.HTTPError as e:
-        d = json.loads(e.read() or b"{}")
+        try:
+            d = json.loads(e.read() or b"{}")
+        except ValueError:                           # (a proxy's plain-text error page)
+            d = {}
         if e.code == 429 and retry:              # the table asked us to slow down: wait as told, then try exactly once more
             time.sleep(min(5.0, float(d.get("retry_after") or 1.0)))
             return call(method, path, body, retry=False)
@@ -695,7 +699,7 @@ def main():
             wait_from = None
         # Never faster than the old cadence (1 s on our turn, 2 s otherwise): events stream during the other player's turn,
         # and waking on each one tripled the requests. The long wait only stretches the QUIET stretches (up to 6 s).
-        floor = 1.0 if my_turn(ph) else 2.0
+        floor = (1.0 if my_turn(ph) else 2.0) * PACE
         t_ = time.time()
         pump(floor if my_turn(ph) else 6.0)
         if time.time() - t_ < floor:

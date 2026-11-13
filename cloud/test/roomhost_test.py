@@ -7,6 +7,8 @@
   - the game is saved, the room is put to sleep, and the next `ensure` brings the same game back
   - two rooms at once keep their own files (one room's seat key is not the other's)
   - at the cap, an idle room is refused room until it has been quiet for five minutes
+  - an agent table is held to its rules (only a seat's own moves change it from outside), the lobby is told when its game
+    ends or is abandoned, and a room stops when its time is up
 
     python3 cloud/test/roomhost_test.py          (needs numpy and table/.cache/oracle.json, like the table's own tests)
 """
@@ -19,6 +21,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -27,8 +30,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 FAILS: list[str] = []
 if not (ROOT / "table" / ".cache" / "oracle.json").exists():
-    print("SKIP: table/.cache/oracle.json is missing (python3 table/fetch_data.py)")
-    sys.exit(0)
+    print("SKIP: the room host test needs card data: run `python3 table/fetch_data.py` once")
+    sys.exit(77)
 
 
 def check(ok, what, detail=""):
@@ -43,9 +46,28 @@ KEY = secrets.token_urlsafe(32)
 (TMP / "key").write_text(KEY); os.chmod(TMP / "key", 0o600)
 (TMP / "assets" / "avatars").mkdir(parents=True)
 (TMP / "assets" / "avatars" / "robot.glb").write_bytes(b"glb")
+REPORTS: list[dict] = []          # what the room host tells "the lobby" (a stand-in on this machine)
+
+
+class FakeLobby(__import__("http.server").server.BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        ok = self.path == "/lobby/host/report" and self.headers.get("X-Room-Host-Key") == KEY
+        if ok:
+            REPORTS.append(json.loads(body))
+        self.send_response(200 if ok else 404); self.send_header("Content-Length", "2"); self.end_headers(); self.wfile.write(b"{}")
+
+
+s = socket.socket(); s.bind(("127.0.0.1", 0)); LP = s.getsockname()[1]; s.close()
+fake = __import__("http.server").server.ThreadingHTTPServer(("127.0.0.1", LP), FakeLobby)
+threading.Thread(target=fake.serve_forever, daemon=True).start()
 host = subprocess.Popen([sys.executable, str(ROOT / "cloud" / "roomhost.py"), "--host", "127.0.0.1", "--port", str(PORT), "--data", str(TMP / "data"),
                          "--assets", str(TMP / "assets"), "--max-rooms", "2", "--port-base", "23500"],
-                        env={**os.environ, "ROOM_HOST_KEY_FILE": str(TMP / "key")}, stdout=open(TMP / "host.log", "w"), stderr=subprocess.STDOUT)
+                        env={**os.environ, "ROOM_HOST_KEY_FILE": str(TMP / "key"), "ROOM_HOST_LOBBY": f"http://127.0.0.1:{LP}", "ROOM_HOST_ABANDON_SECS": "25"},
+                        stdout=open(TMP / "host.log", "w"), stderr=subprocess.STDOUT)
 
 
 def req(method, path, body=None, headers=None, key=KEY, raw=False, timeout=120):
@@ -143,18 +165,24 @@ try:
 
     print("two agents play through the proxy")
     keys = {}
+    lobby_only = {"X-Room-Internal": tokA}            # what the lobby's own calls carry: the room's token
+    c, d = room(A, "POST", "/api/seat/claim", {"name": "North"}, fwd="agent:North")
+    check(c == 403 and "agent key" in str(d), "at an agent table a seat can't be claimed from outside", (c, d))
+    check(room(A, "POST", "/api/seat/claim", {"name": "North"}, fwd="agent:North", extra={"X-Room-Internal": "x" * 48})[0] == 403, "… nor with a made-up token")
     for seat in ("North", "South"):
-        c, d = room(A, "POST", "/api/seat/claim", {"name": seat}, fwd="agent:" + seat)
+        c, d = room(A, "POST", "/api/seat/claim", {"name": seat}, fwd="agent:" + seat, extra=lobby_only)
         keys[seat] = d.get("key", "")
-    check(all(keys.values()), "each agent claims its seat and gets a key", keys.keys())
-    c, d = room(A, "POST", "/api/seat/claim", {"name": "North"}, fwd="agent:intruder")
+    check(all(keys.values()), "the lobby claims each agent's seat for it and gets a key", keys.keys())
+    c, d = room(A, "POST", "/api/seat/claim", {"name": "North"}, fwd="agent:intruder", extra=lobby_only)
     check(c == 409, "a claimed seat is refused to another caller (devices are told apart by the address the Worker names, not by X-Forwarded-For)", (c, d))
     c, d = room(A, "GET", "/api/brain/state?seat=North", seat_key=keys["South"])
     check(c == 403, "one seat's key does not open the other's hand", (c, str(d)[:80]))
     c, d = room(A, "GET", "/api/brain/state?seat=North", seat_key=keys["North"])
     check(c == 200 and "hand" in d, "its own key does", (c, list(d)[:8]))
     c, d = room(A, "POST", "/api/phase/next", {"by": "North", "key": keys["North"]}, seat_key=keys["North"])
-    check(c == 200, "the first seat starts the game", (c, d))
+    check(c == 403, "a seat can't start the game itself", (c, d))
+    c, d = room(A, "POST", "/api/phase/next", {"by": "North", "key": keys["North"]}, seat_key=keys["North"], extra=lobby_only)
+    check(c == 200, "the lobby starts it", (c, d))
     acts, refused, over = play(A, keys, 25)
     check(acts >= 15, "dozens of listed moves are played through the proxy", acts)
     check(not refused, "no listed move is refused", refused[:3])
@@ -178,6 +206,61 @@ try:
     check(c == 200, "and the seat keys still work", (c, str(d)[:80]))
     acts2, refused2, _ = play(A, keys, 6)
     check(acts2 >= 3 and not refused2, "play goes on after the wake", (acts2, refused2[:2]))
+
+    print("an agent table's rules, and its end")
+    for path, body in (("/api/phase/hold", {"on": True, "by": "North"}), ("/api/phase/windows", {"on": False, "by": "North"}), ("/api/phase/back", {"by": "North"}),
+                       ("/api/highroll/start", {"mode": "quantum", "by": "North"}), ("/api/seat/handoff", {"by": "North", "to": "open"}), ("/api/life", {"player": "South", "delta": -40}),
+                       ("//api/seat/claim", {"name": "North"}), ("/api/seat/claim/", {"name": "North"}), ("/api/todo/done", {"id": 1, "by": "North"})):
+        c, d = room(A, "POST", path, {**body, "key": keys["North"]}, seat_key=keys["North"])
+        check(c == 403 or (c == 404 and path.startswith("//")), f"a seat can't POST {path}", (c, d))
+    for act, body in (("manual", {"op": "token", "power": 999, "toughness": 999, "n": 20}), ("life", {"player": "me", "delta": 100000}),
+                      ("effect", {"kind": "exile", "source": "#1", "at": "South", "target": "#1"}), ("untap", {"ref": "#1"}), ("draw", {"n": 7}), ("search", {"name": "Sol Ring"})):
+        c, d = room(A, "POST", "/api/brain/" + act, {"seat": "North", **body}, seat_key=keys["North"])
+        check(c == 403 and "not a move" in str(d), f"a seat can't use brain/{act}: it is bookkeeping, not a move of the game", (c, d))
+    c, d = room(A, "POST", "/api/brain/effect", {"seat": "North", "kind": "apply-removal"}, seat_key=keys["North"])
+    check(c != 403, "the one bookkeeping step the table asks a seat for (removal aimed at it) still goes through to the table", (c, d))
+    check(room(A, "POST", "//api/phase/hold", {"on": True}, seat_key=keys["North"])[0] in (403, 404) and req("GET", f"/__r/{A}//api/room/status")[0] == 404, "a doubled slash opens nothing")
+    check(room(A, "DELETE", "/api/brain/state", seat_key=keys["North"])[0] == 403 and room(A, "PUT", "/api/phase/next", {}, seat_key=keys["North"])[0] == 403, "nor use another method")
+    c, d = room(A, "POST", "/api/identity", {"seat": "North", "model": "scripted", "provider": "test", "presents_as": "a test"}, seat_key=keys["North"])
+    check(c == 200, "it can still say what it is", (c, d))
+    c, d = room(A, "POST", "/api/brain/concede", {"seat": "South"}, seat_key=keys["South"])
+    check(c == 200, "a seat can concede its own game", (c, str(d)[:120]))
+    t0 = time.time()
+    while time.time() - t0 < 45 and not any(r.get("room") == A for r in REPORTS):
+        time.sleep(1)
+    rep = next((r for r in REPORTS if r.get("room") == A), {})
+    check(rep.get("event") == "over" and rep.get("winner") == "North", "the room host tells the lobby the game is over, and who won", rep)
+    time.sleep(22)
+    check(sum(1 for r in REPORTS if r.get("room") == A) == 1 and (TMP / "data" / "rooms" / A / "reported").exists(), "once")
+    req("POST", f"/__host/rooms/{A}/sleep", {})
+
+    G, tokG = "ggggggg7", secrets.token_hex(24)
+    c, d = req("POST", f"/__host/rooms/{G}/ensure", {"config": agent_cfg(), "token": tokG, "expires_at": int((time.time() + 3600) * 1000)})
+    check(c == 200, "another agent table starts", (c, d))
+    kg = {seat: room(G, "POST", "/api/seat/claim", {"name": seat}, fwd="agent:" + seat, extra={"X-Room-Internal": tokG})[1].get("key", "") for seat in ("North", "South")}
+    room(G, "POST", "/api/phase/next", {"by": "North", "key": kg["North"]}, seat_key=kg["North"], extra={"X-Room-Internal": tokG})
+    t0 = time.time()
+    while time.time() - t0 < 80 and not any(r.get("room") == G for r in REPORTS):
+        room(G, "GET", "/api/stage")                   # someone watching is not a seat playing
+        room(G, "GET", "/api/seat/legal?seat=North", seat_key=kg["North"])     # and one seat alone is not a game
+        room(G, "GET", "/api/seat/legal?seat=South", seat_key="made-up-" + secrets.token_hex(6))   # nor is a key the table does not know
+        time.sleep(2)
+    rep = next((r for r in REPORTS if r.get("room") == G), {})
+    check(rep.get("event") == "abandoned", "a started game with one seat left playing is reported abandoned (a lone seat and watchers don't keep it)", (rep, round(time.time() - t0)))
+    time.sleep(1.5)
+    check(room(G, "GET", "/api/phase")[0] == 409, "and its process is stopped")
+
+    Hh, tokH = "hhhhhhh8", secrets.token_hex(24)
+    soon = int((time.time() + 14) * 1000)
+    c, d = req("POST", f"/__host/rooms/{Hh}/ensure", {"config": agent_cfg(), "token": tokH, "expires_at": soon})
+    check(c == 200, "a room with fourteen seconds to live starts", (c, d))
+    t0 = time.time()
+    while time.time() - t0 < 30 and room(Hh, "GET", "/api/stage")[0] == 200:       # in use the whole time
+        time.sleep(1)
+    check(14 <= time.time() - t0 + 13 and room(Hh, "GET", "/api/stage")[0] == 409, "when its time is up it is stopped, in use or not", round(time.time() - t0, 1))
+    check(req("POST", f"/__host/rooms/{Hh}/ensure", {"config": agent_cfg(), "token": tokH, "expires_at": soon})[0] == 410, "and is not started again")
+    c, d = req("POST", f"/__host/rooms/{A}/ensure", {"config": agent_cfg(), "token": tokA})
+    check(c == 200, "the first table wakes again for the next checks", (c, d))
 
     print("a second room, and the cap")
     c, d = req("POST", f"/__host/rooms/{B}/ensure", {"config": {"game": "chess", "humans": ["Ann"], "ai": [], "white": "Ann", "black": "ai:Leonardo:3",

@@ -3,25 +3,26 @@
  * Cloudflare Container. Bound as ROOM by wrangler.host.jsonc. The Worker and this object stay the only public
  * address; the room host answers only requests carrying ROOM_HOST_KEY.
  *
- * Same contract as TableRoom (index.ts): /__room/* is the Worker's private door (never reachable from outside),
- * presence, the Clef judge and the headset's voice/photo calls live here, and everything else is the room's own
- * table server. What differs: the room host starts the process and keeps the saved game on its own disk, so this
- * object holds no snapshot and needs no R2.
+ * What this object does: it knows the room (its config, its token, when it was made), wakes its process on the room
+ * host, takes an agent's seat for it and starts an agent game, and holds what needs one place: presence sockets, the
+ * Clef judge and the headset's voice/photo counters. /__room/* is the Worker's private door (never reachable from
+ * outside).
  *
- * Agent tables (config.agents, docs/agents.md) add two rules, enforced here because every request passes through:
- * a seat is claimed only through the lobby's agent API (/__room/agent-claim), and the game starts by itself when the
- * last seat is taken, not before.
+ * What it does NOT do: carry the room's ordinary traffic. The Worker sends that to the room host itself (proxy.ts) and
+ * comes here only when the room is asleep. A Durable Object is billed for the time it is busy, and a table's pages hold
+ * requests open for twenty seconds at a time, so one table passing through here would keep it busy all day.
+ *
+ * The room host keeps the saved game on its own disk, so nothing here needs R2, and it holds an agent table to its
+ * rules (cloud/roomhost.py: agent_refusal).
  */
 import { DurableObject } from "cloudflare:workers";
 import { AGENT_OPEN_TABLE_TTL_MS, aiKeyAllowed, boardPrompt, parseBoardReply, parsePose, PRESENCE_MAX_BYTES, PRESENCE_MAX_PER_SEC, sameText, speechHint,
 	STT_MAX_BYTES, STT_PER_10_MIN, VISION_MAX_BYTES, VISION_PER_HOUR, withinRate } from "./policy";
-import { aiDm, drain, hosted, hostFetch, lobbyOf, ROOM_TTL_MS, toBase64 } from "./shared";
+import { aiDm, drain, hosted, hostFetch, lobbyOf, PRIVATE_HEADERS, restarting, ROOM_TTL_MS, toBase64 } from "./shared";
 import type { Env, RoomConfig } from "./shared";
 
 interface Room { id: string; token: string; config: RoomConfig }
 type Sock = { seat: string | null; opened: number; win: number; n: number };
-
-const restarting = () => Response.json({ error: "The table is restarting. Try again in a few seconds." }, { status: 503, headers: { "Retry-After": "5" } });
 
 export class HostedRoom extends DurableObject<Env> {
 	private async room(): Promise<Room | null> {
@@ -37,10 +38,11 @@ export class HostedRoom extends DurableObject<Env> {
 
 	/** One request to the room host: its own control calls (/__host/…, `roomId` unset), or a path on a room's table server.
 	 *  A room's path always travels behind /__r/<id>, so no path a visitor sends can turn into a control call. */
-	private host(path: string, init: { method?: string; headers?: Headers; body?: BodyInit | null }, roomId?: string): Promise<Response> {
+	private host(path: string, init: { method?: string; headers?: Headers; body?: BodyInit | null }, roomId?: string, internal?: string): Promise<Response> {
 		const headers = new Headers(init.headers);
 		const from = headers.get("X-Forwarded-For") || "unknown";      // set by the Worker (the visitor's address) or by this object
-		for (const h of ["X-Room-Token", "X-Room-Id", "X-Room-Host-Key", "X-Public-Host", "X-Client-Addr", "Host"]) headers.delete(h);
+		for (const h of PRIVATE_HEADERS) headers.delete(h);
+		if (internal) headers.set("X-Room-Internal", internal);        // the room's own token: this call is the lobby's, not a visitor's
 		if (roomId) {
 			headers.set("X-Public-Host", new URL(this.env.PUBLIC_ORIGIN || "https://table.divinci.ai").host);
 			// its own header: whatever sits between here and the room host may rewrite X-Forwarded-For, and the table tells
@@ -53,11 +55,14 @@ export class HostedRoom extends DurableObject<Env> {
 
 	/** A room lives as long as it is listed: six hours, or thirty minutes for an agent table that never filled. After
 	 *  that it is gone for good (its id can't be used to wake a process), and the room host is told to stop it. */
-	private async expired(r: Room): Promise<boolean> {
+	private async endsAt(r: Room): Promise<number> {
 		const created = (await this.ctx.storage.get<number>("created")) ?? 0;
-		const age = Date.now() - created;
 		const unfilled = !!r.config.agents && !(await this.ctx.storage.get<boolean>("started"));
-		if (created && age < (unfilled ? AGENT_OPEN_TABLE_TTL_MS : ROOM_TTL_MS) + 60_000) return false;
+		return created ? created + (unfilled ? AGENT_OPEN_TABLE_TTL_MS : ROOM_TTL_MS) + 60_000 : 0;
+	}
+
+	private async expired(r: Room): Promise<boolean> {
+		if (Date.now() < await this.endsAt(r)) return false;
 		await this.expire(r.id);
 		return true;
 	}
@@ -65,8 +70,9 @@ export class HostedRoom extends DurableObject<Env> {
 	private async expire(id: string): Promise<void> {
 		await this.ctx.storage.deleteAll();
 		for (const ws of this.ctx.getWebSockets()) { try { ws.close(1001, "the room has closed"); } catch { /* gone */ } }
-		if (hosted(this.env)) {
-			await this.host(`/__host/rooms/${id}/sleep`, { method: "POST", body: "{}" }).then((x) => x.body?.cancel()).catch(() => undefined);
+		for (let i = 0; i < 2 && hosted(this.env); i++) {              // (asked twice: a room left running would stay reachable until its time is up)
+			const ok = await this.host(`/__host/rooms/${id}/sleep`, { method: "POST", body: "{}" }).then(async (x) => { await x.body?.cancel(); return x.ok; }).catch(() => false);
+			if (ok) break;
 		}
 	}
 
@@ -82,7 +88,7 @@ export class HostedRoom extends DurableObject<Env> {
 			...(r.config.agents ? { TABLE_AI_PASS_SECS: "60" } : {}),       // an agent that has left is passed for after a minute
 		};
 		const res = await this.host(`/__host/rooms/${r.id}/ensure`, { method: "POST", headers: new Headers({ "Content-Type": "application/json" }),
-			body: JSON.stringify({ config: r.config, token: r.token, ai: aiOk, env }) }).catch((e) => e as Error);
+			body: JSON.stringify({ config: r.config, token: r.token, ai: aiOk, env, expires_at: await this.endsAt(r) }) }).catch((e) => e as Error);
 		if (res instanceof Error || !res.ok) {
 			console.error("room host: ensure failed", res instanceof Error ? res.message : res.status);
 			if (!(res instanceof Error)) await res.body?.cancel();
@@ -92,9 +98,10 @@ export class HostedRoom extends DurableObject<Env> {
 		return true;
 	}
 
-	/** A request to the room's table server; a sleeping (or restarted) room is woken once and asked again. */
+	/** One of this object's OWN requests to the room's table server (never a visitor's: those go from the Worker, proxy.ts).
+	 *  A sleeping (or restarted) room is woken once and asked again. */
 	private async toRoom(r: Room, path: string, init: { method?: string; headers?: Headers; body?: ArrayBuffer | string | null }): Promise<Response> {
-		const send = () => this.host(path, init, r.id).catch((e) => e as Error);
+		const send = () => this.host(path, init, r.id, r.token).catch((e) => e as Error);
 		let res = await send();
 		if (res instanceof Error || res.headers.has("X-Room-Down")) {        // set only by the room host itself (asleep, or no answer): never by a table
 			if (!(res instanceof Error)) await res.body?.cancel();
@@ -229,7 +236,10 @@ export class HostedRoom extends DurableObject<Env> {
 				headers: new Headers({ "Content-Type": "application/json", "X-Seat-Key": key, "X-Forwarded-For": "agent:" + agentId }) });
 			started = go.ok;
 			await go.body?.cancel();
-			if (started) await this.ctx.storage.put("started", true);
+			if (started) {
+				await this.ctx.storage.put("started", true);
+				await this.ensureRunning(r);                         // the room now lasts as long as a game, not as long as an open table
+			}
 		}
 		return Response.json({ seat, key, started, waiting_for: seats.filter((s) => !taken.has(s)) });
 	}
@@ -247,6 +257,9 @@ export class HostedRoom extends DurableObject<Env> {
 			return new Response("This room doesn't exist (or has expired).", { status: 404 });
 		}
 		if (!hosted(this.env)) return Response.json({ error: "This lobby has no room host configured." }, { status: 503 });
+		if (url.pathname === "/__room/ensure" && request.method === "POST") {      // the Worker found the room asleep
+			return (await this.ensureRunning(r)) ? new Response("ok") : restarting();
+		}
 		if (url.pathname === "/__room/agent-claim" && request.method === "POST") {
 			return this.agentClaim(r, url.searchParams.get("seat") ?? "", url.searchParams.get("agent") ?? "");
 		}
@@ -275,22 +288,7 @@ export class HostedRoom extends DurableObject<Env> {
 			return new Response(null, { status: 101, webSocket: client });
 		}
 		if (url.pathname === "/api/xr/stt" || url.pathname === "/api/xr/vision") return this.xrAi(request, r, url.pathname.endsWith("stt") ? "stt" : "vision");
-		if (r.config.agents && request.method === "POST") {
-			if (url.pathname === "/api/seat/claim" || url.pathname === "/api/seat/handoff") {
-				await drain(request);
-				return Response.json({ error: "This is an agent table: a seat is taken with an agent key, at POST /agents/tables/" + r.id + "/claim (see /agents/skill.md)." }, { status: 403 });
-			}
-			if (url.pathname === "/api/phase/next" && !(await this.ctx.storage.get<boolean>("started"))) {
-				await drain(request);
-				return Response.json({ error: "The game starts by itself when every seat is taken." }, { status: 409 });
-			}
-		}
-		const body = request.method === "GET" || request.method === "HEAD" ? null : await request.arrayBuffer();
-		const res = await this.toRoom(r, url.pathname + url.search, { method: request.method, headers: request.headers, body });
-		if (url.pathname === "/api/seat/claim" && res.ok && request.method === "POST") {      // keep the lobby's open-seat count current
-			const name = await res.clone().json<{ name?: string }>().then((d) => d.name ?? "").catch(() => "");
-			if (name && r.id !== "unknown") this.ctx.waitUntil(lobbyOf(this.env).markClaimed(r.id, name).catch(() => undefined));
-		}
-		return res;
+		await drain(request);                                      // a room's ordinary traffic does not come through here (proxy.ts)
+		return new Response("Not found", { status: 404 });
 	}
 }

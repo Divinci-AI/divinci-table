@@ -123,7 +123,7 @@ test("dndAssetKey: a location's room/map/view or a mini maps to R2 dnd/…; anyt
 });
 
 // ── agents ──
-import { AGENT_NAME_RE, AGENT_OPEN_TABLE_TTL_MS, AGENT_REG_GLOBAL_PER_DAY, AGENT_REG_PER_DAY, AGENT_REG_PER_HOUR, agentRegRefusal, bearerAgentKey, newAgentKey,
+import { dailyBudget, isHouseName, AGENT_NAME_RE, AGENT_OPEN_TABLE_TTL_MS, AGENT_REG_GLOBAL_PER_DAY, AGENT_REG_PER_DAY, AGENT_REG_PER_HOUR, agentRegRefusal, bearerAgentKey, newAgentKey,
 	planAgentTable, roomListed, sha256Hex } from "../src/policy.ts";
 
 const reg = { hereHour: 0, hereDay: 0, everywhereDay: 0, nameTaken: false, nameOk: true };
@@ -146,9 +146,20 @@ test("agent sign-up: a caller over its limit learns nothing about names", () => 
 	assert.equal(agentRegRefusal({ ...reg, nameOk: false })?.status, 400);
 });
 
+test("house names are the lobby's own, however they are spaced", () => {
+	for (const n of ["House Autopilot", "HouseAutopilot", "h.o.u.s.e", "house", "Claude", "claude-2", "Divinci.Bot", "ADMIN", "Official Table", "housemartin"]) assert.ok(isHouseName(n), n);
+	for (const n of ["ada", "my house", "the-claude", "bot_7"]) assert.ok(!isHouseName(n), n);
+});
+
+test("the daily budget is always a real number", () => {
+	assert.equal(dailyBudget(undefined), 100_000);
+	assert.equal(dailyBudget("250000"), 250_000);
+	for (const bad of ["0", "-5", "lots", "", "NaN", "12"]) assert.equal(dailyBudget(bad), 100_000, bad);
+});
+
 test("agent names: plain words only", () => {
-	for (const ok of ["ada", "Ada Lovelace", "bot_7", "agent-9.5", "Zoë 2"]) assert.ok(AGENT_NAME_RE.test(ok), ok);
-	for (const bad of ["", "ab", " ada", "ada ", "a".repeat(33), "<b>ada</b>", "ada\nbob", "ada/../x", "ada&bob", "a'b\"c", "-ada"]) assert.ok(!AGENT_NAME_RE.test(bad), JSON.stringify(bad));
+	for (const ok of ["ada", "Ada Lovelace", "bot_7", "agent-9.5"]) assert.ok(AGENT_NAME_RE.test(ok), ok);
+	for (const bad of ["", "ab", " ada", "ada ", "a".repeat(33), "<b>ada</b>", "ada\nbob", "ada/../x", "ada&bob", "a'b\"c", "-ada", "Zoë 2", "\u0397ouse Autopilot"]) assert.ok(!AGENT_NAME_RE.test(bad), JSON.stringify(bad));
 });
 
 test("agent keys: long, random, and only the well-formed bearer is read", async () => {
@@ -182,4 +193,34 @@ test("listing: a people's table for its whole time; an agent table nobody filled
 	assert.equal(roomListed({ ...open, created: now - AGENT_OPEN_TABLE_TTL_MS + 1 }, now, ttl), true);
 	assert.equal(roomListed({ ...open, created: now - AGENT_OPEN_TABLE_TTL_MS }, now, ttl), false);
 	assert.equal(roomListed({ ...open, claimed: ["North", "East"], created: now - AGENT_OPEN_TABLE_TTL_MS }, now, ttl), true);
+});
+
+// ── the end of an agent game, and the daily budget ──
+import { AGENT_OVER_LINGER_MS, budgetRefusal, cleanReport } from "../src/policy.ts";
+
+test("a room host's report is kept only in the shape we know", () => {
+	const seats = ["North", "East"];
+	assert.deepEqual(cleanReport({ event: "over", winner: "North", turns: 25, totals: { North: 27, East: -3, West: 9 } }, seats),
+		{ event: "over", winner: "North", turns: 25, totals: { North: 27, East: -3 } });
+	assert.deepEqual(cleanReport({ event: "abandoned" }, seats), { event: "abandoned", winner: null, turns: null, totals: {} });
+	assert.equal(cleanReport({ event: "over", winner: "<b>Mallory</b>" }, seats)?.winner, null, "a winner must be one of the table's seats");
+	assert.equal(cleanReport({ event: "over", winner: "North", turns: "25" }, seats)?.turns, null);
+	assert.equal(cleanReport({ event: "over", turns: 1e9 }, seats)?.turns, null);
+	assert.deepEqual(cleanReport({ event: "over", totals: { North: "40", East: 1.5 } }, seats)?.totals, {});
+	for (const bad of [null, "over", 7, {}, { event: "won" }, { event: ["over"] }]) assert.equal(cleanReport(bad, seats), null, JSON.stringify(bad));
+});
+
+test("a finished agent game stays listed ten minutes, then frees its place", () => {
+	const now = 10_000_000_000, ttl = 6 * 3600_000, t = { agents: true, humans: ["North", "East"], claimed: ["North", "East"], created: now - 3600_000 };
+	assert.equal(roomListed({ ...t, over: now - AGENT_OVER_LINGER_MS + 1 }, now, ttl), true);
+	assert.equal(roomListed({ ...t, over: now - AGENT_OVER_LINGER_MS }, now, ttl), false);
+	assert.equal(roomListed(t, now, ttl), true);
+});
+
+test("past the daily budget the answer says when to come back", async () => {
+	const noon = Date.UTC(2026, 10, 13, 12, 0, 0), r = budgetRefusal(noon);
+	assert.equal(r.status, 503);
+	assert.equal(r.headers.get("Retry-After"), String(12 * 3600));
+	assert.match((await r.json() as { error: string }).error, /agent tables.*midnight UTC/);
+	assert.equal(budgetRefusal(Date.UTC(2026, 10, 13, 23, 59, 59)).headers.get("Retry-After"), "60");
 });

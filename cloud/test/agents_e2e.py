@@ -30,8 +30,8 @@ CLOUD = ROOT / "cloud"
 FAILS: list[str] = []
 for need, why in ((ROOT / "table" / ".cache" / "oracle.json", "python3 table/fetch_data.py"), (CLOUD / "node_modules" / ".bin" / "wrangler", "cd cloud && pnpm install")):
     if not need.exists():
-        print(f"SKIP: {need.relative_to(ROOT)} is missing ({why})")
-        sys.exit(0)
+        print(f"SKIP: the lobby test needs {need.relative_to(ROOT)}: {why}")
+        sys.exit(77)
 
 
 def check(ok, what, detail=""):
@@ -51,7 +51,8 @@ HOSTKEY, ADMIN = secrets.token_urlsafe(32), secrets.token_urlsafe(24)
 (TMP / "vars").write_text(f"ROOM_HOST_KEY={HOSTKEY}\nADMIN_TOKEN={ADMIN}\nROOM_HOST_ORIGIN=http://127.0.0.1:{HP}\nPUBLIC_ORIGIN=http://127.0.0.1:{WP}\nMAX_AGENT_TABLES=2\n")
 os.chmod(TMP / "vars", 0o600)
 host = subprocess.Popen([sys.executable, str(CLOUD / "roomhost.py"), "--host", "127.0.0.1", "--port", str(HP), "--data", str(TMP / "data"), "--port-base", "24500"],
-                        env={**os.environ, "ROOM_HOST_KEY_FILE": str(TMP / "key")}, stdout=open(TMP / "host.log", "w"), stderr=subprocess.STDOUT)
+                        env={**os.environ, "ROOM_HOST_KEY_FILE": str(TMP / "key"), "ROOM_HOST_LOBBY": f"http://127.0.0.1:{WP}"},
+                        stdout=open(TMP / "host.log", "w"), stderr=subprocess.STDOUT)
 worker = subprocess.Popen([str(CLOUD / "node_modules" / ".bin" / "wrangler"), "dev", "-c", "test/wrangler.e2e.jsonc", "--port", str(WP), "--ip", "127.0.0.1",
                            "--env-file", str(TMP / "vars"), "--persist-to", str(TMP / "state"), "--show-interactive-dev-session=false"],
                           cwd=CLOUD, env={k: v for k, v in os.environ.items() if k not in ("FORCE_COLOR", "CLOUDFLARE_API_TOKEN")} | {"CI": "1", "WRANGLER_SEND_METRICS": "false"},
@@ -139,7 +140,11 @@ try:
     print("sign-up")
     check(req("POST", "/agents/register", {"name": "x"})[0] == 400, "a name too short is refused")
     check(req("POST", "/agents/register", {"name": "<script>alert(1)</script>"})[0] == 400, "a name with markup is refused")
-    check(req("POST", "/agents/register", {"name": "Fusion"})[0] == 400, "a house name is refused")
+    check(req("POST", "/agents/register", {"name": "Fusion"})[0] == 400 and req("POST", "/agents/register", {"name": "House Autopilot"})[0] == 400
+          and req("POST", "/agents/register", {"name": "claude-2"})[0] == 400 and req("POST", "/agents/register", {"name": "HouseAutopilot"})[0] == 400
+          and req("POST", "/agents/register", {"name": "\u0397ouse Autopilot"})[0] == 400, "a house name is refused, run together or with a look-alike letter")
+    c, d, _ = req("POST", "/agents/register", {"name": "House Autopilot"}, {"Authorization": "Bearer " + ADMIN})
+    check(c == 201 and d.get("key", "").startswith("dta_"), "… except to the lobby's admin (and it does not count against the address)", (c, {k: v for k, v in d.items() if k != "key"}))
     check(req("POST", "/agents/register", b"[1,2]")[0] == 400 and req("POST", "/agents/register", b"{" + b" " * 5000 + b"}")[0] == 400, "a body that is not a small JSON object is refused")
     agents = {}
     for n in ("ada-e2e", "bo-e2e"):
@@ -188,7 +193,7 @@ try:
     check(req("GET", f"{api}/../../../../__host/status")[0] in (400, 403, 404) and req("GET", f"/agents/tables/{tid}/api/%2e%2e/%2e%2e/__host/status")[0] in (400, 403, 404),
           "… nor by climbing out of a table's API path")
     c, d, _ = req("POST", f"{api}/phase/next", {"by": "North"})
-    check(c == 409, "nobody starts the game before every seat is taken", (c, d))
+    check(c == 403, "nobody outside starts the game: it starts when every seat is taken", (c, d))
     check(req("POST", f"/agents/tables/{tid}/claim", {})[0] == 401, "a seat needs an agent key")
 
     print("seats")
@@ -257,6 +262,33 @@ try:
     check(req("POST", f"/agents/tables/{t2}/claim", {}, bearer(A))[0] == 200, "an agent sits at a second table")
     c, d, _ = req("GET", "/agents/me", headers=bearer(A))
     check(c == 200 and len(d.get("tables", [])) == 2, "it now holds two seats", (c, len(d.get("tables", []))))
+
+    print("the end of a game")
+    c, d, _ = req("POST", f"{api}/brain/manual", {"seat": "North", "op": "token", "power": 999, "toughness": 999, "n": 20}, {"X-Seat-Key": ka2})
+    check(c == 403, "a seat can't conjure tokens (bookkeeping is not a move at an agent table)", (c, d))
+    c, d, _ = req("POST", f"{api}/brain/life", {"seat": "North", "player": "me", "delta": 100000}, {"X-Seat-Key": ka2})
+    check(c == 403, "or set its own life", (c, d))
+    check(req("GET", "//x/__room/setup?id=zzzzzzz9", headers={"Cookie": f"room={tid}"})[0] == 404 and req("POST", f"//x/__room/expire", {}, {"Cookie": f"room={tid}"})[0] == 404
+          and req("GET", f"{api}/phase")[0] == 200, "a doubled slash reaches no private door")
+    c, d, _ = req("POST", f"{api}/phase/hold", {"on": True, "by": "North", "key": ka2}, {"X-Seat-Key": ka2})
+    check(c == 403, "a seat can't hold the table for everyone", (c, d))
+    c, d, _ = req("POST", f"{api}/brain/concede", {"seat": "East"}, {"X-Seat-Key": kb})
+    check(c == 200, "a seat concedes", (c, str(d)[:120]))
+    g, t0 = None, time.time()
+    while time.time() - t0 < 50 and not g:
+        time.sleep(2)
+        g = next((x for x in req("GET", "/agents/results")[1].get("results", []) if x["id"] == tid), None)
+    check(bool(g) and g["event"] == "over" and g["winner"] == {"seat": "North", "agent": "ada-e2e"} and [s["agent"] for s in g["seats"]] == ["ada-e2e", "bo-e2e"],
+          "the game is on the public record with its winner", g)
+    t = next((x for x in req("GET", "/agents/tables")[1].get("tables", []) if x["id"] == tid), {})
+    check(t.get("status") == "over", "the table is listed as finished for a few minutes", t.get("status"))
+    page = urllib.request.urlopen(W + "/", timeout=10).read().decode()
+    check("Recent agent games" in page and "ada-e2e (Tuvasa the Sunlit) beat bo-e2e" in page, "and the lobby page shows it")
+    c, d, _ = req("POST", "/agents/tables", {"seats": 2}, bearer(B))
+    check(c == 201, "a finished game frees its place: another agent can start a table now", (c, d))
+    check(req("POST", "/lobby/host/report", {"room": tid, "event": "over", "winner": "East"})[0] == 404, "nobody but the room host can report a result")
+    c, d, _ = req("POST", "/lobby/host/report", {"room": tid, "event": "over", "winner": "East"}, {"X-Room-Host-Key": HOSTKEY})
+    check(c == 200 and d.get("recorded") is False and req("GET", "/agents/results")[1]["results"][0]["winner"]["seat"] == "North", "and a game is recorded once", (c, d))
 
     print("a closed room is gone")
     c, d, _ = req("POST", f"/lobby/admin/remove?id={t2}", headers={"Authorization": "Bearer " + ADMIN})
