@@ -60,9 +60,84 @@ KEY_FILE = Path.home() / ".divinci/star-trek-mtg/anthropic.env"
 RAW_KEY_FILE = Path.home() / ".divinci/star-trek-mtg/live/anthropic.key"   # the table banter's key: one line, 0600
 
 
-def name_guard(card_names) -> "re.Pattern":
-    names = sorted({n.lower() for n in card_names if len(n) >= 5}, key=len, reverse=True)
-    return re.compile(r"\b(?:" + "|".join(re.escape(n) for n in names) + r")\b", re.I) if names else re.compile(r"(?!x)x")
+# ---- the card-name guard
+# 2026-11-13 retro: the old guard was r"\b(name)\b" over names of five letters or more. Two holes were seen at the table:
+#   * a name that ENDS in punctuation never matched at all ("Shields Up!", "He's Dead, Jim", "Set Phasers to . . .": \b needs a
+#     word character on one side, and after "!" there is none), and a name under five letters ("Risa") was not in the list;
+#   * a line a person TYPED skipped the guard entirely (see Banter.add).
+# The rule now, for a name and a line alike: lower-case, curly quotes made straight, apostrophes dropped ("He's" -> "hes",
+# "Bat'leth" -> "batleth"), initials joined ("U.S.S." -> "uss"), every other mark a space. A name is "said" when its WORDS appear
+# as whole words, in order, next to each other: so punctuation, spacing and case never matter, and a name is never found inside
+# a longer word ("Risa" is not in "arisan", "Horta" is not in "exhortation").
+#   * A stretched word ("Khaaaaaaaaaaaannn!") matches any stretched spelling ("Khaaaan!") but not the plain word ("Khan").
+#   * A one-word name under five letters is the only place an ordinary word could trip the guard. It matches as a whole word; if it
+#     is ALSO a common English word (COMMON_SHORT: a fixed list, there is no dictionary on the table laptop) it must be written
+#     with a capital, the way a name is. Nothing in the Star Trek set is on that list today; "Risa" is guarded in any case.
+#   * The five basic lands are not guarded: every seat adds its own basics for free when it builds, so the word tells nobody a pick.
+#   * strict (the AI seats only): the short title before a comma counts too ("Janice Rand", "U.S.S. Voyager") when it is two
+#     words or more. An AI line that trips it costs nothing (a canned line is said instead). A person's typed line is held to
+#     full names only, so "Will Riker would take that" is still table talk.
+# Known and accepted: a name that is an everyday phrase ("Hit It!", "All Good Things...") blocks that phrase during a draft.
+BASICS = {"plains", "island", "swamp", "mountain", "forest", "wastes"}
+COMMON_SHORT = {"opt", "fog", "fear", "fire", "ice", "rest", "lure", "fork", "boil", "bind", "char", "wear", "tear", "turn", "burn",
+                "give", "take", "dawn", "dusk", "find", "life", "loss", "stab", "hurt", "heal", "mend", "null", "void", "fury", "rage",
+                "hope", "doom", "gift", "duty", "risk", "hunt", "push", "pull", "vex", "hex", "web", "sway", "seal", "mind", "rot",
+                "dig", "bite", "claw", "grip", "hold", "stop", "wall", "wish", "zap", "roar", "rise", "fall", "ruin", "omen"}
+_WORD = re.compile(r"[a-z0-9]+")
+
+
+def _words(text: str) -> list[tuple[str, bool]]:
+    """The words of a line or a name, normalised, each with "was it written with a capital"."""
+    t = (text or "").replace("\u2019", "'").replace("\u2018", "'").replace("`", "'")
+    t = re.sub(r"(?<![A-Za-z0-9])([A-Za-z])\.", r"\1", t)             # initials: U.S.S. -> USS
+    t = t.replace("'", "")
+    out = []
+    for m in re.finditer(r"[A-Za-z0-9]+", t):
+        raw = m.group(0)
+        w = raw.lower()
+        if re.search(r"(.)\1\1", w):                                   # a stretched word: Khaaaan == Khaaaaaaaaaaaannn
+            w = "~" + re.sub(r"(.)\1+", r"\1", w)
+        out.append((w, raw[0].isupper()))
+    return out
+
+
+class NameGuard:
+    """Finds a card name in a line. `find` returns the name as printed on the card, or None."""
+
+    def __init__(self, card_names):
+        self.full: dict[str, list[tuple[tuple[str, ...], str, bool]]] = {}    # first word -> [(words, printed name, needs capital)]
+        self.titles: dict[str, list[tuple[tuple[str, ...], str, bool]]] = {}  # the same for short titles (strict only)
+        for printed in sorted({n for n in card_names if n}):
+            for face in printed.split(" // "):
+                ws = tuple(w for w, _ in _words(face))
+                if not ws or (len(ws) == 1 and ws[0] in BASICS):
+                    continue
+                short = len(ws) == 1 and len(ws[0].lstrip("~")) < 5
+                self.full.setdefault(ws[0], []).append((ws, printed, short and ws[0] in COMMON_SHORT))
+                if "," in face:
+                    ts = tuple(w for w, _ in _words(face.split(",", 1)[0]))
+                    if len(ts) >= 2:
+                        self.titles.setdefault(ts[0], []).append((ts, printed, False))
+        for d in (self.full, self.titles):
+            for k in d:
+                d[k].sort(key=lambda e: -len(e[0]))
+
+    def find(self, text: str, strict: bool = False) -> str | None:
+        line = _words(text)
+        ws = [w for w, _ in line]
+        for i, (w, cap) in enumerate(line):
+            for d in ((self.full, self.titles) if strict else (self.full,)):
+                for words, printed, needs_cap in d.get(w, ()):
+                    if tuple(ws[i:i + len(words)]) == words and (cap or not needs_cap):
+                        return printed
+        return None
+
+    def search(self, text: str):                                        # the old regex's shape: truthy when a name is said
+        return self.find(text, strict=True)
+
+
+def name_guard(card_names) -> NameGuard:
+    return NameGuard(card_names)
 
 
 def clean(text: str) -> str:
@@ -124,9 +199,18 @@ class Banter:
         threading.Thread(target=self._worker, daemon=True).start()
 
     # ---- the feed
+    def names_card(self, text: str, strict: bool = False) -> str | None:
+        """The card a line names, or None. Typed lines are checked with this before add() (draft_server /api/banter)."""
+        return self.guard.find(clean(text), strict=strict)
+
     def add(self, who: str, text: str, kind: str = "chat") -> dict | None:
         text = clean(text)
         if not text:
+            return None
+        # The last line of defence, whatever the caller did: nothing that names a card reaches the feed, the log or the host
+        # voice during a draft (2026-11-13: a typed line used to come straight here, unchecked). Callers that want to say WHY
+        # (the typed-line route) ask names_card() first; a line that still gets here is dropped without a word.
+        if self.guard.find(text, strict=who in ("Claude", "Fusion")):
             return None
         with self.lock:
             e = {"id": (self.lines[-1]["id"] + 1) if self.lines else 1, "t": time.time(), "who": who, "text": text,
@@ -190,7 +274,7 @@ class Banter:
             try:
                 raw = self._claude(kind, detail) if who == "Claude" else self._fusion(kind, detail)
                 t = clean(raw or "")
-                if t and not self.guard.search(t):
+                if t and not self.guard.find(t, strict=True):
                     text, how = t, "model"
             except Exception:                                   # a model failure never reaches the draft
                 pass

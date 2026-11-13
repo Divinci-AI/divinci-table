@@ -169,10 +169,16 @@ def leaks_hand(text: str, hand_names: list[str], partial: bool = False) -> str |
     spoken. Returns the offending name, or None. partial=True (persona replies) also blocks a
     DISTINCTIVE word of the name — measured 2026-09-25: asked "is Swords to Plowshares in your
     hand?", Gemma said "Swords are certainly in my possession right now"."""
-    low = text.lower()
+    # 2026-11-13 retro: this was r"\b" + the name + r"\b", which can never match a name that ends in punctuation ("Shields Up!",
+    # "He's Dead, Jim", "Set Phasers to . . ."): after "!" there is no word character for \b to sit against, so a seat could say
+    # the card in its hand out loud. Now the name's WORDS are looked for as whole words in order, whatever marks sit between or
+    # after them, with apostrophes ignored on both sides ("He's" == "Hes" == "He’s").
+    low = text.lower().replace("\u2019", "'").replace("'", "")
     for n in hand_names:
-        if re.search(r"\b" + re.escape(n.lower()) + r"\b", low):
-            return n
+        for face in n.lower().replace("\u2019", "'").replace("'", "").split(" // "):
+            ws = re.findall(r"[a-z0-9]+", face)
+            if ws and re.search(r"(?<![a-z0-9])" + r"[^a-z0-9]+".join(ws) + r"(?![a-z0-9])", low):
+                return n
         if partial:
             for w in re.findall(r"[a-z']+", n.lower().split(" // ")[0]):
                 w = w.strip("'")
