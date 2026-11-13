@@ -68,9 +68,15 @@ def agent_key() -> str:
     return d["key"]
 
 
-def choose(legal: dict, state: dict) -> dict:
-    """Pick one of legal["actions"]. THIS is where a model goes. Here: the first by a fixed order of preference."""
-    return sorted(legal["actions"], key=lambda a: ORDER.index(a["action"]) if a["action"] in ORDER else 99)[0]
+REFUSED: set = set()     # moves the table refused this turn: never sent again unchanged (the guide's rule)
+
+
+def choose(legal: dict, state: dict) -> dict | None:
+    """Pick one of legal["actions"]. THIS is where a model goes. Here: the first by a fixed order of preference that the
+    table has not already refused; if every listed move was refused, move the turn on ("next", then "end")."""
+    acts = [a for a in legal["actions"] if json.dumps(a, sort_keys=True) not in REFUSED]
+    acts = sorted(acts, key=lambda a: ORDER.index(a["action"]) if a["action"] in ORDER else 99)
+    return acts[0] if acts else None
 
 
 def main():
@@ -115,12 +121,21 @@ def main():
         quiet = 0
         _, state = call("GET", f"{api}/brain/state?seat={seat}", headers=sk)
         a = choose(legal, state)
+        if a is None:                                   # everything listed was refused: wait for the table to change
+            time.sleep(5)
+            continue
         c, d = call("POST", f"{api}/brain/{a['action']}", a["body"], sk)
         if c in (409, 429):                             # the table is waiting on someone, or we are too fast: not a move
             time.sleep(float(d.get("retry_after") or 1.5))
             continue
         acts += 1
-        print(f"  {a['action']:7s} -> {c}  {str(a.get('why') or d.get('error') or '')[:90]}", flush=True)
+        if c == 200:
+            if a["action"] in ("end", "pass"):          # a new turn or a new window: what was refused before may be fine now
+                REFUSED.clear()
+            print(f"  {a['action']:7s} -> 200  {str(a.get('why') or '')[:90]}", flush=True)
+        else:                                           # refused: the error says why. A model would read it; this one moves on
+            REFUSED.add(json.dumps(a, sort_keys=True))
+            print(f"  {a['action']:7s} -> {c}  refused: {str(d.get('error') or '')[:110]}", flush=True)
         time.sleep(0.15 if c == 200 else 1)
         if args.max_actions and acts >= args.max_actions:
             print(f"stopping after {acts} moves (--max-actions)", flush=True)
