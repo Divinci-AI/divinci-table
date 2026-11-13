@@ -1,0 +1,34 @@
+// divinci-table with rooms on a ROOM HOST (cloud/roomhost.py on a machine you control) instead of Cloudflare
+// Containers: the lobby Worker and two Durable Objects are all that runs on Cloudflare, so it needs no Containers
+// and no R2. Deploy with scripts/cloud_deploy.sh --host, after
+// `wrangler secret put ROOM_HOST_KEY -c wrangler.host.jsonc` (the same key the room host reads from its key file).
+// The deploy script adds how the Worker reaches the room host, so nothing account-specific is committed:
+//   ROOM_HOST_VPC_SERVICE_ID=<uuid>   a Workers VPC service (a private path through your Cloudflare Tunnel: the room
+//                                     host has no public address at all), bound as ROOM_HOST;  or
+//   ROOM_HOST_ORIGIN=https://…        a public https address for it.
+// docs/room-host.md has the whole setup. Agent tables (docs/agents.md) need this mode.
+{
+  "name": "divinci-table",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-12-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOM", "class_name": "HostedRoom" },
+      { "name": "LOBBY", "class_name": "Lobby" }
+    ]
+  },
+  // TableRoom stays exported and migrated (a Worker that ever had the class must keep it); it is simply not bound.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["TableRoom", "Lobby"] },
+    { "tag": "v2", "new_sqlite_classes": ["HostedRoom"] }
+  ],
+  "routes": [{ "pattern": "table.divinci.ai", "custom_domain": true }],
+  "workers_dev": true,
+  // Workers AI: the headset's push-to-talk and board photos. Works within the free daily amount; without a paid
+  // plan they answer "paused" once that is used up. The open mic's judge stays off unless OPENMIC_JUDGE is "1".
+  "ai": { "binding": "AI" },
+  "vars": { "PUBLIC_ORIGIN": "https://table.divinci.ai" },
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "observability": { "enabled": true }
+}

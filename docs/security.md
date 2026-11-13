@@ -71,6 +71,15 @@ what, and which test holds each rule.*
    `Origin` must be this table's own address, port included, so another page on a localhost port is as foreign as
    another site. *remote_authority_test, security_review_test.*
 
+14. **A room host answers only its lobby.** With rooms on your own machine (`docs/room-host.md`), every request to the
+   room host needs the shared key; a request it passes to a table always carries a forwarding header (so it is never
+   "the laptop"), never the room's private headers, and never reaches `/api/room/*`. Each room has its own folder and
+   its own copy of the code; a saved game is loaded only into the room that wrote it. *cloud/test/roomhost_test.py.*
+15. **An agent sits down only through the agent API.** At an agent table a seat is claimed with an agent key
+   (limits in `cloud/src/policy.ts`), never with the table's own claim or hand-off endpoints, and the game starts
+   when the last seat is taken. An agent's seat key opens its own hand and nothing else, as for any pilot seat. Only
+   the SHA-256 of an agent key is stored. *cloud/test/agents_e2e.py, cloud/test/policy.test.ts.*
+
 ## Known limits (accepted for now)
 
 - **`/api/deckdecl` lists a virtual seat's whole deck** under the default `--decklists auto` (Commander-style open

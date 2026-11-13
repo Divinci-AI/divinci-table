@@ -121,3 +121,65 @@ test("dndAssetKey: a location's room/map/view or a mini maps to R2 dnd/…; anyt
 		assert.equal(dndAssetKey(bad), null, bad);
 	}
 });
+
+// ── agents ──
+import { AGENT_NAME_RE, AGENT_OPEN_TABLE_TTL_MS, AGENT_REG_GLOBAL_PER_DAY, AGENT_REG_PER_DAY, AGENT_REG_PER_HOUR, agentRegRefusal, bearerAgentKey, newAgentKey,
+	planAgentTable, roomListed, sha256Hex } from "../src/policy.ts";
+
+const reg = { hereHour: 0, hereDay: 0, everywhereDay: 0, nameTaken: false, nameOk: true };
+
+test("agent sign-up: allowed under every limit", () => assert.equal(agentRegRefusal(reg), null));
+
+test("agent sign-up: each limit refuses with a wait, and at one below it does not", () => {
+	for (const [k, max] of [["hereHour", AGENT_REG_PER_HOUR], ["hereDay", AGENT_REG_PER_DAY], ["everywhereDay", AGENT_REG_GLOBAL_PER_DAY]] as const) {
+		const r = agentRegRefusal({ ...reg, [k]: max });
+		assert.equal(r?.status, 429, k);
+		assert.ok((r?.retryAfter ?? 0) > 0, k);
+		assert.equal(agentRegRefusal({ ...reg, [k]: max - 1 }), null, k);
+	}
+});
+
+test("agent sign-up: a caller over its limit learns nothing about names", () => {
+	assert.equal(agentRegRefusal({ ...reg, hereHour: AGENT_REG_PER_HOUR, nameTaken: true })?.status, 429);
+	assert.equal(agentRegRefusal({ ...reg, hereHour: AGENT_REG_PER_HOUR, nameOk: false })?.status, 429);
+	assert.equal(agentRegRefusal({ ...reg, nameTaken: true })?.status, 409);
+	assert.equal(agentRegRefusal({ ...reg, nameOk: false })?.status, 400);
+});
+
+test("agent names: plain words only", () => {
+	for (const ok of ["ada", "Ada Lovelace", "bot_7", "agent-9.5", "Zoë 2"]) assert.ok(AGENT_NAME_RE.test(ok), ok);
+	for (const bad of ["", "ab", " ada", "ada ", "a".repeat(33), "<b>ada</b>", "ada\nbob", "ada/../x", "ada&bob", "a'b\"c", "-ada"]) assert.ok(!AGENT_NAME_RE.test(bad), JSON.stringify(bad));
+});
+
+test("agent keys: long, random, and only the well-formed bearer is read", async () => {
+	const a = newAgentKey(), b = newAgentKey();
+	assert.match(a, /^dta_[A-Za-z0-9_-]{43}$/);
+	assert.notEqual(a, b);
+	assert.equal(bearerAgentKey("Bearer " + a), a);
+	for (const bad of [null, "", a, "bearer " + a, "Bearer " + a + "x", "Bearer " + a.slice(0, -1), "Bearer dta_" + "!".repeat(43), "Basic " + a]) assert.equal(bearerAgentKey(bad), null, String(bad));
+	assert.match(await sha256Hex(a), /^[0-9a-f]{64}$/);
+	assert.notEqual(await sha256Hex(a), await sha256Hex(b));
+});
+
+test("an agent table: 2 to 4 seats, known decks, each once, the rest dealt from the shuffle", () => {
+	const known = ["a", "b", "c", "d", "e"], shuffled = ["e", "d", "c", "b", "a"];
+	assert.deepEqual(planAgentTable({ seats: undefined, decks: undefined, title: undefined }, known, shuffled, "ada"), { seats: 2, decks: ["e", "d"], title: "ada's table" });
+	assert.deepEqual(planAgentTable({ seats: 3, decks: ["B"], title: " Friday  <b>pod</b> " }, known, shuffled, "ada"), { seats: 3, decks: ["b", "e", "d"], title: "Friday bpodb" });
+	assert.deepEqual((planAgentTable({ seats: undefined, decks: ["a", "b", "c"], title: "" }, known, shuffled, "ada") as { seats: number }).seats, 3);
+	for (const bad of [{ seats: 1 }, { seats: 5 }, { seats: 2.5 }, { seats: "many" }, { seats: 2, decks: ["a", "b", "c"] }, { seats: 2, decks: ["zzz"] }, { seats: 2, decks: ["a", "a"] }]) {
+		assert.equal(typeof planAgentTable({ seats: (bad as { seats: unknown }).seats, decks: (bad as { decks?: unknown }).decks, title: "" }, known, shuffled, "ada"), "string", JSON.stringify(bad));
+	}
+	assert.equal(typeof planAgentTable({ seats: 4, decks: [], title: "" }, ["a", "b"], ["a", "b"], "ada"), "string");
+	const t = planAgentTable({ seats: 2, decks: [], title: "x".repeat(200) }, known, shuffled, "ada") as { title: string };
+	assert.equal(t.title.length, 40);
+});
+
+test("listing: a people's table for its whole time; an agent table nobody filled for thirty minutes", () => {
+	const now = 10_000_000_000, ttl = 6 * 3600_000;
+	assert.equal(roomListed({ created: now - ttl + 1, humans: ["A"] }, now, ttl), true);
+	assert.equal(roomListed({ created: now - ttl, humans: ["A"] }, now, ttl), false);
+	const open = { agents: true, humans: ["North", "East"], claimed: ["North"] };
+	assert.equal(roomListed({ ...open, created: now - AGENT_OPEN_TABLE_TTL_MS + 1 }, now, ttl), true);
+	assert.equal(roomListed({ ...open, created: now - AGENT_OPEN_TABLE_TTL_MS }, now, ttl), false);
+	assert.equal(roomListed({ ...open, claimed: ["North", "East"], created: now - AGENT_OPEN_TABLE_TTL_MS }, now, ttl), true);
+});

@@ -137,3 +137,71 @@ export function dndAssetKey(pathname: string): { key: string; type: string } | n
 	const m = /^(locations\/[a-z0-9-]{1,40}\/[a-z_]{1,20}|minis\/[a-z0-9-]{1,40})\.(glb|jpg|png|mp4)$/.exec(rel);
 	return m ? { key: "dnd/" + rel, type: DND_TYPES[m[2]] } : null;
 }
+
+// ── agents: outside AI players that register, find a table and take a seat with their own key (docs/agents.md) ─────
+export const AGENT_NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{1,30}[\p{L}\p{N}.]$/u;   // 3–32 characters, no leading/trailing space
+export const AGENT_REG_PER_HOUR = 3;            // new agents from one address
+export const AGENT_REG_PER_DAY = 10;
+export const AGENT_REG_GLOBAL_PER_DAY = 200;    // and from everyone: past this, sign-up is closed until tomorrow (UTC)
+export const AGENT_TABLES_PER_HOUR = 2;         // tables one agent may start
+export const AGENT_CLAIMS_PER_HOUR = 6;         // seats one agent may take (a re-claim of its own seat counts)
+export const AGENT_SEATS_AT_ONCE = 2;           // live tables one agent may sit at
+export const AGENT_OPEN_TABLES_PER_ADDRESS = 2; // tables waiting for players that were started from one address
+export const AGENT_BAD_KEYS_PER_10_MIN = 20;    // wrong agent keys from one address before it is told to wait
+export const AGENT_OPEN_TABLE_TTL_MS = 30 * 60_000;   // an agent table nobody filled is delisted after this
+export const AGENT_BODY_MAX = 4_000;            // bytes of JSON an agent endpoint reads
+
+export interface AgentRegAsk { hereHour: number; hereDay: number; everywhereDay: number; nameTaken: boolean; nameOk: boolean }
+
+/** Why a sign-up is refused ({status, error, retryAfter seconds}), or null. The limits come before the name, so a
+ *  caller over its limit learns nothing about which names exist. */
+export function agentRegRefusal(a: AgentRegAsk): { status: number; error: string; retryAfter?: number } | null {
+	if (a.everywhereDay >= AGENT_REG_GLOBAL_PER_DAY) return { status: 429, error: "Sign-up is closed for today. Try again tomorrow (UTC).", retryAfter: 3600 };
+	if (a.hereHour >= AGENT_REG_PER_HOUR) return { status: 429, error: "Too many new agents from this address this hour.", retryAfter: 3600 };
+	if (a.hereDay >= AGENT_REG_PER_DAY) return { status: 429, error: "Too many new agents from this address today.", retryAfter: 6 * 3600 };
+	if (!a.nameOk) return { status: 400, error: "name: 3 to 32 letters, numbers, spaces, dots, dashes or underscores." };
+	if (a.nameTaken) return { status: 409, error: "That name is taken." };
+	return null;
+}
+
+/** A new agent key: shown once, kept only as its SHA-256. */
+export function newAgentKey(): string {
+	const b = crypto.getRandomValues(new Uint8Array(32));
+	return "dta_" + btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export async function sha256Hex(text: string): Promise<string> {
+	const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+	return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** The agent key from `Authorization: Bearer dta_…`, or null when the header is anything else. */
+export function bearerAgentKey(authorization: string | null): string | null {
+	const m = /^Bearer (dta_[A-Za-z0-9_-]{43})$/.exec(authorization ?? "");
+	return m ? m[1] : null;
+}
+
+export interface AgentTableAsk { seats: unknown; decks: unknown; title: unknown }
+export interface AgentTablePlan { seats: number; decks: string[]; title: string }
+
+/** A request to start an agent table → 2–4 seats, one known deck each (asked for, or filled from `shuffled`, never the
+ *  same deck twice), a plain title. Returns an error string when the request can't be met. */
+export function planAgentTable(ask: AgentTableAsk, known: string[], shuffled: string[], agentName: string): AgentTablePlan | string {
+	const want = Array.isArray(ask.decks) ? ask.decks.map((d) => String(d).toLowerCase().trim()) : [];
+	const seats = ask.seats === undefined || ask.seats === null ? Math.max(2, want.length) : Number(ask.seats);
+	if (!Number.isInteger(seats) || seats < 2 || seats > 4) return "seats: 2, 3 or 4.";
+	if (want.length > seats) return "decks: at most one per seat.";
+	if (want.some((d) => !known.includes(d))) return "decks: choose from " + known.join(", ") + ".";
+	if (new Set(want).size !== want.length) return "decks: each deck once per table.";
+	const decks = [...want, ...shuffled.filter((d) => known.includes(d) && !want.includes(d))].slice(0, seats);
+	if (decks.length < seats) return "Not enough decks for that many seats.";
+	const title = String(ask.title ?? "").replace(/[^\p{L}\p{N} '._!?-]/gu, "").replace(/\s+/g, " ").trim().slice(0, 40) || `${agentName}'s table`;
+	return { seats, decks, title };
+}
+
+/** Is this room still listed? People's tables for six hours; an agent table nobody filled for thirty minutes. */
+export function roomListed(r: { created: number; agents?: boolean; humans: string[]; claimed?: string[] }, now: number, ttlMs: number): boolean {
+	const age = now - r.created;
+	if (r.agents && (r.claimed ?? []).length < r.humans.length) return age < AGENT_OPEN_TABLE_TTL_MS;
+	return age < ttlMs;
+}

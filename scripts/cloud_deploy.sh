@@ -3,6 +3,9 @@
 #
 #   scripts/cloud_deploy.sh            # check, stamp, deploy
 #   scripts/cloud_deploy.sh --check    # the checks only; deploys nothing
+#   ROOM_HOST_VPC_SERVICE_ID=<uuid> scripts/cloud_deploy.sh --host     # or ROOM_HOST_ORIGIN=https://rooms.example.com
+#                                      # rooms on a room host (cloud/wrangler.host.jsonc, docs/room-host.md): the Worker
+#                                      # only; the room host's image is built and started on its own machine
 #
 # Refuses a working tree with uncommitted or untracked changes, and a HEAD that isn't on origin/main: the
 # image is built from this folder, so either would put unpublished code on the live site of an open-source
@@ -22,9 +25,36 @@ if ! git merge-base --is-ancestor HEAD origin/main; then
 fi
 sha=$(git rev-parse HEAD)
 echo "deploying $sha ($(git log -1 --format=%s))"
-[ "${1:-}" = "--check" ] && { echo "check only: nothing deployed"; exit 0; }
+mode=containers
+for a in "$@"; do
+  case "$a" in
+    --check) echo "check only: nothing deployed"; exit 0 ;;
+    --host) mode=host ;;
+    *) echo "unknown argument: $a" >&2; exit 1 ;;
+  esac
+done
 
-printf '%s\n' "$sha" > table/BUILD_SHA          # gitignored; COPY table/ puts it in the image
 cd cloud
-env -u FORCE_COLOR -u CLOUDFLARE_API_TOKEN npx wrangler deploy --var "GIT_SHA:$sha"
-echo "CLOUD-DEPLOYED $sha"
+if [ "$mode" = host ]; then
+  if [[ "${ROOM_HOST_VPC_SERVICE_ID:-}" =~ ^[0-9a-f-]{36}$ ]]; then
+    # the private path: the committed config plus the binding, written next to it (paths in it are relative) and removed after
+    cfg=.wrangler.host.deploy.json
+    trap 'rm -f "$cfg"' EXIT
+    node -e '
+      const fs = require("fs");
+      const src = fs.readFileSync("wrangler.host.jsonc", "utf8").replace(/^\s*\/\/.*$/gm, "");
+      const c = JSON.parse(src);
+      c.vpc_services = [{ binding: "ROOM_HOST", service_id: process.argv[1] }];
+      fs.writeFileSync(process.argv[2], JSON.stringify(c, null, 2));
+    ' "$ROOM_HOST_VPC_SERVICE_ID" "$cfg"
+    env -u FORCE_COLOR -u CLOUDFLARE_API_TOKEN npx wrangler deploy -c "$cfg" --var "GIT_SHA:$sha"
+  elif [[ "${ROOM_HOST_ORIGIN:-}" == https://* ]]; then
+    env -u FORCE_COLOR -u CLOUDFLARE_API_TOKEN npx wrangler deploy -c wrangler.host.jsonc --var "GIT_SHA:$sha" --var "ROOM_HOST_ORIGIN:$ROOM_HOST_ORIGIN"
+  else
+    echo "refusing: --host needs ROOM_HOST_VPC_SERVICE_ID=<uuid> or ROOM_HOST_ORIGIN=https://<your room host>" >&2; exit 1
+  fi
+else
+  printf '%s\n' "$sha" > ../table/BUILD_SHA      # gitignored; COPY table/ puts it in the image
+  env -u FORCE_COLOR -u CLOUDFLARE_API_TOKEN npx wrangler deploy --var "GIT_SHA:$sha"
+fi
+echo "CLOUD-DEPLOYED $sha ($mode)"

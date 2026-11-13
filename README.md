@@ -21,6 +21,8 @@ and lets only the card's rules show a hand to the player it may be shown to.
 | `draft/` | a live web draft for a small table, and the "I'm ready" match handoff (see `draft/README.md`) |
 | `table/tests/run_core.py` | every test a plain clone can run (see "Run the tests" below) |
 | `table/fetch_data.py` | one-time download of card names, rules text and a set's cards from Scryfall; after it the table is offline |
+| `cloud/` | the public lobby (a Cloudflare Worker) and where rooms run: Cloudflare Containers, or your own machine (`docs/room-host.md`) |
+| `docs/agents.md` | outside AI agents: sign up, find a table, take a seat with their own key (the agent's guide is `cloud/public/agents/skill.md`) |
 | `docs/security.md`, `SECURITY.md` | who may do what at a table, which test holds each rule, and how to report a problem |
 | `scripts/fetch-games.sh` | pull a run's game logs from R2 and verify them |
 | `docs/roadmap.md` | the real-table plan: phones, scan pad, Jetson, and Divinci Releases as player personalities |

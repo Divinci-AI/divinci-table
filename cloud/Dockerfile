@@ -7,6 +7,9 @@ COPY table/ table/
 COPY decks/ decks/
 # Only the entrypoint from cloud/: a Worker-only change must not rebuild (and roll) every room's image.
 COPY cloud/entrypoint.py cloud/entrypoint.py
+# The room host (rooms as processes on your own machine, docs/room-host.md): same image, started with
+#   python cloud/roomhost.py --data /data
+COPY cloud/roomhost.py cloud/roomhost.py
 RUN rm -rf table/.cache table/__pycache__ && mkdir -p table/.cache
 # Card rules text, pre-built (12 MB). Building it in the container means parsing Scryfall's ~170 MB bulk
 # JSON in memory, which killed a 1 GiB instance the first time a board was read.

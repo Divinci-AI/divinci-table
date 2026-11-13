@@ -1,0 +1,36 @@
+# The room host on a machine you control (docs/room-host.md). Build the image from the repo root first:
+#   docker build -f cloud/Dockerfile -t divinci-table:<sha> .
+# then, next to this file:  ./roomhost.key (0600, 32+ random characters; the same value as the Worker's ROOM_HOST_KEY
+# secret) and ./data (owned by uid 1000).
+#   TABLE_IMAGE=divinci-table:<sha> docker compose -f compose.roomhost.yaml up -d
+# Nothing is published on a host port: put a tunnel or a reverse proxy with TLS in front of table-rooms:8790 and give
+# its https address to the Worker as ROOM_HOST_ORIGIN. The key file is the only thing that lets a caller in.
+services:
+  table-rooms:
+    container_name: divinci-table-rooms
+    image: ${TABLE_IMAGE:?set TABLE_IMAGE=divinci-table:<sha>}
+    restart: unless-stopped
+    command: ["python", "cloud/roomhost.py", "--port", "8790", "--data", "/data", "--assets", "/assets"]
+    environment:
+      ROOM_HOST_KEY_FILE: /run/roomhost.key
+      ROOM_HOST_MAX_ROOMS: "16"
+    volumes:
+      - ./roomhost.key:/run/roomhost.key:ro
+      - ./data:/data
+      - ./assets:/assets:ro
+    user: "1000:1000"
+    read_only: true
+    tmpfs: ["/tmp:size=64m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 6g
+    pids_limit: 512
+    stop_grace_period: 60s          # SIGTERM saves every room before it stops
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8790/healthz', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 6s
+      retries: 3

@@ -13,49 +13,13 @@
 import { Container } from "@cloudflare/containers";
 import { DurableObject } from "cloudflare:workers";
 import { aiKeyAllowed, aiRoomRefusal, boardPrompt, parsePose, PRESENCE_MAX_BYTES, PRESENCE_MAX_PER_SEC, speechHint, CODE_FAILS_GLOBAL_PER_HOUR, CODE_FAILS_PER_HOUR, isAdmin, parseBoardReply, sameText,
-	STT_MAX_BYTES, STT_PER_10_MIN, VISION_MAX_BYTES, VISION_PER_HOUR, withinRate, dndAssetKey } from "./policy";
+	STT_MAX_BYTES, STT_PER_10_MIN, VISION_MAX_BYTES, VISION_PER_HOUR, withinRate, dndAssetKey,
+	AGENT_BAD_KEYS_PER_10_MIN, AGENT_CLAIMS_PER_HOUR, AGENT_OPEN_TABLES_PER_ADDRESS, AGENT_NAME_RE, AGENT_SEATS_AT_ONCE, AGENT_TABLES_PER_HOUR, agentRegRefusal, newAgentKey, roomListed, sha256Hex } from "./policy";
 
-interface Env {
-	ROOM: DurableObjectNamespace<TableRoom>;
-	LOBBY: DurableObjectNamespace<Lobby>;
-	DIVINCI_FUSION_API_KEY?: string;
-	ADMIN_TOKEN?: string;
-	ROOM_SNAPSHOTS: R2Bucket;
-	ASSETS_BUCKET: R2Bucket;
-	GIT_SHA?: string;               // the commit this Worker was deployed from (scripts/cloud_deploy.sh --var)
-	FUSION_CONFIG?: string;
-	AI: { run(model: string, input: unknown): Promise<unknown> };
-	PUBLIC_ORIGIN?: string;          // this Worker's public address, for the room container's callbacks (the Clef judge)   // Workers AI: speech-to-text and photo reading for /xr
-	AI_INVITE_CODE?: string;        // AI seats in public rooms need this code (unset = no AI seats at all)
-	FUSION_MAX_CALLS?: string;      // per-room cap on an AI seat's release requests (default 300)
-	AI_ROOMS_PER_DAY?: string;      // new AI rooms per UTC day across the whole lobby (default 4)
-	DND_CLOUD_AI?: string;          // "1" = AI Dungeon Master in public rooms (a budget decision; unset = a person DMs)
-	DND_DM_RELEASE_ID?: string;
-}
-
-interface AiSeat { name: string; commander: string; deck: string }
-interface RoomConfig { humans: string[]; ai: AiSeat[]; pilots?: AiSeat[]; game: "magic" | "chess" | "dnd"; white?: string; black?: string; minutes?: number; increment?: number; dm?: string;
-	mode?: "map" | "theater" }       // D&D: the battle map, or theater of the mind (docs/THEATER-GOAL.md)
-interface RoomInfo { id: string; title: string; game: string; humans: string[]; ai: string[]; created: number; claimed?: string[] }
-
-// AI opponents a public room may seat. Each is played by a Divinci release (one per deck).
-const AI_DECKS: Record<string, { commander: string; deck: string }> = {
-	tuvasa: { commander: "Tuvasa the Sunlit", deck: "decks/tuvasa.json" },
-	kaust: { commander: "Kaust, Eyes of the Glade", deck: "decks/kaust.json" },
-	ellivere: { commander: "Ellivere of the Wild Court", deck: "decks/ellivere.json" },
-};
-// Virtual decks a PERSON can play (testing without cards): the seat becomes a pilot seat driven from /hand.
-const PILOT_DECKS: Record<string, { commander: string; deck: string }> = {
-	inspirit: { commander: "Inspirit, Flagship Vessel", deck: "decks/inspirit.json" },
-	aminatou: { commander: "Aminatou, the Fateshifter", deck: "decks/aminatou.json" },
-	nghathrod: { commander: "Captain N'ghathrod", deck: "decks/nghathrod.json" },
-	elsha: { commander: "Elsha of the Infinite", deck: "decks/elsha.json" },
-	...AI_DECKS,
-};
-const ROOM_TTL_MS = 6 * 3600_000;      // a room is listed for six hours
-const MAX_LIVE_ROOMS = 8;              // matches containers.max_instances
-const MAX_CREATES_PER_HOUR = 3;        // per address
-const NAME_RE = /^[\p{L}\p{N} '._-]{1,24}$/u;
+import { AI_DECKS, aiDm, aiSeatsHere, drain, hosted, hostFetch, MAX_CREATES_PER_HOUR, MAX_LIVE_ROOMS, NAME_RE, newRoomId, PILOT_DECKS, ROOM_TTL_MS, toBase64 } from "./shared";
+import type { AiSeat, Env, RoomConfig, RoomInfo } from "./shared";
+import { agentApi } from "./agents";
+export { HostedRoom } from "./hosted";
 
 // ── one table room = one container ────────────────────────────────────────────────────────────
 export class TableRoom extends Container<Env> {
@@ -105,7 +69,7 @@ export class TableRoom extends Container<Env> {
 		// The event counter doesn't move for every change (seat claims, high rolls), so compare the bytes.
 		const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", blob))].map((b) => b.toString(16).padStart(2, "0")).join("");
 		if (digest === this.savedDigest) return;
-		await this.env.ROOM_SNAPSHOTS.put(this.key(r.id), blob, { customMetadata: { rev, why, saved: new Date().toISOString() } });
+		await this.env.ROOM_SNAPSHOTS!.put(this.key(r.id), blob, { customMetadata: { rev, why, saved: new Date().toISOString() } });
 		this.savedRev = rev;
 		this.savedDigest = digest;
 		this.lastSave = Date.now();
@@ -189,7 +153,7 @@ export class TableRoom extends Container<Env> {
 		let body: { state?: unknown; questions?: unknown };
 		try { body = JSON.parse(raw); } catch { return Response.json({ error: "not JSON" }, { status: 400 }); }
 		try {
-			const out = await this.env.AI.run("@cf/cloudflare/clef-flash", { state: body.state, questions: body.questions }) as { answers?: unknown };
+			const out = await this.env.AI!.run("@cf/cloudflare/clef-flash", { state: body.state, questions: body.questions }) as { answers?: unknown };
 			return out?.answers ? Response.json({ answers: out.answers }) : Response.json({ error: "no answers" }, { status: 502 });
 		} catch (e) {
 			console.error("clef judge failed", (e as Error).message);
@@ -226,10 +190,10 @@ export class TableRoom extends Container<Env> {
 		const b64 = toBase64(body);
 		try {
 			if (kind === "stt") {
-				const out = await this.env.AI.run("@cf/openai/whisper-large-v3-turbo", { audio: b64, initial_prompt: speechHint(deck) }) as { text?: string };
+				const out = await this.env.AI!.run("@cf/openai/whisper-large-v3-turbo", { audio: b64, initial_prompt: speechHint(deck) }) as { text?: string };
 				return Response.json({ seat, text: String(out?.text ?? "").replace(/\s+/g, " ").trim().slice(0, 400) });
 			}
-			const out = await this.env.AI.run("@cf/meta/llama-4-scout-17b-16e-instruct", { max_tokens: 900, messages: [
+			const out = await this.env.AI!.run("@cf/meta/llama-4-scout-17b-16e-instruct", { max_tokens: 900, messages: [
 				{ role: "system", content: boardPrompt(deck) },
 				{ role: "user", content: [{ type: "text", text: "List the cards on this player's side of the table." },
 					{ type: "image_url", image_url: { url: "data:" + (request.headers.get("Content-Type") || "image/jpeg") + ";base64," + b64 } }] },
@@ -271,7 +235,7 @@ export class TableRoom extends Container<Env> {
 		// only a fresh one (adopted=false) is filled from R2. Anything else would rewind live play.
 		const st = await this.containerFetch(new Request("http://room/api/room/status", { headers: { "X-Room-Token": r.token } }), this.defaultPort)
 			.then((x) => (x.ok ? x.json<{ adopted?: boolean }>() : { adopted: true })).catch(() => ({ adopted: true }));
-		const saved = st.adopted ? null : await this.env.ROOM_SNAPSHOTS.get(this.key(r.id));
+		const saved = st.adopted ? null : await this.env.ROOM_SNAPSHOTS!.get(this.key(r.id));
 		if (!st.adopted && !saved) {
 			await this.containerFetch(new Request("http://room/api/room/adopt", { method: "POST", headers: { "X-Room-Token": r.token } }), this.defaultPort)
 				.then((x) => x.body?.cancel()).catch(() => undefined);
@@ -353,7 +317,7 @@ export class Lobby extends DurableObject<Env> {
 	async list(): Promise<RoomInfo[]> {
 		const now = Date.now();
 		const rooms = (await this.ctx.storage.get<RoomInfo[]>("rooms")) ?? [];
-		const live = rooms.filter((r) => now - r.created < ROOM_TTL_MS);
+		const live = rooms.filter((r) => roomListed(r, now, ROOM_TTL_MS));
 		if (live.length !== rooms.length) await this.ctx.storage.put("rooms", live);
 		return live;
 	}
@@ -373,6 +337,7 @@ export class Lobby extends DurableObject<Env> {
 		const r = rooms.find((x) => x.id === id);
 		if (!r) return;
 		r.claimed = (r.claimed ?? []).filter((n) => n.toLowerCase() !== name.toLowerCase());
+		if (r.by) r.by = Object.fromEntries(Object.entries(r.by).filter(([n]) => n.toLowerCase() !== name.toLowerCase()));
 		await this.ctx.storage.put("rooms", rooms);
 	}
 
@@ -424,13 +389,136 @@ export class Lobby extends DurableObject<Env> {
 	async add(room: RoomInfo, addr: string): Promise<string | null> {
 		const now = Date.now();
 		const rooms = await this.list();
-		if (rooms.length >= MAX_LIVE_ROOMS) return "All tables are busy right now. Join an open room, or try again later.";
+		if (rooms.filter((r) => !r.agents).length >= Number(this.env.MAX_LIVE_ROOMS || MAX_LIVE_ROOMS)) return "All tables are busy right now. Join an open room, or try again later.";
 		const key = "creates:" + addr;
 		const recent = ((await this.ctx.storage.get<number[]>(key)) ?? []).filter((t) => now - t < 3600_000);
 		if (recent.length >= MAX_CREATES_PER_HOUR) return "You've started several rooms this hour. Please join one instead.";
 		await this.ctx.storage.put(key, [...recent, now]);
 		await this.ctx.storage.put("rooms", [...rooms, room]);
 		return null;
+	}
+
+	/** Counters are kept per address and per agent; once a day the ones nobody has touched for a day are deleted, so the
+	 *  object's storage does not grow with every address that ever called. */
+	private async sweepSoon(): Promise<void> {
+		if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + 86_400_000);
+	}
+
+	override async alarm(): Promise<void> {
+		const now = Date.now(), today = new Date().toISOString().slice(0, 10);
+		for (const prefix of ["abad:", "areg:", "creates:", "codefail:", "atab:", "aclaim:", "aopenaddr:", "ai:"]) {
+			let cursor: string | undefined;
+			for (;;) {
+				const page = await this.ctx.storage.list<unknown>({ prefix, limit: 500, ...(cursor ? { startAfter: cursor } : {}) });
+				if (!page.size) break;
+				const dead: string[] = [];
+				for (const [k, v] of page) {
+					cursor = k;
+					if (prefix === "ai:" || k.startsWith("areg:day:")) { if (k.slice(-10) < today) dead.push(k); continue; }
+					if (prefix === "aopenaddr:") { if (!(await this.list()).some((r) => (v as string[]).includes(r.id))) dead.push(k); continue; }
+					if (!Array.isArray(v) || !v.some((t) => typeof t === "number" && now - t < 86_400_000)) dead.push(k);
+				}
+				if (dead.length) await this.ctx.storage.delete(dead);
+				if (page.size < 500) break;
+			}
+		}
+		await this.ctx.storage.setAlarm(now + 86_400_000);
+	}
+
+	// ── agents (docs/agents.md): sign-up, keys, and the limits on what one agent may start or take ──
+	private async recent(key: string, windowMs: number): Promise<number[]> {
+		const now = Date.now();
+		return ((await this.ctx.storage.get<number[]>(key)) ?? []).filter((t) => now - t < windowMs);
+	}
+
+	/** A new agent: a unique name and a key shown once (only its SHA-256 is kept). Limited per address and per day. */
+	async registerAgent(name: string, addr: string): Promise<{ id: string; name: string; key: string } | { status: number; error: string; retryAfter?: number }> {
+		const key = newAgentKey(), keyHash = await sha256Hex(key), id = "a" + (await sha256Hex(key + ":id")).slice(0, 11);
+		// from here on only storage is awaited: the object handles nothing else between the checks and the write
+		const now = Date.now(), dayKey = "areg:day:" + new Date().toISOString().slice(0, 10);
+		const here = await this.recent("areg:" + addr, 86_400_000);
+		const everywhereDay = (await this.ctx.storage.get<number>(dayKey)) ?? 0;
+		const lower = name.toLowerCase();
+		const nameOk = AGENT_NAME_RE.test(name) && !/^(fusion|claude|leonardo|divinci|admin|host)$/i.test(name);
+		const why = agentRegRefusal({ hereHour: here.filter((t) => now - t < 3_600_000).length, hereDay: here.length, everywhereDay,
+			nameOk, nameTaken: nameOk && !!(await this.ctx.storage.get("aname:" + lower)) });
+		if (why) return why;
+		await this.ctx.storage.put({ ["agent:" + keyHash]: { id, name, created: now }, ["aname:" + lower]: id,
+			["areg:" + addr]: [...here, now], [dayKey]: everywhereDay + 1 });
+		await this.sweepSoon();
+		return { id, name, key };
+	}
+
+	/** The agent a key belongs to. Wrong keys are counted per address, and past the limit keys aren't even looked up. */
+	async agentByKey(key: string | null, addr: string): Promise<{ id: string; name: string } | { status: number; error: string; retryAfter?: number }> {
+		const need = { status: 401, error: "Send your agent key as 'Authorization: Bearer dta_…' (POST /agents/register to get one)." };
+		if (!key) return need;                              // no key, or not shaped like one: nothing was guessed, nothing is counted
+		const hash = await sha256Hex(key);
+		const bad = await this.recent("abad:" + addr, 600_000);
+		if (bad.length >= AGENT_BAD_KEYS_PER_10_MIN) return { status: 429, error: "Too many wrong keys from this address. Wait ten minutes.", retryAfter: 600 };
+		const a = await this.ctx.storage.get<{ id: string; name: string }>("agent:" + hash);
+		if (!a) {
+			await this.ctx.storage.put("abad:" + addr, [...bad, Date.now()]);
+			await this.sweepSoon();
+			return need;
+		}
+		return { id: a.id, name: a.name };
+	}
+
+	/** List a new agent table, or say why not: a cap on agent tables, and per agent a few an hour and one unfilled at a time. */
+	async addAgentTable(room: RoomInfo, agentId: string, addr: string): Promise<{ status: number; error: string; retryAfter?: number } | null> {
+		const now = Date.now(), rooms = await this.list(), mine = "atab:" + agentId;
+		// …and per address: many agents behind one address can't hold every table open between them
+		const waiting = (id: string) => rooms.some((r) => r.id === id && (r.claimed ?? []).length < r.humans.length);
+		const theirs = ((await this.ctx.storage.get<string[]>("aopenaddr:" + addr)) ?? []).filter(waiting);
+		if (theirs.length >= AGENT_OPEN_TABLES_PER_ADDRESS) {
+			return { status: 409, error: "Tables started from your address are still waiting for players: " + theirs.join(", ") + ". Fill one first." };
+		}
+		const started = await this.recent(mine, 3_600_000);
+		if (started.length >= AGENT_TABLES_PER_HOUR) return { status: 429, error: "You have started several tables this hour. Join an open one instead.", retryAfter: 1800 };
+		const open = await this.ctx.storage.get<string>("aopen:" + agentId);
+		if (open && rooms.some((r) => r.id === open && (r.claimed ?? []).length < r.humans.length)) {
+			return { status: 409, error: "Your last table still has open seats: " + open + ". Fill it before starting another." };
+		}
+		if (rooms.filter((r) => r.agents).length >= Number(this.env.MAX_AGENT_TABLES || 6)) {
+			return { status: 503, error: "Every agent table is in use. Join an open one, or try again later.", retryAfter: 300 };
+		}
+		await this.ctx.storage.put({ rooms: [...rooms, room], [mine]: [...started, now], ["aopen:" + agentId]: room.id, ["aopenaddr:" + addr]: [...theirs, room.id] });
+		await this.sweepSoon();
+		return null;
+	}
+
+	/** Hold a seat at an agent table for an agent (the named one, or the first open). Its own seat can be taken again. */
+	async reserveSeat(id: string, want: string, agent: { id: string; name: string }): Promise<{ seat: string; commander: string | null; fresh: boolean } | { status: number; error: string; retryAfter?: number }> {
+		const now = Date.now(), rooms = await this.list();
+		const r = rooms.find((x) => x.id === id && x.agents);
+		if (!r) return { status: 404, error: "No such agent table (GET /agents/tables lists the open ones)." };
+		const claims = await this.recent("aclaim:" + agent.id, 3_600_000);
+		if (claims.length >= AGENT_CLAIMS_PER_HOUR) return { status: 429, error: "Too many seats taken this hour.", retryAfter: 1800 };
+		const by = r.by ?? {};
+		const own = Object.entries(by).find(([, a]) => a.id === agent.id)?.[0];
+		let seat = want ? r.humans.find((s) => s.toLowerCase() === want.toLowerCase()) : own ?? r.humans.find((s) => !by[s]);
+		if (!seat) return want ? { status: 404, error: "No such seat. Seats: " + r.humans.join(", ") + "." } : { status: 409, error: "This table is full." };
+		if (by[seat] && by[seat].id !== agent.id) return { status: 409, error: "That seat is taken." };
+		if (own && own !== seat) return { status: 409, error: "You already hold " + own + " at this table: one seat per agent." };
+		const fresh = !by[seat];
+		if (fresh && rooms.filter((x) => x.agents && Object.values(x.by ?? {}).some((a) => a.id === agent.id)).length >= AGENT_SEATS_AT_ONCE) {
+			return { status: 409, error: "You are seated at " + AGENT_SEATS_AT_ONCE + " tables already." };
+		}
+		r.by = { ...by, [seat]: agent };
+		r.claimed = [...new Set([...(r.claimed ?? []), seat])];
+		await this.ctx.storage.put({ rooms, ["aclaim:" + agent.id]: [...claims, now] });
+		return { seat, commander: r.decks?.[seat] ?? null, fresh };
+	}
+
+	/** The room refused the claim after all: the seat is open again. */
+	async unreserveSeat(id: string, seat: string, agentId: string): Promise<void> {
+		const rooms = await this.list();
+		const r = rooms.find((x) => x.id === id);
+		if (!r || r.by?.[seat]?.id !== agentId) return;
+		delete r.by[seat];
+		r.claimed = (r.claimed ?? []).filter((s) => s !== seat);
+		await this.ctx.storage.put("rooms", rooms);
 	}
 }
 
@@ -443,6 +531,8 @@ export default {
 		if (url.pathname === "/" && request.method === "GET") {
 			return html(lobbyPage(await lobby.list(), url.searchParams.get("error") ?? ""));
 		}
+		const agents = await agentApi(request, env, url);
+		if (agents) return agents;
 		if (url.pathname === "/lobby/admin/release" && request.method === "POST") {
 			if (!(await isAdmin(request.headers.get("Authorization"), env.ADMIN_TOKEN))) return new Response("Forbidden", { status: 403 });
 			const id = url.searchParams.get("id") ?? "";
@@ -470,7 +560,10 @@ export default {
 		if (url.pathname === "/lobby/admin/remove" && request.method === "POST") {
 			if (!(await isAdmin(request.headers.get("Authorization"), env.ADMIN_TOKEN))) return new Response("Forbidden", { status: 403 });
 			const id = url.searchParams.get("id") ?? "";
-			return Response.json({ removed: await lobby.remove(id) });
+			if (!/^[a-z0-9]{8}$/.test(id)) return new Response("bad id", { status: 400 });
+			const removed = await lobby.remove(id);
+			await env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/expire", { method: "POST" })).then((x) => x.body?.cancel()).catch(() => undefined);
+			return Response.json({ removed });
 		}
 		if (url.pathname === "/lobby/rooms" && request.method === "POST") {
 			return createRoom(request, env, lobby);
@@ -485,7 +578,8 @@ export default {
 				},
 			});
 		}
-		if (url.pathname.startsWith("/__room") || url.pathname.startsWith("/api/room/")) return new Response("Not found", { status: 404 });
+		// the private doors: the Worker's to a room (/__room), a room host's own (/__host, /__r), a room's to its Worker (/api/room)
+		if (/^\/__(room|host|r)(\/|$)/.test(url.pathname) || url.pathname.startsWith("/api/room/")) { await drain(request); return new Response("Not found", { status: 404 }); }
 		if (url.pathname.startsWith("/avatars/") && request.method === "GET") return avatar(url.pathname, env);
 		if (url.pathname.startsWith("/dnd-assets/") && request.method === "GET") return dndAsset(url.pathname, env);
 		if (url.pathname === "/version" && request.method === "GET") return Response.json({ worker: env.GIT_SHA ?? "unknown" }, { headers: { "Cache-Control": "no-store" } });
@@ -493,7 +587,7 @@ export default {
 		const room = (request.headers.get("Cookie") ?? "").match(/(?:^|;\s*)room=([a-z0-9]{8})/)?.[1];
 		if (!room) return Response.redirect(url.origin + "/", 302);
 		const headers = new Headers(request.headers);
-		for (const h of ["X-Forwarded-For", "Forwarded", "X-Real-IP", "True-Client-IP"]) headers.delete(h);
+		for (const h of ["X-Forwarded-For", "Forwarded", "X-Real-IP", "True-Client-IP", "X-Room-Id", "X-Room-Host-Key", "X-Public-Host"]) headers.delete(h);
 		headers.set("X-Forwarded-For", request.headers.get("CF-Connecting-IP") ?? "unknown");   // always "remote"
 		return env.ROOM.get(env.ROOM.idFromName(room)).fetch(new Request(request, { headers }));
 	},
@@ -501,6 +595,12 @@ export default {
 
 /** The stage's 3D avatars, shared by every room: R2 avatars/<name>.glb|.png, plus an index of model names. */
 async function avatar(path: string, env: Env): Promise<Response> {
+	if (!env.ASSETS_BUCKET) {
+		if (path === "/avatars/index.json") return hostAsset(env, "avatars", "application/json", 300);
+		const n = decodeURIComponent(path.slice(9));
+		if (!/^[A-Za-z0-9 ._-]{1,80}\.(glb|png)$/.test(n)) return new Response("Not found", { status: 404 });
+		return hostAsset(env, "avatars/" + n, n.endsWith(".png") ? "image/png" : "model/gltf-binary", 86400);
+	}
 	if (path === "/avatars/index.json") {
 		const listed = await env.ASSETS_BUCKET.list({ prefix: "avatars/" });
 		const names = listed.objects.map((o) => o.key.slice(8)).filter((k) => k.endsWith(".glb")).map((k) => k.slice(0, -4));
@@ -515,10 +615,19 @@ async function avatar(path: string, env: Env): Promise<Response> {
 		"Cache-Control": "public, max-age=86400", "ETag": obj.httpEtag } });
 }
 
+/** A shared file from the room host's --assets folder (lobbies without an R2 bucket). The path is already checked. */
+async function hostAsset(env: Env, rel: string, type: string, maxAge: number): Promise<Response> {
+	if (!hosted(env)) return type === "application/json" ? Response.json([]) : new Response("Not found", { status: 404 });
+	const res = await hostFetch(env, "/__host/assets/" + rel.split("/").map(encodeURIComponent).join("/")).catch(() => null);
+	if (!res?.ok) { await res?.body?.cancel(); return type === "application/json" ? Response.json([]) : new Response("Not found", { status: 404 }); }
+	return new Response(res.body, { headers: { "Content-Type": type, "Cache-Control": `public, max-age=${maxAge}`, ...(res.headers.get("ETag") ? { ETag: res.headers.get("ETag")! } : {}) } });
+}
+
 /** D&D rooms, maps and minis, shared by every room: R2 dnd/<…>. Only approved locations are uploaded. */
 async function dndAsset(path: string, env: Env): Promise<Response> {
 	const k = dndAssetKey(path);
-	const obj = k ? await env.ASSETS_BUCKET.get(k.key) : null;
+	if (k && !env.ASSETS_BUCKET) return hostAsset(env, k.key, k.type, 3600);
+	const obj = k ? await env.ASSETS_BUCKET!.get(k.key) : null;
 	if (!k || !obj) return new Response("Not found", { status: 404 });
 	return new Response(obj.body, { headers: {
 		"Content-Type": k.type, "Cache-Control": "public, max-age=3600", "ETag": obj.httpEtag } });
@@ -544,7 +653,7 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 	}
 	const addr = request.headers.get("CF-Connecting-IP") ?? "unknown";
 	if (ai.length) {
-		const configured = !!(env.DIVINCI_FUSION_API_KEY && env.FUSION_CONFIG && env.AI_INVITE_CODE);
+		const configured = !!(aiSeatsHere(env) && env.FUSION_CONFIG && env.AI_INVITE_CODE);
 		const { off, today } = await lobby.aiState();
 		const fails = await lobby.codeFails(addr);
 		const locked = fails.here >= CODE_FAILS_PER_HOUR || fails.everywhere >= CODE_FAILS_GLOBAL_PER_HOUR;   // don't even compare
@@ -562,7 +671,7 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 	const pilots: AiSeat[] = mine ? [{ name: humans[0], ...mine }] : [];
 	const phys = mine ? undefined : PILOT_DECKS[String(form.get("physdeck") ?? "")];   // …or names their physical deck
 	const seatSpec = (h: string) => (phys && h === humans[0] ? `${h}|${phys.commander}` : h);    // "Name|Commander" for the server
-	const id = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
+	const id = newRoomId();
 	const why = await lobby.add({ id, title, game: "magic", humans, ai: ai.map((a) => `${a.name} (${a.commander})`), created: Date.now() }, addr);
 	if (why) {
 		if (ai.length) await lobby.refundAiRoom();                         // the room never started: give today's AI room back
@@ -583,7 +692,7 @@ async function createChess(request: Request, env: Env, lobby: DurableObjectStub<
 	const minutes = [5, 10, 15, 30].includes(Number(form.get("minutes"))) ? Number(form.get("minutes")) : 15;
 	const white = humans[0], black = humans[1] ?? `ai:Leonardo:${level}`;
 	const title = String(form.get("title") ?? "").trim().slice(0, 40) || `${humans[0]}'s chess board`;
-	const id = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
+	const id = newRoomId();
 	const why = await lobby.add({ id, title, game: "chess", humans, ai: humans[1] ? [] : [`Leonardo (level ${level})`], created: Date.now() },
 		request.headers.get("CF-Connecting-IP") ?? "unknown");
 	if (why) return back(why);
@@ -592,15 +701,6 @@ async function createChess(request: Request, env: Env, lobby: DurableObjectStub<
 	}));
 	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
 }
-
-function toBase64(buf: ArrayBuffer): string {
-	const bytes = new Uint8Array(buf);
-	let s = "";
-	for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-	return btoa(s);
-}
-
-const aiDm = (env: Env) => env.DND_CLOUD_AI === "1" && !!env.DND_DM_RELEASE_ID && !!env.DIVINCI_FUSION_API_KEY;
 
 /** A D&D one-shot: up to six players. Unless the AI Dungeon Master is switched on for public rooms
  *  (a budget decision), the FIRST name runs the game from behind the screen. */
@@ -614,7 +714,7 @@ async function createDnd(request: Request, env: Env, lobby: DurableObjectStub<Lo
 	const dm = ai ? undefined : humans[0];
 	const players = ai ? humans : humans.slice(1);
 	const title = String(form.get("title") ?? "").trim().slice(0, 40) || `${humans[0]}'s adventure`;
-	const id = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
+	const id = newRoomId();
 	const why = await lobby.add({ id, title, game: "dnd", humans, ai: ai ? ["AI Dungeon Master"] : [], created: Date.now() },
 		request.headers.get("CF-Connecting-IP") ?? "unknown");
 	if (why) return back(why);
@@ -639,6 +739,11 @@ function lobbyPage(rooms: RoomInfo[], error: string): string {
 	const list = rooms.length
 		? rooms.map((r) => {
 			const open = r.humans.filter((h) => !(r.claimed ?? []).includes(h));
+			if (r.agents) {
+				const who = r.humans.map((s) => r.by?.[s]?.name ? esc(r.by[s].name) : "open").join(" · ");
+				return `<li><a href="/r/${r.id}"><img src="/brand/ai-opponent.jpg" alt=""><span class="t">${esc(r.title)}</span>
+				<span class="m">Commander · agents only · ${who} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span><span class="go">Watch →</span></a></li>`;
+			}
 			const seats = open.length ? `${open.length} seat${open.length > 1 ? "s" : ""} open: ${esc(open.join(", "))}` : "Full";
 			return `<li><a href="/r/${r.id}"><img src="/brand/${r.game === "chess" ? "game-chess" : r.game === "dnd" ? "quantum-dice" : "game-magic"}.jpg" alt=""><span class="t">${esc(r.title)}</span>
 			<span class="m">${r.game === "chess" ? "Chess" : r.game === "dnd" ? "Fantasy one-shot" : "Commander"} · ${seats}${r.ai.length ? " · AI: " + esc(r.ai.join(", ")) : ""} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span>
@@ -709,6 +814,8 @@ footer{text-align:center;color:#7c8b8d;font-size:15px}footer a{color:var(--gold)
 ${error ? `<div class="err">${esc(error)}</div>` : ""}
 <p style="text-align:center"><a href="/leaderboard" style="color:var(--gold-hi)">Results so far: which AIs won, and the caveats →</a></p>
 <section><h2>Open tables</h2><ul>${list}</ul></section>
+<section><h2>For AI agents</h2><p style="margin:0">An agent can sign up, find an open table and take a seat with its own key, then play over a plain HTTP API with its own model.
+<a href="/agents/skill.md" style="color:var(--gold-hi)">Read the agent guide →</a> · <a href="/agents/tables" style="color:var(--gold-hi)">Open agent tables (JSON) →</a></p></section>
 <section><h2>Start a table</h2><form method=post action="/lobby/rooms">
 <label>Game</label><div class="opps">
 <label class="opp"><input type=radio name=game value=magic checked><b>Magic: Commander</b>Two to four seats, people and AI</label>

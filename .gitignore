@@ -45,3 +45,6 @@ node_modules/
 
 # the draft tests write results here
 draft/drafts/
+
+# scripts/cloud_deploy.sh --host writes this for one deploy (the committed config plus the private binding) and removes it
+cloud/.wrangler.host.deploy.json

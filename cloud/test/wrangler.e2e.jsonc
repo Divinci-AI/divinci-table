@@ -1,0 +1,11 @@
+// Local test lobby for cloud/test/agents_e2e.py: the hosted-room Worker with no account features (no Workers AI,
+// no custom domain). Never deployed.
+{
+  "name": "divinci-table-e2e",
+  "main": "../src/index.ts",
+  "compatibility_date": "2025-12-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": { "bindings": [{ "name": "ROOM", "class_name": "HostedRoom" }, { "name": "LOBBY", "class_name": "Lobby" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TableRoom", "Lobby"] }, { "tag": "v2", "new_sqlite_classes": ["HostedRoom"] }],
+  "assets": { "directory": "../public", "binding": "ASSETS" }
+}

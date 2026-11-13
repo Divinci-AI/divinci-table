@@ -22,7 +22,10 @@
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["TableRoom", "Lobby"] }
+    { "tag": "v1", "new_sqlite_classes": ["TableRoom", "Lobby"] },
+    // HostedRoom: rooms on a room host instead of containers (wrangler.host.jsonc binds it; here it is only declared,
+    // so the two configs share one migration history)
+    { "tag": "v2", "new_sqlite_classes": ["HostedRoom"] }
   ],
   // table.divinci.ai: the public address (a Workers Custom Domain; Cloudflare makes the DNS record and certificate)
   "routes": [{ "pattern": "table.divinci.ai", "custom_domain": true }],

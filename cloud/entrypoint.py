@@ -5,6 +5,10 @@ The room is described by ROOM_CONFIG (JSON), set by the Cloudflare Worker that o
   {"humans": ["Michael", "Sam"],
    "ai": [{"name": "Fusion", "commander": "Tuvasa the Sunlit", "deck": "decks/tuvasa.json"}],
    "order": "Michael,Fusion,Sam"}              # optional; otherwise the high roll decides
+An agent table ({"agents": true, "pilots": [{"name": "North", "commander": ..., "deck": ...}, ...]}) seats only virtual
+decks, each driven over the seat API by whoever holds that seat's key (docs/agents.md): no check-in and no high roll,
+the first seat starts.
+ROOM_BIND (default 0.0.0.0) is the address the room listens on: cloud/roomhost.py sets 127.0.0.1.
 AI seats are played by Divinci releases (table/fusion_brain.py): DIVINCI_FUSION_API_KEY and
 FUSION_CONFIG ({"releases": {"<commander>": "<release id>"}}) come from Worker secrets, never the repo.
 """
@@ -16,6 +20,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+BIND = os.environ.get("ROOM_BIND", "0.0.0.0")
 cfg = json.loads(os.environ.get("ROOM_CONFIG") or '{"humans": ["Player 1", "Player 2"], "ai": []}')
 cache = ROOT / "table" / ".cache"
 cache.mkdir(parents=True, exist_ok=True)
@@ -23,37 +28,41 @@ if os.environ.get("FUSION_CONFIG"):
     (cache / "fusion.json").write_text(os.environ["FUSION_CONFIG"])
 
 if cfg.get("game") == "chess":                      # chess: one process, AI seats play through Stockfish (no model spend)
-    chess_args = [sys.executable, "-u", "table/chess_server.py", "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8800"),
-                  "--white", cfg["white"], "--black", cfg["black"],
+    chess_args = [sys.executable, "-u", "table/chess_server.py", "--host", BIND, "--port", os.environ.get("PORT", "8800"),
+                  "--white=" + str(cfg["white"]), "--black=" + str(cfg["black"]),
                   "--minutes", str(cfg.get("minutes", 15)), "--increment", str(cfg.get("increment", 10))]
     env = dict(os.environ, TABLE_CLOUD="1")
     sys.exit(subprocess.call(chess_args, cwd=ROOT, env=env))
 
 if cfg.get("game") == "dnd":                        # D&D: one process; the AI DM only when the Worker switched it on
-    dnd_args = [sys.executable, "-u", "table/dnd_server.py", "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8800"),
-                "--players", ",".join(cfg.get("humans") or ["Player 1"])]
+    dnd_args = [sys.executable, "-u", "table/dnd_server.py", "--host", BIND, "--port", os.environ.get("PORT", "8800"),
+                "--players=" + ",".join(cfg.get("humans") or ["Player 1"])]
     if cfg.get("dm"):
-        dnd_args += ["--dm", cfg["dm"]]
+        dnd_args += ["--dm=" + str(cfg["dm"])]
     if cfg.get("mode") == "theater":                # an allow-list: anything else is the battle map
         dnd_args += ["--mode", "theater"]
     env = dict(os.environ, TABLE_CLOUD="1")
     sys.exit(subprocess.call(dnd_args, cwd=ROOT, env=env))
 
 args = [sys.executable, "-u", "table/server.py", "--any-card", "--brain", "external",
-        "--host", "0.0.0.0", "--port", os.environ.get("PORT", "8800"), "--fair-seed", "online",
+        "--host", BIND, "--port", os.environ.get("PORT", "8800"), "--fair-seed", "online",
         "--priority-window", "3",
         "--human-pass-secs", os.environ.get("HUMAN_PASS_SECS", "30"),
         "--autopass-default", os.environ.get("AUTOPASS_DEFAULT", "others-no-combat")]   # quiet steps pass for people; they can switch it off    # a person who hasn't passed in 30 s is passed for
 for a in cfg.get("ai", []):
-    args += ["--ai", f"{a['name']}|{a['commander']}|", "--ai-deck", a["deck"]]
+    args += [f"--ai={a['name']}|{a['commander']}|", "--ai-deck=" + str(a["deck"])]
 for p in cfg.get("pilots", []):                     # a person playing a virtual deck from /hand (no brain process)
-    args += ["--ai", f"{p['name']}|{p['commander']}|", "--ai-deck", p["deck"], "--pilot", p["name"]]
+    args += [f"--ai={p['name']}|{p['commander']}|", "--ai-deck=" + str(p["deck"]), "--pilot=" + str(p["name"])]
 for h in cfg.get("humans", []):
-    args += ["--human", h if "|" in h else f"{h}|"]
+    args += ["--human=" + (h if "|" in h else f"{h}|")]       # "=": a name is a value, whatever it starts with
 if cfg.get("order"):
-    args += ["--order", cfg["order"]]
+    args += ["--order=" + str(cfg["order"])]
+if cfg.get("agents"):
+    args += ["--decklists", "declared"]             # a seat's deck list is public only once that seat declares it
 env = dict(os.environ, TABLE_CLOUD="1", NO_GEMMA="1", ROUTER="code", REPLIES="code",
            TABLE_AI_PASS_SECS=os.environ.get("TABLE_AI_PASS_SECS", "120"))   # a virtual-deck seat (a person on /hand, or a model) thinks for longer than 30 s
+if cfg.get("agents"):                               # agents don't roll dice or tick a check-in box: the first seat starts
+    env.update(TABLE_HIGHROLL="first", TABLE_CHECKIN="off", TABLE_NO_VOICE="1")
 if os.environ.get("OPENMIC_ROOM") == "1":            # the Worker turned on the Clef-judged open mic for this room
     env.update(OPENMIC_V2="1", OPENMIC_BACKEND="room")
 procs = [subprocess.Popen(args, cwd=ROOT, env=env)]
@@ -61,7 +70,7 @@ time.sleep(4)                                       # the server writes the brai
 key = os.environ.get("DIVINCI_FUSION_API_KEY")
 for a in cfg.get("ai", []):
     if key:
-        procs.append(subprocess.Popen([sys.executable, "-u", "table/fusion_brain.py", "--seat", a["name"]],
+        procs.append(subprocess.Popen([sys.executable, "-u", "table/fusion_brain.py", "--seat=" + str(a["name"])],
                                       cwd=ROOT, env=env))
     else:
         print(f"no DIVINCI_FUSION_API_KEY: AI seat {a['name']} has no brain", flush=True)
