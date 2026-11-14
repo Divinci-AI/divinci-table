@@ -64,7 +64,7 @@ while [ $# -gt 0 ]; do
     --match) MATCH="${2:-}"; shift ;;
     --deck) DECKOPT+=("${2:-}"); shift ;;
     --wait) WAIT=1 ;;
-    -h|--help) sed -n 2,33p "$HERE/$(basename "$0")"; exit 0 ;;
+    -h|--help) sed -n 2,36p "$HERE/$(basename "$0")"; exit 0 ;;
     -*) echo "unknown option $1 (see --help)"; exit 1 ;;
     *) PAIRS+=("$1") ;;
   esac
