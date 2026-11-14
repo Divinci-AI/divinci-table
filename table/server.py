@@ -3796,6 +3796,9 @@ def played_by_gate(seat_name: str, driver: str, act: str) -> dict | None:
             return None
         if rec["kind"] == "autopilot":
             return None
+        if rec["kind"] == "person" and rec.get("by") == "move":
+            played_by_set(seat_name, "autopilot", by="seat")       # only GUESSED from a move by hand: the autopilot's own seat, shared with its operator
+            return None
         return {"error": f"{rec['label']} is playing {seat_name}'s seat: the autopilot yields (the table's host can hand the seat back to it)",
                 "yield": True, "played_by": played_by(seat_name)}
     # a move with the seat key and no driver header: the seat's own player, at their page

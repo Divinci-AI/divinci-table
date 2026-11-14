@@ -162,6 +162,9 @@ try:
         check(who(t2, act)["kind"] == "model" and who(t2, act)["label"] == "ollama:gemma-test",
               "…and a seat that then declares the model that PLAYS it (/api/identity) is shown as that model", who(t2, act))
         move(other)
+        c, d = move(other, driver="autopilot")
+        check(not d.get("yield") and who(t2, other)["kind"] == "autopilot" and not who(t2, other).get("stand_in"),
+              "a seat the table only GUESSED was a person's: the autopilot's MOVE is taken and the seat becomes the autopilot's own", (c, d, who(t2, other)))
         c, d = call(t2, "POST", "/api/seat/played-by", {"seat": other, "kind": "autopilot"}, key=t2.keys[other], driver="autopilot")
         check(c == 200 and who(t2, other)["kind"] == "autopilot" and not who(t2, other).get("stand_in"),
               "the autopilot, started at a seat the table had only GUESSED a person at, says what it is (its own seat: not a stand-in)", (c, d))
