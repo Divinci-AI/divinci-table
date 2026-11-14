@@ -3774,7 +3774,9 @@ def played_by_set(seat_name: str, kind: str, label: str = "", by: str = "host", 
         text = f"{seat_name} is back: {seat_name}'s seat is played by {who} again."
     else:
         text = f"{seat_name}'s seat is now played by {who}." + (f" A move from {seat_name}'s own page takes it back." if stand_in else "")
-    emit("table-note", kind="played-by", seat=seat_name, played_by=kind, label=label, by=by, was=(was or {}).get("kind"), stand_in=stand_in, text=text)
+    if not (by == "move" and was is None and kind == "person"):
+        # (a person making the first move at their own seat is no news: the record is kept, the log is not told. Everything else is.)
+        emit("table-note", kind="played-by", seat=seat_name, played_by=kind, label=label, by=by, was=(was or {}).get("kind"), stand_in=stand_in, text=text)
     print(f"played-by: {text} (set by {by})", flush=True)
     snapshot()
     return played_by(seat_name)

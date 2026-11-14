@@ -157,6 +157,7 @@ try:
             return call(t2, "POST", "/api/brain/pass", {"seat": seat, "player": p_["player"], "step": p_["step"]}, key=t2.keys[seat], driver=driver)
         move(act)
         check(who(t2, act)["kind"] == "person", "a seat nobody declared becomes a person's at its first move from its page", who(t2, act))
+        check(not [e for e in notes(t2) if e["seat"] == act], "…quietly: a person playing their own seat from the start is not announced in the log")
         c, d = call(t2, "POST", "/api/identity", {"seat": act, "model": "ollama:gemma-test"}, key=t2.keys[act])
         check(who(t2, act)["kind"] == "model" and who(t2, act)["label"] == "ollama:gemma-test",
               "…and a seat that then declares the model that PLAYS it (/api/identity) is shown as that model", who(t2, act))
