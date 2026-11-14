@@ -166,6 +166,18 @@ blob = json.dumps(d.program()) + json.dumps(d.pov("Fusion"))
 check(code == 200 and "Panic Card" not in blob, "hide: the hand is gone from every page at once, before the next poll")
 n0 = len(f2.private_calls); d.poll()
 check(len(f2.private_calls) == n0, "while hidden the seat's private state is not even fetched")
+# the race: the operator hides while a poll is already in flight (it has fetched the hand but not yet buffered it)
+d.control({"cmd": "unhide"})
+orig_public = f2.public
+def hide_mid_poll(path, query=""):
+    if path == "/api/events":
+        d.watches[1].hide(None)
+    return orig_public(path, query)
+f2.public = hide_mid_poll
+d.poll()
+f2.public = orig_public
+check(not d.watches[1].buf["Fusion"].snaps and "Panic Card" not in json.dumps(d.pov("Fusion")), "hidden while a poll was in flight: what that poll fetched is dropped, not shown")
+check(d.pov("Fusion")["stage"]["me"]["private"]["reason"] == "hidden by the operator", "and the page is told why, at once")
 d.control({"cmd": "unhide"})
 check("Panic Card" not in json.dumps(d.pov("Fusion")), "un-hide does not bring the old buffer back")
 d.poll()

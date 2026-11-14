@@ -8,7 +8,7 @@ import time
 from . import integrity as ig
 from .tableclient import TableClient, TableError
 
-ACTIONS = ("land", "cast", "attack", "block", "equip", "station", "activate", "cycle", "damage", "end", "keep", "mulligan", "choose")
+ACTIONS = ("land", "cast", "attack", "block", "equip", "station", "activate", "cycle", "keep", "mulligan", "choose")   # decisions worth a line (not "end", not the damage step)
 STEPS = ["untap", "upkeep", "draw", "main 1", "beginning of combat", "declare attackers", "declare blockers", "combat damage", "main 2", "end step", "cleanup"]
 
 
@@ -61,6 +61,7 @@ class TableWatch:
         for s in ([seat] if seat else list(self.buf)):
             if on:
                 self.hidden.add(s); self.buf[s].purge()       # what was held is thrown away: un-hiding starts from nothing
+                self.vis[s] = ig.Visibility(False, "hidden by the operator")     # now, not at the next poll
             else:
                 self.hidden.discard(s)
 
@@ -119,6 +120,8 @@ class TableWatch:
         if new:
             self.cursor = max(self.cursor, max(int(e["id"]) for e in new))
             self.events = (self.events + new)[-3000:]
+        for name in [n for n in fresh if n in self.hidden]:
+            del fresh[name]                                     # hidden while this poll was in flight: what it fetched is dropped, not buffered
         for name, f in fresh.items():
             b = self.buf[name]
             b.add_hand(last, now, f["hand"])
@@ -184,6 +187,8 @@ class TableWatch:
     def seat_private(self, name: str) -> dict:
         """What of this seat's private state may be shown NOW (already through both gates)."""
         v = self.vis[name]
+        if name in self.hidden:
+            return {"shown": False, "reason": "hidden by the operator", "hand": None, "thinking": []}
         if not v.read:
             return {"shown": False, "reason": v.reason, "hand": None, "thinking": []}
         hand, items = self.buf[name].released(self.bound(), self.clock(), self.secs)

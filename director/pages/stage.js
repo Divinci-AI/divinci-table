@@ -14,7 +14,7 @@
   function card(c, cls) {
     if (!c.name) return `<div class="card fd ${cls || ""}${c.tapped ? " t" : ""}"><div class="n">face-down</div>${c.pt ? `<div class="pt">${esc(c.pt)}</div>` : ""}</div>`;
     const art = !namesOnly && ART[c.name];
-    return `<div class="card ${cls || ""}${c.tapped ? " t" : ""}${art ? " hasart" : ""}" title="${esc(c.name)}">` +
+    return `<div class="card ${cls || ""}${c.tapped ? " t" : ""}${art ? " hasart" : ""}${c.cost ? " cost" : ""}" title="${esc(c.name)}">` +
       (art ? `<img src="/art/${esc(art)}.jpg" alt="${esc(c.name)}">` : "") +
       `<div class="n">${esc(c.name)}</div>${c.cost ? `<div class="c">${esc(String(c.cost).replace(/[{}]/g, ""))}</div>` : ""}` +
       `<div class="ty">${esc(c.type || "")}</div>${c.pt ? `<div class="pt">${esc(c.pt)}</div>` : ""}` +
@@ -47,6 +47,7 @@
     $("delay").className = /^live|LIVE/.test(st.delay || "") ? "live" : "";
     $("opp").innerHTML = (st.opponents || []).map(s => seatBlock(s, true)).join("");
     const me = st.me;
+    $("stage").className = me ? "" : "final";           // a recap: both seats' totals, no hand row
     $("mine").innerHTML = me ? seatBlock(me, false) : "";
     // the hand: shown only if the server released it
     const pr = me && me.private;
@@ -73,7 +74,8 @@
       : `<div class="none">${me && me.kind === "human" ? "Nothing: a person's thoughts are their own unless they type a note." : pr && pr.shown ? "No reasons yet." : "Not shown."}</div>`;
     $("logbody").innerHTML = (st.log || []).slice(-9).map(l => `<div><b>${esc(l.who)}</b> ${esc(l.text)}</div>`).join("");
     const lt = st.lower_third;
-    $("lower").innerHTML = lt ? `<b>${esc(lt.name)}</b><span>${esc(lt.player)} · ${esc(lt.table)}${lt.game ? " · game " + esc(lt.game) : ""} · hand ${esc(lt.hand === "shown" ? "shown " + (lt.delay || "") : "hidden")}</span>` : "";
+    if (!lt) { $("lower").innerHTML = `<b>${esc(st.table)}</b><span>${st.over ? "final" : ""}${m && m.wins ? " · match " + esc(Object.keys(m.wins).map(k => k + " " + m.wins[k]).join(" – ")) : ""}</span>`; }
+    else $("lower").innerHTML = lt ? `<b>${esc(lt.name)}</b><span>${esc(lt.player)} · ${esc(lt.table)}${lt.game ? " · game " + esc(lt.game) : ""} · hand ${esc(lt.hand === "shown" ? "shown " + (lt.delay || "") : "hidden")}</span>` : "";
     $("pip").innerHTML = (d.pip || []).slice(0, 1).map(p =>
       `<h3>Also playing</h3><div class="pt"><b>${esc(p.name)}</b><span>${esc(p.over ? "game over" : (p.turn || "") + (p.step ? " · " + p.step : ""))}</span></div>` +
       p.seats.map(s => `<div class="ps"><b>${esc(s.name)}</b> <span class="l">♥ ${esc(s.life == null ? "–" : s.life)}</span> · ${esc(s.hand == null ? "?" : s.hand)} cards · ${esc(s.lands)} lands<small>${esc(s.board.join(", ") || "no creatures yet")}</small></div>`).join("")).join("")

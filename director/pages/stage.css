@@ -30,6 +30,7 @@ body{font:20px/1.3 -apple-system,"Helvetica Neue",Arial,sans-serif;color:#e9ecf2
 .card.t{transform:rotate(7deg);filter:brightness(.72)}
 .card img{width:100%;height:100%;object-fit:cover;display:block}
 .card .n{font-weight:700;font-size:14px;line-height:1.1;padding:6px 6px 2px}
+.card.cost .n{padding-right:44px}
 .card .c{position:absolute;right:5px;top:5px;font-size:12px;font-weight:700;background:#222;color:#fff;border-radius:9px;padding:1px 6px}
 .card .ty{font-size:11px;padding:0 6px;color:#444}
 .card .pt{position:absolute;right:4px;bottom:4px;font-weight:800;font-size:16px;background:#222;color:#fff;border-radius:6px;padding:1px 7px}
@@ -79,3 +80,5 @@ body{font:20px/1.3 -apple-system,"Helvetica Neue",Arial,sans-serif;color:#e9ecf2
 #offline{background:#0b0e14e0;font-size:30px;color:#c9d1df}
 .aibadge{font-size:13px;padding:3px 10px;border-radius:12px;background:#3a2a52;color:#dcc8ff}
 .aibadge.paused{background:#5a3a12;color:#ffd9a0}
+#stage.final #mine,#stage.final #handrow,#stage.final #opp .row,#stage.final #opp .lands{display:none}
+#stage.final #opp .seathead{height:56px}
