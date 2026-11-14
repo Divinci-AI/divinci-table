@@ -5,7 +5,7 @@ Michael typed 'I play Silverbluff Bridge artifact land and pass', the log heard 
     python3 table/tests/chat_board_test.py
 
 Remote calls only (X-Forwarded-For on every request), cloud room (TABLE_CLOUD=1), ROUTER=code, no brain for the people:
-the chat goes through /api/chat with the seat key, as the page's chat line sends it. One server on port 8831
+the chat goes through /api/chat with the seat key, as the page's chat line sends it. One server on a free port
 (stage1_guard_test's Server): two pilots (Claude, Fusion), two people (Michael, Sam).
 """
 from __future__ import annotations
@@ -109,7 +109,7 @@ def main():
 def tablectl(S, key_file, *argv):
     """tablectl as the cloud pilot runs it: its seat key, NO host token file, looking like a remote device."""
     import subprocess
-    env = {**os.environ, "TABLE_URL": "http://127.0.0.1:8831", "TABLE_SEAT": "Claude", "TABLE_SEAT_KEY_FILE": str(key_file),
+    env = {**os.environ, "TABLE_URL": S.base, "TABLE_SEAT": "Claude", "TABLE_SEAT_KEY_FILE": str(key_file),
            "TABLE_TOKEN_FILE": str(S.tmp / "no-such-token"), "TABLE_FORWARD_FOR": "203.0.113.9"}
     p = subprocess.run([sys.executable, str(Path(__file__).resolve().parent.parent / "tablectl.py"), *argv],
                        env=env, capture_output=True, text=True, timeout=60)

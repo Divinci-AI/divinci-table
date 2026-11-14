@@ -8,7 +8,7 @@ the turn moves on, and the attacker's `damage` cannot claim more than the table 
 starts (and the refusal says how to start), and each seat can read the others' boards.
 
 Remote calls only (X-Forwarded-For on every request); the creatures are made by the host, as a deck would; nothing else
-is touched. One server on port 8831 (as stage1_guard_test), two pilots (Claude attacks, Fusion defends).
+is touched. One server on a free port (stage1_guard_test's Server), two pilots (Claude attacks, Fusion defends).
 """
 from __future__ import annotations
 

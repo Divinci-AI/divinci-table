@@ -20,7 +20,8 @@ from pathlib import Path
 
 TABLE = Path(__file__).resolve().parents[1]
 REPO = TABLE.parent
-PORT = 8817
+import freeport  # noqa: E402
+PORT = freeport.free_port()                              # (until 2026-11-14: 8817, also migrate_test's)
 FAILED = []
 
 

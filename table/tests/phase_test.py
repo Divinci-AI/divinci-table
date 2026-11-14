@@ -3,7 +3,7 @@
 
     python3 table/tests/phase_test.py
 
-Starts its own server (fair seeding off, its own token file, port 8815) and never touches a running game.
+Starts its own server (fair seeding off, its own token file, a free port) and never touches a running game.
 """
 import json
 import os
@@ -18,7 +18,8 @@ import keepalive  # noqa: E402  (one connection per server: polling must not use
 keepalive.install()
 
 HERE = Path(__file__).resolve().parent.parent
-PORT = 8815
+import freeport  # noqa: E402
+PORT = freeport.free_port()                              # (until 2026-11-14: 8815)
 BASE = f"http://127.0.0.1:{PORT}"
 TMP = Path(tempfile.mkdtemp(prefix="phase-test-"))
 TOKEN = TMP / "token"

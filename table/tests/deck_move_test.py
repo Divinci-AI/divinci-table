@@ -4,7 +4,7 @@ engine's matching move for a pilot seat's own permanents.
     python3 table/tests/deck_move_test.py
 
 Part 1 is the engine (player.py) in-process: top / bottom / shuffle, tokens, the commander, Auras falling off.
-Part 2 is the server, cloud room (TABLE_CLOUD=1), remote calls (X-Forwarded-For), one server on port 8831
+Part 2 is the server, cloud room (TABLE_CLOUD=1), remote calls (X-Forwarded-For), one server on a free port
 (stage1_guard_test's Server): a person's card goes to their library through /api/card-action with their own seat key,
 another person's key is refused exactly as for To graveyard / Exile / To hand, and a pilot's permanent goes to its
 library through the host's /api/brain/to-library (the same route, and the same host-only rule, as destroy/exile/bounce).
@@ -226,7 +226,7 @@ def pilots(S):
     import subprocess                                   # the host's CLI: tablectl to-library REF top|bottom|shuffle
     c, d = S.host_brain("Claude", "token", name="Elf Warrior", power=1, toughness=1)
     tok = next(p for p in reversed(seat_of(S, "Claude")["permanents"]) if p.get("token"))
-    env = {**os.environ, "TABLE_URL": "http://127.0.0.1:8831", "TABLE_SEAT": "Claude", "TABLE_TOKEN_FILE": str(S.token_file)}
+    env = {**os.environ, "TABLE_URL": S.base, "TABLE_SEAT": "Claude", "TABLE_TOKEN_FILE": str(S.token_file)}
     r = subprocess.run([sys.executable, str(HERE.parent / "tablectl.py"), "to-library", f"#{tok['id']}", "bottom", "--quiet"],
                        env=env, capture_output=True, text=True, timeout=60)
     check("tablectl to-library (host token) reaches the same action",
