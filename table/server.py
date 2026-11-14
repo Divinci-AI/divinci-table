@@ -4223,6 +4223,9 @@ def annotate_legality(sn: str, v: dict):
             why = why or (None if vp.plan_payment(x["equip_cost"]) is not None else f"needs {x['equip_cost']}: {vp.mana_words()}")
             why = why or (None if any((c.is_("Creature") or c.face_down) and p.attached_to != c.id for c in vp.battlefield) else "no creature to equip")
             x["equip_can"], x["equip_why"] = why is None, why
+            # the creatures it may go onto, whether or not it can be paid for right now (the page lights these up for a drag or a tap; the
+            # action itself still checks everything): this seat's creatures and face-down cards, not itself, not the one it is on
+            x["equip_targets"] = [c.id for c in vp.battlefield if (c.is_("Creature") or c.face_down) and c.id != p.id and p.attached_to != c.id]
         if x.get("has_station") and not p.face_down:
             top = _pl.station_top(p.card)
             why = None if main else "Station is sorcery speed: only in your own main phase"
