@@ -308,6 +308,14 @@ try:
     bk = next(l.strip().split("k=")[1] for l in (live / "draft-links.txt").read_text().splitlines() if l.startswith("Broadcast: "))
     check(sorted(k) == ["Claude", "Fusion", "Michael", "Sam"] and all(opens(prog.base, t) == n for n, t in k.items()), "started: each of the four keys opens its own seat")
     check(mode(live / "draft-links.txt") == 0o600 and mode(live / "draft-agent-tokens.json") == 0o600, "the key files are 0600")
+
+    def claude_seat(*args):
+        """The real AI seat client (claude_seat.py; no model in it), pointed at this server and its folder."""
+        env = {**os.environ, "DRAFT_LIVE": str(live), "DRAFT_URL": prog.base}
+        r = subprocess.run([sys.executable, os.path.join(HERE, "claude_seat.py"), *args], env=env, capture_output=True, text=True, timeout=30)
+        return r.returncode, r.stdout + r.stderr
+    rc, out = claude_seat("wait", "3")
+    check(rc == 0 and out.startswith("pack 1, pick 1; waiting on"), "claude_seat.py finds its token in DRAFT_LIVE and the server at DRAFT_URL", out[-300:])
     took = {}
     for who in ("Claude", "Fusion"):                   # an AI seat holds its token and has a pick in when the server goes down
         took[who] = call(prog.base, f"/api/state?k={k[who]}")[1]["pack"][0]["id"]
@@ -319,6 +327,8 @@ try:
         c, d = call(prog.base, f"/api/state?k={k[who]}")
         check(c == 200 and d.get("you") == who and d.get("my_pick") == took[who],
               f"{who}'s token from BEFORE the restart still opens its seat, with its pick still in (a running seat process is not locked out)", (c, d.get("error")))
+    rc, out = claude_seat("wait", "1")
+    check(rc == 0 and "Traceback" not in out and "still waiting for the next pack" in out, "…and claude_seat.py is let in after the restart (its pick is in: it waits)", out[-300:])
     check(opens(prog.base, k["Michael"]) == "Michael" and opens(prog.base, k["Sam"]) == "Sam", "the people's links still open their seats")
     check(call(prog.base, f"/api/broadcast?k={bk}")[0] == 200, "the broadcast key still opens the broadcast")
     check(mode(live / "draft-links.txt") == 0o600 and mode(live / "draft-agent-tokens.json") == 0o600 and not list(live.glob("*.tmp")), "the key files are still 0600")

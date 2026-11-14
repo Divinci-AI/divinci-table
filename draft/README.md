@@ -11,7 +11,15 @@ python3 draft/test_draft.py                                 # the draft tests (a
 
 Card art is never in the repo: the server serves art from a folder you provide, and only to a valid seat key. Remote players come in through a
 tunnel; the draft token and seat links are kept in 0600 files. `draft_banter.py` talks through the Anthropic API when a key file exists (0600; never in argv).
-Defaults point at `~/.divinci/star-trek-mtg/live`; the folder layout is the author's, and the scripts are the record of how a night was run.
+The folder layout is the author's, and the scripts are the record of how a night was run. Where things are, and how to point them elsewhere:
+
+| What | Default | Set it with |
+|---|---|---|
+| the draft's state, links and decks | `live/` beside this folder | `DRAFT_LIVE` (the server, `claude_seat.py` and `fusion_seat.py` all read it) |
+| the draft server, for the AI seat clients | `http://127.0.0.1:8820` | `DRAFT_URL` |
+| the people drafting | Michael, Sam | `DRAFT_HUMANS="Ann,Ben"` |
+| the set's cards | `cards.json` beside this folder, else `table/.cache/cards-trk.json` | `DRAFT_CARDS_JSON` |
+| Claude's key for table talk | the author's two key files under `~/.divinci/star-trek-mtg/` | `ANTHROPIC_KEY_FILE` (a 0600 file); `DRAFT_BANTER=off` asks no model at all |
 
 ## The match handoff, and the one thing that breaks it
 

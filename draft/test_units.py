@@ -1,5 +1,5 @@
-"""Unit tests for the key loader, the OpenRouter drafter's parsing, and the panel. Offline: the network
-call is replaced with a fake. Run: python3 -m unittest test_units -v"""
+"""Unit tests for the key loaders (the OpenRouter drafter's, and the draft table talk's), the OpenRouter drafter's parsing, and the
+panel. Offline: the network call is replaced with a fake. Run: python3 -m unittest test_units -v"""
 from __future__ import annotations
 
 import io
@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 import agents
+import draft_banter
 from agents import OpenRouterDrafter, load_openrouter_key, panel_pick
 
 FAKE_KEY = "sk-or-v1-" + "a" * 40          # fake: never a real key
@@ -134,6 +135,63 @@ class DrafterTests(unittest.TestCase):
         self.assertIn("Card 1", prompt)
         self.assertIn("Own Pick", prompt)
         self.assertIn('{"pick":', prompt)
+
+
+class BanterKeyFileTests(unittest.TestCase):
+    """draft_banter.anthropic_key(): a key FILE only, 0600 or it is skipped; ANTHROPIC_KEY_FILE names it. The author's own two
+    places are pointed at an empty scratch folder here, so no real key file is ever opened by this test."""
+    KEY = "not-a-real-key-" + "x" * 24
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp(prefix="banter-key-"))
+        self._p = [mock.patch.object(draft_banter, "RAW_KEY_FILE", self.dir / "none.key"), mock.patch.object(draft_banter, "KEY_FILE", self.dir / "none.env"),
+                   mock.patch.dict(os.environ, {}, clear=False)]
+        for p in self._p:
+            p.start()
+        os.environ.pop("ANTHROPIC_KEY_FILE", None)
+
+    def tearDown(self):
+        for p in self._p:
+            p.stop()
+
+    def write(self, name, text, mode=0o600):
+        f = self.dir / name
+        f.write_text(text)
+        f.chmod(mode)
+        return f
+
+    def test_no_file_no_key(self):
+        self.assertEqual(draft_banter.anthropic_key(), "")
+
+    def test_named_file_raw_or_env_style(self):
+        os.environ["ANTHROPIC_KEY_FILE"] = str(self.write("a.key", self.KEY + "\n"))
+        self.assertEqual(draft_banter.anthropic_key(), self.KEY)
+        os.environ["ANTHROPIC_KEY_FILE"] = str(self.write("b.env", f"ANTHROPIC_API_KEY={self.KEY}\n"))
+        self.assertEqual(draft_banter.anthropic_key(), self.KEY)
+
+    def test_a_file_others_can_read_is_skipped(self):
+        os.environ["ANTHROPIC_KEY_FILE"] = str(self.write("open.key", self.KEY, mode=0o644))
+        self.assertEqual(draft_banter.anthropic_key(), "")
+
+    def test_a_missing_or_empty_named_file_is_skipped(self):
+        os.environ["ANTHROPIC_KEY_FILE"] = str(self.dir / "gone.key")
+        self.assertEqual(draft_banter.anthropic_key(), "")
+        os.environ["ANTHROPIC_KEY_FILE"] = str(self.write("empty.key", "\n"))
+        self.assertEqual(draft_banter.anthropic_key(), "")
+
+    def test_the_default_places_as_before(self):
+        with mock.patch.object(draft_banter, "RAW_KEY_FILE", self.write("raw.key", self.KEY)):
+            self.assertEqual(draft_banter.anthropic_key(), self.KEY)
+        with mock.patch.object(draft_banter, "KEY_FILE", self.write("style.env", f"ANTHROPIC_API_KEY={self.KEY}")):
+            self.assertEqual(draft_banter.anthropic_key(), self.KEY)
+        with mock.patch.object(draft_banter, "KEY_FILE", self.write("raw-in-env-place.env", self.KEY)):
+            self.assertEqual(draft_banter.anthropic_key(), "")           # (that place only ever took the NAME=value form)
+
+    def test_quiet_switch_queues_nothing(self):
+        b = draft_banter.Banter(["Some Card"], self.dir / "log.jsonl", {2: "Claude", 3: "Fusion"}, set())
+        with mock.patch.object(draft_banter, "QUIET", True):
+            self.assertEqual(b.ask("Claude"), "table talk from the AI seats is switched off")
+            self.assertTrue(b.q.empty())
 
 
 class PanelTests(unittest.TestCase):
