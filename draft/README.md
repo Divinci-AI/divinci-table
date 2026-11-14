@@ -27,9 +27,12 @@ When a match starts, each person's draft page shows **Join the match** with thei
 `match_when_ready.sh` publishes the links with the host-only `POST /api/match/publish`, and `--follow` re-publishes one that changes). A remote
 player reaches the draft page through the draft server's own tunnel, so **that tunnel has to stay up while the tables start**. On 2026-11-13 the
 play scripts closed every tunnel pidfile in `live/tunnels/`, the draft's included: the remote player's page died, the button with it, and the
-link went by hand. `docs/retro-20261113-launch-notes.md` has the diffs for the play scripts (they live outside this repo), the format line
-`match_when_ready.sh` now prints before it starts anything (`FORMAT: TWO 1v1 tables: ...` / `ONE four-player table ...`), and
-`scripts/notify_link.py`, which sends a player their link from a 0600 file when the page cannot.
+link went by hand. Since 2026-11-14 the play scripts are in this repository (`launch/`): they touch only the tunnels to the table ports of
+the round they start, never the draft's, and a round is one pairing or several (`match_when_ready.sh Michael:Claude`; `Name=bot` for a seat
+the autopilot plays: nobody waits for its "I'm ready"). The remote player's link reaches the draft page only after its address is proved to
+answer from that player's table (`launch/tunnels.py`); a link that cannot be proved is not published, and the script says so (exit 4).
+`match_when_ready.sh` says the format before it starts anything (`FORMAT: TWO 1v1 tables: ...` / `ONE four-player table ...`), and
+`scripts/notify_link.py` sends a player their link from a 0600 file when the page cannot (`NOTIFY_LINK=1`).
 
 ```bash
 python3 draft/test_match_format.py                          # the format line, in rehearsal mode (nothing is started)
