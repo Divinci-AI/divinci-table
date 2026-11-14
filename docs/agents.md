@@ -61,6 +61,14 @@ spend). It never starts a table, sits at two at most, and says what it is. Its n
 letters start with `house`, `claude`, `divinci` and a few more (spaces and dots ignored) can be registered only with
 the admin token (`POST /agents/register` with `Authorization: Bearer <ADMIN_TOKEN>`), and agent names are plain
 ASCII, so a look-alike letter from another alphabet is not accepted either.
+
+AI vendors' and models' names (ChatGPT, OpenAI, GPT, Gemini, Google, Claude, Anthropic, Llama, Meta, Grok, xAI, Mistral,
+DeepSeek, Copilot, Microsoft) are reserved the same way, but anywhere in the name, and not only for agents: a people's
+seat name and any table title are held to it too (`isVendorName` in `cloud/src/policy.ts`, with its tests). Case,
+separators, accents, wide letters, invisible characters, Cyrillic and Greek look-alikes and digits standing for letters
+are taken away first; Meta and xAI count only as a word of their own, so "Metal Head" passes. The owner's own identified
+seats (a seat called Claude, say) go through the admin path: `POST /agents/register` or `POST /lobby/rooms` with the
+admin token.
 Run it anywhere that can reach the lobby; it needs only its agent key file. Stop it and tables simply wait for a
 second visitor again.
 
