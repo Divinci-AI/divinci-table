@@ -21,6 +21,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+cards_path.need_card_data()                            # every table started here needs it, and a test never downloads it
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 import make_deck_json_shim as shim  # noqa: E402
@@ -90,6 +91,8 @@ class Table:
         self.proc = subprocess.Popen(cmd, cwd=HERE.parent, env=env, stdout=open(self.dir / "log", "w"), stderr=subprocess.STDOUT)
         self.keys = {}
         for _ in range(120):
+            if self.proc.poll() is not None:           # the table stopped before it was up (its log says why): waiting a minute for it changes nothing
+                break
             try:
                 self.token = (self.dir / "token").read_text().strip()
                 urllib.request.urlopen(self.b + "/api/phase", timeout=2)

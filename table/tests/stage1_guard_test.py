@@ -5,7 +5,8 @@
 
 Every request carries X-Forwarded-For (what the cloud Worker adds), so the server treats the caller as another device:
 the seat guard, the LAN block and the pilot key rules all apply. Only calls named `host_*` come from the laptop itself
-(no forwarding header) and carry the host's brain token. Each item starts its own server on port 8831 with its own
+(no forwarding header) and carry the host's brain token. Each item starts its own server on a free port (a new one for every
+server: tests/freeport.py; `S.base` is its address, and the module's BASE names the server that is up now) with its own
 research dir; nothing else is touched, no model is loaded, no network is used.
 
 Items: 1 begin only on your own untap step · 2 fair-reveal · 3 pilot action allowlist · 4 untap only in your untap step
@@ -24,13 +25,16 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import cards_path  # noqa: E402
+import freeport  # noqa: E402
 import keepalive  # noqa: E402  (one connection per server: polling must not use up local ports)
 keepalive.install()
+cards_path.need_card_data()                             # the table does not start without the card-name list, and a test never downloads it
 
 HERE = Path(__file__).resolve().parent.parent
 REPO = HERE.parent
-PORT = 8831
-BASE = f"http://127.0.0.1:{PORT}"
+PORT = freeport.free_port()                             # (until 2026-11-14: 8831, shared by six test files; two runs at once broke each other)
+BASE = f"http://127.0.0.1:{PORT}"                       # the server that is up NOW: Server.__enter__ takes a new free port every time
 PASS = FAIL = 0
 FAILED: list[str] = []
 
@@ -54,6 +58,9 @@ class Server:
         self.keys: dict[str, str] = {}
 
     def __enter__(self):
+        global PORT, BASE
+        PORT = self.port = freeport.free_port()
+        BASE = self.base = f"http://127.0.0.1:{PORT}"
         env = {k: v for k, v in os.environ.items() if k != "TYPESAFE_API_KEY"}
         env.pop("TABLE_CLOUD", None)
         env.pop("STRICT_SEATS", None)

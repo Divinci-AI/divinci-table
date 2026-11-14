@@ -54,7 +54,9 @@ waiters = [threading.Thread(target=lambda: ev.wait_since(2, 5), daemon=True) for
 check("one emit releases every waiting request", not any(w.is_alive() for w in waiters))
 
 # ── the real server ──────────────────────────────────────────────────────────────────────────────────────────
-PORT = 8200 + os.getpid() % 90
+sys.path.insert(0, str(ROOT / "table" / "tests"))
+import freeport  # noqa: E402
+PORT = freeport.free_port()                              # (until 2026-11-14: 8200 + pid % 90, one of only 90 ports)
 BASE = f"http://127.0.0.1:{PORT}"
 tmp = tempfile.mkdtemp()
 srv = subprocess.Popen([sys.executable, "table/dnd_server.py", "--players", "Ana,Ben", "--port", str(PORT)], cwd=ROOT,

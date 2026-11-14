@@ -6,7 +6,14 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "harness"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import freeport  # noqa: E402
 import table_loop as L  # noqa: E402
+
+# The loop gives game i the port `--port0 + i % 40`. Two bases of free ports in a row, found when the test starts (until 2026-11-14 they
+# were 8950 and 8960, the same in every run on the machine): one for the scripted games (at most ten in a row), one for the STOP test.
+PORT0 = freeport.free_block(12)
+PORT_STOP = next(b for b in iter(lambda: freeport.free_block(2), None) if not PORT0 - 2 < b < PORT0 + 12)
 
 ok_all = True
 
@@ -77,7 +84,7 @@ def loop(plan, extra=(), env_extra=None, timeout=120):
     (out / "plan.json").write_text(json.dumps(plan))
     env = {**os.environ, "TABLE_LOOP_GAME_CMD": f"{sys.executable} {FAKE}", "PLAN": str(out / "plan.json"), "TABLE_LOOP_PASS_ENV": "PLAN", **(env_extra or {})}
     p = subprocess.run([sys.executable, str(REPO / "harness/table_loop.py"), "--out", str(out), "--watch-secs", "0.3", "--kill-grace-secs", "1",
-                        "--max-secs", "2", "--disk-floor-gib", "0", "--min-free-pct", "0", "--port0", "8950", *extra], capture_output=True, text=True, env=env, timeout=timeout)
+                        "--max-secs", "2", "--disk-floor-gib", "0", "--min-free-pct", "0", "--port0", str(PORT0), *extra], capture_output=True, text=True, env=env, timeout=timeout)
     rep = json.loads((out / "report.json").read_text()) if (out / "report.json").exists() else {}
     rows = [json.loads(l) for l in (out / "results.jsonl").read_text().splitlines()] if (out / "results.jsonl").exists() else []
     return p, out, rep, rows
@@ -106,7 +113,7 @@ check("...and its process is gone", not left, left)
 out2 = Path(tempfile.mkdtemp(dir=tmp)); (out2 / "plan.json").write_text(json.dumps(["wait-stop"]))
 env = {**os.environ, "TABLE_LOOP_GAME_CMD": f"{sys.executable} {FAKE}", "PLAN": str(out2 / "plan.json"), "TABLE_LOOP_PASS_ENV": "PLAN"}
 proc = subprocess.Popen([sys.executable, str(REPO / "harness/table_loop.py"), "--out", str(out2), "--watch-secs", "0.3", "--kill-grace-secs", "1", "--max-secs", "30",
-                         "--disk-floor-gib", "0", "--min-free-pct", "0", "--port0", "8960", "--hours", "1"], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                         "--disk-floor-gib", "0", "--min-free-pct", "0", "--port0", str(PORT_STOP), "--hours", "1"], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 time.sleep(2); (out2 / "STOP").write_text(""); t0 = time.time()
 try:
     outtxt, _ = proc.communicate(timeout=20)
@@ -116,12 +123,13 @@ rep = json.loads((out2 / "report.json").read_text()) if (out2 / "report.json").e
 check("the STOP file stops a running game and the loop within seconds", rep.get("stopped") == "STOP file" and time.time() - t0 < 10, (rep.get("stopped"), round(time.time() - t0, 1)))
 left = subprocess.run(["pgrep", "-f", str(FAKE)], capture_output=True, text=True).stdout.split()
 check("...with no stray process", not left, left)
-sock = socket.socket(); check("...and no port left in use", sock.connect_ex(("127.0.0.1", 8960)) != 0); sock.close()
+sock = socket.socket(); check("...and no port left in use", sock.connect_ex(("127.0.0.1", PORT_STOP)) != 0); sock.close()
 
 p, out, rep, rows = loop(["leak-port"], ["--games", "1"])
 check("a game that leaves a port listening is counted failed", rows and rows[0]["leftover_port"] and rows[0]["failed"], rows)
-sock = socket.socket(); check("...and the loop killed the leftover listener", sock.connect_ex(("127.0.0.1", 8950)) != 0); sock.close()
-subprocess.run(["pkill", "-f", "s.bind"], capture_output=True)
+sock = socket.socket(); check("...and the loop killed the leftover listener", sock.connect_ex(("127.0.0.1", PORT0)) != 0); sock.close()
+for pid in subprocess.run(["lsof", "-t", f"-iTCP:{PORT0}", "-sTCP:LISTEN"], capture_output=True, text=True).stdout.split():
+    os.kill(int(pid), signal.SIGTERM)                  # (a backstop, by pid: only what still listens on THIS test's own port; it was `pkill -f s.bind`)
 
 # ── 4. orin backend: health failure and pilot failure stop it with no retry ─────────────────────
 p, out, rep, rows = loop(["ok"], ["--backend", "orin", "--orin-clear", "--games", "5"], {"JETSON_BASE": "http://127.0.0.1:9/v1"})

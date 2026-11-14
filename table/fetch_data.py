@@ -6,7 +6,10 @@
 
 Only public card data. No card images are fetched: card art is copyrighted (see table/assets/README.md), and the
 table serves art from a folder you point TABLE_ART_DIR at. Everything lands in table/.cache/ (git-ignored).
-SCRYFALL_BASE overrides the API address (the tests point it at a local fake)."""
+SCRYFALL_BASE overrides the API address (the tests point it at a local fake).
+
+This is the ONLY command that downloads, and it refuses under TABLE_OFFLINE=1 (the tests run that way, so nothing a test starts can
+fetch anything): unset TABLE_OFFLINE to download."""
 from __future__ import annotations
 
 import argparse
@@ -65,6 +68,8 @@ def main() -> None:
     ap.add_argument("--set", dest="sets", action="append", default=[], metavar="CODE", help="also fetch this set's cards (repeatable)")
     ap.add_argument("--no-oracle", action="store_true", help="skip the rules-text file (card names and sets only)")
     args = ap.parse_args()
+    if os.environ.get("TABLE_OFFLINE") == "1":
+        sys.exit("fetch_data.py: TABLE_OFFLINE=1 forbids downloading: unset TABLE_OFFLINE to download the card data (about 40 MB from Scryfall)")
     print("card names ->", card_names())
     if not args.no_oracle:
         sys.path.insert(0, str(HERE))

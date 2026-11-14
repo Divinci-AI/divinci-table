@@ -3,8 +3,10 @@
 
     python3 table/tests/phase_test.py
 
-Starts its own server (fair seeding off, its own token file, port 8815) and never touches a running game.
+Starts its own server (fair seeding off, its own token file, a free port) and never touches a running game.
 """
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file SKIPS, never fails, never downloads)
+cards_path.need_card_data()                            # the table needs the card data, and a test never downloads it (skips without it)
 import json
 import os
 import subprocess
@@ -18,7 +20,8 @@ import keepalive  # noqa: E402  (one connection per server: polling must not use
 keepalive.install()
 
 HERE = Path(__file__).resolve().parent.parent
-PORT = 8815
+import freeport  # noqa: E402
+PORT = freeport.free_port()                              # (until 2026-11-14: 8815)
 BASE = f"http://127.0.0.1:{PORT}"
 TMP = Path(tempfile.mkdtemp(prefix="phase-test-"))
 TOKEN = TMP / "token"

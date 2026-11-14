@@ -3,6 +3,8 @@ repo only. Starts its own server on a free port (no model, no cloud).
 
     python3 table/tests/security_review_test.py
 """
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file SKIPS, never fails, never downloads)
+cards_path.need_card_data()                            # the table needs the card data, and a test never downloads it (skips without it)
 import http.client
 import json
 import os

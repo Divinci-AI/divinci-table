@@ -1,6 +1,10 @@
 """Every card's rules text, offline. One download of Scryfall's Oracle Cards bulk file (~25 MB
 gzipped) into table/.cache/oracle.json, then no network.
 
+TABLE_OFFLINE=1 forbids even that one download: db() then raises Unavailable (with the command to
+run once, with network access) instead of fetching. The tests always run that way
+(table/tests/run_core.py sets it), so a fresh checkout's first test run can never go online.
+
 The code reads what a card DOES from its text (effect()), instead of asking a model: measured
 2026-09-25, Gemma 4 e2b named the right effect for only 15 of 30 common cards, and called Sol Ring
 and Llanowar Elves "shuffles a target into its library" — the kind of guess that would wipe the
@@ -10,26 +14,47 @@ from __future__ import annotations
 
 import gzip
 import json
+import os
 import re
 import urllib.request
 from pathlib import Path
 
 CACHE = Path(__file__).parent / ".cache" / "oracle.json"
 _DB: dict | None = None
+FETCH = "python3 table/fetch_data.py"                  # the one command that downloads the card data
 
 
-def _download() -> None:
+class Unavailable(RuntimeError):
+    """The card data is not on disk and TABLE_OFFLINE=1 forbids downloading it."""
+
+
+def offline() -> bool:
+    """TABLE_OFFLINE=1: nothing is ever downloaded (the tests, and a host who wants that guarantee)."""
+    return os.environ.get("TABLE_OFFLINE") == "1"
+
+
+def _raw() -> bytes:
+    """Scryfall's Oracle Cards bulk file as downloaded. From disk when it is there (a rebuild, e.g. for a
+    new field, needs no network: until 2026-11-14 it asked Scryfall for the file's address first even
+    then); otherwise one download, which TABLE_OFFLINE=1 refuses."""
+    raw_path = CACHE.parent / "oracle-cards.raw"
+    if raw_path.exists():
+        return raw_path.read_bytes()
+    if offline():
+        raise Unavailable(f"the card data is not here ({CACHE.parent}) and TABLE_OFFLINE=1 forbids downloading it: run `{FETCH}` once "
+                          "with network access and without TABLE_OFFLINE (about 40 MB from Scryfall; after that everything is offline)")
     hdr = {"User-Agent": "divinci-table/0.1", "Accept": "application/json"}
     meta = json.loads(urllib.request.urlopen(urllib.request.Request(
         "https://api.scryfall.com/bulk-data/oracle-cards", headers=hdr), timeout=30).read())
-    raw_path = CACHE.parent / "oracle-cards.raw"
-    if raw_path.exists():                              # rebuilds (e.g. a new field) need no network
-        raw = raw_path.read_bytes()
-    else:
-        raw = urllib.request.urlopen(urllib.request.Request(meta.get("download_uri") or meta["jsonl_download_uri"],
-                                                            headers={**hdr, "Accept": "*/*"}), timeout=300).read()
-        CACHE.parent.mkdir(exist_ok=True)
-        raw_path.write_bytes(raw)
+    raw = urllib.request.urlopen(urllib.request.Request(meta.get("download_uri") or meta["jsonl_download_uri"],
+                                                        headers={**hdr, "Accept": "*/*"}), timeout=300).read()
+    CACHE.parent.mkdir(exist_ok=True)
+    raw_path.write_bytes(raw)
+    return raw
+
+
+def _download() -> None:
+    raw = _raw()
     data = gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw
     text = data.decode()
     cards = json.loads(text) if text.lstrip().startswith("[") else [json.loads(l) for l in text.splitlines() if l.strip()]
@@ -133,7 +158,7 @@ def token_names() -> list[str]:
     if _TOKENS is None:
         path = CACHE.parent / "token-names.json"
         if not path.exists():
-            raw = (CACHE.parent / "oracle-cards.raw").read_bytes()
+            raw = _raw()                                 # (Unavailable under TABLE_OFFLINE=1 when the bulk file is not here, as db() is)
             data = (gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw).decode()
             cards = json.loads(data) if data.lstrip().startswith("[") else [json.loads(l) for l in data.splitlines() if l.strip()]
             names = sorted({c["name"] for c in cards if c.get("layout") in ("token", "double_faced_token")

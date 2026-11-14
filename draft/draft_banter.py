@@ -5,9 +5,11 @@ Speech only: nothing here touches a pack, a pick or a deck. Hard rules (same spi
   * the prompt carries no card names at all, only the moment ("a new pack opened", "Sam made a pick");
   * sparse: a global gap between lines, a per-seat gap, never the same seat twice in a row, a probability per kind of moment;
   * a slow or failed model, an empty reply or a blocked line falls back to a canned line and never stalls the draft.
-Fusion's lines come from local Gemma 4 on Ollama (offline). Claude's come from claude-haiku-5-5 ONLY if a key file exists
-(~/.divinci/star-trek-mtg/anthropic.env, one line ANTHROPIC_API_KEY=..., mode 0600); otherwise canned lines, and I can
-say a line by hand (claude_seat.py say). The key is read at call time and goes only in the x-api-key header.
+Fusion's lines come from local Gemma 4 on Ollama (offline). Claude's come from Claude through the API ONLY if a key file exists:
+the file ANTHROPIC_KEY_FILE names, else the author's two (~/.divinci/star-trek-mtg/live/anthropic.key, one line, the key; or
+~/.divinci/star-trek-mtg/anthropic.env, one line ANTHROPIC_API_KEY=...). Mode 0600, or it is not read. Otherwise canned lines, and
+I can say a line by hand (claude_seat.py say). The key is read at call time and goes only in the x-api-key header.
+DRAFT_BANTER=off: no model at all (see QUIET below).
 """
 from __future__ import annotations
 
@@ -58,6 +60,24 @@ GEMMA = "gemma4:e2b"
 HAIKU, ANTHROPIC_URL = "claude-opus-5-5", "https://api.anthropic.com/v1/messages"   # (name kept; it's Claude's own model)
 KEY_FILE = Path.home() / ".divinci/star-trek-mtg/anthropic.env"
 RAW_KEY_FILE = Path.home() / ".divinci/star-trek-mtg/live/anthropic.key"   # the table banter's key: one line, 0600
+
+
+def anthropic_key() -> str:
+    """Claude's API key for table talk, or "": from a key FILE only (0600, or it is skipped), never the environment, never printed,
+    logged or stored. ANTHROPIC_KEY_FILE names the file (one line: the key itself, or ANTHROPIC_API_KEY=...); without it the
+    author's two places are tried. A file that is missing, readable by others, or empty is skipped."""
+    named = os.environ.get("ANTHROPIC_KEY_FILE")
+    for kf, raw_ok in ([(Path(named).expanduser(), True)] if named else []) + [(RAW_KEY_FILE, True), (KEY_FILE, False)]:
+        try:
+            if not kf.is_file() or (kf.stat().st_mode & 0o077):
+                continue
+            line = kf.read_text().strip()
+        except OSError:
+            continue
+        key = line.split("=", 1)[1].strip() if line.startswith("ANTHROPIC_API_KEY=") else line if raw_ok else ""
+        if key:
+            return key
+    return ""
 
 
 # ---- the card-name guard
@@ -149,6 +169,9 @@ def clean(text: str) -> str:
     return t[: cut + 1] if cut > 130 else t[:400].rsplit(" ", 1)[0] + "…"
 
 
+# DRAFT_BANTER=off: the AI seats say nothing by themselves and no model, local or cloud, is ever asked for a line (a quiet draft; and
+# the tests that run the real server). People can still type; an AI seat can still be given a line by hand (claude_seat.py say).
+QUIET = os.environ.get("DRAFT_BANTER", "").strip().lower() in ("off", "0", "no", "false")
 VOICES = {"Claude": "Samantha", "Fusion": "Daniel"}   # Claude's chosen voice (same as at the table)      # macOS voices on the host laptop; both are installed here
 SAY_CMD = os.environ.get("DRAFT_SAY_CMD") or "say"      # tests point this at a harmless command
 
@@ -257,6 +280,8 @@ class Banter:
         return self._queue(who, "ask", "")
 
     def _queue(self, who: str, kind: str, detail: str):
+        if QUIET:
+            return "table talk from the AI seats is switched off"
         self.last_global = time.time()
         self.last_by[who] = self.last_global
         self.last_speaker = who
@@ -295,17 +320,7 @@ class Banter:
             return json.loads(r.read()).get("response", "")
 
     def _claude(self, kind: str, detail: str) -> str:
-        key = ""
-        for kf in (RAW_KEY_FILE, KEY_FILE):                     # key files only (0600); never printed, logged or stored
-            try:
-                if not kf.is_file() or (kf.stat().st_mode & 0o077):
-                    continue
-                line = kf.read_text().strip()
-            except OSError:
-                continue
-            key = (line.split("=", 1)[1].strip() if line.startswith("ANTHROPIC_API_KEY=") else line if kf == RAW_KEY_FILE else "")
-            if key:
-                break
+        key = anthropic_key()
         if not key:
             return ""
         body = {"model": HAIKU, "max_tokens": 300, "system": PERSONA["Claude"], "output_config": {"effort": "low"},

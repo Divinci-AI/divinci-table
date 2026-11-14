@@ -5,12 +5,18 @@ The OLD code is a FROZEN copy of the table as it was before the Game 4 retro pat
 It is never the live worktree: once the patch is applied there, "old" would be the new code and the test would compare new with new and pass
 whatever it found. A missing or unfrozen copy is a FAILURE, not a skip.
 
+The OLD table runs under the interpreter this test runs under, and it is older than the change that made the Mac text reader optional: it
+imports `Vision` (pyobjc-framework-Vision) at start-up. Under an interpreter without that package it cannot start at all; that is a missing
+package, not a table that fails to load an old game, so the test SKIPS and names the package (until 2026-11-14 it died with
+"Connection refused" after a minute, which is how it came to "fail under the system python").
+
     PYTHONDONTWRITEBYTECODE=1 python3 table/tests/restore_old_snapshot_test.py"""
 from __future__ import annotations
 
 import json
 import os
 import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
+import re
 import sys
 import time
 from pathlib import Path
@@ -40,9 +46,22 @@ def old_is_old() -> str | None:
     return None
 
 
+# What to install when the OLD table says a module is missing. The frozen copy is older than the change that made these optional: it imports
+# the Mac text reader (ocr_mac -> Vision) the moment it starts, where today's table starts without it.
+PACKAGE_FOR = {"Vision": "pyobjc-framework-Vision pyobjc-framework-Cocoa", "Cocoa": "pyobjc-framework-Cocoa", "Foundation": "pyobjc-framework-Cocoa",
+               "Quartz": "pyobjc-framework-Quartz", "objc": "pyobjc-core", "numpy": "numpy", "cv2": "opencv-python-headless", "PIL": "pillow"}
+
+
 class Old(R.Table):
     def __init__(self):
         super().__init__(code=OLD)
+        if self.proc.poll() is not None:               # the OLD table never came up. A package this interpreter lacks is not a bug in the table
+            log = (self.dir / "log").read_text(errors="replace")     # under test: skip and name it. Anything else is a failure, shown as it is.
+            m = re.search(r"ModuleNotFoundError: No module named '([^'.]+)", log)
+            if m:
+                cards_path.skip(f"the frozen pre-patch table needs the Python module '{m.group(1)}', which {sys.executable} does not have "
+                                f"(pip install {PACKAGE_FOR.get(m.group(1), m.group(1))}); today's table does not need it")
+            raise SystemExit("the frozen pre-patch table did not start:\n" + log[-1500:])
 
 
 def old_cards(t, seat, name, tapped=False):

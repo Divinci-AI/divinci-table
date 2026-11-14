@@ -6,6 +6,8 @@ published in the server's own clock. Two real servers on their own ports.
 """
 from __future__ import annotations
 
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file SKIPS, never fails, never downloads)
+cards_path.need_card_data()                            # the table needs the card data, and a test never downloads it (skips without it)
 import json
 import os
 os.environ.setdefault("TABLE_HIGHROLL", "first")        # tests start the first seat in the order; the opening high roll has its own test (opening_ceremony_test.py)

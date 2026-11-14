@@ -40,6 +40,8 @@
 <script src="/assets/seat.js" defer></script>
 <script src="/assets/urgent.js" defer></script>
 <script src="/assets/gameover.js" defer></script>
+<script src="/assets/matchrecap.js" defer></script>
+<script src="/assets/playedby.js" defer></script>
 <script src="/assets/tablebar.js" defer></script>
 <script src="/assets/dice3d.js" defer></script>
 <script src="/assets/checkin.js" defer></script>
@@ -121,9 +123,9 @@ addEventListener("mousemove", showTip);
 const WATCH = location.pathname === "/watch";
 function watchbar(d) {                                    // spectators: what just happened, in words, a turn behind
   const el = document.getElementById("watchbar"); el.hidden = false;
-  if (!d.board) { el.textContent = "📺 Watching · the first turn is still being played"; return; }
+  if (!d.board) { el.textContent = "📺 Watching · the first turn is still being played" + (d.match ? " · match: " + d.match.score : ""); return; }
   const life = Object.entries(d.life || {}).map(([n, v]) => `${esc(n)} ${esc(String(v))}`).join(" · ");
-  const over = d.game_over ? ` · <b>game over: ${esc(d.winner || "")} wins</b>` : "";
+  const over = (d.game_over ? ` · <b>game over: ${d.winner ? esc(d.winner) + " wins" : "a draw"}</b>` : "") + (d.match ? ` · match: <b>${esc(d.match.score)}</b>` : "");
   const give = d.donate && /^https:\/\//.test(d.donate.url)
     ? ` · <a href="${esc(d.donate.url)}" target="_blank" rel="noopener noreferrer">Donate to ${esc(d.donate.name)} ↗</a>` : "";
   const said = (d.events || []).filter(e => e.type === "say" && e.text).slice(-5)

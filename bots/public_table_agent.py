@@ -110,6 +110,10 @@ def main():
         if legal.get("note") in ("the game is over", "you have lost"):
             print(f"{legal['note']} after {acts} moves", flush=True)
             return
+        # A table that plays a match (best two out of three) says "match continues: the next game is starting" between games, never
+        # "the game is over" until the MATCH is: this loop then simply waits below, and plays the next game with the same seat key.
+        if str(legal.get("note") or "").startswith("match continues") and quiet % 20 == 0:
+            print(f"  {legal['note']} ({(legal.get('match') or {}).get('score')})", flush=True)
         if not legal.get("actions"):
             if quiet % 20 == 0:
                 print(f"  waiting: {legal.get('note') or 'nothing to do yet'}", flush=True)

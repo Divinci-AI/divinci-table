@@ -55,7 +55,7 @@
     else if (e.target.closest && e.target.closest(".go-pill")) { hidden = false; const b = document.querySelector(".go-banner"); if (b) b.style.display = ""; e.target.closest(".go-pill").style.display = "none"; }
   });
   async function poll() {
-    try { const r = await fetch("/api/game/summary", { cache: "no-store" }); const d = await r.json(); if (d.over) show(d); else if (shownAt !== null) clear(); } catch (e) { window.__gameOverError = String(e); }
+    try { const r = await fetch("/api/game/summary", { cache: "no-store" }); const d = await r.json(); if (d.over && !d.match) show(d); else if (shownAt !== null) clear();   /* a match: assets/matchrecap.js shows the recap card instead */ } catch (e) { window.__gameOverError = String(e); }
     setTimeout(poll, 4000);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", poll); else poll();

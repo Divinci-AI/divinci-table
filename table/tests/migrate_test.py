@@ -4,9 +4,11 @@ check every AI seat comes back identical — hand, board, graveyard, life, and t
 
     python3 table/tests/migrate_test.py
 
-Two servers on spare ports (8817 → 8818), fair seeding off, their own token files; never touches a
+Two servers on free ports (A → B), fair seeding off, their own token files; never touches a
 running game. Prints fingerprints only, never a hidden card.
 """
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file SKIPS, never fails, never downloads)
+cards_path.need_card_data()                            # the table needs the card data, and a test never downloads it (skips without it)
 import hashlib
 import json
 import os
@@ -74,7 +76,9 @@ def fingerprint(port, token, seat):
 
 
 BEFORE = set(RESEARCH.glob("*"))
-A, B = 8817, 8818
+import freeport  # noqa: E402
+A = freeport.free_port()                                 # (until 2026-11-14: 8817 and 8818, which pilot_ctl_test and pilot_next_test
+B = next(p for p in iter(freeport.free_port, None) if p != A)   # used too: two of the three at once knocked each other over)
 TA, TB = TMP / "token-a", TMP / "token-b"
 srv_a = start(A, TA, "--order", "Fusion,Ann,Claude")
 srv_b = None

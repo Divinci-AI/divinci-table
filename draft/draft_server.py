@@ -5,6 +5,46 @@
 Binds 127.0.0.1 only. Each person opens their own link (a secret in ?k=); tokens are written to
 ../live/draft-links.txt (0600). Remote players come in through a tunnel. Card art is served only to a valid seat key, and only for the cards
 that person has been shown (their current pack and pool). Each person sees only their own pack.
+
+The broadcast (`/broadcast?k=<broadcast key>`, JSON at `/api/broadcast`) is the scene to capture for a stream: the four named seats,
+how many cards each has taken, and the picks the reveal rule allows. Its key is its own secret (the line `Broadcast: ...` in the
+links file): it opens no seat route, and no seat key opens it. It never carries a pack's contents, what was passed, a key, a card id
+or art, a bot seat's picks, or anything about a pick that is not yet revealed except that it exists (a face-down placeholder).
+Table talk is repeated only when the line names no card.
+
+A named seat handed to a bot (`--bot Sam`) is still a seat on the broadcast: its name, the tag "bot", how many cards it has taken,
+each of them face down. (Until 2026-11-14 it vanished: an all-AI rehearsal with bots in both people's seats showed two columns.)
+Its picks are NOT shown, during the draft or after it: the guarantee above stands. The seats nobody was named for (seats 5 to 8) are
+not shown at all, as before. A bot seat has no link, no token, no deck, and the draft never waits on it.
+
+    --broadcast-reveal pack-end   (default) a pack's picks are shown when that pack ends
+                       delayed    pick p is shown once the whole table has finished pick p+N of that pack, or the pack ended
+                       ai-live    the AI seats as in `delayed`; people's picks when the pack ends
+                       draft-end  nothing until the draft is over
+    --broadcast-delay N|end       N picks (default 3) for `delayed` and `ai-live`; `end` shows nothing until the draft is over
+    --broadcast-bot-picks         (off by default) also show a `--bot` seat's picks, under the SAME rule and delay as an AI seat's
+
+What a delayed reveal still leaks, honestly. A delay hides only the pick being made now. Once a seat's pick is shown, the drafter who
+passed that pack knows exactly what was taken over what (here Michael passes to Sam, Sam to Claude, Claude to Fusion in packs 1 and 3),
+and every viewer learns that seat's colours, which stay useful for the rest of the draft: what will be left in the packs it passes,
+what it will send back in pack 2, what to cut in pack 3. With a delay under 7 a viewer can also learn what was taken out of a pack
+before that pack reaches them. No N fixes this; a larger N only makes it later. `ai-live` moves the leak onto the AI seats, and
+unevenly: the person seated just before an AI seat reads it best. `pack-end` gives nothing usable inside a pack, but everyone's colours
+between packs, and the AI seats cannot watch a stream. Only `draft-end` gives a watching drafter nothing during the draft, and even
+then every pool is public before deckbuilding and the matches. `pack-end` is the default because it is the least a stream can show
+and still be worth watching: no pick in a pack can be informed by it. For a draft that matters, use `draft-end`.
+
+Is `--broadcast-bot-picks` safe? Under the same rule, it leaks nothing of a KIND the rule does not already leak for Claude's and
+Fusion's seats. A shown pick tells the drafter who passed that pack what was taken from it, and tells everyone that seat's colours and
+so what it will leave in the packs it passes on: exactly what the chosen rule already allows for an AI seat, no sooner (`ai-live`
+treats a bot seat as an AI seat, never as a person; `pack-end` shows nothing of it inside a pack; `draft-end` nothing at all). Two
+things are different about a bot, and both make its picks worth LESS to a watcher, not more: it builds no deck and plays no match, so
+nothing is learnt about a deck anyone will face; and its rule is fixed and already in this repository (draft.py bot_pick: rarity,
+then the colours of its own pool), so its shown pool lets a watcher predict its next pick more surely than a seat with a mind, which
+is the same thing a careful drafter already reads from what comes back around the table. What it does add is one more seat's worth
+of the same leak: with a short delay, one more seat whose removals from a pack are public before that pack has gone all the way
+round. So it is the host's choice, and off unless asked for: fine for a rehearsal or a show draft, pointless to switch on with
+`draft-end`, and for a draft that matters the answer is the same as above.
 """
 from __future__ import annotations
 
@@ -12,6 +52,7 @@ import argparse
 import json
 import os
 import random
+import re
 import secrets
 import threading
 import time
@@ -31,11 +72,32 @@ HUMANS = {i: n.strip() for i, n in enumerate(os.environ.get("DRAFT_HUMANS", "Mic
 AGENTS = {2: "Claude", 3: "Fusion"}          # AI participants (they pick for their own seat via the same API); the rest are bots
 NAMES = {**HUMANS, **AGENTS}
 REQUIRED = set(NAMES)                        # a step advances when all four have picked
+BOTS: dict[int, str] = {}                    # named seats a bot drafts tonight (--bot): no link, no token, no deck, never waited on;
+                                             # still a seat on the broadcast (marked "bot"), which is the only place this is read
 # Match handoff: the host publishes each player's table link here; a link is only ever shown to its own player. A published link must
 # point at the host's own table (loopback) or at a Cloudflare quick tunnel; DRAFT_LINK_HOST_SUFFIXES adds more (comma-separated).
 LINK_HOSTS = ("127.0.0.1", "localhost")
 LINK_SUFFIXES = (".trycloudflare.com",) + tuple(x.strip().lower() for x in os.environ.get("DRAFT_LINK_HOST_SUFFIXES", "").split(",") if x.strip())
 LOOPBACK = ("127.0.0.1", "::1")
+BROADCAST_REVEALS = ("pack-end", "delayed", "ai-live", "draft-end")   # see the module docstring; the first is the default
+
+
+def broadcast_delay(v) -> int | str:
+    """--broadcast-delay: a whole number of picks (0 or more), or "end" (nothing is shown until the draft is over)."""
+    if str(v).strip().lower() == "end":
+        return "end"
+    n = int(v)
+    if n < 0:
+        raise ValueError("the delay is 0 or more picks, or 'end'")
+    return n
+
+
+def clean_score(text) -> str:
+    """A match score for the page ("Sam leads 1–0"): one short line of plain text, or "" (control characters and anything long are not a score)."""
+    if not isinstance(text, str):
+        return ""
+    t = " ".join(text.split())
+    return t if 0 < len(t) <= 80 and all(ch >= " " and ch != "\x7f" for ch in t) else ""
 
 
 def clean_link(url) -> str | None:
@@ -66,6 +128,36 @@ def private_write(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
+AGENT_TOKENS = "draft-agent-tokens.json"     # beside the links file: {AI seat's name: its token}, 0600
+TOKEN_OK = re.compile(r"[A-Za-z0-9_-]{16,128}")
+
+
+def kept_agent_tokens(path: Path) -> dict[str, str]:
+    """The AI seats' tokens as the server last wrote them, for a --keep restart to hand back. A missing or unreadable file, or
+    anything in it that is not a token, is simply not kept (that seat gets a new one)."""
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {n: t for n, t in data.items() if isinstance(n, str) and isinstance(t, str) and TOKEN_OK.fullmatch(t)}
+
+
+def write_key_files(dr, live: Path | None = None) -> None:
+    """The two key files, 0600, each replaced whole (a reader never sees half of one): the people's links with the broadcast's
+    line, and the AI seats' tokens. Only seats that are drafting are in them: a seat handed to a bot has no key."""
+    live = live or LIVE
+    private_write(live / "draft-links.txt", links_text(dr))
+    private_write(live / AGENT_TOKENS, json.dumps({NAMES[s]: t for t, s in dr.tokens.items() if s in AGENTS}))
+
+
+def links_text(dr) -> str:
+    """The 0600 links file: one line per person, then the broadcast's own line (a restart with --keep reads both back)."""
+    return ("".join(f"{NAMES[s]}: /?k={t}\n" for t, s in dr.tokens.items() if s in HUMANS)
+            + f"Broadcast: /broadcast?k={dr.broadcast_key}\n")
+
+
 def make_bots(names) -> list[str]:
     """`--bot Sam`: that person or agent isn't playing tonight, so a bot drafts their seat. The draft no longer waits on it and
     it gets no link or token. Call before creating the Draft. Returns the names it changed (unknown names are ignored)."""
@@ -74,14 +166,18 @@ def make_bots(names) -> list[str]:
         seat = next((s for s, nm in NAMES.items() if nm.lower() == str(n).lower()), None)
         if seat is None:
             continue
+        BOTS[seat] = NAMES[seat]                      # remembered for the broadcast only (its column stays, marked "bot")
         HUMANS.pop(seat, None); AGENTS.pop(seat, None); NAMES.pop(seat, None); REQUIRED.discard(seat)
         done.append(n)
     return done
 
 
 class Draft:
-    def __init__(self, seed: int, keep: Path | None = None):
+    def __init__(self, seed: int, keep: Path | None = None, reveal: str = BROADCAST_REVEALS[0], delay: int | str = 3,
+                 bot_picks: bool = False):
         self.seed = seed
+        self.bc_reveal, self.bc_delay = reveal, delay
+        self.bc_bot_picks = bool(bot_picks)        # --broadcast-bot-picks: a --bot seat's picks follow the AI seats' rule (default: never shown)
         self.rng = random.Random(seed)
         self.lock = threading.Lock()
         self.cards = {c["id"]: c for c in json.loads(D.CARDS_JSON.read_text())}
@@ -103,10 +199,74 @@ class Draft:
         self.ready: set[int] = set()               # seats that pressed "I'm ready" on a legal deck (saved with the decks)
         self.match: dict | None = self._load_match()   # {"links": {player name: url}, "note": str}: the host's handoff, never logged
         self.tokens = {secrets.token_urlsafe(16): s for s in NAMES}
-        if keep:                                       # a restart keeps the same links
-            old = {l.split(": ")[0]: l.strip().split("k=")[1] for l in keep.read_text().splitlines() if "k=" in l}
+        self.broadcast_key = secrets.token_urlsafe(16)  # the stream's own secret: opens /broadcast and nothing else
+        # any card name, whatever its length or last character (the banter guard skips short names and ones ending in "!")
+        self.bc_names = re.compile(r"(?<![a-z])(?:" + "|".join(sorted((re.escape(c["name"]) for c in self.cards.values()), key=len, reverse=True))
+                                   + r")(?![a-z])", re.I)
+        if keep:
+            # A restart keeps every key: the people's links and the broadcast's (the links file), and the AI seats' tokens (the file
+            # beside it). Until 2026-11-14 the AI seats got new tokens at every restart, so a running claude_seat.py or
+            # fusion_seat.py, which reads its token once, was refused from then on and had to be restarted too.
+            # No two seats ever share a key and the broadcast key is never a seat's, even if a file was edited by hand: the people's
+            # links win (they are open in browsers), then the broadcast's key, and an AI seat whose saved token is already in use
+            # gets a new one. A seat that is a bot now is not in NAMES, so its old token is simply gone.
+            old = {l.split(": ")[0]: l.strip().split("k=")[1] for l in (keep.read_text().splitlines() if keep.exists() else []) if "k=" in l}
+            agents = kept_agent_tokens(keep.with_name(AGENT_TOKENS))
             fresh = {s: t for t, s in self.tokens.items()}
-            self.tokens = {old.get(n) or fresh[s]: s for s, n in NAMES.items()}
+            of, taken = {}, set()
+            for s, n in NAMES.items():
+                if s in HUMANS:
+                    of[s] = old.get(n) if old.get(n) and old.get(n) not in taken else fresh[s]
+                    taken.add(of[s])
+            self.broadcast_key = old.get("Broadcast") or self.broadcast_key
+            while self.broadcast_key in taken:
+                self.broadcast_key = secrets.token_urlsafe(16)
+            taken.add(self.broadcast_key)
+            for s, n in NAMES.items():
+                if s not in HUMANS:
+                    of[s] = agents.get(n) if agents.get(n) and agents.get(n) not in taken else fresh[s]
+                    taken.add(of[s])
+            self.tokens = {of[s]: s for s in NAMES}
+        while self.broadcast_key in self.tokens:       # the broadcast key is never a seat key
+            self.broadcast_key = secrets.token_urlsafe(16)
+
+    # ---- the broadcast (a stream's scene): only what the reveal rule allows; see the module docstring
+    def _revealed(self, seat: int, i: int) -> bool:
+        """May the broadcast show this seat's i-th pick (0-based, over the whole draft)?"""
+        rnd, p = divmod(i, D.PACK_SIZE)                # pick p+1 of pack rnd+1
+        if seat in BOTS and not self.bc_bot_picks:
+            return False                               # a bot seat's picks: never, not even when the draft is over (the module docstring)
+        if self.done:
+            return True
+        if self.bc_reveal == "draft-end" or self.bc_delay == "end":
+            return False
+        if rnd < self.rnd:                             # that pack has ended
+            return True
+        if self.bc_reveal == "pack-end" or (self.bc_reveal == "ai-live" and seat in HUMANS):
+            return False                               # (a bot seat is not in HUMANS: `ai-live` treats it as an AI seat, never as a person)
+        return self.pick_no >= p + 1 + self.bc_delay   # the whole table has finished pick p+1+N of this pack
+
+    def broadcast(self) -> dict:
+        with self.lock:
+            seats = []
+            for seat, name in sorted({**NAMES, **BOTS}.items()):   # in seat order: a seat handed to a bot keeps its place at the table
+                shown, tally = [], {}
+                for i, c in enumerate(self.picks[seat]):
+                    if not self._revealed(seat, i):
+                        continue
+                    for col in c["colors"] or ["C"]:
+                        tally[col] = tally.get(col, 0) + 1
+                    shown.append({"name": c["name"], "cost": c["mana_cost"] or "", "rarity": c["rarity"], "colors": c["colors"],
+                                  "pack": i // D.PACK_SIZE + 1, "pick": i % D.PACK_SIZE + 1})
+                seats.append({"name": name, "kind": "bot" if seat in BOTS else "human" if seat in HUMANS else "AI", "picked": len(self.picks[seat]),
+                              "hidden": len(self.picks[seat]) - len(shown), "colors": tally, "picks": shown[::-1],
+                              "ready": self.done and seat in self.ready and seat not in BOTS})
+            d = {"round": min(self.rnd + 1, D.PACKS), "pick": self.pick_no + 1, "packs": D.PACKS, "pack_size": D.PACK_SIZE,
+                 "done": self.done, "waiting_on": [NAMES[s] for s in NAMES if s not in self.pending and not self.done],
+                 "reveal": {"mode": self.bc_reveal, "delay": self.bc_delay}, "bot_picks": self.bc_bot_picks, "seats": seats}
+        d["talk"] = [{"who": e["who"], "text": e["text"], "ai": e["ai"]}
+                     for e in self.banter.since(0) if not self.bc_names.search(e["text"])][-5:]
+        return d
 
     def view(self, seat: int) -> dict:
         d = {"you": NAMES[seat], "round": self.rnd + 1, "pick": self.pick_no + 1, "done": self.done,
@@ -269,18 +429,39 @@ class Draft:
             if data.get("seed") != self.seed:
                 return None
             links = {n: u for n, u in (data.get("links") or {}).items() if n in NAMES.values() and clean_link(u)}
-            return {"links": links, "note": str(data.get("note") or "")[:200]} if links else None
+            scores = {n: clean_score(t) for n, t in (data.get("scores") or {}).items() if n in NAMES.values() and clean_score(t)}
+            return {"links": links, "note": str(data.get("note") or "")[:200], "scores": scores} if links else None
         except (OSError, ValueError, AttributeError):
             return None
 
     def publish_match(self, body: dict) -> tuple[int, dict]:
         """The host's handoff: {"links": {player: url}, "note": str} replaces what was published; {"clear": true} withdraws it.
+        {"scores": {player: "Sam leads 1–0"}} alone (no links) updates the match score shown beside each player's Join the match
+        button (a best-two-out-of-three match: match_when_ready.sh --follow sends it after every game) and changes nothing else.
         Replies carry names only, never a link."""
         with self.lock:
             if not isinstance(body, dict):
                 return 400, {"error": "bad request"}
             if body.get("clear"):
                 self.match = None
+            elif "scores" in body and "links" not in body:
+                if not self.match:
+                    return 409, {"error": "no match is published yet"}
+                raw = body.get("scores")
+                if not isinstance(raw, dict):
+                    return 400, {"error": "scores must be {player: text}"}
+                by_lower = {n.lower(): n for n in NAMES.values()}
+                scores = dict(self.match.get("scores") or {})
+                for who, text in raw.items():
+                    name = by_lower.get(str(who).lower())
+                    if name is None:
+                        return 400, {"error": "unknown player in scores"}
+                    t = clean_score(text)
+                    if t:
+                        scores[name] = t
+                    else:
+                        scores.pop(name, None)
+                self.match = {**self.match, "scores": scores}
             else:
                 if not self.done:
                     return 409, {"error": "the draft is not over yet"}
@@ -297,7 +478,7 @@ class Draft:
                         return 400, {"error": f"the link for {name} is not an allowed table link"}
                     links[name] = url
                 note = "".join(ch for ch in str(body.get("note") or "") if ch >= " " and ch != "\x7f")[:200]
-                self.match = {"links": links, "note": note}
+                self.match = {"links": links, "note": note, "scores": dict((self.match or {}).get("scores") or {})}   # (a re-published link keeps the score)
             f = LIVE / "draft-match.json"
             if self.match:
                 private_write(f, json.dumps({"seed": self.seed, **self.match}))
@@ -315,7 +496,8 @@ class Draft:
                 if self.done:
                     self._decks_init()
                 status = "starting" if self.done and all(s in self.ready for s in NAMES) else "waiting"
-            return {"status": status, "link": link, "note": (self.match or {}).get("note", "")}
+            return {"status": status, "link": link, "note": (self.match or {}).get("note", ""),
+                    "score": ((self.match or {}).get("scores") or {}).get(NAMES[seat], "")}   # this player's own match: public information
 
     @staticmethod
     def _card(c: dict) -> dict:
@@ -351,6 +533,22 @@ class Draft:
         self.quiet = False
         for seat, cid in data.get("pending", {}).items():
             self.pending[int(seat)] = cid
+        self.catch_up()
+
+    def catch_up(self) -> int:
+        """Advance every step that is owed, and save. A step is owed when every seat the draft still waits on has its pick in.
+        pick() advances the moment the last one arrives, so while the server runs nothing is ever owed. After a restart it can be:
+        `--keep --bot Sam` (Sam went to bed after the others had picked) takes Sam out of the seats waited on, the saved picks are
+        put back, and before 2026-11-14 nothing looked again: the draft sat there until someone sent a pick a second time. A step
+        advanced here is a real new step (table talk may follow it), unlike the replayed ones. With nobody waited on at all (every
+        named seat a bot) the whole draft runs to its end. Returns how many steps it advanced."""
+        n = 0
+        while not self.done and all(s in self.pending for s in REQUIRED):
+            self._advance()
+            n += 1
+        if n:
+            self._persist()
+        return n
 
     def _advance(self) -> None:
         self.history.append({str(k): v for k, v in self.pending.items()})
@@ -386,7 +584,7 @@ class Draft:
         LIVE.mkdir(exist_ok=True)
         D.OUT_DIR.mkdir(exist_ok=True)
         (D.OUT_DIR / f"draft-live-seed{self.seed}.json").write_text(json.dumps(
-            {"seed": self.seed, "humans": HUMANS, "agents": AGENTS, "all_pools": [[c["id"] for c in p] for p in self.picks]}, indent=1))
+            {"seed": self.seed, "humans": HUMANS, "agents": AGENTS, "bots": BOTS, "all_pools": [[c["id"] for c in p] for p in self.picks]}, indent=1))
 
 
 PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -573,7 +771,7 @@ function openMatch(){const l=MATCH.link;if(!l||!/^https?:\/\//i.test(l))return;c
 function drawRdy(){if(!DONE)return;const st=DK?stats():null,tot=st?st.total:0,legal=tot===40;
  const strip="Ready: "+RDY.map(p=>p.ready?`<span class="ok">${esc(p.name)} ✓</span>`:`<span class="bld">${esc(p.name)} … (building)</span>`).join(", ")+(MATCH.status==="ready"?"":` <span class="m">· Match starting when everyone is ready…</span>`);
  let h;
- if(MATCH.status==="ready"&&MATCH.link)h=`<span id="rdymsg">${esc(MATCH.note||"Your match is ready.")}</span><label class="m"><input type="checkbox" id="rdyauto" ${AUTOM?"checked":""}> open automatically</label><button id="rdyb" class="join" data-rdy="join">Join the match</button>`;
+ if(MATCH.status==="ready"&&MATCH.link)h=`<span id="rdymsg">${esc(MATCH.note||"Your match is ready.")}</span><label class="m"><input type="checkbox" id="rdyauto" ${AUTOM?"checked":""}> open automatically</label><button id="rdyb" class="join" data-rdy="join">Join the match</button>${MATCH.score?`<span class="m" id="rdyscore">Match: <b>${esc(MATCH.score)}</b></span>`:""}`;
  else if(MY_READY)h=`<span id="rdymsg">${MATCH.status==="starting"?"Everyone is ready. Match starting…":"Ready ✓ — waiting for others"} <span class="m">(editing your deck cancels ready)</span></span><button class="sm" data-rdy="unready">Unready</button>`;
  else h=`<span id="rdymsg">${RMSG||(legal?"Your deck has 40 cards.":tot>40?"Cut "+(tot-40)+" more to be ready.":"Add "+(40-tot)+" more to be ready.")}</span><button id="rdyb" data-rdy="ready" ${legal?"":"disabled"}>I'm ready</button>`;
  const sig=strip+"|"+h;if(sig===LASTR)return;LASTR=sig;document.getElementById("rdys").innerHTML=strip;document.getElementById("rdyc").innerHTML=h;
@@ -657,6 +855,93 @@ tick();setInterval(tick,1500);
 </script></body></html>"""
 
 
+BROADCAST_PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Star Trek draft: broadcast</title>
+<style>
+html,body{margin:0;height:100%;background:#0b0f14;overflow:hidden}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;background:#0b0f14;color:#eef2f6;
+ font-family:system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;display:flex;flex-direction:column}
+header{height:112px;flex:none;display:flex;align-items:center;gap:36px;padding:0 44px;border-bottom:2px solid #1e2a38;background:#0f151d}
+#title{font-size:24px;letter-spacing:.14em;text-transform:uppercase;color:#8fa3b8}
+#where{font-size:54px;font-weight:800;white-space:nowrap}
+#wait{font-size:32px;color:#f0b84a;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#wait.ok{color:#7ddc8a}
+#rule{position:absolute;right:44px;bottom:18px;font-size:22px;color:#8fa3b8;text-align:right}
+#seats{flex:1;min-height:0;display:flex;gap:20px;padding:20px 44px}
+.seat{flex:1 1 0;min-width:0;background:#121a24;border:2px solid #1e2a38;border-radius:18px;padding:18px 22px;display:flex;flex-direction:column;overflow:hidden}
+.seat.waiting{border-color:#f0b84a}
+.top{display:flex;align-items:center;gap:14px}
+.name{font-size:46px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{font-size:20px;font-weight:700;letter-spacing:.1em;padding:4px 12px;border-radius:999px;background:#24364a;color:#a9c6e6;text-transform:uppercase}
+.tag.ai{background:#3a2a4d;color:#d3b4f2}
+.tag.bot{background:#33383f;color:#c3ccd6}
+.seat.bot{border-style:dashed}
+.rdy{font-size:20px;font-weight:700;color:#7ddc8a;margin-left:auto}
+.count{font-size:26px;color:#a9b8c8;margin:8px 0 10px}
+.count b{color:#eef2f6;font-size:34px}
+.tally{display:flex;gap:12px;min-height:44px;align-items:center;flex-wrap:wrap}
+.tally span{display:flex;align-items:center;gap:6px;font-size:28px;font-weight:700}
+.pip{display:inline-block;width:26px;height:26px;border-radius:50%;font-size:16px;font-weight:800;line-height:26px;text-align:center;color:#10151a;background:#b9c2cc;flex:none}
+.pip.W{background:#f6eecb}.pip.U{background:#6fb4ee}.pip.B{background:#8d7f9c;color:#fff}.pip.R{background:#ee7a66}.pip.G{background:#6cc67a}.pip.C{background:#b9c2cc}
+.pip.wide{width:auto;padding:0 7px;border-radius:13px}
+.down{display:flex;flex-wrap:wrap;gap:5px;margin:12px 0 6px;min-height:0}
+.down i{width:20px;height:28px;border-radius:4px;background:#22354a;border:2px solid #36506c;box-sizing:border-box}
+.downl{font-size:20px;color:#8fa3b8;margin-top:10px}
+.picks{flex:1;min-height:0;overflow:hidden;margin-top:8px}
+.picks.dense{column-count:2;column-gap:14px}
+.p{display:flex;align-items:center;gap:8px;font-size:27px;line-height:38px;border-left:6px solid #7d8894;padding-left:10px;margin-bottom:5px;break-inside:avoid}
+.picks.dense .p{font-size:19px;line-height:27px;margin-bottom:3px;border-left-width:5px}
+.picks.dense .pip{width:18px;height:18px;line-height:18px;font-size:12px}
+.picks.dense.full .p{font-size:17px;line-height:23px;margin-bottom:2px}
+.p .n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.p .cost{display:flex;gap:2px;flex:none}
+.p.common{border-color:#7d8894}.p.uncommon{border-color:#9fd0ee}.p.uncommon .n{color:#c5e4f7}
+.p.rare{border-color:#f0b84a}.p.rare .n{color:#f6cf7c}.p.mythic{border-color:#ff7a3d}.p.mythic .n{color:#ff9d6e}
+.none{font-size:24px;color:#63748a;margin-top:10px}
+#talk{height:176px;flex:none;border-top:2px solid #1e2a38;background:#0f151d;padding:12px 44px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+.l{font-size:28px;line-height:38px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#c9d3de}
+.l b{color:#f0b84a;margin-right:10px}.l.ai b{color:#d3b4f2}
+.l:last-child{color:#fff}
+#off{position:absolute;right:44px;bottom:50px;font-size:18px;color:#e06c5a;display:none}
+</style></head><body><div id="stage">
+<header><div id="title">Star Trek booster draft</div><div id="where">&nbsp;</div><div id="wait"></div></header>
+<div id="seats"></div><div id="talk"></div><div id="rule"></div><div id="off">reconnecting</div></div>
+<script>
+const K=new URLSearchParams(location.search).get("k")||"";
+const $=id=>document.getElementById(id);
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+function fit(){const s=Math.min(innerWidth/1920,innerHeight/1080);const st=$("stage").style;st.transform="scale("+s+")";st.left=(innerWidth-1920*s)/2+"px";st.top=(innerHeight-1080*s)/2+"px"}
+addEventListener("resize",fit);fit();
+function pips(cost){const box=el("span","cost");(cost.match(/\{[^}]*\}/g)||[]).forEach(t=>{const v=t.slice(1,-1);const one="WUBRG".includes(v)&&v.length===1;
+  box.appendChild(el("span","pip "+(one?v:"C")+(v.length>1?" wide":""),one?"":v))});return box}
+function ruleText(r){if(r.delay==="end"||r.mode==="draft-end")return"Picks are shown when the draft is over";
+  const n=r.delay+" pick"+(r.delay===1?"":"s")+" later";
+  if(r.mode==="pack-end")return"Picks are shown when each pack ends";
+  if(r.mode==="ai-live")return"AI picks are shown "+n+"; people's picks when the pack ends";
+  return"Picks are shown "+n}
+function draw(d){
+  $("where").textContent=d.done?"Draft complete":"Pack "+d.round+" of "+d.packs+"  ·  Pick "+d.pick+" of "+d.pack_size;
+  const w=$("wait");w.className=d.waiting_on.length?"":"ok";
+  w.textContent=d.done?"Building decks":d.waiting_on.length?"Waiting on "+d.waiting_on.join(", "):"";
+  $("rule").textContent=d.done?"":ruleText(d.reveal);
+  const root=$("seats");root.textContent="";
+  d.seats.forEach(s=>{const bot=s.kind==="bot";const c=el("div","seat"+(d.waiting_on.includes(s.name)?" waiting":"")+(bot?" bot":""));
+    const top=el("div","top");top.appendChild(el("div","name",s.name));top.appendChild(el("div","tag"+(s.kind==="AI"?" ai":bot?" bot":""),s.kind));
+    if(s.ready)top.appendChild(el("div","rdy","READY"));c.appendChild(top);
+    const cnt=el("div","count");cnt.appendChild(el("b","",String(s.picked)));cnt.appendChild(document.createTextNode(" card"+(s.picked===1?"":"s")+" picked"));c.appendChild(cnt);
+    const ty=el("div","tally");"WUBRGC".split("").forEach(k=>{if(s.colors[k]){const x=el("span");x.appendChild(el("span","pip "+k));x.appendChild(document.createTextNode(String(s.colors[k])));ty.appendChild(x)}});c.appendChild(ty);
+    if(s.hidden){c.appendChild(el("div","downl",s.hidden+" face down"+(bot&&!d.bot_picks?" (a bot's picks are not shown)":"")));const dn=el("div","down");for(let i=0;i<s.hidden;i++)dn.appendChild(el("i"));c.appendChild(dn)}
+    const pk=el("div","picks"+(s.picks.length>10?" dense":"")+(s.picks.length>36?" full":""));
+    s.picks.forEach(p=>{const r=el("div","p "+p.rarity);r.appendChild(el("span","n",p.name));r.appendChild(pips(p.cost));pk.appendChild(r)});
+    if(!s.picks.length&&!s.hidden)pk.appendChild(el("div","none","No picks yet"));
+    c.appendChild(pk);root.appendChild(c)});
+  const t=$("talk");t.textContent="";d.talk.slice(-4).forEach(e=>{const l=el("div","l"+(e.ai?" ai":""));l.appendChild(el("b","",e.who));l.appendChild(document.createTextNode(e.text));t.appendChild(l)});
+}
+async function poll(){try{const r=await fetch("api/broadcast?k="+encodeURIComponent(K),{cache:"no-store"});if(!r.ok)throw 0;draw(await r.json());$("off").style.display="none"}catch(e){$("off").style.display="block"}}
+poll();setInterval(poll,2000);
+</script></body></html>
+"""
+
+
 def make_handler(dr: Draft):
     class H(BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -699,6 +984,13 @@ def make_handler(dr: Draft):
                 if not self._host_only():
                     return self._json(403, {"error": "host only"})
                 return self._json(200, dr.host_ready_state())
+            if path in ("/broadcast", "/api/broadcast"):  # the stream's own key and nothing else: a seat key is refused here
+                q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+                if not secrets.compare_digest((q.get("k") or [""])[0].encode(), dr.broadcast_key.encode()):
+                    return self._json(403, {"error": "the broadcast needs its own link"})
+                if path == "/broadcast":
+                    return self._send(200, "text/html; charset=utf-8", BROADCAST_PAGE.encode())
+                return self._json(200, dr.broadcast())
             seat = self._seat()
             if seat is None:
                 return self._json(403, {"error": "this draft needs your own link"})
@@ -808,8 +1100,15 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=random.SystemRandom().randrange(1, 10**6))
     ap.add_argument("--port", type=int, default=8820)
-    ap.add_argument("--keep", action="store_true", help="reuse the links in live/draft-links.txt")
+    ap.add_argument("--keep", action="store_true",
+                    help="carry on a draft after a restart: the saved picks, the people's links, the broadcast key and the AI seats' tokens")
     ap.add_argument("--bot", action="append", default=[], help="a named seat a bot drafts tonight (e.g. --bot Sam); repeatable")
+    ap.add_argument("--broadcast-reveal", choices=BROADCAST_REVEALS, default=BROADCAST_REVEALS[0],
+                    help="when the broadcast shows a pick (see the top of this file); default: when its pack ends")
+    ap.add_argument("--broadcast-delay", type=broadcast_delay, default=3, metavar="N|end",
+                    help="for delayed/ai-live: a pick is shown N picks later (default 3); 'end': nothing until the draft is over")
+    ap.add_argument("--broadcast-bot-picks", action="store_true",
+                    help="also show a --bot seat's picks on the broadcast, under the same rule and delay as an AI seat's (default: never shown)")
     a = ap.parse_args()
     if a.bot:
         print(f"bots draft for: {', '.join(make_bots(a.bot)) or '(no such seat)'}", flush=True)
@@ -818,16 +1117,17 @@ if __name__ == "__main__":
     state = LIVE / "draft-state.json"
     if a.keep and state.exists():
         a.seed = json.loads(state.read_text())["seed"]
-    dr = Draft(a.seed, links if (a.keep and links.exists()) else None)
+    if any(n.lower() == "broadcast" for n in NAMES.values()):
+        raise SystemExit("a seat cannot be named Broadcast: that line of the links file is the stream's key")
+    dr = Draft(a.seed, links if a.keep else None, a.broadcast_reveal, a.broadcast_delay, a.broadcast_bot_picks)
     if a.keep and state.exists():
-        dr.restore(state)
-        print(f"restored: pack {dr.rnd + 1}, pick {dr.pick_no + 1}, {len(dr.history)} steps replayed", flush=True)
-    links.touch(mode=0o600)
-    links.chmod(0o600)
-    links.write_text("".join(f"{NAMES[s]}: /?k={t}\n" for t, s in dr.tokens.items() if s in HUMANS))
-    ag = LIVE / "draft-agent-tokens.json"
-    ag.touch(mode=0o600)
-    ag.chmod(0o600)
-    ag.write_text(json.dumps({NAMES[s]: t for t, s in dr.tokens.items() if s in AGENTS}))
+        n0 = len(json.loads(state.read_text()).get("history") or [])
+        dr.restore(state)                              # (replays the saved steps, then advances a step that is owed: catch_up)
+        owed = len(dr.history) - n0
+        print(f"restored: pack {dr.rnd + 1}, pick {dr.pick_no + 1}, {n0} steps replayed"
+              + (f"; {owed} more advanced now (every seat still waited on had already picked)" if owed else ""), flush=True)
+    else:
+        dr.catch_up()                                  # nobody is waited on (every named seat is a bot): the draft runs by itself
+    write_key_files(dr)                               # the links (people, broadcast) and the AI seats' tokens: 0600, the same after --keep
     print(f"draft seed {a.seed} on http://127.0.0.1:{a.port}/ ; links in {links}", flush=True)
     ThreadingHTTPServer(("127.0.0.1", a.port), make_handler(dr)).serve_forever()

@@ -49,6 +49,7 @@ class Base(unittest.TestCase):
         for d, v in zip((S.HUMANS, S.AGENTS, S.NAMES), self.saved_names[:3]):
             d.clear(); d.update(v)
         S.REQUIRED.clear(); S.REQUIRED.update(self.saved_names[3])
+        S.BOTS.clear()
         self.tmp = tempfile.TemporaryDirectory(prefix="ready-test-")
         self.live = Path(self.tmp.name)
         self._live = mock.patch.object(S, "LIVE", self.live)
@@ -65,6 +66,7 @@ class Base(unittest.TestCase):
         for d, v in zip((S.HUMANS, S.AGENTS, S.NAMES), self.saved_names[:3]):
             d.clear(); d.update(v)
         S.REQUIRED.clear(); S.REQUIRED.update(self.saved_names[3])
+        S.BOTS.clear()
 
     # ---- a draft and a server for it
     def start(self, finish=False, keep=False, seed=None):

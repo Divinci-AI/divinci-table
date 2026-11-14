@@ -44,13 +44,20 @@ def port():
     s = socket.socket(); s.bind(("127.0.0.1", 0)); p = s.getsockname()[1]; s.close(); return p
 
 
+def port_block(n):
+    """The first of n free ports in a row, for the room host (it gives its rooms ports counting up from a base): table/tests/freeport.py."""
+    sys.path.insert(0, str(ROOT / "table" / "tests"))
+    import freeport
+    return freeport.free_block(n)
+
+
 HP, WP = port(), port()
 TMP = Path(tempfile.mkdtemp(prefix="agents-e2e-"))
 HOSTKEY, ADMIN = secrets.token_urlsafe(32), secrets.token_urlsafe(24)
 (TMP / "key").write_text(HOSTKEY); os.chmod(TMP / "key", 0o600)
 (TMP / "vars").write_text(f"ROOM_HOST_KEY={HOSTKEY}\nADMIN_TOKEN={ADMIN}\nROOM_HOST_ORIGIN=http://127.0.0.1:{HP}\nPUBLIC_ORIGIN=http://127.0.0.1:{WP}\nMAX_AGENT_TABLES=2\n")
 os.chmod(TMP / "vars", 0o600)
-host = subprocess.Popen([sys.executable, str(CLOUD / "roomhost.py"), "--host", "127.0.0.1", "--port", str(HP), "--data", str(TMP / "data"), "--port-base", "24500"],
+host = subprocess.Popen([sys.executable, str(CLOUD / "roomhost.py"), "--host", "127.0.0.1", "--port", str(HP), "--data", str(TMP / "data"), "--port-base", str(port_block(12))],   # (was 24500 in every run)
                         env={**os.environ, "ROOM_HOST_KEY_FILE": str(TMP / "key"), "ROOM_HOST_LOBBY": f"http://127.0.0.1:{WP}"},
                         stdout=open(TMP / "host.log", "w"), stderr=subprocess.STDOUT)
 worker = subprocess.Popen([str(CLOUD / "node_modules" / ".bin" / "wrangler"), "dev", "-c", "test/wrangler.e2e.jsonc", "--port", str(WP), "--ip", "127.0.0.1",

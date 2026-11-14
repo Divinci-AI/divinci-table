@@ -1,10 +1,12 @@
 """Claude's seat in the live draft (seat 2). `wait` blocks until there is a pick to make and prints my own pack and pool;
 `pick N` takes the Nth card of that pack. Only my own token is used: I never see anyone else's pack or picks."""
-import json, sys, time, urllib.request
+import json, os, sys, time, urllib.request
 from pathlib import Path
 
-LIVE = Path.home() / ".divinci/star-trek-mtg/live"
-BASE = "http://127.0.0.1:8820"
+# DRAFT_LIVE: the draft server's state folder (the same variable the server reads; default: live/ beside this folder, as the server's).
+# DRAFT_URL: the draft server itself. The token is the same after the server restarts with --keep (since 2026-11-14).
+LIVE = Path(os.environ.get("DRAFT_LIVE") or Path(__file__).resolve().parent.parent / "live")
+BASE = os.environ.get("DRAFT_URL", "http://127.0.0.1:8820").rstrip("/")
 TOKEN = json.loads((LIVE / "draft-agent-tokens.json").read_text())["Claude"]
 
 

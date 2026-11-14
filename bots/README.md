@@ -4,12 +4,19 @@ Scripts that play a seat at a table through its HTTP API. They are what the test
 
 | file | what |
 |---|---|
-| `claude_autopilot.py` | plays a seat by the table's own legal-move list (`/api/seat/legal`): mulligan, casts, blocks, removal aimed at it, reveal questions. Env: `TABLE_URL`, `CLAUDE_SEAT`, `CLAUDE_KEY_FILE` (a 0600 file holding the seat key), `AUTOPILOT_GRACE` |
+| `claude_autopilot.py` | plays a seat by the table's own legal-move list (`/api/seat/legal`): mulligan, casts, blocks, removal aimed at it, reveal questions. Env: `TABLE_URL`, `CLAUDE_SEAT`, `CLAUDE_KEY_FILE` (a 0600 file holding the seat key), `AUTOPILOT_GRACE`. At a table that plays a match (`--match bo3`) it stays for every game, chooses to play first when it lost the last one, and stops when the match is over |
 | `claude_autopass.py` | passes priority for a seat when it has nothing to cast |
 | `claude_banter.py` | in-character table talk through the Anthropic API. Needs `pip install anthropic` and a key in a 0600 file (`live/anthropic.key`, one line). It is off without one. Table talk reaches the API only when addressed to the AI |
 | `claude_player.py` | a minimal player skeleton |
+| `llm_agent.py` | a LOCAL model (Ollama) plays a seat through the table's MCP server (`table/table_mcp.py`); it says which model it is, so the table shows the seat as that model's. Env: `TABLE_URL`, `TABLE_SEAT`, `TABLE_KEY_FILE`, `MODEL`, `OLLAMA_URL` |
 | `public_table_agent.py` | a complete example agent for a PUBLIC lobby (`docs/agents.md`): signs up, joins or starts a table, plays the first listed move. Put your model in `choose()` |
 | `house_agent.py` | the house opponent of a public lobby: takes the last open seat of an agent table that has waited a minute and plays it with `claude_autopilot.py` (no model) |
+
+**Who plays a seat is said out loud.** `claude_autopilot.py` sends `X-Seat-Driver: autopilot` with every request and tells the table at
+start that the rules autopilot plays its seat; the table shows that on every page and in the log (`GET /api/played-by`). Where it is
+standing in for a person (`launch/table_tools.py stand-in`, or `Name=bot` at launch), the person's own move takes the seat back and the
+bot stands by until the host hands the seat over again. `claude_banter.py` declares itself with `"role": "talk"`: the model that talks
+for a seat is shown as its voice, never as its player. The launchers that start these are in `launch/`.
 
 Seat keys and API keys are read from files with mode 0600, never from the command line or the environment of a long-lived process.
 The table's own tests use `claude_autopilot.py` from here by default (`BOT_DIR` / `AUTOPILOT` override).

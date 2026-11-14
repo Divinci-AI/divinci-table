@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import os
 import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file or sibling folder SKIPS, never fails)
+cards_path.need_card_data()                            # the table needs the card data, and a test never downloads it (skips without it)
 import re
 import socket
 import subprocess

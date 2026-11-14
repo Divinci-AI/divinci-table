@@ -8,11 +8,11 @@ so it cannot reveal it; the table's hand-leak guard on `say` stays as a second l
 When it talks: someone says Claude's name (it answers), or something worth a word happens (a big life swing, the game ending,
 another player's table talk), within a budget so it is lively, not a firehose. It may always choose silence.
 
-The API key comes from a private 0600 file (live/anthropic.key, written from Infisical by restart_game.sh): never the environment
-(readable by any same-user process), never a command line, never printed.
-    ~/.venvs/table/bin/python claude_banter.py
-Env: TABLE_URL (default :8800), CLAUDE_SEAT (Claude), CLAUDE_KEY_FILE (live/claude-seat.key), BANTER_MODEL (claude-opus-5-5),
-CHATTINESS (quiet|normal|chatty).
+The API key comes from a private 0600 file the host puts there (ANTHROPIC_KEY_FILE, default live/anthropic.key beside this file):
+never the environment (readable by any same-user process), never a command line, never printed. No launcher fetches it.
+    python3 bots/claude_banter.py          (the interpreter needs the `anthropic` package)
+Env: TABLE_URL (default :8800), CLAUDE_SEAT (Claude), CLAUDE_KEY_FILE (live/claude-seat.key), ANTHROPIC_KEY_FILE, BANTER_MODEL
+(claude-opus-5-5), CHATTINESS (quiet|normal|chatty).
 """
 from __future__ import annotations
 
@@ -47,6 +47,13 @@ SYSTEM = (
 
 def seat_key() -> str:
     return KEYFILE.read_text().strip()
+
+
+def match_goes_on() -> bool:
+    """A game ended, but the table plays a match (best two out of three, --match bo3) that is not decided: the next game starts on this same
+    table, so the talk goes on too. A single-game table, an older table (no /api/match) or a finished match: False, and this stops as before."""
+    c, m = http("GET", "/api/match")
+    return c == 200 and bool(m.get("on")) and not m.get("over")
 
 
 def http(method, path, body=None, key=False, timeout=30):
@@ -154,7 +161,7 @@ def table_now() -> str:
 
 def main():
     # The key comes from a private 0600 file (ANTHROPIC_KEY_FILE), not the environment: a long-running process's environment is
-    # readable by anything running as this user (ps -E), and `infisical run` would put all 433 prod secrets there.
+    # readable by anything running as this user (ps -E), and a secrets manager's `run` wrapper would put every secret it holds there.
     kf = Path(os.environ.get("ANTHROPIC_KEY_FILE") or Path(__file__).resolve().parent / "live" / "anthropic.key")
     if kf.exists():
         if kf.stat().st_mode & 0o077:
@@ -162,8 +169,10 @@ def main():
         client = anthropic.Anthropic(api_key=kf.read_text().strip())
     else:
         client = anthropic.Anthropic()                            # falls back to the SDK's own credential lookup
+    # "role": "talk": this model only TALKS for the seat. What PLAYS it (a person, the rules autopilot) is the table's own record
+    # (GET /api/played-by), so no page says a model is playing when it is not. (An older table ignores the field.)
     c, d = http("POST", "/api/identity", {"seat": SEAT, "model": f"anthropic:{MODEL}", "provider": "anthropic", "voice": VOICE,
-                                          "presents_as": PRESENTS_AS}, key=True)
+                                          "presents_as": PRESENTS_AS, "role": "talk"}, key=True)
     print(f"claude banter for {SEAT} with {MODEL}: identity {c} {d.get('error') or ''}", flush=True)
     load_agents()
     since = (http("GET", "/api/events?since=latest")[1] or {}).get("last") or 0
@@ -210,7 +219,7 @@ def main():
             time.sleep(10); continue
         line = "" if msg.stop_reason == "refusal" else clean(next((b.text for b in msg.content if b.type == "text"), ""))
         if not line or line.upper().startswith("NOTHING"):
-            if over:
+            if over and not match_goes_on():
                 return                                            # the game ended and it chose silence: done
             continue
         c, d = http("POST", "/api/brain/say", {"seat": SEAT, "text": line}, key=True)
@@ -219,7 +228,7 @@ def main():
             print(f"{time.strftime('%H:%M:%S')} SAYS: {line}", flush=True)
         else:
             print(f"{time.strftime('%H:%M:%S')} not said ({c}): {d.get('error')}", flush=True)
-        if over:
+        if over and not match_goes_on():
             return
 
 

@@ -1,5 +1,10 @@
 # Launch notes from the 2026-11-13 retro
 
+> **Superseded on 2026-11-14.** The launchers these notes give diffs for are now in this repository (`launch/play_round.sh`,
+> `launch/play_four.sh`, `launch/tunnels.py`, `launch/table_tools.py`), with what the diffs asked for built in: only the round's own
+> table tunnels are touched, a tunnel that is up is kept, and `NOTIFY_LINK=1` sends the link. Read `launch/README.md`; the rest of
+> this page is the record of what was found that night.
+
 For the host. Nothing here has been applied to the live launchers: `play_four.sh`, `play_round.sh` and the live copy of
 `match_when_ready.sh` live outside this repo, next to the running games, and were only READ to write this (those three files and
 nothing else: not `table_tools.py`, not `tunnel_watch.py`, nothing under `live/`). The diffs below are recommendations to apply by

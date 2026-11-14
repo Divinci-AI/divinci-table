@@ -1,7 +1,7 @@
 """In-game journals (docs/RESEARCH-ENGINE-GOAL.md R1): the module, then the real server.
 
 Part 1 tests table/journal.py alone, and proves the tests can fail by breaking the module three ways.
-Part 2 starts its own server (port 8816, its own token file and research folder; a game on :8800 is left alone)
+Part 2 starts its own server (a free port, its own token file and research folder; a game on :8800 is left alone)
 with one external-brain AI seat and two people, then checks the endpoints: due events at the fixed moments,
 refusals, the seal until /api/game-over, declines, and the reset.
 
@@ -9,6 +9,8 @@ refusals, the seal until /api/game-over, declines, and the reset.
 """
 from __future__ import annotations
 
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file SKIPS, never fails, never downloads)
+cards_path.need_card_data()                            # the table needs the card data, and a test never downloads it (skips without it)
 import json
 import os
 os.environ.setdefault("TABLE_HIGHROLL", "first")        # tests start the first seat in the order; the opening high roll has its own test (opening_ceremony_test.py)
@@ -128,7 +130,8 @@ def mutations():
 
 
 # ── part 2: the real server ───────────────────────────────────────────────────────────────────
-PORT = 8816
+import freeport  # noqa: E402
+PORT = freeport.free_port()                              # (until 2026-11-14: 8816)
 
 
 class Srv:

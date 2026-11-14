@@ -1,10 +1,12 @@
 """Fusion's seat in the live draft: picks for seat 3 with local Gemma 4 (Ollama, offline). Only Fusion's own pack and pool
 are read (its own token). If the model gives no usable answer, it takes the highest-rarity card and logs that it did."""
-import json, re, sys, time, urllib.request
+import json, os, re, sys, time, urllib.request
 from pathlib import Path
 
-LIVE = Path.home() / ".divinci/star-trek-mtg/live"
-BASE, MODEL = "http://127.0.0.1:8820", "gemma4:e2b"
+# DRAFT_LIVE: the draft server's state folder (the same variable the server reads; default: live/ beside this folder, as the server's).
+# DRAFT_URL: the draft server itself. The token is read ONCE: since 2026-11-14 it is the same after the server restarts with --keep.
+LIVE = Path(os.environ.get("DRAFT_LIVE") or Path(__file__).resolve().parent.parent / "live")
+BASE, MODEL = os.environ.get("DRAFT_URL", "http://127.0.0.1:8820").rstrip("/"), os.environ.get("FUSION_DRAFT_MODEL", "gemma4:e2b")
 TOKEN = json.loads((LIVE / "draft-agent-tokens.json").read_text())["Fusion"]
 RANK = {"mythic": 3, "rare": 2, "uncommon": 1, "common": 0}
 log = open(LIVE / "fusion-draft.log", "a", buffering=1)

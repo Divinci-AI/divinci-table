@@ -7,6 +7,15 @@ never another hand.
 
     python3 claude_autopilot.py              # runs for the whole game; one line per thing it does
     TABLE_URL=http://127.0.0.1:PORT CLAUDE_KEY_FILE=... AUTOPILOT_GRACE=2 python3 claude_autopilot.py   (tests)
+
+Who plays the seat (2026-11-14). The autopilot says what it is: every request carries `X-Seat-Driver: autopilot`, and at start it tells
+the table that this seat is played by the rules autopilot (POST /api/seat/played-by), which the table shows on every page and in the
+log. At its own seat nothing else changes: its operator can still make a move by hand with the seat key, as above.
+STANDING IN FOR A PERSON (the host handed that person's seat over: launch/table_tools.py stand-in, or `Name=bot` at launch), THE PERSON
+WINS: when the seat's own player makes a move from their page, or says "I'm back" there, the table gives the seat back to them and
+refuses this bot's moves (409 with "yield": true). The bot then stands by: it plays nothing, asks the table every few seconds who plays
+the seat, and goes on only when the table says the autopilot does again. It never argues with the table about it.
+AUTOPILOT_ON_YIELD=exit stops the process instead of standing by.
 """
 from __future__ import annotations
 
@@ -29,7 +38,9 @@ KEY = KEYFILE.read_text().strip()
 def call(method, path, body=None, retry=True):
     STATS["requests"] += 1
     # (a name of its own: a table behind Cloudflare refuses Python's default User-Agent with "error code: 1010", before the table sees it)
-    h = {"Content-Type": "application/json", "X-Seat-Key": KEY, "User-Agent": "divinci-table-autopilot"}
+    h = {"Content-Type": "application/json", "X-Seat-Key": KEY, "User-Agent": "divinci-table-autopilot", "X-Seat-Driver": "autopilot"}
+    if YIELD["on"] and method == "POST" and path.startswith("/api/brain/") and not path.endswith("/say"):
+        return 409, {"yield": True, "error": "standing by: a person is playing this seat"}     # not even sent: the seat is not ours to move
     r = urllib.request.Request(BASE + path, method=method, data=None if body is None else json.dumps(body).encode(), headers=h)
     try:
         with urllib.request.urlopen(r, timeout=20) as x:
@@ -42,9 +53,46 @@ def call(method, path, body=None, retry=True):
         if e.code == 429 and retry:              # the table asked us to slow down: wait as told, then try exactly once more
             time.sleep(min(5.0, float(d.get("retry_after") or 1.0)))
             return call(method, path, body, retry=False)
+        if e.code == 409 and d.get("yield"):     # a person is playing this seat: the table refused the move, and says who plays it
+            yield_now(d)
         return e.code, d
     except Exception as e:  # noqa: BLE001 — the table restarting: try again next tick
         return 0, {"error": str(e)}
+
+
+YIELD = {"on": False}    # True while the table says somebody else plays this seat (see the top of this file)
+
+
+def yield_now(d: dict) -> None:
+    if YIELD["on"]:
+        return
+    YIELD["on"] = True
+    who = ((d.get("played_by") or {}).get("label")) or "a person"
+    print(f"autopilot: {who} is playing {SEAT}'s seat: standing by (no move until the table's host hands the seat back)", flush=True)
+    if os.environ.get("AUTOPILOT_ON_YIELD") == "exit":
+        print("autopilot: AUTOPILOT_ON_YIELD=exit, stopping", flush=True)
+        raise SystemExit(0)
+
+
+def standing_by(ph: dict) -> bool:
+    """While the table says somebody else plays this seat: play nothing. The table says who plays each seat in every /api/phase reply
+    (`played_by`), which this loop reads anyway: a person or a model at this seat means stand by, even before any move was refused; the
+    autopilot again means go on. (A table too old to say it never refuses a move for "yield" either.)"""
+    mine = (ph.get("played_by") or {}).get(SEAT) or {}
+    if mine.get("kind") in ("person", "model"):
+        yield_now({"played_by": mine})
+    elif YIELD["on"] and mine.get("kind") == "autopilot":
+        YIELD["on"] = False
+        print(f"autopilot: {SEAT}'s seat is the autopilot's again: playing on", flush=True)
+    return YIELD["on"]
+
+
+def declare() -> None:
+    """Tell the table what plays this seat. An older table has no such route (404) and a table where a person already holds the seat answers
+    409 "yield" (call() then stands by): either way there is nothing more to do here."""
+    c, d = call("POST", "/api/seat/played-by", {"seat": SEAT, "kind": "autopilot"})
+    if c == 200:
+        print(f"autopilot: the table shows {SEAT}'s seat as played by the rules autopilot", flush=True)
 
 
 REFUSED: set = set()     # (question, answer) pairs the table refused: never sent again (a refused answer used to be resent every tick, forever)
@@ -620,16 +668,63 @@ def defend():
         print(f"  block {e['creature']} ({ap}) with {pick['name'] if pick else 'nothing'} -> {c} {str(d.get('said') or d.get('error'))[:120]}", flush=True)
 
 
+MATCH_SEEN = {"said": None}
+
+
+def between_games(ph: dict) -> str:
+    """A game has ended. In a match (the table was started with --match bo3: best two out of three on ONE table) that is not the end: the next
+    game starts on the same table with the same seat key, so this bot stays. Returns:
+        "stay"  another game of the match is coming: the caller waits (and, as the loser, this seat has chosen to play first)
+        "over"  the match is over, or this table plays single games (an older table has no /api/match: the same answer): the caller stops
+    The table says it in /api/phase too (`match.continues`), so a table that is slow to answer /api/match is not mistaken for a finished one."""
+    brief = ph.get("match") or {}
+    c, m = call("GET", "/api/match")
+    if c != 200 or not isinstance(m, dict) or not m.get("on"):
+        return "stay" if brief.get("continues") else "over"
+    if m.get("over"):
+        print(f"autopilot: the match is over ({m.get('score')})", flush=True)
+        return "over"
+    nx = m.get("next") or {}
+    if nx and MATCH_SEEN["said"] != nx.get("n"):
+        MATCH_SEEN["said"] = nx.get("n")
+        print(f"autopilot: game over, the match continues ({m.get('score')}); game {nx.get('n')} starts on this table", flush=True)
+    if nx and nx.get("chooser") == SEAT and not nx.get("choice"):       # the loser chooses: an AI seat plays first
+        c2, d2 = call("POST", "/api/match/next", {"seat": SEAT, "action": "play"})
+        print(f"  the choice is mine (I lost the last game): play first -> {c2} {str(d2.get('error') or '')[:100]}", flush=True)
+    return "stay"
+
+
 def main():
     print(f"autopilot for {SEAT} on {BASE}, grace {GRACE:.0f}s", flush=True)
     wait_from, seen, finishing, acted, loops = None, 0, False, False, 0
     acted_turn = None
     stuck = False
+    game_id = None
+    declare()
     while True:
         c, ph = call("GET", "/api/phase")
         if c != 200:
             time.sleep(3)
             continue
+        was_out = YIELD["on"]
+        if standing_by(ph):                          # a person plays this seat: nothing below runs until the table gives the seat back
+            if ph.get("game_over") and not (ph.get("match") or {}).get("continues"):
+                c_, m_ = call("GET", "/api/match")
+                if c_ != 200 or not m_.get("on") or m_.get("over"):
+                    print("autopilot: game over while standing by, stopping", flush=True)
+                    return
+            time.sleep(3.0 * PACE)
+            continue
+        if was_out:                                  # back in the seat: start from what the table shows now
+            wait_from, seen, finishing, acted, acted_turn, stuck = None, 0, False, False, None, False
+            REFUSED.clear()
+        if ph.get("game_id") != game_id:             # a new game on this table (a match's next game can begin between two of this loop's
+            if game_id is not None:                  # ticks, so the game-over branch below may never have been seen): nothing carries over
+                print(f"autopilot: a new game on this table ({ph.get('game_id')})", flush=True)
+                wait_from, seen, finishing, acted, acted_turn, stuck = None, 0, False, False, None, False
+                REFUSED.clear()
+                HOLD["until"] = 0.0
+            game_id = ph.get("game_id")
         if opening_hand(ph):                         # T15: keep or mulligan before the first turn; again next tick until kept
             time.sleep(0.5)
             continue
@@ -642,6 +737,12 @@ def main():
         loops += 1                                   # the phase reply says game_over itself on a bot-only table; the life read
         life = (call("GET", "/api/life")[1] or {}) if loops % 3 == 0 else {}   # is the fallback for tables with people (every 3rd loop)
         if any(isinstance(v, int) and v <= 0 for v in life.values()) or ph.get("game_over") or ph.get("winner"):
+            if between_games(ph) == "stay":              # a match: wait here for the next game, and start it with nothing left from this one
+                wait_from, seen, finishing, acted, acted_turn, stuck = None, 0, False, False, None, False
+                REFUSED.clear()
+                HOLD["until"] = 0.0
+                time.sleep(1.0 * PACE)
+                continue
             print(f"autopilot: game over ({life}), stopping", flush=True)
             return
         if not my_turn(ph):
