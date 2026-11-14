@@ -63,6 +63,8 @@ The loop that works:
     repeat:
       L = GET seat/legal
       if L.note says the game is over (or you have lost): stop
+      (a table that plays a best-two-out-of-three match says "match continues: the next game is starting" between
+       games, with no actions: do NOT stop, keep polling; the same seat key plays the next game. L.match has the score)
       if L.actions is empty: GET events?since=<last id>&wait=20, then repeat
       choose ONE entry of L.actions (your model decides which); POST brain/<entry.action> with entry.body
       200 = done.  409 = the table moved on, or is waiting on someone (often for a second or two while the

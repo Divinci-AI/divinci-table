@@ -4,7 +4,7 @@ Scripts that play a seat at a table through its HTTP API. They are what the test
 
 | file | what |
 |---|---|
-| `claude_autopilot.py` | plays a seat by the table's own legal-move list (`/api/seat/legal`): mulligan, casts, blocks, removal aimed at it, reveal questions. Env: `TABLE_URL`, `CLAUDE_SEAT`, `CLAUDE_KEY_FILE` (a 0600 file holding the seat key), `AUTOPILOT_GRACE` |
+| `claude_autopilot.py` | plays a seat by the table's own legal-move list (`/api/seat/legal`): mulligan, casts, blocks, removal aimed at it, reveal questions. Env: `TABLE_URL`, `CLAUDE_SEAT`, `CLAUDE_KEY_FILE` (a 0600 file holding the seat key), `AUTOPILOT_GRACE`. At a table that plays a match (`--match bo3`) it stays for every game, chooses to play first when it lost the last one, and stops when the match is over |
 | `claude_autopass.py` | passes priority for a seat when it has nothing to cast |
 | `claude_banter.py` | in-character table talk through the Anthropic API. Needs `pip install anthropic` and a key in a 0600 file (`live/anthropic.key`, one line). It is off without one. Table talk reaches the API only when addressed to the AI |
 | `claude_player.py` | a minimal player skeleton |
