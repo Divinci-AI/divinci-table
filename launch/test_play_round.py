@@ -255,6 +255,8 @@ try:
     wout, _ = w.communicate(timeout=60)
     check(w.returncode == 0 and "game 1: Ann wins" in wout and "game 2: Ann wins" in wout and "MATCH OVER: Ann wins the match 2" in wout and "ROUND DONE: Ann vs Ben: Ann wins the match 2" in wout,
           "it reports each game, the match, and ROUND DONE, and exits 0", (w.returncode, wout))
+    check(played(P1, "Ann").get("kind") == "autopilot" and played(P1, "Ann").get("stand_in") is True and api(P1, "GET", "/api/match")[1]["played_by"]["Ben"]["kind"] == "autopilot",
+          "who plays each seat is kept from game to game of the match (and /api/match carries it)", played(P1, "Ann"))
     res = json.loads((LIVE / "round-result.json").read_text())["results"][0]
     check(res["over"] and res["winner"] == "Ann" and res["wins"] == {"Ann": 2, "Ben": 0}, "live/round-result.json has the result", res)
 

@@ -161,7 +161,7 @@ def table_now() -> str:
 
 def main():
     # The key comes from a private 0600 file (ANTHROPIC_KEY_FILE), not the environment: a long-running process's environment is
-    # readable by anything running as this user (ps -E), and `infisical run` would put all 433 prod secrets there.
+    # readable by anything running as this user (ps -E), and a secrets manager's `run` wrapper would put every secret it holds there.
     kf = Path(os.environ.get("ANTHROPIC_KEY_FILE") or Path(__file__).resolve().parent / "live" / "anthropic.key")
     if kf.exists():
         if kf.stat().st_mode & 0o077:

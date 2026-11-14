@@ -118,27 +118,24 @@ mulligan picks, chosen attackers).
 * The public lobby does not offer matches. To offer them, `cloud/roomhost.py` must report a result per MATCH instead of at the first
   `over` it sees, and `/agents/results` would need a score field.
 
+## Who plays a seat during a match
+
+The table shows, on every page, on `/watch` and in the log, whether a person, the rules autopilot or a model plays each seat
+(`GET /api/played-by`; also `played_by` in `/api/match`, `/api/phase` and `/api/spectate`). A seat can be handed to the autopilot in
+the middle of a match and taken back by its player (`launch/README.md`, "Who plays a seat"): the record is kept across the games of a
+match and saved with the snapshot.
+
+## A round, and the launchers
+
+Since 2026-11-14 the launchers are in this repository (`launch/`, with `draft/match_when_ready.sh` in front of them), and a round is
+launched once: `launch/play_round.sh` leaves a table alone while the same two players' match is being played, and does not replay a
+match that is over. `launch/tournament.py` pairs the rounds and keeps the standings from `GET /api/match`. See `launch/README.md`.
+
 ## Installing it at the live table
 
-Nothing here has been applied to the live launchers or the running engine: they were only read. Do it between two rounds, when no table
-is running (the pages are read from disk on every request, so changing the engine checkout under a running table serves it new pages
-with an old server).
-
-| File | What to do | Needed for |
-|---|---|---|
-| the engine checkout (`TABLE_CODE`, `~/.divinci/trek-engine-wt`) | move it to a commit that has this branch: `table/server.py`, `table/bo3.py` (new), `table/assets/matchrecap.js` (new), `table/assets/gameover.js`, `table/hand.html`, `me.html`, `board.html`, `table.html`, `table3d.html` | everything |
-| `claude_autopilot.py` beside the launchers | replace with `bots/claude_autopilot.py` | Claude and Fusion playing games 2 and 3 (the old copy stops at the first game over: the seat would then sit idle and the match would wait on it) |
-| `claude_banter.py` beside the launchers | replace with `bots/claude_banter.py` | table talk after game 1 (the old copy exits at the first game over) |
-| `match_when_ready.sh` beside the launchers | replace with `draft/match_when_ready.sh`; run it with `--follow` | matches by default (it exports `TABLE_MATCH=bo3`), the per-game lines, exit when all matches are over |
-| `play_round.sh` | no change needed: it starts `table/server.py` with its own environment, so the exported `TABLE_MATCH` reaches the table. (The tunnel diffs in `docs/retro-20261113-launch-notes.md` are separate and still worth applying.) | |
-| `play_four.sh`, `tunnel_watch.py`, `table_tools.py`, `claude_autopass.py` | no change | |
-| the draft server (`draft/draft_server.py`) | optional, and only at the START of a draft (restarting it mid-evening is not worth it): the score beside "Join the match". An older draft server refuses the score and the launcher carries on without it | the score on the draft page |
-
-`play_round.sh`, `play_four.sh`, `tunnel_watch.py` and `table_tools.py` have no copy in this repository, so they could not be changed or
-tested here; the launcher's test uses a stand-in play script.
-
-Can it go in between two matches of the same draft? Yes: the draft server is its own process and is not touched (leave it running), the
-decks are already built, and a match is started by a fresh `match_when_ready.sh` run. Not in the middle of a match: a table already
-running was started without `--match` and stays a single game until it is replaced.
+Do it between two rounds, when no table is running (the pages are read from disk on every request, so changing the engine checkout
+under a running table serves it new pages with an old server). The engine checkout moves to a commit that has this work; the launchers
+are then run FROM that checkout, with `LIVE_DIR` pointing at the live folder (`launch/README.md` has the settings and says where each
+old script went). The copies beside the live games are retired, not updated: two copies is how they drifted apart.
 
 To go back: `--single` on `match_when_ready.sh` (or `TABLE_MATCH=single`) is exactly the old behaviour with the new code.
