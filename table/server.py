@@ -1445,7 +1445,7 @@ def untap_refusal(owner: str, perm_id=None) -> str | None:
         return f"you tapped that in an earlier step ({STEPS[mine[1]]}): it stays tapped until your untap step"
     p_ = next((q for q in (v_.battlefield if v_ else []) if q.id == perm_id), None)
     if p_ is not None and p_.tapped and PHASE["player"] == owner:
-        return f"{p_.name} was tapped by the table (to pay for something, or by a card), not by you by hand: that mana is spent, so it stays tapped"
+        return f"{p_.name} was tapped by the table (to pay for something, or by a card), not by you by hand: that mana is spent, so it stays tapped until your untap step"
     if PHASE["player"] != owner:
         return f"you can only untap in your own untap step: it's {PHASE['player']}'s turn, not {owner}'s"
     if STEPS[PHASE["step"]] != "untap":
