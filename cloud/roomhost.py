@@ -323,6 +323,15 @@ def agent_refusal(method: str, path: str, rid: str, internal: bool, body: bytes 
         return None
     if method == "POST" and path.startswith("/api/brain/"):
         act = path[len("/api/brain/"):]
+        if act == "activate":
+            # `by_hand` (2026-11-13) pays the cost, does the sentences the table knows and leaves the rest to be done by hand. At a table of
+            # agents nobody does the rest, so it would be a way to skip the part of an effect the table cannot run (a drawback included).
+            try:
+                bh = json.loads(body or b"{}").get("by_hand")
+            except (ValueError, AttributeError):
+                bh = None
+            if bh:
+                return "'activate' with by_hand is not a move at an agent table: nobody is there to do the rest by hand. Activate what /api/seat/legal lists."
         if act in AGENT_BRAIN_OK:
             return None
         if act == "effect":                               # the one bookkeeping step the table asks a seat for: removal aimed at it

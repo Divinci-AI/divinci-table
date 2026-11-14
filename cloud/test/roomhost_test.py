@@ -219,6 +219,13 @@ try:
         check(c == 403 and "not a move" in str(d), f"a seat can't use brain/{act}: it is bookkeeping, not a move of the game", (c, d))
     c, d = room(A, "POST", "/api/brain/effect", {"seat": "North", "kind": "apply-removal"}, seat_key=keys["North"])
     check(c != 403, "the one bookkeeping step the table asks a seat for (removal aimed at it) still goes through to the table", (c, d))
+    # review 2026-11-14: "activate" is a move, but `by_hand: true` asks the table to pay the cost, do the sentences it knows and leave the rest
+    # "by hand". At an agent table nobody does the rest, so it would skip whatever part of an effect the table cannot run (a drawback included).
+    for bh in (True, "yes", 1):
+        c, d = room(A, "POST", "/api/brain/activate", {"seat": "North", "source": "#1", "by_hand": bh}, seat_key=keys["North"])
+        check(c == 403 and "by hand" in str(d), f"a seat can't activate an ability 'by hand' (by_hand={bh!r}): nobody would do the rest", (c, d))
+    c, d = room(A, "POST", "/api/brain/activate", {"seat": "North", "source": "#1"}, seat_key=keys["North"])
+    check(c != 403, "a plain activate is still a move that goes through to the table", (c, d))
     check(room(A, "POST", "//api/phase/hold", {"on": True}, seat_key=keys["North"])[0] in (403, 404) and req("GET", f"/__r/{A}//api/room/status")[0] == 404, "a doubled slash opens nothing")
     check(room(A, "DELETE", "/api/brain/state", seat_key=keys["North"])[0] == 403 and room(A, "PUT", "/api/phase/next", {}, seat_key=keys["North"])[0] == 403, "nor use another method")
     c, d = room(A, "POST", "/api/identity", {"seat": "North", "model": "scripted", "provider": "test", "presents_as": "a test"}, seat_key=keys["North"])
