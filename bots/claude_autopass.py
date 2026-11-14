@@ -2,10 +2,10 @@
 Uses only Claude's own seat key, like claude_player.py. Prints one line whenever the table waits on Claude in a way only Claude can decide."""
 import json, os, time, urllib.request
 from pathlib import Path
-K = (Path(__file__).resolve().parent / "live" / "claude-seat.key").read_text().strip()
+K = Path(os.environ.get("CLAUDE_KEY_FILE") or Path(__file__).resolve().parent / "live" / "claude-seat.key").read_text().strip()   # (the launcher names the file)
 B = os.environ.get("TABLE_URL", "http://127.0.0.1:8800")
 def call(m, p, body=None):
-    r = urllib.request.Request(B + p, method=m, data=None if body is None else json.dumps(body).encode(), headers={"Content-Type": "application/json", "X-Seat-Key": K})
+    r = urllib.request.Request(B + p, method=m, data=None if body is None else json.dumps(body).encode(), headers={"Content-Type": "application/json", "X-Seat-Key": K, "X-Seat-Driver": "helper"})   # a helper beside whoever plays the seat: its passes say nothing about who that is
     try:
         with urllib.request.urlopen(r, timeout=10) as x: return x.status, json.loads(x.read() or b"{}")
     except urllib.error.HTTPError as e: return e.code, json.loads(e.read() or b"{}")

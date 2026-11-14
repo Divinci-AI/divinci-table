@@ -859,7 +859,7 @@ def lobby_public() -> dict:
     lt = life_table()
     me = {"url": "", "game_id": FAIR.get("game"), "turn": PHASE.get("player"), "step": STEPS[PHASE["step"]] if PHASE.get("player") else None,
           "over": bool(GAME_OVER.get("over")), "winner": GAME_OVER.get("winner"),
-          "seats": [{"name": n, "kind": "person" if n in persons() else "bot", "life": lt.get(n),
+          "seats": [{"name": n, "kind": "person" if n in persons() else "bot", "played_by": played_by(n), "life": lt.get(n),
                      "claimed": n in SEAT_KEYS or n in SEAT_PROXY} for n in turn_order() or list(lt)]}
     others = []
     for u in [x.strip().rstrip("/") for x in os.environ.get("TABLE_SIBLINGS", "").split(",") if x.strip()][:8]:
@@ -1090,7 +1090,7 @@ def snapshot():
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
                                  "ORDER": turn_order(), "EVENTS": list(EVENTS[-1500:]), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
                                  "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "SEAT_PROXY": SEAT_PROXY, "SEAT_INVITES": SEAT_INVITES, "DECKDECL": DECKDECL, "MULL": dict(MULL), "CONCEDED": sorted(CONCEDED), "ev_id": _ev_id[0], "saved": time.time(),
-                                 "MATCH": MATCH.to_json() if MATCH is not None else None})
+                                 "MATCH": MATCH.to_json() if MATCH is not None else None, "PLAYED_BY": dict(PLAYED_BY)})
         snapfile.write_snapshot(research_dir() / "snapshot.pkl", blob, seq)
     except Exception as e:                            # never let saving break the table
         print(f"snapshot failed: {e}", flush=True)
@@ -1116,6 +1116,7 @@ def restore(path: str):
         MULL["since"] = time.time()                   # the clock starts again with the table
     CONCEDED.clear(); CONCEDED.update(d.get("CONCEDED") or [])      # (a snapshot from before concede: nobody has)
     match_restore(d.get("MATCH"))
+    PLAYED_BY.clear(); PLAYED_BY.update({n: r for n, r in (d.get("PLAYED_BY") or {}).items() if n in VPS})   # (a snapshot from before 2026-11-14: nobody on record)
     DECKDECL.update(d.get("DECKDECL") or {})          # declared commanders and deck lists (the check-in), and the seats' commanders with them
     for h in HUMANS:
         c = (DECKDECL.get(h["name"]) or {}).get("commander")
@@ -2968,6 +2969,7 @@ def phase_public() -> dict:
     out["waiting_on"] = waiting_on()                  # R12: public, with the seat, what, and since when
     out["bots"] = [n for n in VPS if is_bot(n)]       # R24: `ai` lists every seat the table runs; these are the ones nobody drives
     out["driven"] = list(PILOTS)                      # …and these answer through a seat key (a person, or a bot such as the autopilot)
+    out["played_by"] = {n: played_by(n) for n in list(VPS) + [h["name"] for h in HUMANS]}   # …and who that is: person | autopilot | model | table | unknown
     if match_on():
         out["match"] = match_brief()                  # the score, and "continues": another game is coming on this table (do not leave)
     return out
@@ -3620,7 +3622,8 @@ def journal_due(seat_name, moment: str):
 
 IDENTITY: dict = {}                                    # seat -> what the seat declared about itself (docs/RESEARCH-ENGINE-GOAL.md R3)
 ID_FIELDS = ("model", "provider", "prompt_version", "notes",
-             "voice", "pronouns", "presents_as")        # how the AI wants to sound and be presented: its own call
+             "voice", "pronouns", "presents_as",        # how the AI wants to sound and be presented: its own call
+             "role")                                    # "talk": this model only TALKS for the seat; something else plays it (see PLAYED_BY)
 ID_NUMBERS = {"voice_rate": (0.8, 1.25), "voice_pitch": (0.8, 1.2)}   # pace/pitch it asks for, kept in a human range
 
 
@@ -3648,6 +3651,9 @@ def identity_set(seat_name: str, b: dict) -> tuple[int, dict]:
     except Exception:                                    # noqa: BLE001
         harness = "dev"
     IDENTITY[seat_name] = {**rec, "declared_ts": round(time.time(), 2)}
+    if seat_name in PILOTS and (PLAYED_BY.get(seat_name) or {}).get("by") == "move" and _plays_by_identity(seat_name):
+        d_ = _plays_by_identity(seat_name)             # the table had only guessed "a person" from a move: the seat now says what it is
+        played_by_set(seat_name, d_["kind"], d_["label"], by="seat")
     emit("identity", seat=seat_name, **{k: rec[k] for k in ("presents_as", "pronouns", "voice") if k in rec})   # pages re-voice
     try:
         with open(research_dir() / "identity.json", "w") as fh:
@@ -3655,6 +3661,135 @@ def identity_set(seat_name: str, b: dict) -> tuple[int, dict]:
     except OSError as e:
         print(f"identity log failed: {e}", flush=True)
     return 200, {"seat": seat_name, **IDENTITY[seat_name], "harness": harness}
+
+
+# ── who plays each seat (2026-11-14) ─────────────────────────────────────────────────────────────────────────────────────────────
+# A pilot seat answers to its seat key, and a key says nothing about who holds it: a person at their hand page, the rules autopilot
+# (bots/claude_autopilot.py: no model), or an agent run by a model. On 2026-11-13 a player went to bed and the host started the autopilot
+# on his seat by hand; every page went on showing a person. So the table keeps, and publishes, who plays each seat.
+#   * The record is PUBLIC: GET /api/played-by, and `played_by` in /api/phase, /api/match, /api/spectate and /api/lobby. A change is
+#     written into the public log ("Sam's seat is now played by the rules autopilot.").
+#   * Who may set it (POST /api/seat/played-by {"seat", "kind": "person"|"autopilot"|"model", "label"?}): the table's host (the brain
+#     token) for any seat; a seat's own key to say "a person plays this seat" at any time; the autopilot itself (its requests carry
+#     `X-Seat-Driver: autopilot`) only for a seat nobody has claimed for a person.
+#   * THE RULE WHEN BOTH WOULD ACT: THE PERSON WINS. A move made with the seat key and without the autopilot's header is the seat's own
+#     player (the hand page never sends that header). The moment one arrives at a seat the autopilot is playing, the seat is the person's
+#     again, the log says so, and from then on every move the autopilot sends for that seat is refused (409, "yield": true) until the
+#     host hands the seat back to it. The autopilot stands by and plays nothing while it is refused. Table talk (`say`) is not a move.
+PLAYED_BY: dict = {}                                   # seat -> {"kind", "label", "since", "by"}; a seat with no record: see played_by()
+PLAYED_KINDS = ("person", "autopilot", "model")
+AUTOPILOT_LABEL = "the rules autopilot"
+PLAYED_BY_NOT_A_MOVE = {"say"}                         # /api/brain/<these> say nothing about who is playing the seat
+
+
+def _plays_by_identity(seat_name: str) -> dict | None:
+    """What a seat's own /api/identity declaration says about who PLAYS it. A declaration with "role": "talk" (bots/claude_banter.py: a model
+    that only talks for the seat) says nothing about that; a model called "none …" is the rules autopilot (bots/house_agent.py)."""
+    idn = IDENTITY.get(seat_name) or {}
+    m = idn.get("model")
+    if not m or idn.get("role") == "talk":
+        return None
+    return {"kind": "autopilot", "label": AUTOPILOT_LABEL} if m.strip().lower().startswith("none") else {"kind": "model", "label": m}
+
+
+def played_by(seat_name: str) -> dict:
+    """Who plays this seat, for everyone to read. `kind`: person | autopilot | model | table (the table's own built-in AI, no key at all) |
+    unknown (a pilot seat nobody has played or declared yet: never called a person on a guess). `talk` is the model that speaks for the
+    seat when something else plays it."""
+    rec = PLAYED_BY.get(seat_name)
+    if rec:
+        out = {k: rec[k] for k in ("kind", "label", "since") if k in rec}
+    elif seat_name in VPS and seat_name not in PILOTS:
+        out = {"kind": "table", "label": "the table's own AI"}
+    elif any(h["name"] == seat_name for h in HUMANS):
+        out = {"kind": "person", "label": seat_name}
+    else:
+        out = _plays_by_identity(seat_name) or {"kind": "unknown", "label": "nobody has played this seat yet"}
+    idn = IDENTITY.get(seat_name) or {}
+    if idn.get("model") and idn.get("role") == "talk" and out["kind"] != "model":
+        out["talk"] = idn["model"]
+    return out
+
+
+def played_by_public() -> list:
+    return [{"name": n, **played_by(n)} for n in (turn_order() or [h["name"] for h in HUMANS] + list(VPS))]
+
+
+def played_by_set(seat_name: str, kind: str, label: str = "", by: str = "host") -> dict:
+    """Record who plays a seat and say so in the public log when it changed. Returns the public record."""
+    label = "".join(ch for ch in str(label or "") if ch >= " " and ch != "\x7f").strip()[:60]
+    if kind == "autopilot":
+        label = AUTOPILOT_LABEL
+    elif kind == "person":
+        label = label or seat_name
+    else:
+        label = label or (_plays_by_identity(seat_name) or {}).get("label") or "a model"
+    was = PLAYED_BY.get(seat_name)
+    if was and was.get("kind") == kind and was.get("label") == label:
+        return played_by(seat_name)
+    PLAYED_BY[seat_name] = {"kind": kind, "label": label, "since": round(time.time(), 2), "by": by}
+    who = "a person" if kind == "person" and label == seat_name else f"{label} (a person)" if kind == "person" else label
+    back = kind == "person" and bool(was) and was.get("kind") != "person"
+    text = (f"{seat_name} is back: {seat_name}'s seat is played by {who} again." if back and label == seat_name
+            else f"{seat_name}'s seat is now played by {who}.")
+    emit("table-note", kind="played-by", seat=seat_name, played_by=kind, label=label, by=by, was=(was or {}).get("kind"), text=text)
+    print(f"played-by: {text} (set by {by})", flush=True)
+    snapshot()
+    return played_by(seat_name)
+
+
+def played_by_gate(seat_name: str, driver: str, act: str) -> dict | None:
+    """Every move a seat key makes passes here (POST /api/brain/<act>). None: carry on. A dict: refuse with it (409): the autopilot must yield."""
+    if act in PLAYED_BY_NOT_A_MOVE:
+        return None
+    rec = PLAYED_BY.get(seat_name)
+    drv = (driver or "").strip().lower()
+    if drv == "helper":                                # a helper beside the seat's player (bots/claude_autopass.py): neither claims the seat nor yields
+        return None
+    if drv == "autopilot":
+        if rec is None:
+            played_by_set(seat_name, "autopilot", by="seat")       # nobody has said otherwise: the autopilot is what plays this seat
+            return None
+        if rec["kind"] == "autopilot":
+            return None
+        return {"error": f"{rec['label']} is playing {seat_name}'s seat: the autopilot yields (the table's host can hand the seat back to it)",
+                "yield": True, "played_by": played_by(seat_name)}
+    if rec is None or rec["kind"] == "autopilot":                   # the seat's own player has made a move: the seat is theirs
+        d = _plays_by_identity(seat_name) or {"kind": "person", "label": seat_name}
+        if d["kind"] == "autopilot":
+            d = {"kind": "person", "label": seat_name}             # (a move without the autopilot's header is not the autopilot)
+        played_by_set(seat_name, d["kind"], d["label"], by="move")
+    return None
+
+
+def played_by_request(handler, b: dict) -> tuple[int, dict]:
+    """POST /api/seat/played-by. See the rules above PLAYED_BY."""
+    sn = seat(b.get("seat")) if b.get("seat") else None
+    if sn is None or (sn not in PILOTS and not handler._brain_ok()):
+        return 404, {"error": f"no pilot seat '{b.get('seat')}' (pilot seats: {sorted(PILOTS)})"}
+    kind = str(b.get("kind") or "")
+    if kind not in PLAYED_KINDS:
+        return 400, {"error": f"kind is one of: {', '.join(PLAYED_KINDS)}"}
+    host = handler._brain_ok()
+    if not host and not handler._pilot_ok(sn):
+        return 403, {"error": "the table's host (the brain token) or this seat's own key"}
+    if sn not in PILOTS:
+        return 400, {"error": f"{sn} is not a pilot seat: the table itself plays it"}
+    if host:
+        return 200, {"seat": sn, "played_by": played_by_set(sn, kind, b.get("label") or "", by="host")}
+    auto = (handler.headers.get("X-Seat-Driver") or "").strip().lower() == "autopilot"
+    rec = PLAYED_BY.get(sn)
+    if kind == "autopilot":
+        if not auto:
+            return 403, {"error": "only the table's host hands a seat to the autopilot"}
+        if rec is not None and rec["kind"] != "autopilot":
+            return 409, {"error": f"{rec['label']} is playing {sn}'s seat: the autopilot yields", "yield": True, "played_by": played_by(sn)}
+        return 200, {"seat": sn, "played_by": played_by_set(sn, "autopilot", by="seat")}
+    if auto:
+        return 403, {"error": "the autopilot can only say that it is the autopilot"}
+    if kind == "model" and not (b.get("label") or _plays_by_identity(sn)):
+        return 400, {"error": "label: the model's name (or declare it first with POST /api/identity)"}
+    return 200, {"seat": sn, "played_by": played_by_set(sn, kind, b.get("label") or "", by="seat")}
 
 
 def journal_reset():
@@ -3716,6 +3851,7 @@ def match_public() -> dict:
         out["now"] = round(time.time(), 2)
         out["game_id"] = FAIR.get("game")
         out["game_over"] = bool(GAME_OVER.get("over"))
+        out["played_by"] = {n: played_by(n) for n in MATCH.seats}   # public: a person, the rules autopilot, or a model plays each seat
         out["recap_secs"] = MATCH_RECAP_SECS
         out["watch_recap_secs"] = MATCH_WATCH_RECAP_SECS
         out["driven"] = sorted(PILOTS)
@@ -3936,6 +4072,10 @@ def match_loop():
 NICKNAMES = {p["commander"].split(",")[0]: p["commander"] for p in AI_PLAYERS + HUMANS if p["commander"]}
 DECK = parse_decklist(Path(args.deck).read_text()) if args.deck else []
 TOKEN = secrets.token_urlsafe(24)
+# Which table process is this? A random word made at start-up, public (GET /api/instance), and nothing to do with any key. A launcher
+# reads it on 127.0.0.1 and asks for it again THROUGH a tunnel's hostname: only a tunnel that reaches this very process answers with the
+# same word, so a link is never handed out for a hostname that leads to a dead tunnel or to an older table (launch/tunnels.py).
+INSTANCE = {"instance": secrets.token_hex(8), "started": round(time.time(), 2)}
 tok_path = Path(args.token_file) if args.token_file else HERE / ".brain-token"
 tok_path.write_text(TOKEN)
 os.chmod(tok_path, 0o600)
@@ -3957,6 +4097,7 @@ STRICT_SEATS = CLOUD or os.environ.get("STRICT_SEATS") == "1"
 # reveals or changes the AI's cards, resets the game, or feeds the mic/camera.
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/watch"), ("GET", "/api/spectate"), ("GET", "/3d"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"), ("GET", "/lobby"), ("GET", "/api/lobby"), ("GET", "/api/game/summary"), ("GET", "/api/match"), ("POST", "/api/match/next"),
+          ("GET", "/api/instance"), ("GET", "/api/played-by"), ("POST", "/api/seat/played-by"),   # which process; who plays each seat (a seat's own key, or the host)
           ("POST", "/api/fair/word"), ("POST", "/api/life"), ("POST", "/api/seat/check"),
           ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("POST", "/api/ready"), ("POST", "/api/declare-deck"), ("GET", "/api/deckdecl"), ("GET", "/api/cardnames"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/back/confirm"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/public-board"), ("POST", "/api/openmic/rate"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
@@ -5568,6 +5709,10 @@ class H(BaseHTTPRequestHandler):
         if self.path.split("?")[0] == "/api/version":      # which commit this room runs (scripts/cloud_smoke.cjs)
             from build_info import build_sha
             return self._send(200, {"sha": build_sha(), "game": "magic"})
+        if self.path.split("?")[0] == "/api/instance":     # which table PROCESS answers (public, no key): see INSTANCE
+            return self._send(200, {**INSTANCE, "port": args.port, "game_id": FAIR.get("game")})
+        if self.path.split("?")[0] == "/api/played-by":    # who plays each seat: a person, the rules autopilot, a model (public, no key)
+            return self._send(200, {"seats": played_by_public()})
         if self.path.split("?")[0] == "/lobby":            # T5: where people wait between rounds (public info only)
             return self._send(200, body=(HERE / "lobby.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/api/lobby":
@@ -5575,7 +5720,7 @@ class H(BaseHTTPRequestHandler):
                 with VP_LOCK:
                     lt = life_table()
                     return self._send(200, {"table": {"game_id": FAIR.get("game"), "turn": PHASE.get("player"), "over": bool(GAME_OVER.get("over")),
-                                                      "winner": GAME_OVER.get("winner"), "seats": [{"name": n, "kind": "person" if n in persons() else "bot",
+                                                      "winner": GAME_OVER.get("winner"), "seats": [{"name": n, "kind": "person" if n in persons() else "bot", "played_by": played_by(n),
                                                       "life": lt.get(n)} for n in turn_order() or list(lt)]}})
             return self._send(200, lobby_public())
         if self.path.split("?")[0] == "/me":               # a player's phone / glasses view (public info only)
@@ -5615,7 +5760,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / "table3d.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/watch":            # the board for spectators: a turn behind (/api/spectate), no actions
             # The helper scripts (life bar, history, todos, questions…) read the LIVE game; on /watch they would undo the delay.
-            page = re.sub(r'<script src="/assets/(?!art\.js|matchrecap\.js)[^"]+"[^>]*></script>\n?', "", (HERE / "board.html").read_text())   # art.js: static art lookup only
+            page = re.sub(r'<script src="/assets/(?!art\.js|matchrecap\.js|playedby\.js)[^"]+"[^>]*></script>\n?', "", (HERE / "board.html").read_text())   # art.js: static art lookup only
             return self._send(200, body=page.encode(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/board":            # the whole board in plain HTML: any device, no 3D
             return self._send(200, body=(HERE / "board.html").read_bytes(), ctype="text/html; charset=utf-8")
@@ -5747,6 +5892,7 @@ class H(BaseHTTPRequestHandler):
             snap = SPECTATE[-1] if SPECTATE else None
             if snap is None:
                 return self._send(200, {"board": None, "events": [], "note": "the game hasn't finished a turn yet",
+                                        "played_by": {x["name"]: x for x in played_by_public()},
                                         **({"match": match_brief()} if match_on() else {})})
             try:
                 since = int((q.get("since") or ["0"])[0] or 0)
@@ -5759,6 +5905,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"board": snap["board"], "life": snap["life"], "as_of_event": snap["event_id"],
                                     "turn_of": snap["turn_of"], "events": out, "delay": "one turn",
                                     "teams": dict(TEAMS) or None, "donate": donate,
+                                    "played_by": {x["name"]: x for x in played_by_public()},   # (live, not a turn behind: who plays a seat is no tell)
                                     **({"match": match_brief()} if match_on() else {}),
                                     **({"game_over": True, "winner": GAME_OVER.get("winner")} if GAME_OVER.get("over") else {})})
         if self.path == "/api/life":
@@ -6598,6 +6745,9 @@ class H(BaseHTTPRequestHandler):
                     return self._send(404, {"error": f"no AI seat '{b.get('seat')}' (seats: {list(VPS)})"})
                 rec, why = JOURNALS.add(sn, b)
                 return self._send(200 if rec else 400, {"entry": rec} if rec else {"error": why})
+            if self.path == "/api/seat/played-by":         # who plays a seat: the host, the seat's own key, or the autopilot about itself
+                code, out = played_by_request(self, self._json())
+                return self._send(code, out)
             if self.path == "/api/identity":               # an AI seat declares its model, provider and prompt version
                 b = self._json()
                 sn = seat(b.get("seat"))
@@ -6638,6 +6788,10 @@ class H(BaseHTTPRequestHandler):
                 if sn is None:
                     return self._send(404, {"error": f"no AI seat '{b.get('seat')}' (seats: {list(VPS)})"})
                 act = self.path.rsplit("/", 1)[-1]
+                if pilot and sn in PILOTS:                 # who is playing this seat: a person's move takes it back; the autopilot yields to a person
+                    yield_ = played_by_gate(sn, self.headers.get("X-Seat-Driver", ""), act)
+                    if yield_:
+                        return self._send(409, yield_)
                 if GAME_OVER.get("over") and act != "say" and (pilot or act not in AFTER_GAME_OK):   # M24: nothing is played after the end
                     self._refused(act, "game-over", "")
                     lost_ = [n for n in life_table() if is_out(n)]     # (409 and `stale`, as for any listed move the game has since overtaken: read the list again)

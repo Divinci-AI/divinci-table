@@ -169,8 +169,10 @@ def main():
         client = anthropic.Anthropic(api_key=kf.read_text().strip())
     else:
         client = anthropic.Anthropic()                            # falls back to the SDK's own credential lookup
+    # "role": "talk": this model only TALKS for the seat. What PLAYS it (a person, the rules autopilot) is the table's own record
+    # (GET /api/played-by), so no page says a model is playing when it is not. (An older table ignores the field.)
     c, d = http("POST", "/api/identity", {"seat": SEAT, "model": f"anthropic:{MODEL}", "provider": "anthropic", "voice": VOICE,
-                                          "presents_as": PRESENTS_AS}, key=True)
+                                          "presents_as": PRESENTS_AS, "role": "talk"}, key=True)
     print(f"claude banter for {SEAT} with {MODEL}: identity {c} {d.get('error') or ''}", flush=True)
     load_agents()
     since = (http("GET", "/api/events?since=latest")[1] or {}).get("last") or 0
