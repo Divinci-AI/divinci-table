@@ -2,8 +2,14 @@
 link for it.        python3 test_bots_for_absent.py"""
 import os, sys, tempfile
 os.environ["DRAFT_LIVE"] = tempfile.mkdtemp()
+os.environ["DRAFT_SAY_CMD"] = "true"
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import draft_banter
 import draft_server as S
+
+draft_banter.HostVoice.speak = lambda *a, **k: None      # a pick may queue a line of table talk: nothing is spoken here,
+draft_banter.Banter.event = lambda *a, **k: None         # and no model (local or cloud) is ever asked for one
+draft_banter.Banter._queue = lambda *a, **k: "off"
 
 fails = []
 def check(ok, what, d=""):

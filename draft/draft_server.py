@@ -5,6 +5,28 @@
 Binds 127.0.0.1 only. Each person opens their own link (a secret in ?k=); tokens are written to
 ../live/draft-links.txt (0600). Remote players come in through a tunnel. Card art is served only to a valid seat key, and only for the cards
 that person has been shown (their current pack and pool). Each person sees only their own pack.
+
+The broadcast (`/broadcast?k=<broadcast key>`, JSON at `/api/broadcast`) is the scene to capture for a stream: the four named seats,
+how many cards each has taken, and the picks the reveal rule allows. Its key is its own secret (the line `Broadcast: ...` in the
+links file): it opens no seat route, and no seat key opens it. It never carries a pack's contents, what was passed, a key, a card id
+or art, a bot seat's picks, or anything about a pick that is not yet revealed except that it exists (a face-down placeholder).
+Table talk is repeated only when the line names no card.
+
+    --broadcast-reveal pack-end   (default) a pack's picks are shown when that pack ends
+                       delayed    pick p is shown once the whole table has finished pick p+N of that pack, or the pack ended
+                       ai-live    the AI seats as in `delayed`; people's picks when the pack ends
+                       draft-end  nothing until the draft is over
+    --broadcast-delay N|end       N picks (default 3) for `delayed` and `ai-live`; `end` shows nothing until the draft is over
+
+What a delayed reveal still leaks, honestly. A delay hides only the pick being made now. Once a seat's pick is shown, the drafter who
+passed that pack knows exactly what was taken over what (here Michael passes to Sam, Sam to Claude, Claude to Fusion in packs 1 and 3),
+and every viewer learns that seat's colours, which stay useful for the rest of the draft: what will be left in the packs it passes,
+what it will send back in pack 2, what to cut in pack 3. With a delay under 7 a viewer can also learn what was taken out of a pack
+before that pack reaches them. No N fixes this; a larger N only makes it later. `ai-live` moves the leak onto the AI seats, and
+unevenly: the person seated just before an AI seat reads it best. `pack-end` gives nothing usable inside a pack, but everyone's colours
+between packs, and the AI seats cannot watch a stream. Only `draft-end` gives a watching drafter nothing during the draft, and even
+then every pool is public before deckbuilding and the matches. `pack-end` is the default because it is the least a stream can show
+and still be worth watching: no pick in a pack can be informed by it. For a draft that matters, use `draft-end`.
 """
 from __future__ import annotations
 
@@ -12,6 +34,7 @@ import argparse
 import json
 import os
 import random
+import re
 import secrets
 import threading
 import time
@@ -36,6 +59,17 @@ REQUIRED = set(NAMES)                        # a step advances when all four hav
 LINK_HOSTS = ("127.0.0.1", "localhost")
 LINK_SUFFIXES = (".trycloudflare.com",) + tuple(x.strip().lower() for x in os.environ.get("DRAFT_LINK_HOST_SUFFIXES", "").split(",") if x.strip())
 LOOPBACK = ("127.0.0.1", "::1")
+BROADCAST_REVEALS = ("pack-end", "delayed", "ai-live", "draft-end")   # see the module docstring; the first is the default
+
+
+def broadcast_delay(v) -> int | str:
+    """--broadcast-delay: a whole number of picks (0 or more), or "end" (nothing is shown until the draft is over)."""
+    if str(v).strip().lower() == "end":
+        return "end"
+    n = int(v)
+    if n < 0:
+        raise ValueError("the delay is 0 or more picks, or 'end'")
+    return n
 
 
 def clean_score(text) -> str:
@@ -74,6 +108,12 @@ def private_write(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
+def links_text(dr) -> str:
+    """The 0600 links file: one line per person, then the broadcast's own line (a restart with --keep reads both back)."""
+    return ("".join(f"{NAMES[s]}: /?k={t}\n" for t, s in dr.tokens.items() if s in HUMANS)
+            + f"Broadcast: /broadcast?k={dr.broadcast_key}\n")
+
+
 def make_bots(names) -> list[str]:
     """`--bot Sam`: that person or agent isn't playing tonight, so a bot drafts their seat. The draft no longer waits on it and
     it gets no link or token. Call before creating the Draft. Returns the names it changed (unknown names are ignored)."""
@@ -88,8 +128,9 @@ def make_bots(names) -> list[str]:
 
 
 class Draft:
-    def __init__(self, seed: int, keep: Path | None = None):
+    def __init__(self, seed: int, keep: Path | None = None, reveal: str = BROADCAST_REVEALS[0], delay: int | str = 3):
         self.seed = seed
+        self.bc_reveal, self.bc_delay = reveal, delay
         self.rng = random.Random(seed)
         self.lock = threading.Lock()
         self.cards = {c["id"]: c for c in json.loads(D.CARDS_JSON.read_text())}
@@ -111,10 +152,53 @@ class Draft:
         self.ready: set[int] = set()               # seats that pressed "I'm ready" on a legal deck (saved with the decks)
         self.match: dict | None = self._load_match()   # {"links": {player name: url}, "note": str}: the host's handoff, never logged
         self.tokens = {secrets.token_urlsafe(16): s for s in NAMES}
+        self.broadcast_key = secrets.token_urlsafe(16)  # the stream's own secret: opens /broadcast and nothing else
+        # any card name, whatever its length or last character (the banter guard skips short names and ones ending in "!")
+        self.bc_names = re.compile(r"(?<![a-z])(?:" + "|".join(sorted((re.escape(c["name"]) for c in self.cards.values()), key=len, reverse=True))
+                                   + r")(?![a-z])", re.I)
         if keep:                                       # a restart keeps the same links
             old = {l.split(": ")[0]: l.strip().split("k=")[1] for l in keep.read_text().splitlines() if "k=" in l}
             fresh = {s: t for t, s in self.tokens.items()}
             self.tokens = {old.get(n) or fresh[s]: s for s, n in NAMES.items()}
+            self.broadcast_key = old.get("Broadcast") or self.broadcast_key
+        while self.broadcast_key in self.tokens:       # the broadcast key is never a seat key
+            self.broadcast_key = secrets.token_urlsafe(16)
+
+    # ---- the broadcast (a stream's scene): only what the reveal rule allows; see the module docstring
+    def _revealed(self, seat: int, i: int) -> bool:
+        """May the broadcast show this seat's i-th pick (0-based, over the whole draft)?"""
+        rnd, p = divmod(i, D.PACK_SIZE)                # pick p+1 of pack rnd+1
+        if self.done:
+            return True
+        if self.bc_reveal == "draft-end" or self.bc_delay == "end":
+            return False
+        if rnd < self.rnd:                             # that pack has ended
+            return True
+        if self.bc_reveal == "pack-end" or (self.bc_reveal == "ai-live" and seat in HUMANS):
+            return False
+        return self.pick_no >= p + 1 + self.bc_delay   # the whole table has finished pick p+1+N of this pack
+
+    def broadcast(self) -> dict:
+        with self.lock:
+            seats = []
+            for seat, name in NAMES.items():
+                shown, tally = [], {}
+                for i, c in enumerate(self.picks[seat]):
+                    if not self._revealed(seat, i):
+                        continue
+                    for col in c["colors"] or ["C"]:
+                        tally[col] = tally.get(col, 0) + 1
+                    shown.append({"name": c["name"], "cost": c["mana_cost"] or "", "rarity": c["rarity"], "colors": c["colors"],
+                                  "pack": i // D.PACK_SIZE + 1, "pick": i % D.PACK_SIZE + 1})
+                seats.append({"name": name, "kind": "human" if seat in HUMANS else "AI", "picked": len(self.picks[seat]),
+                              "hidden": len(self.picks[seat]) - len(shown), "colors": tally, "picks": shown[::-1],
+                              "ready": self.done and seat in self.ready})
+            d = {"round": min(self.rnd + 1, D.PACKS), "pick": self.pick_no + 1, "packs": D.PACKS, "pack_size": D.PACK_SIZE,
+                 "done": self.done, "waiting_on": [NAMES[s] for s in NAMES if s not in self.pending and not self.done],
+                 "reveal": {"mode": self.bc_reveal, "delay": self.bc_delay}, "seats": seats}
+        d["talk"] = [{"who": e["who"], "text": e["text"], "ai": e["ai"]}
+                     for e in self.banter.since(0) if not self.bc_names.search(e["text"])][-5:]
+        return d
 
     def view(self, seat: int) -> dict:
         d = {"you": NAMES[seat], "round": self.rnd + 1, "pick": self.pick_no + 1, "done": self.done,
@@ -687,6 +771,91 @@ tick();setInterval(tick,1500);
 </script></body></html>"""
 
 
+BROADCAST_PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Star Trek draft: broadcast</title>
+<style>
+html,body{margin:0;height:100%;background:#0b0f14;overflow:hidden}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;background:#0b0f14;color:#eef2f6;
+ font-family:system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;display:flex;flex-direction:column}
+header{height:112px;flex:none;display:flex;align-items:center;gap:36px;padding:0 44px;border-bottom:2px solid #1e2a38;background:#0f151d}
+#title{font-size:24px;letter-spacing:.14em;text-transform:uppercase;color:#8fa3b8}
+#where{font-size:54px;font-weight:800;white-space:nowrap}
+#wait{font-size:32px;color:#f0b84a;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#wait.ok{color:#7ddc8a}
+#rule{position:absolute;right:44px;bottom:18px;font-size:22px;color:#8fa3b8;text-align:right}
+#seats{flex:1;min-height:0;display:flex;gap:20px;padding:20px 44px}
+.seat{flex:1 1 0;min-width:0;background:#121a24;border:2px solid #1e2a38;border-radius:18px;padding:18px 22px;display:flex;flex-direction:column;overflow:hidden}
+.seat.waiting{border-color:#f0b84a}
+.top{display:flex;align-items:center;gap:14px}
+.name{font-size:46px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{font-size:20px;font-weight:700;letter-spacing:.1em;padding:4px 12px;border-radius:999px;background:#24364a;color:#a9c6e6;text-transform:uppercase}
+.tag.ai{background:#3a2a4d;color:#d3b4f2}
+.rdy{font-size:20px;font-weight:700;color:#7ddc8a;margin-left:auto}
+.count{font-size:26px;color:#a9b8c8;margin:8px 0 10px}
+.count b{color:#eef2f6;font-size:34px}
+.tally{display:flex;gap:12px;min-height:44px;align-items:center;flex-wrap:wrap}
+.tally span{display:flex;align-items:center;gap:6px;font-size:28px;font-weight:700}
+.pip{display:inline-block;width:26px;height:26px;border-radius:50%;font-size:16px;font-weight:800;line-height:26px;text-align:center;color:#10151a;background:#b9c2cc;flex:none}
+.pip.W{background:#f6eecb}.pip.U{background:#6fb4ee}.pip.B{background:#8d7f9c;color:#fff}.pip.R{background:#ee7a66}.pip.G{background:#6cc67a}.pip.C{background:#b9c2cc}
+.pip.wide{width:auto;padding:0 7px;border-radius:13px}
+.down{display:flex;flex-wrap:wrap;gap:5px;margin:12px 0 6px;min-height:0}
+.down i{width:20px;height:28px;border-radius:4px;background:#22354a;border:2px solid #36506c;box-sizing:border-box}
+.downl{font-size:20px;color:#8fa3b8;margin-top:10px}
+.picks{flex:1;min-height:0;overflow:hidden;margin-top:8px}
+.picks.dense{column-count:2;column-gap:14px}
+.p{display:flex;align-items:center;gap:8px;font-size:27px;line-height:38px;border-left:6px solid #7d8894;padding-left:10px;margin-bottom:5px;break-inside:avoid}
+.picks.dense .p{font-size:19px;line-height:27px;margin-bottom:3px;border-left-width:5px}
+.picks.dense .pip{width:18px;height:18px;line-height:18px;font-size:12px}
+.picks.dense.full .p{font-size:17px;line-height:23px;margin-bottom:2px}
+.p .n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.p .cost{display:flex;gap:2px;flex:none}
+.p.common{border-color:#7d8894}.p.uncommon{border-color:#9fd0ee}.p.uncommon .n{color:#c5e4f7}
+.p.rare{border-color:#f0b84a}.p.rare .n{color:#f6cf7c}.p.mythic{border-color:#ff7a3d}.p.mythic .n{color:#ff9d6e}
+.none{font-size:24px;color:#63748a;margin-top:10px}
+#talk{height:176px;flex:none;border-top:2px solid #1e2a38;background:#0f151d;padding:12px 44px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+.l{font-size:28px;line-height:38px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#c9d3de}
+.l b{color:#f0b84a;margin-right:10px}.l.ai b{color:#d3b4f2}
+.l:last-child{color:#fff}
+#off{position:absolute;right:44px;bottom:50px;font-size:18px;color:#e06c5a;display:none}
+</style></head><body><div id="stage">
+<header><div id="title">Star Trek booster draft</div><div id="where">&nbsp;</div><div id="wait"></div></header>
+<div id="seats"></div><div id="talk"></div><div id="rule"></div><div id="off">reconnecting</div></div>
+<script>
+const K=new URLSearchParams(location.search).get("k")||"";
+const $=id=>document.getElementById(id);
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+function fit(){const s=Math.min(innerWidth/1920,innerHeight/1080);const st=$("stage").style;st.transform="scale("+s+")";st.left=(innerWidth-1920*s)/2+"px";st.top=(innerHeight-1080*s)/2+"px"}
+addEventListener("resize",fit);fit();
+function pips(cost){const box=el("span","cost");(cost.match(/\{[^}]*\}/g)||[]).forEach(t=>{const v=t.slice(1,-1);const one="WUBRG".includes(v)&&v.length===1;
+  box.appendChild(el("span","pip "+(one?v:"C")+(v.length>1?" wide":""),one?"":v))});return box}
+function ruleText(r){if(r.delay==="end"||r.mode==="draft-end")return"Picks are shown when the draft is over";
+  const n=r.delay+" pick"+(r.delay===1?"":"s")+" later";
+  if(r.mode==="pack-end")return"Picks are shown when each pack ends";
+  if(r.mode==="ai-live")return"AI picks are shown "+n+"; people's picks when the pack ends";
+  return"Picks are shown "+n}
+function draw(d){
+  $("where").textContent=d.done?"Draft complete":"Pack "+d.round+" of "+d.packs+"  ·  Pick "+d.pick+" of "+d.pack_size;
+  const w=$("wait");w.className=d.waiting_on.length?"":"ok";
+  w.textContent=d.done?"Building decks":d.waiting_on.length?"Waiting on "+d.waiting_on.join(", "):"";
+  $("rule").textContent=d.done?"":ruleText(d.reveal);
+  const root=$("seats");root.textContent="";
+  d.seats.forEach(s=>{const c=el("div","seat"+(d.waiting_on.includes(s.name)?" waiting":""));
+    const top=el("div","top");top.appendChild(el("div","name",s.name));top.appendChild(el("div","tag"+(s.kind==="AI"?" ai":""),s.kind));
+    if(s.ready)top.appendChild(el("div","rdy","READY"));c.appendChild(top);
+    const cnt=el("div","count");cnt.appendChild(el("b","",String(s.picked)));cnt.appendChild(document.createTextNode(" card"+(s.picked===1?"":"s")+" picked"));c.appendChild(cnt);
+    const ty=el("div","tally");"WUBRGC".split("").forEach(k=>{if(s.colors[k]){const x=el("span");x.appendChild(el("span","pip "+k));x.appendChild(document.createTextNode(String(s.colors[k])));ty.appendChild(x)}});c.appendChild(ty);
+    if(s.hidden){c.appendChild(el("div","downl",s.hidden+" face down"));const dn=el("div","down");for(let i=0;i<s.hidden;i++)dn.appendChild(el("i"));c.appendChild(dn)}
+    const pk=el("div","picks"+(s.picks.length>10?" dense":"")+(s.picks.length>36?" full":""));
+    s.picks.forEach(p=>{const r=el("div","p "+p.rarity);r.appendChild(el("span","n",p.name));r.appendChild(pips(p.cost));pk.appendChild(r)});
+    if(!s.picks.length&&!s.hidden)pk.appendChild(el("div","none","No picks yet"));
+    c.appendChild(pk);root.appendChild(c)});
+  const t=$("talk");t.textContent="";d.talk.slice(-4).forEach(e=>{const l=el("div","l"+(e.ai?" ai":""));l.appendChild(el("b","",e.who));l.appendChild(document.createTextNode(e.text));t.appendChild(l)});
+}
+async function poll(){try{const r=await fetch("api/broadcast?k="+encodeURIComponent(K),{cache:"no-store"});if(!r.ok)throw 0;draw(await r.json());$("off").style.display="none"}catch(e){$("off").style.display="block"}}
+poll();setInterval(poll,2000);
+</script></body></html>
+"""
+
+
 def make_handler(dr: Draft):
     class H(BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -729,6 +898,13 @@ def make_handler(dr: Draft):
                 if not self._host_only():
                     return self._json(403, {"error": "host only"})
                 return self._json(200, dr.host_ready_state())
+            if path in ("/broadcast", "/api/broadcast"):  # the stream's own key and nothing else: a seat key is refused here
+                q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+                if not secrets.compare_digest((q.get("k") or [""])[0].encode(), dr.broadcast_key.encode()):
+                    return self._json(403, {"error": "the broadcast needs its own link"})
+                if path == "/broadcast":
+                    return self._send(200, "text/html; charset=utf-8", BROADCAST_PAGE.encode())
+                return self._json(200, dr.broadcast())
             seat = self._seat()
             if seat is None:
                 return self._json(403, {"error": "this draft needs your own link"})
@@ -840,6 +1016,10 @@ if __name__ == "__main__":
     ap.add_argument("--port", type=int, default=8820)
     ap.add_argument("--keep", action="store_true", help="reuse the links in live/draft-links.txt")
     ap.add_argument("--bot", action="append", default=[], help="a named seat a bot drafts tonight (e.g. --bot Sam); repeatable")
+    ap.add_argument("--broadcast-reveal", choices=BROADCAST_REVEALS, default=BROADCAST_REVEALS[0],
+                    help="when the broadcast shows a pick (see the top of this file); default: when its pack ends")
+    ap.add_argument("--broadcast-delay", type=broadcast_delay, default=3, metavar="N|end",
+                    help="for delayed/ai-live: a pick is shown N picks later (default 3); 'end': nothing until the draft is over")
     a = ap.parse_args()
     if a.bot:
         print(f"bots draft for: {', '.join(make_bots(a.bot)) or '(no such seat)'}", flush=True)
@@ -848,13 +1028,15 @@ if __name__ == "__main__":
     state = LIVE / "draft-state.json"
     if a.keep and state.exists():
         a.seed = json.loads(state.read_text())["seed"]
-    dr = Draft(a.seed, links if (a.keep and links.exists()) else None)
+    if any(n.lower() == "broadcast" for n in NAMES.values()):
+        raise SystemExit("a seat cannot be named Broadcast: that line of the links file is the stream's key")
+    dr = Draft(a.seed, links if (a.keep and links.exists()) else None, a.broadcast_reveal, a.broadcast_delay)
     if a.keep and state.exists():
         dr.restore(state)
         print(f"restored: pack {dr.rnd + 1}, pick {dr.pick_no + 1}, {len(dr.history)} steps replayed", flush=True)
     links.touch(mode=0o600)
     links.chmod(0o600)
-    links.write_text("".join(f"{NAMES[s]}: /?k={t}\n" for t, s in dr.tokens.items() if s in HUMANS))
+    links.write_text(links_text(dr))
     ag = LIVE / "draft-agent-tokens.json"
     ag.touch(mode=0o600)
     ag.chmod(0o600)

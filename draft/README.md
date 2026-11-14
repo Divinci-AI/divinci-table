@@ -27,3 +27,16 @@ link went by hand. `docs/retro-20261113-launch-notes.md` has the diffs for the p
 python3 draft/test_match_format.py                          # the format line, in rehearsal mode (nothing is started)
 python3 draft/test_banter_guard.py                          # table talk never names a card during a draft (typed lines too)
 ```
+
+## The broadcast: the draft as a stream's scene
+
+`/broadcast?k=<broadcast key>` (JSON at `/api/broadcast`) is the page to capture: the named seats, how many cards each has taken, and
+the picks the reveal rule allows (`--broadcast-reveal pack-end | delayed | ai-live | draft-end`, `--broadcast-delay N|end`; the top of
+`draft_server.py` says what each still leaks to a drafter who is watching). The key is its own secret, the line `Broadcast: ...` of the
+0600 links file: it opens no seat route, and no seat key opens it. It never carries a pack's contents, what was passed, a key, a card
+id or art, or anything about a pick that is not revealed yet except that it exists. Table talk is repeated only when the line names no card.
+
+```bash
+python3 draft/test_broadcast.py                             # every reveal mode, compared after every pick of a whole draft
+python3 draft/test_broadcast.py --demo --reveal delayed     # a self-driving draft to look at (prints the link)
+```
