@@ -43,6 +43,7 @@ import os
 import re
 import secrets
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -165,6 +166,21 @@ def _get_json(url: str, host_header: str | None = None, timeout: float = 10.0, o
         return 0, {}
 
 
+def _curl_json(url: str, timeout: float = 10.0) -> tuple[int, dict]:
+    """The same GET with curl, which uses the system's certificate store. For an interpreter that cannot check a certificate (a Python
+    installed without its CA bundle fails every https request, whatever the server): the probe must not call a live tunnel dead for that."""
+    exe = shutil.which("curl")
+    if not exe:
+        return 0, {}
+    r = subprocess.run([exe, "-s", "-m", str(int(timeout)), "-A", AGENT, "-H", "Accept: application/json", "-w", "\n%{http_code}", url],
+                       capture_output=True, text=True)
+    body, _, code = r.stdout.rpartition("\n")
+    try:
+        return int(code or 0), (json.loads(body) if body.strip().startswith("{") else {})
+    except ValueError:
+        return 0, {}
+
+
 def table_word(port: int) -> tuple[str, str, str]:
     """(path, field, value): what this table says about itself on 127.0.0.1, to be asked for again through the tunnel."""
     c, d = _get_json(f"http://127.0.0.1:{port}/api/instance", opener=LOCAL, timeout=5)
@@ -186,6 +202,8 @@ def prove(host: str, port: int) -> tuple[bool, str]:
         code, d = _get_json(via.rstrip("/") + path, host_header=urllib.parse.urlsplit(host).netloc, opener=LOCAL)
     else:
         code, d = _get_json(host.rstrip("/") + path)
+        if code == 0:                                  # no answer at all through this interpreter: ask once more with curl before saying so
+            code, d = _curl_json(host.rstrip("/") + path)
     if code != 200:
         return False, f"{host} answers {code or 'nothing'} on {path}" + (" (Cloudflare: that tunnel is gone)" if code in (502, 530) else "")
     if str(d.get(field) or "") != word:
