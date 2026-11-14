@@ -620,16 +620,50 @@ def defend():
         print(f"  block {e['creature']} ({ap}) with {pick['name'] if pick else 'nothing'} -> {c} {str(d.get('said') or d.get('error'))[:120]}", flush=True)
 
 
+MATCH_SEEN = {"said": None}
+
+
+def between_games(ph: dict) -> str:
+    """A game has ended. In a match (the table was started with --match bo3: best two out of three on ONE table) that is not the end: the next
+    game starts on the same table with the same seat key, so this bot stays. Returns:
+        "stay"  another game of the match is coming: the caller waits (and, as the loser, this seat has chosen to play first)
+        "over"  the match is over, or this table plays single games (an older table has no /api/match: the same answer): the caller stops
+    The table says it in /api/phase too (`match.continues`), so a table that is slow to answer /api/match is not mistaken for a finished one."""
+    brief = ph.get("match") or {}
+    c, m = call("GET", "/api/match")
+    if c != 200 or not isinstance(m, dict) or not m.get("on"):
+        return "stay" if brief.get("continues") else "over"
+    if m.get("over"):
+        print(f"autopilot: the match is over ({m.get('score')})", flush=True)
+        return "over"
+    nx = m.get("next") or {}
+    if nx and MATCH_SEEN["said"] != nx.get("n"):
+        MATCH_SEEN["said"] = nx.get("n")
+        print(f"autopilot: game over, the match continues ({m.get('score')}); game {nx.get('n')} starts on this table", flush=True)
+    if nx and nx.get("chooser") == SEAT and not nx.get("choice"):       # the loser chooses: an AI seat plays first
+        c2, d2 = call("POST", "/api/match/next", {"seat": SEAT, "action": "play"})
+        print(f"  the choice is mine (I lost the last game): play first -> {c2} {str(d2.get('error') or '')[:100]}", flush=True)
+    return "stay"
+
+
 def main():
     print(f"autopilot for {SEAT} on {BASE}, grace {GRACE:.0f}s", flush=True)
     wait_from, seen, finishing, acted, loops = None, 0, False, False, 0
     acted_turn = None
     stuck = False
+    game_id = None
     while True:
         c, ph = call("GET", "/api/phase")
         if c != 200:
             time.sleep(3)
             continue
+        if ph.get("game_id") != game_id:             # a new game on this table (a match's next game can begin between two of this loop's
+            if game_id is not None:                  # ticks, so the game-over branch below may never have been seen): nothing carries over
+                print(f"autopilot: a new game on this table ({ph.get('game_id')})", flush=True)
+                wait_from, seen, finishing, acted, acted_turn, stuck = None, 0, False, False, None, False
+                REFUSED.clear()
+                HOLD["until"] = 0.0
+            game_id = ph.get("game_id")
         if opening_hand(ph):                         # T15: keep or mulligan before the first turn; again next tick until kept
             time.sleep(0.5)
             continue
@@ -642,6 +676,12 @@ def main():
         loops += 1                                   # the phase reply says game_over itself on a bot-only table; the life read
         life = (call("GET", "/api/life")[1] or {}) if loops % 3 == 0 else {}   # is the fallback for tables with people (every 3rd loop)
         if any(isinstance(v, int) and v <= 0 for v in life.values()) or ph.get("game_over") or ph.get("winner"):
+            if between_games(ph) == "stay":              # a match: wait here for the next game, and start it with nothing left from this one
+                wait_from, seen, finishing, acted, acted_turn, stuck = None, 0, False, False, None, False
+                REFUSED.clear()
+                HOLD["until"] = 0.0
+                time.sleep(1.0 * PACE)
+                continue
             print(f"autopilot: game over ({life}), stopping", flush=True)
             return
         if not my_turn(ph):

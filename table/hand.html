@@ -176,6 +176,7 @@ body.u-on .tbs [data-s="next"]{display:none}
 <script src="/assets/seat.js" defer></script>
 <script src="/assets/urgent.js" defer></script>
 <script src="/assets/gameover.js" defer></script>
+<script src="/assets/matchrecap.js" defer></script>
 <script src="/assets/choicealert.js" defer></script>
 <script src="/assets/tablebar.js" defer></script>
 <script src="/assets/sfx.js" defer></script>
@@ -291,8 +292,11 @@ const effOnce = p => /\bwhen (this|it)\b[^]*?\benters\b[^]*?\b(surveil|scry) 1\b
 const effOpen = p => !effOnce(p) || !(effUsedIds.has(String(p.id)) || effUsedNames.has(p.name));
 function effMarkUsed(id) { effUsedIds.add(String(id)); try { localStorage.setItem(effKey(), JSON.stringify([...effUsedIds])); } catch {} }
 (async () => {                                             // uses before this page loaded: "<card>: I surveil 1 …" said by me in the game log
-  try { const d = await (await fetch("/api/events?since=0")).json();
-    for (const e of d.events || []) { const m = e.type === "say" && e.speaker === me() && /^(.+?): I (surveil|scry) 1/.exec(e.text || ""); if (m) effUsedNames.add(m[1]); }
+  try { let evs_ = [], from_ = 0;                          // the whole log, a page (300) at a time: a match's log is longer than one page
+    for (let i_ = 0; i_ < 12; i_++) { const d = await (await fetch("/api/events?since=" + from_)).json(), pg_ = d.events || [];
+      evs_ = evs_.concat(pg_); if (pg_.length < 300) break; from_ = pg_[pg_.length - 1].id; }
+    const ng_ = evs_.map(e => e.type).lastIndexOf("new-game");     // this game only: a match plays several on one table
+    for (const e of evs_.slice(ng_ + 1)) { const m = e.type === "say" && e.speaker === me() && /^(.+?): I (surveil|scry) 1/.exec(e.text || ""); if (m) effUsedNames.add(m[1]); }
     if (S) draw(); } catch {}
 })();
 // "Choose one —" cards: one Cast button per mode (the engine needs the mode number, 1-based)
@@ -1604,6 +1608,15 @@ async function phase() {
   setTimeout(phase, 2000);
 }
 addEventListener("load", () => { setTimeout(() => { load(); poll(); phase(); }, 300); });
+// A match (best two out of three): the next game starts on this same page (assets/matchrecap.js says when). What this page remembered
+// about the last game must not carry over: the "used once" marks on enters-triggers, the mulligan picks, chosen attackers, an open alert.
+addEventListener("table-new-game", () => {
+  effUsedIds = new Set(); effUsedNames = new Set(); try { localStorage.removeItem(effKey()); } catch {}
+  mullPick = []; mullSig = ""; mullArm = 0; window.__matScrolled = false;
+  try { attackers.clear(); lastAttack = []; } catch {}
+  alert = null; try { fanClose(); } catch {}
+  load(); refreshPhase();
+});
 </script>
 <script>
 // a phone keyboard must not cover the field being typed in: bring it to the middle of what is left

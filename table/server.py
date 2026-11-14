@@ -111,6 +111,14 @@ ap.add_argument("--seed", type=int, default=None,
                      "(no fair-seed commit, so NOT provably fair; never set on a table with people). Same seed + same actions = same game")
 ap.add_argument("--confirm-frames", type=int, default=2, help="same card on N frames in a row")
 ap.add_argument("--clear-secs", type=float, default=1.0, help="no card in view this long before the next scan")
+ap.add_argument("--match", choices=["single", "bo3"], default=os.environ.get("TABLE_MATCH") or "single",
+                help="single: one game per table, and a new game is the host's call (as before; what the public lobby's agent tables use). "
+                     "bo3: best two out of three between the same two virtual-deck seats: when a game ends the next one starts by itself on "
+                     "this same table (same seat keys, same links), the loser choosing to play or draw first; see table/bo3.py")
+ap.add_argument("--match-countdown", type=float, default=float(os.environ.get("TABLE_MATCH_COUNTDOWN") or 25.0),
+                help="bo3: seconds between a game's end and the next game's start (players can press Start now, or Wait)")
+ap.add_argument("--match-max-wait", type=float, default=float(os.environ.get("TABLE_MATCH_MAX_WAIT") or 300.0),
+                help="bo3: the longest a player's Wait can hold the next game back, in seconds")
 ap.add_argument("--token-file", default=None,
                 help="where to write the brain token (default table/.brain-token); a second server, e.g. a "
                      "test run, needs its own so it doesn't lock the live game's brain out")
@@ -555,9 +563,18 @@ def legal_actions(sn: str) -> dict:
             out["actions"].append({"action": "mulligan", "body": {"seat": sn}, "why": f"a new seven, keeping {max(0, mv_['keeps'] - 1)}"})
         out["note"] = "opening hand: keep or mulligan (London: a new seven, then one card on the bottom per mulligan when you keep)"
         return out
+    if match_on():
+        out["match"] = match_brief()
+    if GAME_OVER.get("over") and match_continues():        # NOT "the game is over": an agent that stops on that note would leave the match
+        nx_ = MATCH.next
+        out["note"] = "match continues: the next game is starting"
+        out["match"]["help"] = (f"game {nx_['n']} starts on this table in a moment with the same seat key: keep polling. "
+                                + (f"You choose who plays first: POST /api/match/next {{\"seat\": \"{sn}\", \"action\": \"play\"}} or \"draw\" (no answer: you play first)."
+                                   if nx_["chooser"] == sn and not nx_["choice"] else f"{nx_['chooser']} chooses who plays first; there is no roll."))
+        return out
     if PHASE.get("player") is None or GAME_OVER.get("over") or is_out(sn):
         out["note"] = "the game hasn't started" if PHASE.get("player") is None else "the game is over" if GAME_OVER.get("over") else "you have lost"
-        return out
+        return out                                     # (in a match, "the game is over" is only ever said once the MATCH is over: see above)
     A = out["actions"]
     add = lambda action, body, why: A.append({"action": action, "body": {"seat": sn, **body}, "why": why})
     if v.__dict__.get("pending_choices"):
@@ -1072,7 +1089,8 @@ def snapshot():
             seq = snapfile.SNAP_SEQ[0]
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
                                  "ORDER": turn_order(), "EVENTS": list(EVENTS[-1500:]), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
-                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "SEAT_PROXY": SEAT_PROXY, "SEAT_INVITES": SEAT_INVITES, "DECKDECL": DECKDECL, "MULL": dict(MULL), "CONCEDED": sorted(CONCEDED), "ev_id": _ev_id[0], "saved": time.time()})
+                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "SEAT_PROXY": SEAT_PROXY, "SEAT_INVITES": SEAT_INVITES, "DECKDECL": DECKDECL, "MULL": dict(MULL), "CONCEDED": sorted(CONCEDED), "ev_id": _ev_id[0], "saved": time.time(),
+                                 "MATCH": MATCH.to_json() if MATCH is not None else None})
         snapfile.write_snapshot(research_dir() / "snapshot.pkl", blob, seq)
     except Exception as e:                            # never let saving break the table
         print(f"snapshot failed: {e}", flush=True)
@@ -1097,6 +1115,7 @@ def restore(path: str):
     if MULL["on"]:
         MULL["since"] = time.time()                   # the clock starts again with the table
     CONCEDED.clear(); CONCEDED.update(d.get("CONCEDED") or [])      # (a snapshot from before concede: nobody has)
+    match_restore(d.get("MATCH"))
     DECKDECL.update(d.get("DECKDECL") or {})          # declared commanders and deck lists (the check-in), and the seats' commanders with them
     for h in HUMANS:
         c = (DECKDECL.get(h["name"]) or {}).get("commander")
@@ -1117,6 +1136,32 @@ def restore(path: str):
     WAIT_SINCE.clear(); WAIT_SAID.clear(); PASS.update(key=None, passed=[], waiting_on=None, since=time.time())      # nothing is "still waiting" from before the stop
     emit("table-note", kind="host", text=f"The table was restored from a save ({time.strftime('%H:%M:%S')}). Anything said or waited on before it is gone.")      # R12
     print(f"restored {path}: seats {list(VPS)}, life {life_table()}, turn {PHASE}", flush=True)
+
+
+def match_restore(saved: dict | None):
+    """A table restarted with --restore and --match bo3 carries on with its match: the score, the games played, who chooses next. The
+    snapshot's own copy first (it was saved in the same instant as the game); else the file beside the saves, if it is about this game."""
+    global MATCH
+    if MATCH is None:
+        return
+    m = None
+    try:
+        if isinstance(saved, dict) and saved.get("seats") == MATCH.seats:
+            m = bo3_mod.Match.from_json(saved, path=MATCH_FILE)
+        else:
+            f = bo3_mod.load(MATCH_FILE)
+            ids = {FAIR.get("game")}
+            if f is not None and f.seats == MATCH.seats and ((f.current or {}).get("game_id") in ids or (f.games and f.games[-1].get("game_id") in ids)):
+                m = f
+    except (ValueError, KeyError, TypeError) as e:
+        print(f"match: the saved match could not be read ({e}): starting a new one", flush=True)
+    if m is None:
+        return
+    m.countdown, m.max_wait = MATCH.countdown, MATCH.max_wait
+    MATCH = m
+    MATCH.restart_clock(time.time())                   # between two games: the countdown starts again
+    MATCH.save()
+    print(f"match restored: {MATCH.score()} after {len(MATCH.games)} game(s)", flush=True)
 
 
 def migrate_charge_lines():
@@ -2154,7 +2199,8 @@ def combat_legal(sn: str, out: dict) -> dict:
     """The legal list, put right for the v6c combat (after legal_actions has built it): no second attack once the declaration is locked; the
     attacker's `damage` only once blocks are in, never Next or End around an open combat; for the defender no block that "can't block
     this turn" forbids, and one entry that answers every attacker at once."""
-    if sn not in VPS or not isinstance(out.get("actions"), list) or out.get("note") in ("the game is over", "you have lost"):
+    if sn not in VPS or not isinstance(out.get("actions"), list) or out.get("note") in ("the game is over", "you have lost") \
+            or str(out.get("note") or "").startswith("match continues"):
         return out
     A = out["actions"]
     if on_turn(sn) and turn_is_ending():             # End has been taken: nothing more is offered for the half second the hand-over takes
@@ -2511,6 +2557,8 @@ def highroll_start(mode: str, sides: int, by: str) -> tuple[int, dict]:
     """A high roll for who goes first. "physical": each player rolls a real die and enters it (a person
     rolls for an AI seat). "quantum": one fresh ANU quantum draw, and every roll derives from it by
     fair.die_roll — published, so anyone can recompute it. Ties re-roll among the tied players."""
+    if match_on() and MATCH.games:                    # a match rolls ONCE, before game 1 (2026-11-14: game 2 rolled; the loser should have been asked)
+        return 409, {**highroll_public(), "error": "no roll after game 1 of a match: the loser of the previous game chooses to play or draw first"}
     if HIGHROLL.get("winner"):                        # one roll per game: no re-rolling until a result suits
         return 409, {**highroll_public(), "error": f"already rolled — {HIGHROLL['winner']} goes first"}
     if PHASE["player"] is not None:
@@ -2838,6 +2886,8 @@ def begin_game(by: str) -> tuple[int, dict]:
     with PHASE_LOCK:
         if PHASE["player"] is not None:
             return 200, phase_public()
+        if match_on() and MATCH.games:                 # games 2 and 3 are started by the match itself (the loser's choice, no roll, no "first seat")
+            return 409, {**phase_public(), "error": "the next game of the match starts by itself: the loser of the last game chooses who plays first"}
         if mode == "first":
             start_turn(turn_order()[0])
             return 200, phase_public()
@@ -2918,6 +2968,8 @@ def phase_public() -> dict:
     out["waiting_on"] = waiting_on()                  # R12: public, with the seat, what, and since when
     out["bots"] = [n for n in VPS if is_bot(n)]       # R24: `ai` lists every seat the table runs; these are the ones nobody drives
     out["driven"] = list(PILOTS)                      # …and these answer through a seat key (a person, or a bot such as the autopilot)
+    if match_on():
+        out["match"] = match_brief()                  # the score, and "continues": another game is coming on this table (do not leave)
     return out
 
 
@@ -2977,6 +3029,7 @@ def start_turn(name: str):
         print(f"spectate snapshot failed: {e}", file=sys.stderr, flush=True)
     if PHASE["player"] is None:
         GAME_FIRST["seat"] = name
+        match_first_turn(name)                         # (a match: game N has begun, and who is first)
         if mull_gate(name):                            # T15: opening hands first; the turn starts when every seat has kept (mull_check_done)
             snapshot()
             return
@@ -3379,6 +3432,9 @@ def auto_game_over():
     lt = life_table()
     side = lambda n: TEAMS.get(n) or n
     alive = {side(n) for n, v in lt.items() if isinstance(v, int) and v > 0 and n not in CONCEDED}
+    if not alive and match_on():                           # both at 0 or less in the same moment: a drawn game. Only a match knows what to do
+        order = sorted(lt, key=lambda n: -(lt[n] if isinstance(lt[n], int) else 0))     # with one (it counts for nobody; another is played)
+        return finish_game(order, None, by="table", auto=True)
     if len(alive) != 1:
         return
     win = alive.pop()
@@ -3490,6 +3546,12 @@ def finish_game(order, winner, by="table", auto=False):
     game_over_cleanup()                                   # M24: open questions, a combat in progress, a priority window: all dropped
     who = TEAMS.get(winner) or winner
     line = f"Game over. {who} wins" + (f", at {totals.get(winner)} life." if isinstance(totals.get(winner), int) else ".")
+    if winner is None:
+        line = "Game over: a draw. Nobody wins this one."
+    try:
+        match_game_finished(winner, totals, summary)      # a match: the score, and the next game's countdown (or the match's end)
+    except Exception as e:                                # noqa: BLE001 — the match layer must never stop a game ending
+        print(f"match: recording the game failed: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
     if os.environ.get("TABLE_NO_VOICE") != "1":            # one line, spoken by the table's voice pages; an agent table stays quiet
         emit("say", speaker="Table", text=line, action="game-over", auto=True, speech=line)
     try:                                                  # the final save, for the retro: the public log and the summary
@@ -3541,6 +3603,9 @@ def game_over_public() -> dict:
     """What every page shows when the game is over (public: the winner, the final totals, the summary of the public log)."""
     if not GAME_OVER.get("over"):
         return {"over": False}
+    if match_on():                                        # a match: the pages show the recap card (assets/matchrecap.js) instead of the banner
+        return {"over": True, **{k: GAME_OVER.get(k) for k in ("winner", "team", "order", "totals", "summary", "at")},
+                "match": match_brief(), "rematch": ("the match is over" if MATCH.over else "the next game of the match starts by itself, on this table")}
     return {"over": True, **{k: GAME_OVER.get(k) for k in ("winner", "team", "order", "totals", "summary", "at")},
             "rematch": "the host starts a new game (Reset); nothing restarts by itself"}
 JOURNALS = journal_mod.Journal(lambda: globals().get("FAIR", {}).get("game") or "", _append, _read_research)
@@ -3611,6 +3676,238 @@ for spec in args.human:
     name, _, commander = spec.partition("|")
     HUMANS.append({"name": name.strip(), "commander": commander.strip() or None})
 LIFE.update({h["name"]: 40 for h in HUMANS})
+
+# ── a match: best two out of three on one table (table/bo3.py holds the rules; this is the table's side of it) ─────────────────
+# Opt-in (--match bo3). It needs exactly two virtual-deck seats and nobody playing physical cards: only then does the table itself
+# know when a game is over (auto_game_over) and can it deal the next one. Anything else stays a single game, and says why.
+import bo3 as bo3_mod
+MATCH = None                                           # a bo3_mod.Match when this table plays a match, else None
+MATCH_FILE = Path(os.environ.get("TABLE_SAVES_DIR") or RESEARCH) / (f"match-p{args.port}.json" if not os.environ.get("TABLE_SAVES_DIR") else "match.json")
+MATCH_RECAP_SECS = float(os.environ.get("TABLE_MATCH_RECAP_SECS") or 90.0)      # how long a recap card stays up on a seat's page if nobody closes it
+MATCH_WATCH_RECAP_SECS = float(os.environ.get("TABLE_MATCH_WATCH_RECAP_SECS") or 20.0)   # …and on /watch (the stream), where nobody can
+if args.match == "bo3":
+    if len(VPS) == 2 and not HUMANS and not TEAMS:
+        if MATCH_FILE.exists() and not args.restore:   # an earlier match's record is kept, never overwritten
+            try:
+                MATCH_FILE.rename(MATCH_FILE.with_name(f"{MATCH_FILE.stem}-{time.strftime('%Y%m%d-%H%M%S')}.json"))
+            except OSError:
+                pass
+        MATCH = bo3_mod.Match(list(VPS), best_of=3, countdown=args.match_countdown, max_wait=args.match_max_wait, path=MATCH_FILE)
+        print(f"match: best two out of three, {' vs '.join(VPS)}; {args.match_countdown:g} s between games; state in {MATCH_FILE}", flush=True)
+    else:
+        print("match: --match bo3 needs exactly two virtual-deck seats (no --human, no --team): this table plays single games", flush=True)
+
+
+def match_on() -> bool:
+    return MATCH is not None
+
+
+def match_continues() -> bool:
+    """A game of the match has ended and another one is coming on this same table."""
+    return MATCH is not None and not MATCH.over and MATCH.next is not None
+
+
+def match_public() -> dict:
+    """GET /api/match: public, no seat key (a stream overlay reads it). Scores, each game's winner and turns, who plays first next. Never a card."""
+    if MATCH is None:
+        return {"on": False}
+    with VP_LOCK:
+        out = MATCH.public(time.time())
+        out["now"] = round(time.time(), 2)
+        out["game_id"] = FAIR.get("game")
+        out["game_over"] = bool(GAME_OVER.get("over"))
+        out["recap_secs"] = MATCH_RECAP_SECS
+        out["watch_recap_secs"] = MATCH_WATCH_RECAP_SECS
+        out["driven"] = sorted(PILOTS)
+        return out
+
+
+def match_brief() -> dict:
+    """The few words /api/phase and the legal list carry."""
+    nx = MATCH.next
+    return {"game": (MATCH.current or {}).get("n") or (nx or {}).get("n") or len(MATCH.games), "wins": dict(MATCH.wins), "score": MATCH.score(),
+            "over": MATCH.over, "winner": MATCH.winner, "continues": match_continues(),
+            **({"next": {"n": nx["n"], "chooser": nx["chooser"], "choice": nx["choice"]}} if nx else {})}
+
+
+def match_first_turn(first: str):
+    """Called where a game's first turn is handed out (start_turn, before the mulligans): the match learns the game has begun and who is first."""
+    if MATCH is None or MATCH.over:
+        return
+    if not (MATCH.current and MATCH.current.get("game_id") == FAIR.get("game")):
+        rolled = HIGHROLL.get("winner") == first and HIGHROLL.get("mode") != "match"
+        MATCH.game_started(FAIR.get("game") or "", first, chooser=first, choice=None, how="roll" if rolled else "first seat")
+
+
+def match_recap_lines(winner, totals: dict, summary: dict) -> list:
+    """A line or two for the recap card, from the summary of the PUBLIC log that finish_game already built."""
+    out = []
+    fin = (summary or {}).get("finishing_blow") or {}
+    if fin.get("by") == "concede":
+        out.append(f"{fin.get('to') or fin.get('player')} conceded.")
+    elif fin:
+        who, amt = fin.get("dealt_by"), fin.get("amount")
+        w = ", ".join(str(x.get("name")) for x in (fin.get("with") or []) if x.get("name"))
+        out.append(f"The last blow: {fin.get('to') or fin.get('player')} took {amt}" + (f" from {who}" if who else "") + (f" ({w})" if w else "") + ".")
+    key = [f"{x.get('name')} ({x.get('player')})" for x in ((summary or {}).get("key_spells") or [])[:3] if x.get("name")]
+    if key:
+        out.append("Biggest spells: " + ", ".join(key) + ".")
+    return out
+
+
+def match_game_finished(winner, totals: dict, summary: dict):
+    """finish_game calls this: the result goes into the match, the public log says the score, and either the next game's countdown starts
+    (with the loser asked whether to play or draw first) or the match is over. VP_LOCK is the caller's or taken here (re-entrant)."""
+    if MATCH is None or MATCH.over:
+        return
+    with VP_LOCK:
+        g = MATCH.record(winner, totals=totals, turns=(summary or {}).get("turns") or 0, lines=match_recap_lines(winner, totals, summary),
+                         now=time.time(), game_id=FAIR.get("game") or "")
+        emit("match", kind="game", game=g["n"], winner=g["winner"], draw=g["draw"], turns=g["turns"], totals=g["totals"], wins=dict(MATCH.wins),
+             score=MATCH.score(), over=MATCH.over, match_winner=MATCH.winner)
+        res = f"Game {g['n']} is a draw: it counts for nobody" if g["draw"] else f"{g['winner']} wins game {g['n']}"
+        if MATCH.over:
+            line = f"{res}. {MATCH.score()}."
+            emit("say", speaker="Table", text=line, action="match", auto=True, speech=line)
+            return
+        nx = MATCH.next
+        why = (f"{nx['chooser']} lost game {g['n']}" if nx["why"] == "lost" else f"game {g['n']} was drawn, and {nx['chooser']} chose (or won the roll) for it")
+        line = (f"{res}. {MATCH.score()}. Game {nx['n']} starts in {MATCH.countdown:g} seconds on this table: nobody needs a new link. "
+                f"No roll: {why}, so {nx['chooser']} chooses to play first or draw first.")
+        emit("say", speaker="Table", text=line, action="match", auto=True, speech=f"{res}. {MATCH.score()}.")
+        emit("attention", kind="match-choice", addressee=nx["chooser"], text=f"You choose for game {nx['n']}: play first or draw first.")
+        if is_bot(nx["chooser"]):                          # nobody drives that seat: an AI seat plays first
+            match_choose(nx["chooser"], bo3_mod.PLAY, how="ai")
+
+
+def match_choose(seat: str, choice: str, how: str = "chose") -> tuple[int, dict]:
+    with VP_LOCK:
+        if MATCH is None or not MATCH.next:
+            return 409, {"error": "no game is waiting to start"}
+        n = MATCH.next["n"]
+        ok, why = MATCH.choose(seat, choice, how=how)
+        if not ok:
+            return 409, {"error": why}
+        first = seat if choice == bo3_mod.PLAY else MATCH.other(seat)
+        text = f"{seat} chooses to {choice} first in game {n}: {first} will play first."
+        emit("match", kind="choice", game=n, chooser=seat, choice=choice, how=how, first=first)
+        emit("say", speaker="Table", text=text, action="match", auto=True, speech="")
+    return 200, match_public()
+
+
+def match_next_request(seat: str | None, action: str) -> tuple[int, dict]:
+    """POST /api/match/next: play | draw (the chooser), now (Start now), wait (Wait). seat None is the host (now only)."""
+    if MATCH is None:
+        return 409, {"error": "this table plays single games"}
+    if action in (bo3_mod.PLAY, bo3_mod.DRAW):
+        if seat is None:
+            return 403, {"error": "the choice is the player's own"}
+        return match_choose(seat, action)
+    with VP_LOCK:
+        if action == "wait" and seat is not None:
+            ok, why = MATCH.wait(seat, time.time())
+            if ok:
+                emit("match", kind="wait", by=seat, game=MATCH.next["n"])
+        elif action == "now":
+            ok, why = MATCH.start_now(seat, time.time())
+            if ok:
+                emit("match", kind="now", by=seat or "host", game=MATCH.next["n"], note=why)
+        else:
+            return 400, {"error": "action: play, draw, now or wait"}
+        if not ok:
+            return 409, {"error": why}
+    if action == "now":
+        match_tick()
+    return 200, {**match_public(), **({"note": why} if why else {})}
+
+
+def table_reset_for_new_game():
+    """Every piece of per-game state back to what a table that has just been started holds, on the SAME process: the seats, their keys and
+    links, the table's settings (windows, each person's auto-pass, declared decks) and the public log all stay. The caller holds VP_LOCK.
+    The list (docs/match.md has it in words); each line is something game 2 must not inherit from game 1:"""
+    import player as _pl
+    reshuffle_all()                                        # new VirtualPlayer per seat from its deck file: library (all 40), hand 7, life (the
+    #                                                        deck's startingLife: 20 for a 40-card deck, 40 for Commander), battlefield, graveyard,
+    #                                                        exile and impulse zones, counters, auras, "until end of turn" changes, pending choices
+    #                                                        / surveil / scry, held spell, mana pool, turn counter, land drop, mulligan marks: all
+    #                                                        live on that object. Also: MULL (off, not done), FAIR (a new game id, a new sealed
+    #                                                        shuffle, the secret words used up), SEED_GAME.
+    for h in HUMANS:                                       # (a match has no physical seats; kept right for a host's own new game)
+        LIFE[h["name"]] = 40
+    PHASE.clear(); PHASE.update(player=None, step=0, begun=False)          # nobody's turn: the first turn is handed out again
+    PRIORITY.update(step=None, waiting=[], seats=[], deadline=0.0, beat_until=0.0)
+    PASS.clear(); PASS.update(key=None, passed=[], waiting_on=None, since=time.time())
+    HOLD.update(on=False, by="")                           # a host's freeze belonged to the last game
+    combat_reset()                                         # COMBAT: pending attackers, hits, used, announced, dealt
+    COMBAT.pop("decl", None); COMBAT["decl"] = {}
+    ATTACKED.update(key=None, ids=set()); DAMAGED.update(key=None)
+    TEAM_TURN["begun"], TEAM_TURN["done"] = set(), set()
+    STEP_FIRED.clear()                                     # "at the beginning of each upkeep / end step" already went this turn
+    HAND_TAPS.clear(); AI_OPENED.update(key=None)
+    REMOVAL_APPLIED.clear(); EFFECT_USES.clear()
+    GAME_FIRST.update(seat=None)                           # who skips the first draw: set again by the first turn
+    COMBAT_BATCH[0] = 0
+    TURN_END.update(key=None, at=0.0)
+    HIGHROLL.clear(); HIGHROLL["mode"] = None              # the last game's roll (the caller writes what decided THIS game's first player)
+    CEREMONY["on"] = False
+    HELD.update(seat=None, name=None, waiting=set(), until=0.0, why=[])    # a spell waiting on responses (its id keeps counting)
+    WAIT_SINCE.clear(); WAIT_SAID.clear(); REFUSED_SEEN.clear()
+    REWIND.clear(); BACK_REQ.clear(); ACT_STARTS.clear()   # BACK must never reach into the last game
+    SPECTATE.clear()                                       # /watch: the last game's boards are not this game's "one turn behind"
+    TODOS.clear(); PLACED.clear(); MANUAL_SAID.clear(); NOTED.clear()      # by-hand notes and what the table was asked to move
+    PUBLIC_BOARD.clear(); HAND_N.clear()
+    JOURNALS.reset()                                       # journal moments are per game (IDENTITY stays: the same seats play on)
+    CONCEDED.clear()
+    GAME_OVER.clear(); GAME_OVER.update(over=False, order=[], winner=None)
+    SPOKEN.clear()
+    _pl.DIED_THIS_TURN[0] = False                          # "if a creature died this turn"; DEATH_TICK only ever counts up, on purpose
+    _pl.DEATH_TICK[0] += 1
+
+
+def match_start_next_game() -> bool:
+    """The next game of the match, on this table: reset, no roll (the loser's choice decides who is first), opening hands, first turn."""
+    with PHASE_LOCK:
+        if MATCH is None or not GAME_OVER.get("over") or not MATCH.due(time.time()):
+            return False
+        nx = MATCH.take_next(time.time())
+        if nx is None:
+            return False
+        if nx["how"] == "default":
+            emit("match", kind="choice", game=nx["n"], chooser=nx["chooser"], choice=nx["choice"], how="default", first=nx["first"])
+            emit("say", speaker="Table", text=f"{nx['chooser']} did not choose in time: {nx['chooser']} plays first in game {nx['n']}.", action="match", auto=True, speech="")
+        if any(v.fair for v in VPS.values()) and not FAIR.get("revealed"):
+            FAIR["revealed"] = True                        # the finished game's shuffle proof is published before its seeds are replaced
+            emit("fair", kind="revealed", **fair_public())
+        table_reset_for_new_game()
+        first, second = nx["first"], MATCH.other(nx["first"])
+        ORDER[:] = [first, second]
+        HIGHROLL.update(mode="match", winner=first, order=[first, second], chooser=nx["chooser"], choice=nx["choice"], how=nx["how"], game=nx["n"],
+                        note="no roll after game 1: the loser of the previous game chooses")
+        MATCH.game_started(FAIR.get("game") or "", first, chooser=nx["chooser"], choice=nx["choice"], how=nx["how"])
+        emit("new-game", match_game=nx["n"], first=first)
+        emit("fair", kind="sealed", **fair_public())
+        emit("match", kind="start", game=nx["n"], first=first, chooser=nx["chooser"], choice=nx["choice"], how=nx["how"], wins=dict(MATCH.wins), score=MATCH.score())
+        line = f"Game {nx['n']} of the match ({MATCH.score()}). {first} plays first: {nx['chooser']} chose to {nx['choice']} first. No roll."
+        emit("say", speaker="Table", text=line, action="match", auto=True, speech=f"Game {nx['n']}. {first} plays first.")
+        start_turn(first)                                  # opening hands (the mulligan step), then the first turn
+    snapshot()
+    return True
+
+
+def match_tick():
+    try:
+        if MATCH is not None and MATCH.next and GAME_OVER.get("over") and MATCH.due(time.time()):
+            match_start_next_game()
+    except Exception as e:                                 # noqa: BLE001 — never let the loop die
+        import traceback
+        print(f"match: starting the next game failed: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        traceback.print_exc()
+
+
+def match_loop():
+    while True:
+        time.sleep(0.5)
+        match_tick()
 # Table nicknames: players say "Krenko", the card is "Krenko, Tin Street Kingpin". Only for cards
 # known to be in THIS game, because many legendary cards share a first name.
 NICKNAMES = {p["commander"].split(",")[0]: p["commander"] for p in AI_PLAYERS + HUMANS if p["commander"]}
@@ -3636,7 +3933,7 @@ STRICT_SEATS = CLOUD or os.environ.get("STRICT_SEATS") == "1"
 # What another device on the LAN may reach: the player view and public table state. Nothing that
 # reveals or changes the AI's cards, resets the game, or feeds the mic/camera.
 LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/watch"), ("GET", "/api/spectate"), ("GET", "/3d"), ("GET", "/api/life"), ("GET", "/api/fair"),
-          ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"), ("GET", "/lobby"), ("GET", "/api/lobby"), ("GET", "/api/game/summary"),
+          ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"), ("GET", "/lobby"), ("GET", "/api/lobby"), ("GET", "/api/game/summary"), ("GET", "/api/match"), ("POST", "/api/match/next"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"), ("POST", "/api/seat/check"),
           ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("POST", "/api/ready"), ("POST", "/api/declare-deck"), ("GET", "/api/deckdecl"), ("GET", "/api/cardnames"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/back/confirm"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/public-board"), ("POST", "/api/openmic/rate"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
           ("GET", "/table"), ("GET", "/api/ai/state"), ("GET", "/board"),     # the table page as a viewer: its mic, camera, reset
@@ -5295,7 +5592,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / "table3d.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/watch":            # the board for spectators: a turn behind (/api/spectate), no actions
             # The helper scripts (life bar, history, todos, questions…) read the LIVE game; on /watch they would undo the delay.
-            page = re.sub(r'<script src="/assets/(?!art\.js)[^"]+"[^>]*></script>\n?', "", (HERE / "board.html").read_text())   # art.js: static art lookup only
+            page = re.sub(r'<script src="/assets/(?!art\.js|matchrecap\.js)[^"]+"[^>]*></script>\n?', "", (HERE / "board.html").read_text())   # art.js: static art lookup only
             return self._send(200, body=page.encode(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/board":            # the whole board in plain HTML: any device, no 3D
             return self._send(200, body=(HERE / "board.html").read_bytes(), ctype="text/html; charset=utf-8")
@@ -5326,6 +5623,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, sorted(x.stem for x in d.glob("*.glb")) if d.exists() else [])
         if self.path == "/api/game/summary":           # public: the winner, the final totals, and the summary of the public log
             return self._send(200, game_over_public())
+        if self.path.split("?")[0] == "/api/match":     # public, no key: the match score for every page and for a stream overlay
+            return self._send(200, match_public())
         if self.path == "/api/phase":
             return self._send(200, phase_public())
         if self.path == "/api/placed":                    # which milled cards are physically in the graveyard
@@ -5424,7 +5723,8 @@ class H(BaseHTTPRequestHandler):
             q = parse_qs(urlparse(self.path).query)
             snap = SPECTATE[-1] if SPECTATE else None
             if snap is None:
-                return self._send(200, {"board": None, "events": [], "note": "the game hasn't finished a turn yet"})
+                return self._send(200, {"board": None, "events": [], "note": "the game hasn't finished a turn yet",
+                                        **({"match": match_brief()} if match_on() else {})})
             try:
                 since = int((q.get("since") or ["0"])[0] or 0)
             except ValueError:
@@ -5436,6 +5736,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"board": snap["board"], "life": snap["life"], "as_of_event": snap["event_id"],
                                     "turn_of": snap["turn_of"], "events": out, "delay": "one turn",
                                     "teams": dict(TEAMS) or None, "donate": donate,
+                                    **({"match": match_brief()} if match_on() else {}),
                                     **({"game_over": True, "winner": GAME_OVER.get("winner")} if GAME_OVER.get("over") else {})})
         if self.path == "/api/life":
             return self._send(200, self._life_table())
@@ -6131,6 +6432,18 @@ class H(BaseHTTPRequestHandler):
                     return self._send(403, {"error": "claim your seat first (👤)", "need_seat": True})
                 code, d = declare_deck(nm, b)
                 return self._send(code, d)
+            if self.path == "/api/match/next":             # {"seat": "Sam", "action": "play"|"draw"|"now"|"wait"} with that seat's key (X-Seat-Key)
+                b = self._json()
+                act_ = str(b.get("action") or "")
+                nm_ = next((n for n in VPS if n.lower() == str(b.get("seat") or "").strip().lower()), None)
+                if nm_ and nm_ in PILOTS and seat_key_ok(nm_, self._seat_key(b)):
+                    code, out = match_next_request(nm_, act_)
+                elif self._brain_ok() and self._is_local():    # the host, on the laptop: Start now (never a player's choice)
+                    code, out = match_next_request(None, act_)
+                else:
+                    return self._send(403, {"error": "a seat's own key (X-Seat-Key) is needed for its own seat", "need_seat": True})
+                snapshot()
+                return self._send(code, out)
             if self.path == "/api/autopass":               # {"by": "Sam", "key": …, "mode": "off"|"others"|"others-no-combat"}
                 b = self._json()
                 person = next((h["name"] for h in HUMANS if h["name"].lower() == str(b.get("by", "")).lower()), None)
@@ -6273,6 +6586,11 @@ class H(BaseHTTPRequestHandler):
                 order = [str(x)[:40] for x in (b.get("order") or [])][:8]
                 winner = str(b.get("winner") or (order[0] if order else ""))[:40]
                 names = list(life_table())
+                if b.get("draw") is True and match_on():   # a match: the host calls a drawn game (it counts for nobody; another is played)
+                    if GAME_OVER["over"]:
+                        return self._send(409, {"error": "the game is already over"})
+                    finish_game(names, None, by="host")
+                    return self._send(200, {"over": True, "draw": True, "winner": None, "totals": GAME_OVER.get("totals"), "match": match_brief()})
                 if set(order) != set(names) or len(order) != len(names) or winner not in order:
                     return self._send(400, {"error": f"order is the finish order, first to last, of every player {names}; winner is in it"})
                 if GAME_OVER["over"]:
@@ -7551,4 +7869,6 @@ if args.tls_cert:                              # a second, HTTPS listener: WebXR
     print(f"HTTPS (WebXR): https://<this Mac>:{args.tls_port}/xr", flush=True)
 threading.Thread(target=pilot_auto_begin_loop, daemon=True).start()
 threading.Thread(target=mull_loop, daemon=True).start()
+if MATCH is not None:
+    threading.Thread(target=match_loop, daemon=True).start()
 ThreadingHTTPServer((args.host, args.port), H).serve_forever()
