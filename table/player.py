@@ -1179,7 +1179,7 @@ class VirtualPlayer:
 
     def check_dead(self, p: Perm, deathtouch: bool = False) -> list[str]:
         """State-based: toughness 0 or less dies, indestructible or not; lethal damage destroys unless it is indestructible."""
-        if p not in self.battlefield or not p.is_("Creature"):
+        if p not in self.battlefield or not (p.is_("Creature") or p.face_down):    # (a face-down card is a 2/2 creature whatever its face says)
             return []
         tg = self.stats(p)[1]
         if tg <= 0 or ((p.damage >= tg or (deathtouch and p.damage > 0)) and "Indestructible" not in self.kws(p)):
@@ -1192,6 +1192,20 @@ class VirtualPlayer:
             self.move(f"#{p.id}", "graveyard", cause="damage" if tg > 0 else "state")
             return [f"{name} would die: it is exiled instead."] if instead else [f"{name} dies."]
         return []
+
+    def sweep_dead(self) -> list[str]:
+        """State-based, for the whole board after a change to several creatures at once: every creature of this seat at toughness 0 or less (or with
+        lethal damage) dies, and the check is repeated until nothing more does (the creature that left may have been holding others up)."""
+        said = []
+        for _ in range(12):
+            gone = []
+            for q in list(self.battlefield):
+                if q in self.battlefield and (q.is_("Creature") or q.face_down):
+                    gone += self.check_dead(q)
+            if not gone:
+                break
+            said += gone
+        return said
 
     def add_counters(self, p: Perm, n: int) -> None:
         p.counters += n
@@ -1322,6 +1336,8 @@ class VirtualPlayer:
             elif re.match(r"Return that card to the battlefield under its owner's control at the beginning of the next end step\.?$", raw) \
                     and out and re.search(r"\bexile (?:up to one )?(?:other )?target (?:creature|nonland permanent) you control\.?$", out[-1], re.I):
                 out[-1] = out[-1].rstrip(".") + " ||then|| " + raw      # one effect: it goes, and comes back at the next end step
+            elif re.match(r"If X is (?:\w+) or more, ", raw) and out and re.search(r", where X is [^.|]*\.?$", out[-1]):
+                out[-1] = out[-1].rstrip(".") + " ||then|| " + raw      # The Destruction of Praxis: the X of the sentence before decides this one
             elif re.match(r"Put (?:that card|those (?:\w+ )?cards|them) (?:onto the battlefield|into your hand)\b", raw) \
                     and out and re.search(r"\breveal cards from the top of your library until you reveal [^.|]*\.?$", out[-1], re.I):
                 out[-1] = out[-1].rstrip(".") + " ||then|| " + raw      # "Reveal ... until you reveal N land cards. Put those ... and the rest on the bottom": one effect
@@ -1665,21 +1681,41 @@ class VirtualPlayer:
                 self.draw()
                 return ["I control a permanent with a counter on it: I draw a card."]
             return ["I control no permanent with a counter on it: no card."]
-        m = re.fullmatch(r"creatures you control get ([+-]\d+)/([+-]\d+) until end of turn", low)
-        if m:
-            said_ = [f"My creatures get {m.group(1)}/{m.group(2)} until end of turn."]
-            for q in list(self.creatures()):
-                q.temp = (q.temp[0] + int(m.group(1)), q.temp[1] + int(m.group(2)))
-                said_ += self.check_dead(q)
-            return said_
-        m = re.fullmatch(r"all other creatures get ([+-]\d+)/([+-]\d+) until end of turn", low)
-        if m:                                              # mine here; every other seat's through the table (it runs the same sentence there)
-            said_ = [f"All other creatures get {m.group(1)}/{m.group(2)} until end of turn."]
-            for q in list(self.creatures()):
-                if q is not src:
-                    q.temp = (q.temp[0] + int(m.group(1)), q.temp[1] + int(m.group(2)))
-                    said_ += self.check_dead(q)
-            self.out(kind="others-run", sentence=f"creatures you control get {m.group(1)}/{m.group(2)} until end of turn", source=who)
+        # ── "<All creatures | All other creatures | Creatures you control> get ±N/±N until end of turn", N a number or X ──
+        # 2026-11-13 retro: The Destruction of Praxis ("All creatures get -X/-X until end of turn, where X is the number of differently named lands you
+        # control. If X is 6 or more, create two 2/1 red Klingon Warrior creature tokens with haste.") was "By hand" for both halves, and an
+        # Oberth-Class Starship that was an artifact creature (6 charge) stayed on the table at 0 toughness. One rule for the shape, not one card:
+        #   scope  all creatures (every board) | all other creatures (every board, not the source) | creatures you control
+        #   N      a number, or X with ", where X is the number of differently named lands you control" (counted as it resolves, on the caster's board)
+        #   then   "If X is N or more, <a sentence the table can carry out>" (a rider the table could not carry out leaves the WHOLE thing by hand)
+        # The change lives in Perm.temp (it ends with the turn, clear_until_eot). Mine here; the other boards through the table, which runs
+        # "creatures you control get ±n/±n until end of turn" on each (the number already worked out: X is the caster's, not theirs). Whatever is a
+        # creature right now counts: a Spacecraft at its "artifact creature at N+" charge, a face-down card. Toughness 0 or less dies (state-based),
+        # checked after everything has its change, and again until nothing more dies (a lord's death can take the creatures it was holding up).
+        # Tokens the rider makes arrive after the change: they do not get it. An X the sentence does not define (Toxic Deluge: a life payment;
+        # Korok: opponents attacked) is not claimed.
+        m = re.fullmatch(r"(all creatures|all other creatures|creatures you control) get ([+-])(x|\d+)/([+-])(x|\d+) until end of turn"
+                         r"(, where x is the number of differently named lands you control)?"
+                         r"(?: \|\|then\|\| if x is (\w+) or more, (.+))?", t, re.I)
+        if m and not (("x" in (m.group(3).lower(), m.group(5).lower()) or m.group(7)) and not m.group(6)):
+            scope, rider = m.group(1).lower(), m.group(8)
+            if rider and not effect_known(rider, src.name if src is not None else "Something"):
+                return None
+            x = differently_named_lands(self.battlefield) if m.group(6) else 0
+            val = lambda sign, v: (-1 if sign == "-" else 1) * (x if v.lower() == "x" else int(v))
+            dp, dt = val(m.group(2), m.group(3)), val(m.group(4), m.group(5))
+            words = f"{m.group(2)}{abs(dp)}/{m.group(4)}{abs(dt)}"
+            mine = [q for q in self.battlefield if (q.is_("Creature") or q.face_down) and not (scope == "all other creatures" and q is src)]
+            for q in mine:
+                q.temp = (q.temp[0] + dp, q.temp[1] + dt)
+            said_ = [{"all creatures": "All creatures get", "all other creatures": "All other creatures get", "creatures you control": "My creatures get"}[scope]
+                     + f" {words} until end of turn" + (f" (X is {x}: I control {x} differently named land{'s' if x != 1 else ''})." if m.group(6) else ".")]
+            said_ += self.sweep_dead()
+            if scope != "creatures you control" and (dp or dt):
+                self.out(kind="others-run", sentence=f"creatures you control get {words} until end of turn", source=who)
+            if rider:
+                need = int(m.group(7)) if m.group(7).isdigit() else num(m.group(7))
+                said_ += (self._one_effect0(src, rider, aim) or []) if x >= need else [f"X is {x}, not {need} or more: {rider[0].lower() + rider[1:].rstrip('.')} does not happen."]
             return said_
         m = re.fullmatch(r"each player sacrifices an? ((?:nontoken )?[\w ]+?) of their choice", low)
         if m:
@@ -3330,7 +3366,7 @@ def is_hostile_aura(c) -> bool:
 def is_board_wipe(c) -> bool:
     t = (c.get("text") or "").lower()
     return bool(re.search(r"(destroy|exile) all (creatures|nonland permanents|permanents)|"
-                          r"destroy all creatures with|deals? \d+ damage to each creature|each player sacrifices", t))
+                          r"destroy all creatures with|deals? \d+ damage to each creature|each player sacrifices|all creatures get -", t))
 
 
 def modal_after(text: str, opener: str) -> tuple[int, list[str]] | None:
