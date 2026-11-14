@@ -235,6 +235,8 @@ SHAPES = [
     ("destroy", re.compile(r"Destroy target artifact or enchantment", re.I), "any", ("Artifact", "Enchantment"), False),
     ("destroy", re.compile(r"Destroy target artifact", re.I), "any", ("Artifact",), False),
     ("exile", re.compile(r"Exile target creature or Spacecraft", re.I), "any", ("Creature", "Spacecraft"), False),
+    # Borg Cube: "If you can't, exile up to one target creature": exiled WITH the source (Perm.exiled_with), for it to assimilate later
+    ("exile-with", re.compile(r"Exile up to one target creature(?! you control| an opponent controls| or )", re.I), "any", ("Creature",), False),
     # Test of Priorities, Power to Life Support: out until the next end step
     ("flicker-end", re.compile(r"Exile (?:up to one )?(?:other )?target (?:creature|nonland permanent) you control(?:\.| \|\|then\|\|) Return that card to the battlefield under its owner's control at the beginning of the next end step", re.I),
      "own", ("Creature",), False),
@@ -548,7 +550,7 @@ def card_slots(card: dict, mode_text: str | None = None) -> list[dict]:
         return [{"side": "own" if "you control" in m.group(0).lower() or re.search(r"Untap (?:another )?target permanent you control", text, re.I) else "any",
                  "kinds": ["Creature"] if m.group(2).lower() == "creature" else ["Creature", "Artifact", "Land", "Enchantment"], "optional": not is_spell_, "label": "untap",
                  **({"other": True} if m.group(1) else {})}]
-    lab = {"damage": "damage to", "damage-x": "damage to", "damage-types": "damage to (an attacking or blocking creature)", "flicker-end": "exile until the next end step", "destroy": "destroy", "exile": "exile", "bounce": "return", "pump": "give it that",
+    lab = {"damage": "damage to", "damage-x": "damage to", "damage-types": "damage to (an attacking or blocking creature)", "flicker-end": "exile until the next end step", "destroy": "destroy", "exile": "exile", "exile-with": "exile (or no target)", "bounce": "return", "pump": "give it that",
            "stun": "tap and stun", "tap": "tap", "counter": "counter on", "shrink-etb": "shrink", "grant": "give it that", "unblockable": "give it that (can't be blocked)",
            "no-block": "tap down for blocking (it can't block)", "tuck": "return to its owner's library"}[kind]
     slot = {"side": side, "kinds": [k for k in kinds if k != "Spacecraft"] if kind not in ("exile", "tuck") else list(kinds), "optional": False, "label": lab, "player_ok": pok}
@@ -618,6 +620,11 @@ class Perm:
     temp_types: tuple = ()                  # creature types it has until end of turn ("becomes a Doctor")
     death_riders: tuple = ()                # "when that creature dies this turn, …": ((tick, who gets it, sentence, the source's name), …)
     held: tuple = ()                        # what this permanent holds in exile "until it leaves the battlefield" (Malfunctioning Holodeck): ((owner seat, card), …)
+    # Borg Cube (2026-11-13): the cards "exiled with it": ((owner seat, card), …). They stay in exile when it leaves; a Cube that comes back
+    # is a new permanent with none (this field lives and dies with the Perm). Only a CREATURE CARD among them can be assimilated.
+    exiled_with: tuple = ()
+    owner: object = None                    # the seat that OWNS this card when another seat controls it (an assimilated creature): where it goes when it leaves
+    orig_card: dict | None = None           # …and the card as printed (on the battlefield it is "a Borg artifact creature"; anywhere else it is itself again)
     id: int = field(default_factory=lambda: _new_id())
 
     @property
@@ -1193,6 +1200,44 @@ class VirtualPlayer:
             return [f"{name} would die: it is exiled instead."] if instead else [f"{name} dies."]
         return []
 
+    def assimilable(self, src: "Perm") -> list:
+        """[(owner seat, card)] this permanent could assimilate now: exiled with IT, still in the owner's exile, and a creature card."""
+        return [(o, c) for o, c in src.exiled_with if "Creature" in (c.get("types") or []) and any(x is c for x in o.exile_zone())]
+
+    def assimilate_exiled(self, src_id: int, index: int) -> list[str]:
+        """Assimilate the index-th assimilable card exiled with permanent src_id (the answer to "which one")."""
+        src = next((q for q in self.battlefield if q.id == src_id), None)
+        cands = self.assimilable(src) if src is not None else []
+        if not 0 <= index < len(cands):
+            return ["That card is no longer exiled with it: nothing is assimilated."]
+        o, card = cands[index]
+        src.exiled_with = tuple(x for x in src.exiled_with if x[1] is not card)
+        return self.assimilate(o, card, by=self.shown(src))
+
+    def assimilate(self, owner, card: dict, by: str = "") -> list[str]:
+        """"To assimilate a card, put it onto the battlefield under your control with a +1/+1 counter. It's a Borg artifact creature and loses all
+        other creature types." The card leaves its owner's exile; the permanent is THIS seat's, remembers its owner (it goes to the owner's
+        graveyard, hand or library when it leaves) and the card as printed (it is itself again once it is not on the battlefield)."""
+        ex = owner.exile_zone()
+        i = next((k for k in range(len(ex) - 1, -1, -1) if ex[k] is card), None)
+        if i is None:
+            return [f"{card['name']} is no longer in exile: nothing is assimilated."]
+        ex.pop(i)
+        types = list(card.get("types") or [])
+        borg = {**card, "types": (["Artifact"] if "Artifact" not in types else []) + types, "subtypes": ["Borg"],
+                "type": " ".join(list(card.get("supertypes") or []) + (["Artifact"] if "Artifact" not in types else []) + types) + " — Borg"}
+        q = Perm(borg, sick=True, counters=1)
+        q.orig_card = card
+        q.owner = owner if owner is not self else None
+        self.battlefield.append(q)
+        said = [f"{by + ': ' if by else ''}I assimilate {card['name']}" + (f" ({owner.name}'s card)" if owner is not self else "")
+                + f": it is on the battlefield under my control with a +1/+1 counter, a Borg artifact creature ({'%d/%d' % self.stats(q)})."]
+        if owner is not self:
+            self.note_other(owner, f"{by or 'card'} assimilates your {card['name']} from exile: it is on {self.name}'s battlefield.")
+        said += self.creature_entered(q)
+        said += self.enter_effects(q, lambda card_, cands: max(cands, key=lambda k: self.stats(k)[0]))
+        return said
+
     def sweep_dead(self) -> list[str]:
         """State-based, for the whole board after a change to several creatures at once: every creature of this seat at toughness 0 or less (or with
         lethal damage) dies, and the check is repeated until nothing more does (the creature that left may have been holding others up)."""
@@ -1648,6 +1693,23 @@ class VirtualPlayer:
             self.graveyard.remove(c_)
             self.hand.append(c_)
             return [f"{c_['name']} returns to my hand."] + self.left_graveyard()
+        # ── Borg Cube, Assimilation Assessor: "assimilate a creature card exiled with it" ──
+        # Only a card that is a CREATURE CARD (its printed types: a Spacecraft that was a creature on the battlefield because of its charge counters
+        # is an artifact card in exile), that this permanent exiled, and that is still in its owner's exile. With several, a driven seat chooses.
+        # What it couldn't do is remembered for "If you can't, …".
+        if low == "assimilate a creature card exiled with it" and src is not None:
+            cands = self.assimilable(src)
+            self.__dict__["last_cant"] = not cands
+            if not cands:
+                n_ = len(src.exiled_with)
+                return [f"{who}: no creature card is exiled with it" + (f" ({n_} card{'s' if n_ != 1 else ''} exiled with it, none a creature card)." if n_ else ".")]
+            if probing():
+                return ["(assimilate)"]
+            if len(cands) > 1 and self.__dict__.get("asks"):
+                return self.ask_option(src, t, [{"label": f"{c_['name']} ({o_.name}'s)", "do": {"kind": "call", "method": "assimilate_exiled", "args": [src.id, i_]}}
+                                                for i_, (o_, c_) in enumerate(cands)], label="the creature card to assimilate")
+            best = max(range(len(cands)), key=lambda i_: (float(cands[i_][1].get("manaValue") or 0), cands[i_][1]["name"]))
+            return self.assimilate_exiled(src.id, best)
         m = re.fullmatch(r"if you can't, (.+)", t, re.I)
         if m:
             if not effect_known(m.group(1), src.name if src is not None else "Something"):
@@ -1655,7 +1717,8 @@ class VirtualPlayer:
             if not self.__dict__.get("last_cant"):
                 return []
             self.__dict__["last_cant"] = False
-            return self._one_effect0(src, m.group(1), aim)
+            inner = m.group(1)[0].upper() + m.group(1)[1:]
+            return self._one_effect0(src, inner, aim)
         m = re.fullmatch(r"(?:.+?) deals (\d+) damage to each opponent and each creature your opponents control", low) \
             or re.fullmatch(r"(?:.+?) deals (\d+) damage to each creature and each player", low)
         if m:                                              # Khan, Despot by Design; Encounter the Unknown's second mode
@@ -2126,6 +2189,21 @@ class VirtualPlayer:
             owner.move(f"#{p.id}", "exile")
             self.note_other(owner, f"{who} exiles your {name}.")
             return [f"{name} is exiled."]
+        if kind == "exile-with":                           # Borg Cube: exiled WITH the source, face up in its owner's exile, for a later "assimilate"
+            card, token, own = p.orig_card or p.card, p.token, p.owner or owner
+            owner.move(f"#{p.id}", "exile")
+            self.note_other(owner, f"{who} exiles your {name}.")
+            if token:
+                return [f"{name} is exiled (a token: it is gone for good)."]
+            if own.commander is not None and card["name"] == own.commander["name"]:
+                return [f"{name} is exiled; its owner's commander goes to the command zone instead."]
+            own.on_their_cards[:] = [x for x in own.on_their_cards if x != f"{card['name']} (exiled)"]
+            own.exile_zone().append(card)                  # face up, in its owner's exile: everyone may see where it is
+            if src is not None and src in self.battlefield:
+                src.exiled_with = (*src.exiled_with, (own, card))
+                kind_ = "a creature card" if "Creature" in (card.get("types") or []) else "not a creature card, so it can never be assimilated"
+                return [f"{name} is exiled with {who} ({kind_})."]
+            return [f"{name} is exiled ({who} has left the battlefield: it is exiled with nothing)."]
         if kind == "fight":                                # two targets, each hits the other
             return [f"{owner.shown(p)} has nothing to fight."]
         if kind == "bounce":
@@ -2770,6 +2848,8 @@ class VirtualPlayer:
         own = c.get("text") or ""
         if re.search(r"This spell costs \{X\} less to cast, where X is the number of differently named lands you control", own):
             n += differently_named_lands(self.battlefield)                                  # Strange new worlds (Cloak and Phaser)
+        if re.search(r"(?m)^Affinity for artifact creatures\b", own):                       # Borg Cube: {1} less for each artifact creature I control
+            n += sum(1 for q in self.battlefield if not q.face_down and q.is_("Artifact") and q.is_("Creature"))
         g = re.search(r"This spell costs \{(\d+)\} less to cast for each noncreature, nonland card in your graveyard", own)
         if g:                                                                              # Ravenous Cosmozoan
             n += int(g.group(1)) * sum(1 for x in self.graveyard if "Creature" not in (x.get("types") or []) and "Land" not in (x.get("types") or []))
@@ -4009,20 +4089,28 @@ def _manual(cls):
             self.release_exiled(x)                         # what it held in exile "until it leaves the battlefield" comes back (Malfunctioning Holodeck)
             if x.token:
                 continue
+            own, xc = (x.owner or self), (x.orig_card or x.card)   # (an assimilated creature: its owner's zones, and the card as printed)
+            if own is not self and not probing():
+                {"hand": own.hand, "exile": own.exile_zone()}.get(to, own.graveyard).append(xc) if not (to == "library" and x is p) else \
+                    (own.library.insert(0, xc) if where == "bottom" else own.library.append(xc))
+                if to == "library" and where == "shuffle":
+                    own.rng.shuffle(own.library)
+                self.note_other(own, f"{xc['name']} (your card) left the battlefield: it is in your {to}.")
+                continue
             if self.commander is not None and x.card["name"] == self.commander["name"]:
                 self.cmdr_in_zone = True
             elif to == "hand" and x is p:
-                self.hand.append(x.card)
+                self.hand.append(xc)
             elif to == "library" and x is p:
                 if where == "bottom":
-                    self.library.insert(0, x.card)
+                    self.library.insert(0, xc)
                 else:
-                    self.library.append(x.card)
+                    self.library.append(xc)
                 tucked = True
             elif to == "exile":
                 self.on_their_cards.append(f"{x.name} (exiled)")
             else:
-                self.graveyard.append(x.card)
+                self.graveyard.append(xc)
         if to == "library" and where == "shuffle" and tucked:
             self.rng.shuffle(self.library)
         where_txt = {"graveyard": "is destroyed", "exile": "is exiled", "hand": "returns to my hand",
