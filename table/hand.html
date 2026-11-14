@@ -141,6 +141,27 @@ button.big{min-height:52px;font-size:17px}
 /* drag a card from the hand onto the battlefield (as in Arena) */
 .fghost{position:fixed;z-index:9600;width:150px;aspect-ratio:5/7;pointer-events:none;border-radius:9px;overflow:hidden;box-shadow:0 14px 34px #000c;transform:translate(-50%,-60%) rotate(-3deg) scale(1.05)}
 .fghost img{width:100%;height:100%;display:block}
+/* the battle line (2026-11-13): declared attackers and blockers step out of their rows to the line; a blocker stands opposite its attacker */
+.canvas .mc.bl{z-index:410}
+.canvas .mc.bl-atk{outline:2px solid #ff6b4a;outline-offset:2px}
+.canvas .mc.bl-unb{outline:3px solid #ff3b1f;outline-offset:2px;box-shadow:0 0 18px #ff3b1fcc}
+.canvas .mc.bl-blkd{outline:2px solid #d9b46a;outline-offset:2px}
+.canvas .mc.bl-blk{outline:2px solid #6fb7ff;outline-offset:2px}
+.canvas .blb{position:absolute;z-index:420;transform:translateX(-50%);pointer-events:none;white-space:nowrap;font:800 10.5px system-ui;padding:1px 6px;border-radius:7px;color:#fff;background:#8a3a1e;box-shadow:0 1px 4px #000a}
+.canvas .blb.unb{background:#d32a12}.canvas .blb.blk{background:#2a5d92}.canvas .blb.blkd{background:#7a5a1a}
+@keyframes blmove{from{translate:var(--bx,0px) var(--by,0px)}to{translate:0px 0px}}
+.canvas .mc.bl-move{animation:blmove .28s ease-out}
+@media (prefers-reduced-motion:reduce){.canvas .mc.bl-move{animation:none}}
+#blstrip:empty{display:none}
+#blstrip{margin:0 0 10px;padding:8px;border-radius:10px;border:1px dashed #d9b46a66;background:#10242d}
+#blstrip .blh{font:700 11px system-ui;letter-spacing:.1em;text-transform:uppercase;color:#9fb0b0;margin-bottom:6px}
+#blstrip .bllanes{display:flex;flex-wrap:wrap;gap:8px}
+#blstrip .bllane{flex:1 1 150px;min-width:0;max-width:100%;display:flex;flex-direction:column;gap:4px;padding:6px;border-radius:8px;background:#0b1a21;border:1px solid #ff6b4a55}
+#blstrip .bllane.unb{border-color:#ff3b1f;box-shadow:0 0 10px #ff3b1f77}
+#blstrip .blc{padding:5px 7px;border-radius:7px;font-size:13px;line-height:1.25;overflow-wrap:anywhere}
+#blstrip .blc small{display:block;opacity:.8;font-size:11px}
+#blstrip .blc.atk{background:#5a2416;color:#ffe4d9}#blstrip .blc.blk{background:#1d3f63;color:#dcebff;margin-left:14px}
+#blstrip .blnote{font-size:12px;color:#ffb38f;margin-left:14px}
 /* equip by drag or by tap (2026-11-13): creatures the Equipment may go onto light up; the one under the pointer lights up solid */
 .mc.eqdrop,#field .card.eqdrop{outline:3px dashed #6fd07a;outline-offset:2px;box-shadow:0 0 16px #6fd07a99;cursor:copy}
 .mc.eqover,#field .card.eqover{outline:4px solid #9ff0a8;box-shadow:0 0 22px #9ff0a8}
@@ -182,6 +203,7 @@ body.u-on .tbs [data-s="next"]{display:none}
 </style>
 <script src="/art/index.js"></script><script src="/assets/art.js"></script>
 <script src="/assets/equip.js"></script>
+<script src="/assets/battleline.js"></script>
 <script src="/assets/seat.js" defer></script>
 <script src="/assets/urgent.js" defer></script>
 <script src="/assets/gameover.js" defer></script>
@@ -222,7 +244,7 @@ body.u-on .tbs [data-s="next"]{display:none}
   <div id="paypanel"></div>
   <div class="panel" id="fanpanel"><h2>Hand</h2><div id="fan"></div><div id="fanact"></div></div>
   <div class="panel" id="handpanel"><h2>Hand</h2><div id="hand"></div></div>
-  <div class="panel" id="fieldpanel"><h2>Battlefield</h2><div id="field"></div>
+  <div class="panel" id="fieldpanel"><h2>Battlefield</h2><div id="blstrip"></div><div id="field"></div>
     <div id="atk" style="margin-top:8px"></div></div>
   <div class="panel" id="oppspanel"><h2>The other players</h2><div id="opps"><div class="sub">Nobody else yet.</div></div></div>
   <div class="panel"><h2>What happened</h2><div id="log"></div></div>
@@ -949,6 +971,24 @@ function placeAll(list, side, kind, W, H, cw, ch) {               // auto spots 
   return out;
 }
 let POSSEAT = null;
+// ── the battle line: what the table publishes as combat (declared attackers, declared blockers), read by the mat and by the list ──
+let BL_PREV = new Map();
+const blCombat = () => (S && S.combat && Array.isArray(S.combat.attacks) ? S.combat : (PH && PH.combat) || { attacks: [] });
+const blPlan = has => window.TableBattleLine ? TableBattleLine.plan(blCombat(), has) : { any: false, attackers: [], blockers: [], byId: {} };
+function blOnBoard(seat, id) {                                   // is that permanent still on that seat's battlefield, as far as this page knows?
+  if (S && seat === S.seat) return (S.permanents || []).some(p => p.id === id);
+  const so = ((B3 && B3.seats) || []).find(x => x.name === seat); return so ? (so.permanents || []).some(p => p.id === id) : true;
+}
+function blPerm(seat, id) { const so = S && seat === S.seat ? S : ((B3 && B3.seats) || []).find(x => x.name === seat); return ((so && so.permanents) || []).find(p => p.id === id) || {}; }
+// the list (a phone): the same line as lanes that wrap, one per attacker, its blockers under it
+function drawBattleStrip() {
+  const el = $("blstrip"); if (!el) return;
+  const bl = blPlan(blOnBoard), who = n => n === S.seat ? "you" : n;
+  el.innerHTML = !bl.any ? "" : `<div class="blh">⚔ The battle line</div><div class="bllanes">` + bl.attackers.map(a => { const p = blPerm(a.seat, a.id);
+    return `<div class="bllane${a.unblocked ? " unb" : ""}" data-bl-lane="${a.id}"><div class="blc atk"><b>${esc(a.name)}</b>${p.pt ? " " + esc(p.pt) : ""}<small>${esc(who(a.seat) === "you" ? "you attack" : a.seat + " attacks")} ${esc(who(a.defender))}</small></div>` +
+      (a.blockers.length ? a.blockers.map(b => `<div class="blc blk" data-bl-blocker="${b.id}">⛨ <b>${esc(b.name)}</b>${blPerm(b.seat, b.id).pt ? " " + esc(blPerm(b.seat, b.id).pt) : ""}<small>${esc(who(b.seat) === "you" ? "your blocker" : b.seat + "'s blocker")}</small></div>`).join("")
+        : `<div class="blnote">${a.unblocked ? "unblocked" : a.blocked ? "its blocker has left" : "blocks are not in yet"}</div>`) + `</div>`; }).join("") + `</div>`;
+}
 // identical lands share one pile: same name, same controller, same tapped state, nothing on them that makes a copy different
 let FANNED = new Set();
 function landPiles(lands, seat, mine, cw) {
@@ -974,9 +1014,9 @@ function drawMat() {
   const W = box.clientWidth || 1200, H = Math.max(640, innerHeight - (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--tb-h")) || 52) - (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--hud-h")) || 50) - 8), cw = Math.max(64, Math.min(124, W / 15, (H - 22 - 5 * ROW_PAD - MID_H - 30) / 4 / 1.4)), ch = cw * 1.4;
   const anyEx = [S.seat, ...opp.map(o => o.name)].some(n => exOf(n).length);
   ROWX0 = W * 0.12 + (anyEx ? Math.max(0, W * 0.015 + 2 * cw + 14 - W * 0.12) : 0);
-  const sig = JSON.stringify([opp, S.permanents, S.graveyard, S.exile, S.library, [...attackers], matSel, atk, W, H, POS, [...FANNED]]);
+  const sig = JSON.stringify([opp, S.permanents, S.graveyard, S.exile, S.library, [...attackers], matSel, atk, W, H, POS, [...FANNED], blCombat()]);
   if (sig === matSig) return; matSig = sig;
-  const cards = [];
+  const cards = [], seen = new Map();
   const zone = (side, seat, perms) => {
     const top = perms.filter(p => p.attached_to == null || p.equip_cost || p.equipment);   // Equipment stays visible (and clickable) when attached
     const lands = top.filter(p => isLandT(p.type)), crea = top.filter(p => !isLandT(p.type) && (isCreP(p) || p.face_down)), oth = top.filter(p => !isLandT(p.type) && !isCreP(p) && !p.face_down);
@@ -985,6 +1025,22 @@ function drawMat() {
   };
   opp.forEach(o => zone("opp", o.name, (o.permanents || []).map(p => ({ ...p, _seat: o.name }))));
   zone("me", S.seat, S.permanents || []);
+  // the battle line: a declared attacker steps towards the line, keeping its place along the row; a declared blocker steps up on its own side,
+  // opposite its attacker (several side by side). Only what the table publishes as combat is read. While a card is on the line its saved spot
+  // is not used (and not lost): it is back there when the combat is over.
+  const find = (seat, id) => cards.find(c => !c.p.stack && c.seat === seat && c.p.id === id);
+  const bl = blPlan((seat, id) => !!find(seat, id)), lift = Math.min(ch * 0.42, ROW_PAD + MID_H / 2 - 3), badges = [];
+  if (bl.any) {
+    const lineY = c => rowY(c.mine ? "me" : "opp", "crea", ch) + (c.mine ? -lift : lift);
+    for (const a of bl.attackers) { const c = find(a.seat, a.id); if (c) { c.line = a; c.y = lineY(c); } }
+    for (const side of [true, false]) {                           // my blockers, then theirs
+      const groups = bl.attackers.map(a => ({ a, ac: find(a.seat, a.id), bs: a.blockers.map(b => find(b.seat, b.id)).filter(c => c && c.mine === side) })).filter(g => g.ac && g.bs.length);
+      const xs = TableBattleLine.fan(groups.map(g => ({ x: g.ac.x, n: g.bs.length })), cw, ROWX0, Math.max(ROWX0 + 2 * cw, W - 8));
+      groups.forEach((g, i) => g.bs.forEach((c, j) => { c.line = bl.byId[c.seat + ":" + c.p.id]; c.x = xs[i][j]; c.y = lineY(c); }));
+    }
+    for (const c of cards) if (c.line) { const lb = TableBattleLine.label(c.line, S.seat);
+      badges.push(`<div class="blb ${lb.cls}" style="left:${c.x + cw / 2}px;top:${c.mine ? c.y - 15 : c.y + ch + 2}px" title="${esc(lb.long)}">${esc(lb.short)}</div>`); }
+  }
   const pile = (seat, side, info) => {
     const gy = info.graveyard || [], gyTop = gy.length ? gy[gy.length - 1] : "", src = gyTop && window.CardArt ? CardArt.src(gyTop) : "";
     const y = side === "me" ? rowY("me", "crea", ch) : H * ZONES[side].piles, lib = posFor(`pile:${seat}:lib`, W * 0.015, y, W, H), gp = posFor(`pile:${seat}:gy`, W * 0.015, y + ch * 1.12, W, H);
@@ -1002,10 +1058,17 @@ function drawMat() {
     `<div class="zl" style="left:${ROWX0}px;top:${rowY("opp", "lands", ch) - 15}px">their lands</div><div class="zl" style="left:${ROWX0}px;top:${rowY("opp", "crea", ch) - 15}px">their creatures</div>` +
     `<div class="zl" style="left:${ROWX0}px;top:${rowY("me", "crea", ch) - 15}px">your creatures</div><div class="zl" style="left:${ROWX0}px;top:${rowY("me", "lands", ch) - 15}px">your lands</div>` +
     `<div class="zl" style="left:${W * 0.80}px;top:${rowY("me", "crea", ch) - 15}px">artifacts · enchantments</div>` +
-    `<div class="mid" style="top:${midY(ch)}px">${atk || "the battle line"}</div><button class="tidy" data-tidy title="put every card back in its zone">Tidy up</button>` +
+    `<div class="mid" style="top:${midY(ch)}px">${atk || (bl.any ? "" : "the battle line")}</div><button class="tidy" data-tidy title="put every card back in its zone">Tidy up</button>` +
     cards.map(c => { if (c.p.stack) return pileHtml(c, W, H, cw, ch);
-      const k = `${c.seat}:${c.p.id}`, [x, y] = posFor(k, c.x, c.y, W, H);
-      return mcard(c.p, c.mine).replace('<div class="mc', `<div data-pos="${esc(k)}" style="left:${x}px;top:${y}px" class="mc`); }).join("") + `</div>`;
+      const k = `${c.seat}:${c.p.id}`, [x, y] = c.line ? [c.x, c.y] : posFor(k, c.x, c.y, W, H);
+      // a card that has just stepped onto the line, or back off it, slides there from where it was (not when the page first draws it)
+      // (the mat is rebuilt whenever anything changes, so a slide that has started is carried over a rebuild: same start, same clock)
+      const was = BL_PREV.get(k), now = performance.now(), moved = was && was.line !== !!c.line && (was.x !== x || was.y !== y);
+      const mv = moved ? { bx: was.x - x, by: was.y - y, t0: now } : was && was.mv && now - was.mv.t0 < 280 && was.x === x && was.y === y ? was.mv : null;
+      seen.set(k, { x, y, line: !!c.line, mv });
+      const lc = c.line ? ` bl bl-${TableBattleLine.label(c.line, S.seat).cls}` : "";
+      return mcard(c.p, c.mine).replace('<div class="mc', `<div data-pos="${esc(k)}"${c.line ? ` data-bl="${c.line.role}"` : ""} style="left:${x}px;top:${y}px${mv ? `;--bx:${mv.bx}px;--by:${mv.by}px;animation-delay:-${Math.round(now - mv.t0)}ms` : ""}" class="mc${lc}${mv ? " bl-move" : ""}`); }).join("") + badges.join("") + `</div>`;
+  BL_PREV = seen;
   eqPaint();                                                     // (a redraw must not put out the lights of an equip in progress)
 }
 // a pile: one draggable slot; collapsed, a click acts on its top card; the ×N badge spreads it out (and back)
@@ -1257,7 +1320,7 @@ function draw() {
     Object.entries(pb).map(([n, v]) => `<div class="card"><b>${esc(n)}</b> <span class="t">(a real deck, from photos and what they said)</span>
       <div class="x">${esc((v.permanents || []).map(p => p.name || p).join("; ") || "nothing recorded yet")}</div></div>`).join("") : `<div class="sub">Nobody else yet.</div>`;
   const opps = Object.entries(S.life_table || {}).filter(([n, l]) => n !== S.seat && l > 0).map(([n]) => n);
-  eqPaint();
+  eqPaint(); drawBattleStrip();
   setTimeout(drawMat, 0);
   $("atk").innerHTML = (attackers.size ? `<select id="target">${opps.map(o => `<option>${esc(o)}</option>`).join("")}</select>
       <button class="gold" id="attack" title="One declaration a turn: it is locked once sent (M19)">Confirm attack with ${attackers.size}</button>` : "") +
