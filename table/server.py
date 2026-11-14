@@ -957,6 +957,31 @@ def split_cards(text: str) -> list[str]:
     return out
 
 
+_SET_CARDS: dict | None = None
+
+
+def set_card(name: str) -> dict | None:
+    """A card of the set being played, by name, from the set's own card file ($TABLE_CARDS_JSON, else table/.cache/cards-trk.json: the Scryfall-
+    shaped list the decks were built from), in the shape oracle.card gives. For /api/card when the Oracle bulk file does not have the card (a
+    set newer than the download). It is a STATIC file of every card in the set: it is not the decks at this table and knows nothing about the
+    game, so an answer says only what a card anyone can name says, never whether (or where) a copy of it is in play, in a hand or in a library."""
+    global _SET_CARDS
+    if _SET_CARDS is None:
+        _SET_CARDS = {}
+        for f in (os.environ.get("TABLE_CARDS_JSON"), HERE / ".cache" / "cards-trk.json"):
+            try:
+                if f and Path(f).expanduser().is_file():
+                    for c in json.loads(Path(f).expanduser().read_text()):
+                        f0 = (c.get("card_faces") or [c])[0]
+                        _SET_CARDS.setdefault(c["name"], {"cost": c.get("mana_cost") or f0.get("mana_cost") or "", "type": c.get("type_line") or f0.get("type_line") or "",
+                                                          "text": "\n//\n".join(x.get("oracle_text") or "" for x in (c.get("card_faces") or [c])),
+                                                          "power": f0.get("power"), "toughness": f0.get("toughness")})
+                    break
+            except Exception as e:                      # noqa: BLE001 — a preview's text must never stop the table
+                print(f"set_card: {f}: {e}", file=sys.stderr, flush=True)
+    return _SET_CARDS.get(name)
+
+
 def _card_view(name: str | None, **kw) -> dict:
     """One card as the 3D board draws it. name None = face down: nothing about it but its back."""
     import oracle
@@ -5282,7 +5307,7 @@ class H(BaseHTTPRequestHandler):
             import oracle
             from urllib.parse import parse_qs, urlparse
             name = parse_qs(urlparse(self.path).query).get("name", [""])[0]
-            c = oracle.card(name) if name else None
+            c = (oracle.card(name) or set_card(name)) if name else None      # (the Oracle file, then the set's own card file: both static, neither knows the game)
             if not c:
                 return self._send(404, {"error": f"no card named '{name}'"})
             return self._send(200, {"name": name, **{k: c.get(k) for k in ("cost", "type", "text", "power", "toughness")}})

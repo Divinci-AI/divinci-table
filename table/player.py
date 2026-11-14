@@ -2367,8 +2367,10 @@ class VirtualPlayer:
     @staticmethod
     def hand_card_view(c: dict) -> dict:
         t = c.get("types") or []
+        # (type and text too: the seat that was shown this hand may read each card whole before it chooses. This view goes only into that
+        # seat's own pending question.)
         return {"name": c["name"], "cost": c.get("manaCost") or "", "mv": float(c.get("manaValue") or 0), "types": list(t), "land": "Land" in t,
-                "power": c.get("power"), "toughness": c.get("toughness")}
+                "power": c.get("power"), "toughness": c.get("toughness"), "type": c.get("type") or " ".join(t), "text": c.get("text") or ""}
 
     @staticmethod
     def hand_card_words(v: dict) -> str:

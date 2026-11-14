@@ -905,8 +905,9 @@ const optValue = o => o.player ? "player|" + o.player : o.card ? "card|" + o.at 
 const optTarget = v => { if (!v) return {}; const [a, r, c] = v.split("|"); return a === "player" ? { player: r } : a === "card" ? { at: r, card: c } : { at: a, ref: r }; };
 function slotsHtml(slots, key) {
   if (!slots || !slots.length) return "";
+  peekKnow();
   return `<div class="slots">` + slots.map((sl, i) => `<label>${esc(sl.label || "target")}${sl.optional ? " (optional)" : ""}
-    <select data-slot="${esc(key)}" data-sloti="${i}">${sl.optional ? '<option value="">(none)</option>' : ""}${(sl.options || []).map(o => `<option value="${esc(optValue(o))}">${esc(o.label)}${wardTag(wardOpt(optValue(o)))}</option>`).join("")}</select></label>${wardMissing(sl)}`).join("") + `</div>`;
+    <span class="peeksel"><select data-slot="${esc(key)}" data-sloti="${i}" data-peeksel>${sl.optional ? '<option value="">(none)</option>' : ""}${(sl.options || []).map(o => `<option value="${esc(optValue(o))}" data-peek="${esc(optCardName(o, null))}">${esc(o.label)}${wardTag(wardOpt(optValue(o)))}</option>`).join("")}</select>${(sl.options || []).some(o => optCardName(o, null)) && window.CardArt && CardArt.selBtn ? CardArt.selBtn() : ""}</span></label>${wardMissing(sl)}`).join("") + `</div>`;
 }
 function slotsReady(slots) { return (slots || []).every(sl => sl.optional || (sl.options || []).length); }
 function readTargets(key, slots) {
@@ -1166,6 +1167,7 @@ function zoomChips(p) {
 }
 function matZoom(name, p) {
   const bx = document.getElementById("artbox"); if (!bx || !window.CardArt || !CardArt.src(name)) return;
+  CardArt.unpeek && CardArt.unpeek(); bx.firstChild.style.display = ""; { const f = bx.querySelector("#artface"); if (f) f.style.display = "none"; }
   const old = bx.querySelector("#artinfo"); if (old) old.remove();
   const chips = p ? zoomChips(p) : [];
   bx.style.flexDirection = "column"; bx.style.gap = "10px";
@@ -1571,15 +1573,43 @@ function drawMulligan() {
     <div class="mull-hand">${hand.map((c, i) => `<div class="mull-c${mullPick.includes(i) ? " sel" : ""}" data-mullc="${i}">${window.CardArt ? CardArt.img(c.name, "") : ""}<b>${esc(c.name)}</b><div class="sub">${esc(c.land ? "Land" : c.cost || "")}${mullPick.includes(i) ? " · to the bottom" : ""}</div></div>`).join("")}</div></div>`;
 }
 let choiceSig = "";
+// The card an option names, from what this seat was already sent: a card in a zone (o.card), a permanent (o.ref "#id": mine from my state, another
+// seat's from the public board, where a face-down card has no name), or one of the cards a "look at a hand" question put in front of this seat
+// (c.reveal.cards). "" when it names no card the page can tell (the label is then asked of the public lookup: peekGuess).
+function optCardName(o, c) {
+  if (!o || !S) return "";
+  if (o.card) return String(o.card);
+  const ref = String(o.ref || "");
+  if (/^#\d+$/.test(ref)) { const id = +ref.slice(1), mine = !o.at || o.at === S.seat;
+    const p = mine ? (S.permanents || []).find(x => x.id === id) : ((((B3 && B3.seats) || []).find(x => x.name === o.at) || {}).permanents || []).find(x => x.id === id);
+    return p && p.name && (mine || !p.face_down) ? String(p.name) : ""; }
+  const lab = String(o.label || ""), names = ((c && c.reveal && c.reveal.cards) || []).map(x => x.name).filter(n => lab === n || lab.startsWith(n + " "));
+  return names.sort((a, b) => b.length - a.length)[0] || "";
+}
+function peekKnow() {                                            // what this seat was already sent about cards: used before any lookup
+  if (!window.CardArt || !CardArt.know || !S) return;
+  for (const p of S.permanents || []) CardArt.know(p);           // (my own cards, face down or not: I know them)
+  for (const s of (B3 && B3.seats) || []) for (const p of s.permanents || []) if (!p.face_down && p.name) CardArt.know(p);
+  for (const c of S.pending_choices || []) for (const x of (c.reveal && c.reveal.cards) || []) CardArt.know(x);
+  for (const c of S.hand || []) CardArt.know(c);
+}
+function peekGuess(root) {                                       // options whose card the page could not tell: ask by the label's own words
+  if (!window.CardArt || !CardArt.guess || !root) return;
+  root.querySelectorAll("[data-peekguess]").forEach(async b => { b.removeAttribute("data-peekguess");
+    const n = await CardArt.guess(b.textContent); if (!n || !b.isConnected || b.dataset.peek) return;
+    b.dataset.peek = n; if (b.parentNode.classList.contains("peekrow") && !b.parentNode.querySelector(".peekbtn")) b.insertAdjacentHTML("afterend", CardArt.viewBtn(n)); });
+}
 function drawChoices() {
   const box = $("choicepanel"), list = (S && S.pending_choices) || [], sig = JSON.stringify(list);
   if (sig === choiceSig) return; choiceSig = sig;
   // an "option" (a mode, a yes/no): one button per answer, its whole text readable on a phone; a target: the dropdown
   const isOpt = c => c.kind === "option" || (c.slot || {}).zone === "option";
   box.innerHTML = list.length ? `<div class="panel" style="outline:2px solid #d9b46a"><h2>${list.every(isOpt) ? "Your choice" : "Choose a target"}</h2>${list.map(c => `<div class="card"><b>${esc(c.source)}</b><div class="x">${isOpt(c) ? "" : esc(String(c.text).replace(" ||then|| ", ". If you do, "))}</div><div class="sub">${esc(c.slot.label || "")}${(c.picked || []).length ? " · chosen so far: " + esc(c.picked.length) : ""}</div>
-    ${isOpt(c) ? (c.slot.options || []).map(o => `<button data-choose="${c.id}" data-cv="${esc(optValue(o))}" style="display:block;width:100%;text-align:left;margin-top:6px;white-space:normal">${esc(o.label)}</button>`).join("")
-      : `<select data-chooseopt="${c.id}" style="max-width:320px">${(c.slot.options || []).map(o => `<option value="${esc(optValue(o))}">${esc(o.label)}${wardTag(wardOpt(optValue(o)))}</option>`).join("")}</select>${wardMissing(c.slot)}
+    ${isOpt(c) ? (c.slot.options || []).map(o => { const nm = optCardName(o, c);       // a card this option names: hover, focus or hold shows the whole card; 👁 opens it large
+        return `<div class="peekrow"><button data-choose="${c.id}" data-cv="${esc(optValue(o))}" ${nm ? `data-peek="${esc(nm)}"` : `data-peekguess="1"`} style="display:block;width:100%;text-align:left;margin-top:6px;white-space:normal">${esc(o.label)}</button>${nm && window.CardArt ? CardArt.viewBtn(nm) : ""}</div>`; }).join("")
+      : `<span class="peeksel"><select data-chooseopt="${c.id}" data-peeksel style="max-width:320px">${(c.slot.options || []).map(o => `<option value="${esc(optValue(o))}" data-peek="${esc(optCardName(o, c))}">${esc(o.label)}${wardTag(wardOpt(optValue(o)))}</option>`).join("")}</select>${(c.slot.options || []).some(o => optCardName(o, c)) && window.CardArt ? CardArt.selBtn() : ""}</span>${wardMissing(c.slot)}
     <button class="gold" data-choose="${c.id}">Choose</button>`}${c.slot.optional ? `<button data-choosenone="${c.id}">${isOpt(c) ? "None of these" : /\bmay\b/i.test(String(c.text)) ? "No, skip it" : "No target"}</button>` : ""}</div>`).join("")}</div>` : "";
+  peekKnow(); peekGuess(box);
 }
 // The surveil / scry the table is waiting on: choose what goes away (graveyard, or the bottom for a scry); the rest go back on top IN THE ORDER YOU
 // SET (▲ ▼). A scry's bottom cards keep the order shown too. Only you see these.
@@ -1594,7 +1624,7 @@ function drawSurveil(force) {
   box.dataset.surv = sig;
   const away = L.kind === "scry" ? "bottom" : "graveyard";
   const row = (k, list) => { const pos = list.indexOf(k), c = cards[k];
-    return `<div class="card">${window.CardArt ? CardArt.img(c, "") : ""}<b>${esc(c)}</b>
+    return `<div class="card">${window.CardArt ? CardArt.img(c, "") : ""}<b data-peek="${esc(c)}" tabindex="0">${esc(c)}</b>${window.CardArt && CardArt.viewBtn ? CardArt.viewBtn(c) : ""}
     <button data-survup="${k}" ${pos <= 0 ? "disabled" : ""} title="higher">▲</button><button data-survdn="${k}" ${pos >= list.length - 1 ? "disabled" : ""} title="lower">▼</button>
     <button data-survt="${k}">${survBin.has(k) ? "Keep it on top instead" : L.kind === "scry" ? "Put it on the bottom" : "Put it into the graveyard"}</button></div>`; };
   const kept = survOrder.filter(k => !survBin.has(k)), gone = survOrder.filter(k => survBin.has(k));
