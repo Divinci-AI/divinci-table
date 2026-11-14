@@ -5298,7 +5298,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / "table3d.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/watch":            # the board for spectators: a turn behind (/api/spectate), no actions
             # The helper scripts (life bar, history, todos, questions…) read the LIVE game; on /watch they would undo the delay.
-            page = re.sub(r'<script src="/assets/(?!art\.js)[^"]+"[^>]*></script>\n?', "", (HERE / "board.html").read_text())   # art.js: static art lookup only
+            # (kept: art.js, a static art lookup, and mana.js, which only redraws "{2}{R}" as pictures in text already on the page: neither fetches game data)
+            page = re.sub(r'<script src="/assets/(?!art\.js|mana\.js)[^"]+"[^>]*></script>\n?', "", (HERE / "board.html").read_text())
             return self._send(200, body=page.encode(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/board":            # the whole board in plain HTML: any device, no 3D
             return self._send(200, body=(HERE / "board.html").read_bytes(), ctype="text/html; charset=utf-8")
