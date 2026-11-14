@@ -17,6 +17,10 @@ not failed; the summary lists exactly what was skipped and how to get it. `run_c
 8800/8801/8820/8830/8883, so it is safe beside a live game. The browser suites (`*.cjs`, Playwright), the Gemma/Whisper
 suites and the hardware tests need more setup and are not in `run_core.py`; `table/tests/run_all.sh` is the author's full run.
 
+Run `run_core.py` with the interpreter you installed `table/requirements.txt` into: its first lines say which interpreter runs the tests and
+what it lacks. Nothing is downloaded during a test (`TABLE_OFFLINE=1`), every scratch server gets a free port, and `--shard I/N` runs the
+suite in pieces. The details (packages, environment, why a test skips) are in [docs/testing.md](docs/testing.md).
+
 ## Changing the engine
 
 - Write the test first and **watch it fail on the old code**. A test that passes before the fix proves nothing. The

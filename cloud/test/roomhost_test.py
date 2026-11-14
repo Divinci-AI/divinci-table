@@ -34,6 +34,9 @@ FAILS: list[str] = []
 if not (ROOT / "table" / ".cache" / "oracle.json").exists():
     print("SKIP: the room host test needs card data: run `python3 table/fetch_data.py` once")
     sys.exit(77)
+if __import__("importlib.util").util.find_spec("chess") is None:      # one of its rooms is a chess room (table/chess_server.py imports it)
+    print("SKIP: the room host test needs the `chess` package in the interpreter that runs it: pip install chess")
+    sys.exit(77)
 
 
 def check(ok, what, detail=""):
