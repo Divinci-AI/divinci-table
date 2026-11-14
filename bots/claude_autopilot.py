@@ -74,19 +74,17 @@ def yield_now(d: dict) -> None:
         raise SystemExit(0)
 
 
-def standing_by() -> bool:
-    """While the table says somebody else plays this seat: play nothing. One question every few seconds (who plays the seat?); False, and
-    the game goes on, as soon as the answer is the autopilot again."""
-    if not YIELD["on"]:
-        return False
-    c, d = call("GET", "/api/played-by")
-    mine = next((x for x in (d.get("seats") or []) if x.get("name") == SEAT), None) if c == 200 else None
-    if mine and mine.get("kind") == "autopilot":
+def standing_by(ph: dict) -> bool:
+    """While the table says somebody else plays this seat: play nothing. The table says who plays each seat in every /api/phase reply
+    (`played_by`), which this loop reads anyway: a person or a model at this seat means stand by, even before any move was refused; the
+    autopilot again means go on. (A table too old to say it never refuses a move for "yield" either.)"""
+    mine = (ph.get("played_by") or {}).get(SEAT) or {}
+    if mine.get("kind") in ("person", "model"):
+        yield_now({"played_by": mine})
+    elif YIELD["on"] and mine.get("kind") == "autopilot":
         YIELD["on"] = False
         print(f"autopilot: {SEAT}'s seat is the autopilot's again: playing on", flush=True)
-        return False
-    time.sleep(3.0 * PACE)
-    return True
+    return YIELD["on"]
 
 
 def declare() -> None:
@@ -708,15 +706,17 @@ def main():
         if c != 200:
             time.sleep(3)
             continue
-        if YIELD["on"]:                              # a person plays this seat: nothing below runs until the table gives the seat back
+        was_out = YIELD["on"]
+        if standing_by(ph):                          # a person plays this seat: nothing below runs until the table gives the seat back
             if ph.get("game_over") and not (ph.get("match") or {}).get("continues"):
                 c_, m_ = call("GET", "/api/match")
                 if c_ != 200 or not m_.get("on") or m_.get("over"):
                     print("autopilot: game over while standing by, stopping", flush=True)
                     return
-            if standing_by():
-                continue
-            wait_from, seen, finishing, acted, acted_turn, stuck = None, 0, False, False, None, False   # back in the seat: start from what the table shows now
+            time.sleep(3.0 * PACE)
+            continue
+        if was_out:                                  # back in the seat: start from what the table shows now
+            wait_from, seen, finishing, acted, acted_turn, stuck = None, 0, False, False, None, False
             REFUSED.clear()
         if ph.get("game_id") != game_id:             # a new game on this table (a match's next game can begin between two of this loop's
             if game_id is not None:                  # ticks, so the game-over branch below may never have been seen): nothing carries over
