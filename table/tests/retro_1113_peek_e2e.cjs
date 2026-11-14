@@ -176,7 +176,10 @@ json.dump({'name':'t','commander':None,'startingLife':20,'mainBoard':[{**C[n],'c
       const listed = new Set(marked.map(m => m[0]));
       check(looked.every(n => listed.has(n) || n === "Xindi Surveyors"), `the page looked up ${looked.length ? "only cards the prompt (or the public battlefield) names" : "no card at all: everything it showed was in what this seat had already been sent"}`, looked);
       const c1 = await J(await fetch(`${BASE}/api/card?name=${encodeURIComponent("Forest")}`)), c2 = await J(await fetch(`${BASE}/api/card?name=${encodeURIComponent("Sickbay")}`));
-      check(Object.keys(c1).sort().join() === "cost,name,power,text,toughness,type" && Object.keys(c2).sort().join() === Object.keys(c1).sort().join(),
+      // (integration 2026-11-14: the lookup now also says where its answer came from. For a keyless page that is a static source, oracle or
+      // set, never "deck" or "public": so it says nothing about where a copy of the card is.)
+      check(Object.keys(c1).sort().join() === "cost,name,power,source,text,toughness,type" && Object.keys(c2).sort().join() === Object.keys(c1).sort().join()
+        && ["oracle", "set"].includes(c1.source) && ["oracle", "set"].includes(c2.source),
         "the lookup answers the same way for a card that IS in the hidden hand (Forest) and one that is in no zone at all (Sickbay): printed text only, nothing about where a card is", [Object.keys(c1), Object.keys(c2)]);
 
       console.log("choosing still works");
