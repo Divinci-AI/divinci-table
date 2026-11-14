@@ -38,6 +38,14 @@ LINK_SUFFIXES = (".trycloudflare.com",) + tuple(x.strip().lower() for x in os.en
 LOOPBACK = ("127.0.0.1", "::1")
 
 
+def clean_score(text) -> str:
+    """A match score for the page ("Sam leads 1–0"): one short line of plain text, or "" (control characters and anything long are not a score)."""
+    if not isinstance(text, str):
+        return ""
+    t = " ".join(text.split())
+    return t if 0 < len(t) <= 80 and all(ch >= " " and ch != "\x7f" for ch in t) else ""
+
+
 def clean_link(url) -> str | None:
     """A table link the host may publish, or None: http(s) only, no credentials/whitespace/backslashes, and the host must be loopback
     (plain http allowed there) or a trusted https tunnel suffix. The #key=... fragment is part of the link and is kept."""
@@ -269,18 +277,39 @@ class Draft:
             if data.get("seed") != self.seed:
                 return None
             links = {n: u for n, u in (data.get("links") or {}).items() if n in NAMES.values() and clean_link(u)}
-            return {"links": links, "note": str(data.get("note") or "")[:200]} if links else None
+            scores = {n: clean_score(t) for n, t in (data.get("scores") or {}).items() if n in NAMES.values() and clean_score(t)}
+            return {"links": links, "note": str(data.get("note") or "")[:200], "scores": scores} if links else None
         except (OSError, ValueError, AttributeError):
             return None
 
     def publish_match(self, body: dict) -> tuple[int, dict]:
         """The host's handoff: {"links": {player: url}, "note": str} replaces what was published; {"clear": true} withdraws it.
+        {"scores": {player: "Sam leads 1–0"}} alone (no links) updates the match score shown beside each player's Join the match
+        button (a best-two-out-of-three match: match_when_ready.sh --follow sends it after every game) and changes nothing else.
         Replies carry names only, never a link."""
         with self.lock:
             if not isinstance(body, dict):
                 return 400, {"error": "bad request"}
             if body.get("clear"):
                 self.match = None
+            elif "scores" in body and "links" not in body:
+                if not self.match:
+                    return 409, {"error": "no match is published yet"}
+                raw = body.get("scores")
+                if not isinstance(raw, dict):
+                    return 400, {"error": "scores must be {player: text}"}
+                by_lower = {n.lower(): n for n in NAMES.values()}
+                scores = dict(self.match.get("scores") or {})
+                for who, text in raw.items():
+                    name = by_lower.get(str(who).lower())
+                    if name is None:
+                        return 400, {"error": "unknown player in scores"}
+                    t = clean_score(text)
+                    if t:
+                        scores[name] = t
+                    else:
+                        scores.pop(name, None)
+                self.match = {**self.match, "scores": scores}
             else:
                 if not self.done:
                     return 409, {"error": "the draft is not over yet"}
@@ -297,7 +326,7 @@ class Draft:
                         return 400, {"error": f"the link for {name} is not an allowed table link"}
                     links[name] = url
                 note = "".join(ch for ch in str(body.get("note") or "") if ch >= " " and ch != "\x7f")[:200]
-                self.match = {"links": links, "note": note}
+                self.match = {"links": links, "note": note, "scores": dict((self.match or {}).get("scores") or {})}   # (a re-published link keeps the score)
             f = LIVE / "draft-match.json"
             if self.match:
                 private_write(f, json.dumps({"seed": self.seed, **self.match}))
@@ -315,7 +344,8 @@ class Draft:
                 if self.done:
                     self._decks_init()
                 status = "starting" if self.done and all(s in self.ready for s in NAMES) else "waiting"
-            return {"status": status, "link": link, "note": (self.match or {}).get("note", "")}
+            return {"status": status, "link": link, "note": (self.match or {}).get("note", ""),
+                    "score": ((self.match or {}).get("scores") or {}).get(NAMES[seat], "")}   # this player's own match: public information
 
     @staticmethod
     def _card(c: dict) -> dict:
@@ -573,7 +603,7 @@ function openMatch(){const l=MATCH.link;if(!l||!/^https?:\/\//i.test(l))return;c
 function drawRdy(){if(!DONE)return;const st=DK?stats():null,tot=st?st.total:0,legal=tot===40;
  const strip="Ready: "+RDY.map(p=>p.ready?`<span class="ok">${esc(p.name)} ✓</span>`:`<span class="bld">${esc(p.name)} … (building)</span>`).join(", ")+(MATCH.status==="ready"?"":` <span class="m">· Match starting when everyone is ready…</span>`);
  let h;
- if(MATCH.status==="ready"&&MATCH.link)h=`<span id="rdymsg">${esc(MATCH.note||"Your match is ready.")}</span><label class="m"><input type="checkbox" id="rdyauto" ${AUTOM?"checked":""}> open automatically</label><button id="rdyb" class="join" data-rdy="join">Join the match</button>`;
+ if(MATCH.status==="ready"&&MATCH.link)h=`<span id="rdymsg">${esc(MATCH.note||"Your match is ready.")}</span><label class="m"><input type="checkbox" id="rdyauto" ${AUTOM?"checked":""}> open automatically</label><button id="rdyb" class="join" data-rdy="join">Join the match</button>${MATCH.score?`<span class="m" id="rdyscore">Match: <b>${esc(MATCH.score)}</b></span>`:""}`;
  else if(MY_READY)h=`<span id="rdymsg">${MATCH.status==="starting"?"Everyone is ready. Match starting…":"Ready ✓ — waiting for others"} <span class="m">(editing your deck cancels ready)</span></span><button class="sm" data-rdy="unready">Unready</button>`;
  else h=`<span id="rdymsg">${RMSG||(legal?"Your deck has 40 cards.":tot>40?"Cut "+(tot-40)+" more to be ready.":"Add "+(40-tot)+" more to be ready.")}</span><button id="rdyb" data-rdy="ready" ${legal?"":"disabled"}>I'm ready</button>`;
  const sig=strip+"|"+h;if(sig===LASTR)return;LASTR=sig;document.getElementById("rdys").innerHTML=strip;document.getElementById("rdyc").innerHTML=h;

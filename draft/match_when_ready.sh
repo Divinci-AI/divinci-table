@@ -8,7 +8,15 @@
 #   ./match_when_ready.sh --dry-run --draft-port 8897 Michael:Sam Claude:Fusion     rehearsal, see below
 # Options: --force (replace games still running: passed to the play script)   --ports A,B / --port N (table ports)
 #   --draft-port N (the draft server, default 8820)   --wait-secs N (give up after N s; default: wait until ^C)   --poll N (seconds)
-#   --follow (after publishing, keep re-publishing if a link file changes: the tunnel watcher rewrites sam-link.txt when the host moves)
+#   --follow (after publishing, keep re-publishing if a link file changes: the tunnel watcher rewrites sam-link.txt when the host moves;
+#     and, since 2026-11-14, FOLLOW THE MATCHES: print each game's result and each match's result as the tables report them
+#     (GET /api/match on 127.0.0.1, public, no key), put the match score beside each player's Join the match button, and exit 0 when
+#     every table's match is over)
+#   --single (one game per table, as before 2026-11-14)   --countdown N (seconds between two games of a match; default 25)
+#
+# A 1v1 table plays a MATCH: best two out of three, on the same table process. When a game ends the table itself starts the next one
+# (TABLE_MATCH=bo3 is exported to the play script, and table/server.py reads it): same seat keys, same links, no new tunnel, nobody
+# re-joins; the loser chooses to play or draw first and there is no roll after game 1. --four is one free-for-all game, as before.
 #
 # What it does, in order:
 #   1. withdraws any match link left on the draft page from an earlier round, then polls the draft server (host-only
@@ -33,7 +41,7 @@ HERE="$(cd "$(dirname "$0")" && pwd -P)"
 PLAY_DIR="${PLAY_DIR:-$HERE}"
 cd "$PLAY_DIR" || exit 1
 L="${LIVE_DIR:-$PWD/live}"
-DRY=0; FOUR=0; FORCE=""; DPORT=""; PORTS=""; WAIT=0; POLL=3; FOLLOW=0; PUBONLY=0; ARGS=()
+DRY=0; FOUR=0; FORCE=""; DPORT=""; PORTS=""; WAIT=0; POLL=3; FOLLOW=0; PUBONLY=0; SINGLE=0; COUNTDOWN=""; ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;;
@@ -41,11 +49,13 @@ while [ $# -gt 0 ]; do
     --force) FORCE=--force ;;
     --follow) FOLLOW=1 ;;
     --publish-only) PUBONLY=1 ;;
+    --single) SINGLE=1 ;;
+    --countdown) COUNTDOWN="${2:-}"; shift ;;
     --draft-port) DPORT="${2:-}"; shift ;;
     --ports|--port) PORTS="${2:-}"; shift ;;
     --wait-secs) WAIT="${2:-}"; shift ;;
     --poll) POLL="${2:-}"; shift ;;
-    -h|--help) sed -n 2,34p "$0"; exit 0 ;;
+    -h|--help) sed -n 2,38p "$HERE/$(basename "$0")"; exit 0 ;;
     -*) echo "unknown option $1 (see --help)"; exit 1 ;;
     *) ARGS+=("$1") ;;
   esac
@@ -58,6 +68,7 @@ low() { echo "$1" | tr 'A-Z' 'a-z'; }
 [ -n "$DPORT" ] || { [ "$DRY" = 1 ] && { echo "--dry-run needs an explicit --draft-port (a scratch draft server, never the live one)"; exit 1; }; DPORT=8820; }
 isnum "$DPORT" || { echo "bad --draft-port"; exit 1; }
 isnum "$WAIT" || { echo "bad --wait-secs"; exit 1; }
+[ -z "$COUNTDOWN" ] || isnum "$COUNTDOWN" || { echo "bad --countdown"; exit 1; }
 case "$POLL" in ""|*[!0-9.]*) echo "bad --poll"; exit 1 ;; esac
 
 # the table ports and the pairings
@@ -93,6 +104,7 @@ DECK_TOOL="${DECK_TOOL:-$PLAY_DIR/draft/make_deck_json.py}"
 [ -f "$DECK_TOOL" ] || DECK_TOOL="$HERE/make_deck_json.py"
 DECKS="${DECK_DIR:-$L/decks}"
 export DRAFT_URL="http://127.0.0.1:$DPORT" L SEATLIST WAIT POLL FOLLOW
+export FOLLOW_POLL="${FOLLOW_POLL:-5}"
 export REMOTE="${REMOTE_SEAT:-Sam}"
 START=$(date +%s)
 
@@ -105,6 +117,16 @@ export TABLES
 # Say it at the top (while ^C costs nothing) and again in the line that starts the tables.
 if [ "$FOUR" = 1 ]; then PLAN="ONE four-player table (free-for-all): $(echo $SEATLIST | sed 's/ /, /g') on :$P0"
 else PLAN="TWO 1v1 tables: ${1%%:*} vs ${1##*:} on :$P0, and ${2%%:*} vs ${2##*:} on :$P1"; fi
+# 2026-11-14: a 1v1 table plays a match (best two out of three) unless --single. The table reads TABLE_MATCH; the play script passes the
+# environment on to it. A four-player table is never a match (the table itself would say so and play one game).
+if [ "$FOUR" = 0 ] && [ "$SINGLE" = 0 ]; then
+  export TABLE_MATCH=bo3
+  [ -z "$COUNTDOWN" ] || export TABLE_MATCH_COUNTDOWN="$COUNTDOWN"
+  PLAN="$PLAN. Each is a MATCH: best two out of three, the next game starting by itself on the same table"
+else
+  export TABLE_MATCH=single
+  [ "$FOUR" = 1 ] || PLAN="$PLAN. ONE game each (--single)"
+fi
 [ "$PUBONLY" = 1 ] || echo "FORMAT: $PLAN. They start as soon as everyone is ready (^C now if that is not what was agreed)."
 
 if [ "$PUBONLY" = 0 ]; then
@@ -288,14 +310,85 @@ if missing:
     rc = 4
 if os.environ["FOLLOW"] == "1":
     fresh = False                                               # the watcher rewrites a link file after launch: whatever is on disk now is current
-    print("following: will re-publish if a link file changes (^C to stop)", flush=True)
+    print("following: will re-publish if a link file changes, and report each game and match (^C to stop)", flush=True)
+    # The tables, by port, with who sits at each. A table tells everyone its match at GET /api/match (public, no key, loopback here).
+    seats_at = {}
+    for n, p in port.items():
+        seats_at.setdefault(p, []).append(n)
+    seen = {p: {"games": 0, "over": False, "single": None, "score": None, "down": 0} for p in seats_at}
+    poll = max(0.2, float(os.environ.get("FOLLOW_POLL") or 5))
+
+    def table(p, path):
+        try:
+            with opener.open(f"http://127.0.0.1:{p}{path}", timeout=4) as r:
+                return json.loads(r.read() or b"{}")
+        except (urllib.error.URLError, OSError, ValueError):
+            return None
+
+    def push_scores(scores):
+        req = urllib.request.Request(base + "/api/match/publish", method="POST", data=json.dumps({"scores": scores}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        try:
+            with opener.open(req, timeout=10):
+                return True
+        except (urllib.error.URLError, OSError, ValueError):   # an older draft server has no scores: the match goes on without them
+            return False
+
+    def follow_tables():
+        """One look at every table. Prints what is new; returns True when every table has finished (a match over, or a single game over)."""
+        changed = {}
+        for p, who in seats_at.items():
+            st = seen[p]
+            if st["over"]:
+                continue
+            m = table(p, "/api/match")
+            if m is None:
+                st["down"] += 1
+                if st["down"] == 6:
+                    print(f"table :{p} ({' vs '.join(who)}) has not answered for a while: is it still running?", flush=True)
+                continue
+            st["down"] = 0
+            if not m.get("on"):                                 # a single game (--single, a four-player table, or an older table)
+                if st["single"] is None:
+                    st["single"] = True
+                    print(f"table :{p} ({' vs '.join(who)}) plays a single game", flush=True)
+                g = table(p, "/api/game/summary") or {}
+                if g.get("over"):
+                    st["over"] = True
+                    print(f"table :{p}: GAME OVER: {g.get('winner') or 'nobody'} wins" + (f" in {(g.get('summary') or {}).get('turns')} turns" if (g.get("summary") or {}).get("turns") else ""), flush=True)
+                continue
+            for g in (m.get("games") or [])[st["games"]:]:
+                res = "a draw" if g.get("draw") else f"{g.get('winner')} wins"
+                print(f"table :{p}: game {g.get('n')}: {res} in {g.get('turns')} turns ({', '.join(f'{n} {v}' for n, v in (g.get('totals') or {}).items())})", flush=True)
+            st["games"] = len(m.get("games") or [])
+            if m.get("score") != st["score"] and st["games"]:
+                st["score"] = m.get("score")
+                for n in who:
+                    if n in humans:
+                        changed[n] = st["score"]
+            if m.get("over"):
+                st["over"] = True
+                print(f"table :{p}: MATCH OVER: {m.get('score')}", flush=True)
+            elif m.get("next") and (m["next"].get("n"), "next") != st.get("said"):
+                st["said"] = (m["next"].get("n"), "next")
+                print(f"table :{p}: {m.get('score')}; game {m['next'].get('n')} starts by itself on the same table ({m['next'].get('chooser')} chooses play or draw)", flush=True)
+        if changed:
+            push_scores(changed)
+        return all(st["over"] for st in seen.values())
+
     try:
+        last_links = time.time()
         while True:
-            time.sleep(20)
-            now, _ = links_now(humans)
-            if now and now != links:
-                links = now
-                print("a link changed: re-published for " + ", ".join(publish(links)), flush=True)
+            time.sleep(poll)
+            if follow_tables():
+                print("every table has finished: " + "; ".join(f":{p} {st['score'] or 'game over'}" for p, st in seen.items()), flush=True)
+                break
+            if time.time() - last_links >= 20:
+                last_links = time.time()
+                now, _ = links_now(humans)
+                if now and now != links:
+                    links = now
+                    print("a link changed: re-published for " + ", ".join(publish(links)), flush=True)
     except KeyboardInterrupt:
         pass
 sys.exit(rc)
