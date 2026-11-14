@@ -34,7 +34,7 @@ import player  # noqa: E402
 check, CARDS = R.check, R.CARDS
 M, C = "Michael", "Claude"
 VOY, RIKER, RAND, CHEKOV = "U.S.S. Voyager, Lone Wanderer", "Will Riker, First in the Field", "Janice Rand, Essential Aide", "Pavel Chekov, First Posting"
-R.POOL.update({VOY: 6, RIKER: 6, "Risa": 6, "Exploratory Mission": 6, "Moopsy": 6})
+R.POOL.update({VOY: 6, RIKER: 6, "Ferenginar": 6, "Risa": 6, "Exploratory Mission": 6, "Moopsy": 6})
 _free0 = R.free_port
 R.free_port = lambda: next(p for p in iter(_free0, None) if p not in (8800, 8801, 8820, 8830, 8883))   # never a live game's port
 R.DECK_MICHAEL = R.deck_file("Michael-reveal")
@@ -122,6 +122,56 @@ def engine_landfall_and_short():
     check(not v.todo and "empty" in " ".join(said), "an empty library: nothing happens, and nothing is left to do by hand", (said, v.todo))
 
 
+def engine_land_kinds():
+    """Item 1 of the second 2026-11-13 list: the host's ad-hoc lookup did not know "Land — Planet" cards (Risa, Ferenginar) as lands. The engine
+    asks the card's own types (card_fits), so EVERY card of the set whose type line says Land must count, and no other card may."""
+    print("\n── the engine: what counts as a land card")
+    lands = [c for c in CARDS.values() if "Land" in (c.get("type") or "")]
+    kinds = sorted({(c.get("type") or "").split("—")[-1].strip() if "—" in (c.get("type") or "") else "(no subtype)" for c in lands})
+    check(len(lands) >= 20 and any("Planet" in k for k in kinds), f"the set has {len(lands)} cards with Land in the type line (subtypes: {', '.join(kinds)[:160]})")
+    wrong = [c["name"] for c in lands if not player.card_fits(c, "land")]
+    check(not wrong, "every one of them is a land card to the reveal: Planets, basics, two-colour lands, utility lands", wrong[:8])
+    wrong = [c["name"] for c in CARDS.values() if "Land" not in (c.get("type") or "") and player.card_fits(c, "land")]
+    check(not wrong, "…and no card without Land in its type line is (a card that only MENTIONS land in its name or text is not one)", wrong[:8])
+    for n in ("Risa", "Ferenginar"):
+        check(n in CARDS and "Planet" in CARDS[n]["type"] and player.card_fits(CARDS[n], "land"), f"{n} ({CARDS[n]['type']}) is a land card")
+    nonbasic = sorted(c["name"] for c in lands if "Basic" not in (c.get("type") or "") and "Planet" not in (c.get("type") or ""))
+    check(len(nonbasic) >= 2, f"(the set's other non-basic lands, all counted above: {', '.join(nonbasic)[:200]})")
+
+    # two Planets: both found, both tapped, each one's own "you gain 1 life", and the reveal stops AT the second land
+    v = seat()
+    stack(v, ["Horta", "Risa", "Tricorder", "Ferenginar", "Forest", "Moopsy"])
+    life0 = v.life
+    p, said = enters(v, VOY)
+    text = " ".join(said)
+    lands_ = [q for q in v.battlefield if q.is_("Land")]
+    check([q.name for q in lands_] == ["Risa", "Ferenginar"] and all(q.tapped for q in lands_), "two Planet lands: both onto the battlefield, tapped", [(q.name, q.tapped) for q in v.battlefield])
+    check(v.life == life0 + 2, "each Planet's own 'When this land enters, you gain 1 life' happens (+2)", v.life - life0)
+    check([c["name"] for c in v.library[::-1][:2]] == ["Forest", "Moopsy"] and "Forest" not in text and "Moopsy" not in text,
+          "the reveal stops exactly at the second land: the Forest right under it is still on top, unrevealed", ([c["name"] for c in v.library[::-1]], text))
+    check(sorted(c["name"] for c in v.library[:2]) == ["Horta", "Tricorder"] and len(v.library) == 4, "the two non-lands are on the bottom; the library was not shuffled", [c["name"] for c in v.library])
+    # a non-basic that is neither a Planet nor basic, when the set has one
+    if nonbasic:
+        v = seat()
+        stack(v, ["Horta", nonbasic[0], "Forest", "Moopsy"])
+        enters(v, VOY)
+        check(sorted(q.name for q in v.battlefield if q.is_("Land")) == sorted([nonbasic[0], "Forest"]), f"a non-basic land ({nonbasic[0]}) is found like any other", [q.name for q in v.battlefield])
+    # the two lands are the top two cards: nothing to put on the bottom
+    v = seat()
+    stack(v, ["Forest", "Plains", "Horta"])
+    p, said = enters(v, VOY)
+    check([c["name"] for c in v.library] == ["Horta"] and len([q for q in v.battlefield if q.is_("Land")]) == 2 and "bottom" not in " ".join(said),
+          "lands on top: both enter, nothing goes to the bottom, the next card stays where it was", (said, [c["name"] for c in v.library]))
+    # a library with NO land at all
+    v = seat()
+    stack(v, ["Horta", "Tricorder", "Moopsy"])
+    p, said = enters(v, VOY)
+    text = " ".join(said)
+    check(not [q for q in v.battlefield if q.is_("Land")] and sorted(c["name"] for c in v.library) == ["Horta", "Moopsy", "Tricorder"] and not v.hand and not v.todo,
+          "no land in the library: nothing enters, all three cards go to the bottom, nothing by hand", (said, [c["name"] for c in v.library]))
+    check("whole library" in text and "0 land cards" in text and all(n in text for n in ("Horta", "Tricorder", "Moopsy")), "…and the public line says so, naming every card it showed", text)
+
+
 def engine_riker():
     print("\n── the engine: Will Riker at the beginning of combat")
     v = seat()
@@ -195,7 +245,7 @@ def table_voyager():
 
 
 def main():
-    for fn, title in [(engine_voyager, "engine voyager"), (engine_landfall_and_short, "engine landfall"), (engine_riker, "engine riker"), (engine_coverage, "coverage"), (table_voyager, "table")]:
+    for fn, title in [(engine_voyager, "engine voyager"), (engine_landfall_and_short, "engine landfall"), (engine_land_kinds, "land kinds"), (engine_riker, "engine riker"), (engine_coverage, "coverage"), (table_voyager, "table")]:
         try:
             fn()
         except Exception as e:  # noqa: BLE001 — recorded, and the next section runs
