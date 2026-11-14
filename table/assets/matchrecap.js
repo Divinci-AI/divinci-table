@@ -76,12 +76,12 @@
     const live = !!d.current && !d.next && !d.over;                       // the next game is being played
     if (id !== shownId) { shownId = id; shownAt = Date.now(); hidden = store.get("mr.closed") === id; expanded = false; err = ""; sig = ""; }
     // closes by itself: on a seat's page a while after the next game began; on /watch always (nobody can press ✕ on a stream)
-    if (live && !liveAt) liveAt = Date.now();
+    if (live && !liveAt) { liveAt = Date.now(); expanded = false; }       // the next game has just begun: shrink, out of the opening hand's way
     if (!live) liveAt = 0;
     const up = (Date.now() - shownAt) / 1000, secs = d.recap_secs || 90;
     const expired = WATCH ? up > (d.watch_recap_secs || 20) * (d.over ? 3 : 1) || age > 900
-      : live && ((Date.now() - liveAt) / 1000 > secs || age > secs + 300);          // (a page opened long after that game ended shows nothing)
-    if (expired) { if (card) { card.remove(); card = null; } if (pill) { pill.remove(); pill = null; } sig = ""; return publish(); }
+      : live && ((Date.now() - liveAt) / 1000 > secs || age > secs + 300 || store.get("mr.expired") === id);   // (not again after a reload, nor on a page opened long after)
+    if (expired) { if (!WATCH) store.set("mr.expired", id); if (card) { card.remove(); card = null; } if (pill) { pill.remove(); pill = null; } sig = ""; return publish(); }
     if (!card) { card = document.createElement("div"); card.className = "mr-card"; card.setAttribute("role", "status"); card.setAttribute("aria-live", "polite"); document.body.appendChild(card); }
     if (!pill) { pill = document.createElement("div"); pill.className = "mr-pill"; pill.setAttribute("role", "button"); document.body.appendChild(pill); }
     const s2 = JSON.stringify([id, d.score, d.over, d.next && [d.next.choice, d.next.holds, d.next.chooser, Math.ceil(d.next.seconds_left)], d.current && d.current.n, seat(), err, live]);
