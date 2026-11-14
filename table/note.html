@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My seat on the stream</title>
+<style>
+body{font:17px/1.45 system-ui,sans-serif;background:#12151b;color:#e8eaee;margin:0;padding:18px;max-width:640px}
+h1{font-size:20px;margin:0 0 4px}p{color:#a9b0bc;margin:6px 0 14px}
+textarea{width:100%;box-sizing:border-box;min-height:96px;font:inherit;background:#1c212b;color:inherit;border:1px solid #39414f;border-radius:8px;padding:10px}
+button{font:inherit;padding:10px 16px;border-radius:8px;border:0;background:#3b82f6;color:#fff;margin-top:8px}
+label.row{display:flex;gap:10px;align-items:flex-start;background:#1c212b;border:1px solid #39414f;border-radius:8px;padding:12px;margin:18px 0 6px}
+input[type=checkbox]{width:22px;height:22px;flex:none;margin-top:2px}
+#msg{min-height:1.4em;color:#9ad29a}#msg.bad{color:#f0a0a0}small{color:#8b93a1}
+</style>
+<h1>My seat on the stream <span id="who"></span></h1>
+<p>Only you can change these: they need your seat's key (the same link as your hand).</p>
+<label class="row"><input type="checkbox" id="show"><span><b>Show my hand on the stream, this game.</b><br>
+<small>Off unless you turn it on. The stream shows it late (a turn behind), never live, but an opponent who watches the stream can see cards you are
+still holding from a turn ago. A new game turns this off again.</small></span></label>
+<p style="margin-top:22px"><b>A note for the viewers</b> (what you are thinking). It is shown with the same delay as your hand, and only if your hand is shown.</p>
+<textarea id="t" maxlength="600" placeholder="Holding the counterspell for his commander…"></textarea>
+<button id="send">Send the note</button>
+<div id="msg"></div>
+<script src="/assets/seat.js"></script>
+<script>
+"use strict";
+const q = new URLSearchParams(location.search), hq = new URLSearchParams(location.hash.slice(1));
+const seat = q.get("player") || q.get("seat") || "";
+const key = hq.get("key") || "";          // from the link's fragment (never sent in a URL); otherwise seat.js adds the key this device already holds
+document.getElementById("who").textContent = seat ? "(" + seat + ")" : "";
+const msg = (t, bad) => { const m = document.getElementById("msg"); m.textContent = t; m.className = bad ? "bad" : ""; };
+async function post(path, body) {
+  const h = { "Content-Type": "application/json" };
+  if (key) h["X-Seat-Key"] = key;
+  const r = await fetch(path, { method: "POST", headers: h, body: JSON.stringify(body) });
+  let d = {}; try { d = await r.json(); } catch {}
+  return { ok: r.ok, d };
+}
+(async () => {
+  if (!seat) return msg("Open this page from your seat link (…/note?player=YourName).", true);
+  try { const c = await (await fetch("/api/stream-consent")).json(); document.getElementById("show").checked = !!(c.seats || {})[seat]; } catch {}
+})();
+document.getElementById("show").onchange = async e => {
+  const r = await post("/api/seat/stream-consent", { seat, show_hand: e.target.checked });
+  if (!r.ok) { e.target.checked = !e.target.checked; return msg(r.d.error || "not changed", true); }
+  msg(e.target.checked ? "Your hand may be shown on the stream for this game (a turn behind)." : "Your hand is not shown.");
+};
+document.getElementById("send").onclick = async () => {
+  const text = document.getElementById("t").value.trim();
+  if (!text) return;
+  const r = await post("/api/seat/thought", { seat, text, kind: "note" });
+  if (r.ok) { document.getElementById("t").value = ""; msg("Sent."); } else msg(r.d.error || "not sent", true);
+};
+</script>

@@ -1,0 +1,63 @@
+<!doctype html>
+<meta charset="utf-8"><title>Director: control</title>
+<style>
+body{font:16px/1.4 system-ui,sans-serif;background:#12151b;color:#e8eaee;margin:0;padding:18px;max-width:1100px}
+h1{font-size:20px;margin:0 0 10px}kbd{background:#2a3140;border-radius:4px;padding:1px 7px;font:inherit}
+table{border-collapse:collapse;margin:10px 0}td,th{padding:4px 12px 4px 0;text-align:left;vertical-align:top}
+button{font:inherit;padding:8px 14px;border-radius:8px;border:0;background:#2f3a4f;color:#fff;margin:3px 4px 3px 0;cursor:pointer}
+button.panic{background:#b3261e;font-weight:700;font-size:20px;padding:14px 22px}
+.ok{color:#9ad29a}.no{color:#f0a0a0}.warn{color:#ffd28a}#msg{min-height:1.4em}
+</style>
+<h1>Director control <span id="mode"></span></h1>
+<p><button class="panic" data-cmd='{"cmd":"hide"}'>HIDE ALL HANDS (h)</button>
+<button data-cmd='{"cmd":"blank","on":true}'>Blank the page (b)</button><button data-cmd='{"cmd":"blank","on":false}'>Un-blank (shift-b)</button>
+<button data-cmd='{"cmd":"next"}'>Next seat (n)</button><button data-cmd='{"cmd":"unpin"}'>Back to rotation (0)</button>
+<button data-cmd='{"cmd":"unhide"}'>Un-hide hands (u, asks first)</button>
+<button data-cmd='{"cmd":"commentary","on":false}'>Commentary OFF (c)</button><button data-cmd='{"cmd":"commentary","on":true}'>Commentary on (shift-c)</button></p>
+<p>Keys: <kbd>1</kbd>–<kbd>9</kbd> pin that seat, <kbd>0</kbd> rotation, <kbd>n</kbd> next, <kbd>h</kbd> hide all hands now, <kbd>u</kbd> un-hide,
+<kbd>b</kbd> blank, <kbd>c</kbd> commentary off. Hiding throws away what was buffered: after un-hiding, a hand comes back only after the delay has passed again.</p>
+<div id="msg"></div><div id="slots"></div><div id="tables"></div><div id="com"></div><div id="readers"></div>
+<script>
+"use strict";
+const tok = new URLSearchParams(location.hash.slice(1)).get("t") || "";
+history.replaceState(null, "", location.pathname);            // the token leaves the address bar (and the history) at once
+const $ = id => document.getElementById(id), esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => "&#" + c.charCodeAt(0) + ";");
+async function send(b) {
+  if (b.cmd === "unhide" && !confirm("Show hands again? (Each comes back only after its delay.)")) return;
+  const r = await fetch("/api/control", { method: "POST", headers: { "Content-Type": "application/json", "X-Director-Token": tok }, body: JSON.stringify(b) });
+  const d = await r.json().catch(() => ({}));
+  $("msg").textContent = r.ok ? "done: " + b.cmd : (d.error || "refused");
+  if (r.ok) show(d);
+}
+function show(d) {
+  $("mode").textContent = "· " + d.mode + (d.featured ? " · " + d.featured.seat + " at " + d.featured.table : "");
+  $("slots").innerHTML = "<b>Seats:</b> " + d.slots.map(s => `<button data-cmd='${esc(JSON.stringify({ cmd: "pin", n: s.n }))}'>${s.n}. ${esc(s.seat)} (${esc(s.table)})</button>`).join("");
+  $("tables").innerHTML = d.tables.map(t => `<h3>${esc(t.name)} <small>${esc(t.status)} · private info: ${esc(t.delay)}</small></h3><table>` +
+    t.seats.map(s => `<tr><td>${esc(s.name)}</td><td>${esc(s.kind)}</td><td class="${s.read ? "ok" : "no"}">${s.read ? "hand read" : "hand NOT read"}</td><td>${esc(s.reason)}</td>` +
+      `<td>${s.kind === "human" ? (s.consent ? "consented this game" : "no consent") : ""}</td>` +
+      `<td><button data-cmd='${esc(JSON.stringify({ cmd: "hide", table: t.name, seat: s.name }))}'>hide</button></td></tr>`).join("") + "</table>").join("");
+  const c = d.commentary;
+  $("com").innerHTML = `<h3>Commentary: <span class="${/paused|off|waiting/.test(c.state) ? "warn" : "ok"}">${esc(c.state)}</span></h3>` +
+    (c.limits ? `<p>$${c.usd_hour} this hour (limit $${c.limits.usd_per_hour}) · $${c.usd_stream} this stream (limit $${c.limits.usd_per_stream}) · ${c.tokens_hour} tokens this hour · ${c.calls} calls · ${c.dropped} lines dropped${c.last_drop ? " (last: " + esc(c.last_drop) + ")" : ""}</p>` : "");
+  const u = d.unknown_readers;
+  $("readers").innerHTML = `<h3>Refused readers: <span class="${u.count ? "warn" : "ok"}">${u.count}</span></h3>` + (u.count ? `<p>Something without the page's cookie asked for ${esc(u.last_path)} (${esc(u.last_ua)}). If that is a bot, find out why.</p>` : "");
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-cmd]"); if (b) send(JSON.parse(b.dataset.cmd)); });
+document.addEventListener("keydown", e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key;
+  if (/^[1-9]$/.test(k)) send({ cmd: "pin", n: +k });
+  else if (k === "0" || k === "Escape") send({ cmd: "unpin" });
+  else if (k === "n") send({ cmd: "next" });
+  else if (k === "h") send({ cmd: "hide" });
+  else if (k === "u") send({ cmd: "unhide" });
+  else if (k === "b") send({ cmd: "blank", on: true });
+  else if (k === "B") send({ cmd: "blank", on: false });
+  else if (k === "c") send({ cmd: "commentary", on: false });
+  else if (k === "C") send({ cmd: "commentary", on: true });
+});
+async function poll() {
+  try { const r = await fetch("/api/control/state", { headers: { "X-Director-Token": tok } }); if (r.ok) show(await r.json()); else $("msg").textContent = "Open this page with: python3 -m director.ctl"; } catch (e) {}
+}
+setInterval(poll, 1500); poll();
+</script>
