@@ -8,6 +8,7 @@ Each branch has its own tests. These are the interactions none of them could tes
      a land token made by hand (New Planet), a by-hand tap that could be taken back, a creature token;
   2. played-by: an autopilot STANDING IN for a person is not refused for the new land moves (tap, take back a tap); the person's first
      such move from their own page takes the seat back, and the autopilot's next one is refused with "yield".
+  3. /watch: with the new scripts on the pages it still loads only static or public helpers and reads only /api/spectate.
 """
 from __future__ import annotations
 
@@ -88,6 +89,14 @@ def main():
         check(c == 409 and d.get("yield") is True, "the autopilot's next land move (taking back the person's tap) is refused: it yields", (c, d))
         st = t.state(p2)
         check(next(p for p in st["permanents"] if p["id"] == ids[1])["tapped"], "…and the person's tap stands", [(p["id"], p["tapped"]) for p in st["permanents"]])
+        print("\n── 3. /watch keeps its delay with the new scripts")
+        import re
+        with urllib.request.urlopen(urllib.request.Request(t.b + "/watch", headers={"X-Forwarded-For": "203.0.113.9", "User-Agent": "integrate-test"}), timeout=30) as x:
+            page = x.read().decode()
+        srcs = sorted(set(re.findall(r'<script src="/assets/([^"]+)"', page)))
+        check(srcs == ["art.js", "mana.js", "matchrecap.js", "playedby.js"],
+              "/watch loads only the static/public helpers (no battleline.js, seat.js or any script that reads the live game)", srcs)
+        check("/api/spectate" in page and "/api/phase" not in page and "/api/brain" not in page, "…and its own board reads only /api/spectate", "")
     finally:
         t.stop()
 

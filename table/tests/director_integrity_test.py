@@ -222,7 +222,8 @@ d, f1, f2, clock = setup()
 f2.hands["Fusion"] = [f2.card("Listed", secret_field="LEAK-ME")]
 d.poll()
 blob = json.dumps(d.pov("Fusion")["stage"])
-check("Listed" in blob and "LEAK-ME" not in blob and '"slots"' not in blob and "TOP-SECRET" not in blob and "castable_now" not in blob,
+check("Listed" in blob and "LEAK-ME" not in blob and '"slots"' not in blob and "TOP-SECRET" not in blob and "castable_now" not in blob
+      and not any(x in blob for x in ("OPP-HAND-CARD", "OPP-HAND-TEXT", "LIB-BASIC-LAND", "pick_options", "by_hand_ok", "equip_targets", "reveal")),
       "only name, cost, type, text and P/T of a hand card leave the server (no slots, no other private state such as the library's top card)")
 pv = d.pov("Fusion")
 check(all(not o["private"]["shown"] for o in pv["stage"]["opponents"]), "a point-of-view page carries ONE seat's hand: the other seat's is not on it")

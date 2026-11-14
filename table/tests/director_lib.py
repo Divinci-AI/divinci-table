@@ -112,7 +112,13 @@ class FakeTable:
         if seat in self.keys and Path(key_file).read_text().strip() != self.keys[seat]:
             raise TableError(403, "the table refused " + path)
         if path == "/api/brain/state":
-            return {"hand": list(self.hands[seat]), "library_top": {"name": "TOP-SECRET"}}
+            # (integration 2026-11-14: what a seat's own state now also carries since retro-20261113: another seat's hand shown to it in a
+            # pending choice, with each card's text; the basic lands left in its library for a fetch; its equip targets and by-hand abilities)
+            return {"hand": list(self.hands[seat]), "library_top": {"name": "TOP-SECRET"},
+                    "pending_choices": [{"id": 7, "source": "Stray from History", "kind": "option",
+                                         "reveal": {"target": "other", "mode": "exile", "cards": [{"name": "OPP-HAND-CARD", "text": "OPP-HAND-TEXT"}]}}],
+                    "permanents": [{"id": 3, "name": "Field", "abilities": [{"effect": "search", "pick_options": ["LIB-BASIC-LAND"], "by_hand_ok": True}],
+                                    "equip_targets": [4]}]}
         if path == "/api/seat/legal":
             return {"actions": list(self.legal[seat])}
         if path == "/api/seat/thought":
