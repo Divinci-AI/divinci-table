@@ -1,0 +1,28 @@
+{
+  "tables": [
+    {"name": "Table 1", "url": "http://127.0.0.1:8800",
+     "seats": [{"name": "Michael", "kind": "human", "key_file": "~/.divinci/star-trek-mtg/live/michael-seat.key"},
+               {"name": "Claude", "kind": "ai", "key_file": "~/.divinci/star-trek-mtg/live/claude-seat.key", "player": "rules autopilot"}]},
+    {"name": "Table 2", "url": "http://127.0.0.1:8801",
+     "seats": [{"name": "Sam", "kind": "human", "key_file": "~/.divinci/star-trek-mtg/live/sam-seat.key"},
+               {"name": "Fusion", "kind": "ai", "key_file": "~/.divinci/star-trek-mtg/live/fusion-seat.key", "player": "rules autopilot"}]}
+  ],
+  "delay": {"turns": 1, "secs": 0},
+  "ai_table_delay": {"turns": 0},
+  "rotation": {"dwell_secs": 45, "min_hold_secs": 10, "action_hold_secs": 18, "recap_secs": 20},
+  "poll_secs": 2.0,
+  "art_dir": "~/.divinci/star-trek-mtg/images/normal",
+  "names_only": false,
+  "commentary": {
+    "backend": "off",
+    "_anthropic": {"backend": "anthropic", "key_file": "~/.divinci/star-trek-mtg/live/anthropic.key",
+                   "voices": [{"name": "Sonnet", "role": "play-by-play", "model": "claude-sonnet-5-5"},
+                              {"name": "Opus", "role": "colour", "model": "claude-opus-5-5"}],
+                   "usd_per_hour": 1.0, "usd_per_stream": 4.0, "tokens_per_hour": 1500000, "min_gap_secs": 14,
+                   "private": "auto", "cards_json": "~/.divinci/star-trek-mtg/cards.json"},
+    "_ollama": {"backend": "ollama", "url": "http://127.0.0.1:11434",
+                "voices": [{"name": "Gemma A", "role": "play-by-play", "model": "ollama:gemma4:e2b"},
+                           {"name": "Gemma B", "role": "colour", "model": "ollama:gemma4:e2b"}]},
+    "speech": {"enabled": false}
+  }
+}

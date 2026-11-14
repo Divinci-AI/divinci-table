@@ -141,7 +141,11 @@ def http(method, url, body=None, headers=None, timeout=15):
 def start_table(port: int, tmp: Path, a: str, b: str, seed=5):
     """A real scratch table: two pilot seats on the fixture decks. Returns (process, base url, {seat: key file path})."""
     sys.path.insert(0, str(TESTS))
-    import fixture_decks  # noqa: PLC0415  (skips with 77 when the card data is not there)
+    import cards_path  # noqa: PLC0415
+    import fixture_decks  # noqa: PLC0415  (skips with 77 when the set's card data is not there)
+    if not (REPO / "table" / ".cache" / "card-names.json").exists():
+        # the table server fetches the card-name list from Scryfall on a first run with no cache: these tests never cause a download
+        cards_path.skip("needs table/.cache/card-names.json (the table would download it): run `python3 table/fetch_data.py` once")
     decks = fixture_decks.write(tmp / "decks")
     env = {k: v for k, v in os.environ.items() if k not in ("TYPESAFE_API_KEY", "TABLE_ART_DIR")}
     env.update(TABLE_NO_VOICE="1", TABLE_HIGHROLL="first", TABLE_CHECKIN="off", STRICT_SEATS="1", HF_HUB_OFFLINE="1", ROUTER="code",
