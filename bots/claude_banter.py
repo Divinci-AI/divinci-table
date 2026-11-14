@@ -8,11 +8,11 @@ so it cannot reveal it; the table's hand-leak guard on `say` stays as a second l
 When it talks: someone says Claude's name (it answers), or something worth a word happens (a big life swing, the game ending,
 another player's table talk), within a budget so it is lively, not a firehose. It may always choose silence.
 
-The API key comes from a private 0600 file (live/anthropic.key, written from Infisical by restart_game.sh): never the environment
-(readable by any same-user process), never a command line, never printed.
-    ~/.venvs/table/bin/python claude_banter.py
-Env: TABLE_URL (default :8800), CLAUDE_SEAT (Claude), CLAUDE_KEY_FILE (live/claude-seat.key), BANTER_MODEL (claude-opus-5-5),
-CHATTINESS (quiet|normal|chatty).
+The API key comes from a private 0600 file the host puts there (ANTHROPIC_KEY_FILE, default live/anthropic.key beside this file):
+never the environment (readable by any same-user process), never a command line, never printed. No launcher fetches it.
+    python3 bots/claude_banter.py          (the interpreter needs the `anthropic` package)
+Env: TABLE_URL (default :8800), CLAUDE_SEAT (Claude), CLAUDE_KEY_FILE (live/claude-seat.key), ANTHROPIC_KEY_FILE, BANTER_MODEL
+(claude-opus-5-5), CHATTINESS (quiet|normal|chatty).
 """
 from __future__ import annotations
 
