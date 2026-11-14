@@ -149,6 +149,9 @@ def clean(text: str) -> str:
     return t[: cut + 1] if cut > 130 else t[:400].rsplit(" ", 1)[0] + "…"
 
 
+# DRAFT_BANTER=off: the AI seats say nothing by themselves and no model, local or cloud, is ever asked for a line (a quiet draft; and
+# the tests that run the real server). People can still type; an AI seat can still be given a line by hand (claude_seat.py say).
+QUIET = os.environ.get("DRAFT_BANTER", "").strip().lower() in ("off", "0", "no", "false")
 VOICES = {"Claude": "Samantha", "Fusion": "Daniel"}   # Claude's chosen voice (same as at the table)      # macOS voices on the host laptop; both are installed here
 SAY_CMD = os.environ.get("DRAFT_SAY_CMD") or "say"      # tests point this at a harmless command
 
@@ -257,6 +260,8 @@ class Banter:
         return self._queue(who, "ask", "")
 
     def _queue(self, who: str, kind: str, detail: str):
+        if QUIET:
+            return "table talk from the AI seats is switched off"
         self.last_global = time.time()
         self.last_by[who] = self.last_global
         self.last_speaker = who

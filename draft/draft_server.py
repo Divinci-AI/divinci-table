@@ -465,6 +465,22 @@ class Draft:
         self.quiet = False
         for seat, cid in data.get("pending", {}).items():
             self.pending[int(seat)] = cid
+        self.catch_up()
+
+    def catch_up(self) -> int:
+        """Advance every step that is owed, and save. A step is owed when every seat the draft still waits on has its pick in.
+        pick() advances the moment the last one arrives, so while the server runs nothing is ever owed. After a restart it can be:
+        `--keep --bot Sam` (Sam went to bed after the others had picked) takes Sam out of the seats waited on, the saved picks are
+        put back, and before 2026-11-14 nothing looked again: the draft sat there until someone sent a pick a second time. A step
+        advanced here is a real new step (table talk may follow it), unlike the replayed ones. With nobody waited on at all (every
+        named seat a bot) the whole draft runs to its end. Returns how many steps it advanced."""
+        n = 0
+        while not self.done and all(s in self.pending for s in REQUIRED):
+            self._advance()
+            n += 1
+        if n:
+            self._persist()
+        return n
 
     def _advance(self) -> None:
         self.history.append({str(k): v for k, v in self.pending.items()})
@@ -1032,8 +1048,13 @@ if __name__ == "__main__":
         raise SystemExit("a seat cannot be named Broadcast: that line of the links file is the stream's key")
     dr = Draft(a.seed, links if (a.keep and links.exists()) else None, a.broadcast_reveal, a.broadcast_delay)
     if a.keep and state.exists():
-        dr.restore(state)
-        print(f"restored: pack {dr.rnd + 1}, pick {dr.pick_no + 1}, {len(dr.history)} steps replayed", flush=True)
+        n0 = len(json.loads(state.read_text()).get("history") or [])
+        dr.restore(state)                              # (replays the saved steps, then advances a step that is owed: catch_up)
+        owed = len(dr.history) - n0
+        print(f"restored: pack {dr.rnd + 1}, pick {dr.pick_no + 1}, {n0} steps replayed"
+              + (f"; {owed} more advanced now (every seat still waited on had already picked)" if owed else ""), flush=True)
+    else:
+        dr.catch_up()                                  # nobody is waited on (every named seat is a bot): the draft runs by itself
     links.touch(mode=0o600)
     links.chmod(0o600)
     links.write_text(links_text(dr))

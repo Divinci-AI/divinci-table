@@ -28,6 +28,18 @@ python3 draft/test_match_format.py                          # the format line, i
 python3 draft/test_banter_guard.py                          # table talk never names a card during a draft (typed lines too)
 ```
 
+## Restarting the server in the middle of a draft (`--keep`)
+
+`python3 draft/draft_server.py --keep [--bot Sam]` reads the saved state (`draft-state.json`), replays every finished step, and carries
+on. If the restart changed who the draft waits on (`--bot Sam`: Sam went to bed after the others had picked) and every seat still
+waited on has its pick in, that step is advanced at once: nobody has to send a pick again (before 2026-11-14 the draft sat still
+until someone did). The start-up line says so: `restored: pack 1, pick 2, 0 steps replayed; 1 more advanced now (...)`.
+`DRAFT_BANTER=off` keeps the AI seats from talking by themselves (no model, local or cloud, is asked for a line).
+
+```bash
+python3 draft/test_keep_restart.py                          # the owed step, in-process and with the real program restarted
+```
+
 ## The broadcast: the draft as a stream's scene
 
 `/broadcast?k=<broadcast key>` (JSON at `/api/broadcast`) is the page to capture: the named seats, how many cards each has taken, and
