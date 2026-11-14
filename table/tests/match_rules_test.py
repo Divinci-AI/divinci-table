@@ -125,6 +125,33 @@ check(m.due(1002.0), "the host's Start now lifts every Wait", "")
 check(bo3.Match([M, S]).wait(M, 1.0)[0] is False and bo3.Match([M, S]).start_now(M, 1.0)[0] is False and bo3.Match([M, S]).choose(M, "play")[0] is False,
       "with no game waiting, Wait, Start now and a choice are refused", "")
 
+print("A result that does not count (the host takes it back)")
+m = bo3.Match([M, S], countdown=10)
+check(m.void_last(1.0) is None, "nothing finished: nothing to take back", "")
+m.game_started("g1", S, how="roll")
+check(m.void_last(1.0) is None, "…nor while a game is being played", "")
+m.record(M, now=100.0)
+g = m.void_last(105.0)
+check(g["winner"] == M and m.wins == {M: 0, S: 0} and m.games == [] and not m.over, "game 1 is taken out: the win is gone", (g, m.wins))
+check(m.next["n"] == 1 and m.next["why"] == "replay" and m.public(105.0)["next"]["plays_first"] == S and m.due(115.0) and not m.due(114.0),
+      "game 1 is set up to be played again after the countdown, the same player first", m.next)
+nx = m.take_next(115.0)
+check(nx["n"] == 1 and nx["first"] == S and nx["why"] == "replay", "…and it starts as game 1 again", nx)
+m.game_started("g1b", nx["first"], chooser=nx["chooser"], choice=nx["choice"], how=nx["how"])
+m.record(S, now=200.0)
+check(m.score() == "Sam leads 1–0" and len(m.games) == 1 and m.next["chooser"] == M, "the replayed game counts as usual, and the loser chooses next", m.score())
+play(m, S, 300.0, "g2")
+check(m.over and m.winner == S, "(2–0)", m.score())
+g = m.void_last(305.0)
+check(g["n"] == 2 and not m.over and m.winner is None and m.wins == {M: 0, S: 1} and m.next["n"] == 2 and m.public(305.0)["next"]["plays_first"] == M,
+      "a result that ended the match can be taken back too: the match is open again, game 2 is replayed with the same player first", (m.wins, m.next))
+m = bo3.Match([M, S], countdown=10)
+m.game_started("g1", S, how="roll")
+m.record(M, now=100.0)
+nx = m.take_next(110.0)
+m.game_started("g2", nx["first"], chooser=nx["chooser"], choice=nx["choice"], how=nx["how"])
+check(m.void_last(120.0) is None and m.wins == {M: 1, S: 0}, "once the next game has begun it is too late to take the last one back", m.wins)
+
 print("Kept beside the saves")
 d = Path(tempfile.mkdtemp(prefix="bo3-"))
 f = d / "saves" / "match.json"

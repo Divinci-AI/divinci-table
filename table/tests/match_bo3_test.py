@@ -14,6 +14,7 @@ What is proved here (each section says it again):
                2026-11-14: game 2 of Michael vs Sam rolled dice instead of asking the loser.)
   countdown    Start now and Wait
   over         2–0 and 2–1 end the match: no further game starts, and only then do agents read "the game is over"
+  void         the host can say the game that just ended does not count (a life total taken to 0 by mistake): it is played again
   restore      the score survives a table restart (--restore), and is in a file beside the table's saves
 """
 from __future__ import annotations
@@ -349,6 +350,39 @@ def over():
         t.stop()
 
 
+def void():
+    t = Table(extra=["--match", "bo3", "--match-countdown", "3"], roll=True)
+    try:
+        ph = t.open_game()
+        f1 = ph["player"]
+        o1 = M if f1 == C else C
+        t.onto(f1, "Starfleet Security")
+        ev0 = t.last_id()
+        t.end_game(o1)                                                       # a slip: the wrong life total was taken to 0
+        check(t.match()["wins"] == {f1: 1, o1: 0}, "(a game is recorded)", t.match()["wins"])
+        c, d = t.call("POST", "/api/match/void", {}, key=t.keys[o1])
+        check(c == 403 and t.match()["wins"] == {f1: 1, o1: 0}, "a player cannot take a result back", (c, d))
+        c, d = t.call("POST", "/api/match/void", {})
+        check(c == 200 and d["wins"] == {C: 0, M: 0} and d["games"] == [] and d["next"]["n"] == 1 and d["next"]["why"] == "replay" and d["next"]["plays_first"] == f1 and not d["over"],
+              "the host takes it back: no win, no game on record, game 1 set to be played again with the same player first", {k: d.get(k) for k in ("wins", "games", "next", "error")})
+        check(any(s.startswith(f"The host says game 1 does not count: it is played again, {f1} first as before.") for s in t.says(ev0)), "the public log says so", t.says(ev0))
+        c, d = t.call("POST", "/api/match/void", {})
+        check(c == 409, "there is nothing more to take back", (c, d))
+        check(t.next_game(1, secs=10), "game 1 begins again by itself", t.match())
+        for n in (C, M):
+            z = t.zones(n)
+            check(z["hand"] == 7 and z["library"] == 33 and z["life"] == 20 and z["permanents"] == 0, f"{n} starts the replayed game clean", z)
+        ph = t.keep_all()
+        check(ph["player"] == f1 and t.match()["current"]["n"] == 1 and len([e for e in t.events() if e["type"] == "highroll"]) == 1,
+              "the same player is first, it is game 1 again, and nothing was rolled a second time", t.match()["current"])
+        c, d = t.call("POST", "/api/match/void", {})
+        check(c == 409 and "being played" in d.get("error", ""), "a result cannot be taken back while a game is being played", (c, d))
+        t.end_game(o1)
+        check(t.match()["score"] == f"{f1} leads 1–0" and len(t.match()["games"]) == 1, "the replayed game counts: 1–0", t.match()["score"])
+    finally:
+        t.stop()
+
+
 def restore():
     t = Table(extra=["--match", "bo3", "--match-countdown", "1"])
     try:
@@ -386,7 +420,8 @@ def restore():
 
 for title, fn in (("single: a table without --match is unchanged", single), ("clean: game 2 starts by itself and inherits nothing", clean),
                   ("first: who plays first (one roll, then the loser chooses)", first), ("countdown: Start now and Wait", countdown),
-                  ("over: 2–0 and 2–1 end the match", over), ("restore: the match survives a restart", restore)):
+                  ("over: 2–0 and 2–1 end the match", over), ("void: the host takes a mistaken result back", void),
+                  ("restore: the match survives a restart", restore)):
     section(title, fn)
 print("\nFAILED: " + "; ".join(R.FAILS) if R.FAILS else "\nall good")
 sys.exit(1 if R.FAILS else 0)

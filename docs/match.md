@@ -47,12 +47,21 @@ For the pages, the launcher and a stream overlay. Never a card, never a key.
 ```
 
 `{"on": false}` on a single-game table. `/api/phase`, `/api/seat/legal`, `/api/spectate` and `/api/game/summary` carry a short `match`
-(`game`, `wins`, `score`, `over`, `winner`, `continues`). The log has `match` events (`kind`: `game`, `choice`, `wait`, `now`, `start`).
+(`game`, `wins`, `score`, `over`, `winner`, `continues`). The log has `match` events (`kind`: `game`, `choice`, `wait`, `now`, `start`,
+`void`).
 
 `POST /api/match/next {"seat": "Michael", "action": …}` with that seat's own key (`X-Seat-Key`):
 `play` / `draw` (the chooser only, once), `now` (Start now: lifts this seat's own Wait; with nobody else waiting the game starts at once),
 `wait` (holds the next game for this seat, up to `--match-max-wait`). The host's `now` (the brain token, on the laptop) lifts every Wait.
 The host cannot choose play or draw for a player.
+
+`POST /api/match/void` (the host only: the brain token, on the laptop, never through a tunnel): **the game that just ended does not
+count**. For a result nobody meant, such as a life total taken to 0 by a slip of the finger. The game is taken out of the match and
+played again after the countdown, the same player first, no roll; the log says the host did it. Only before the next game has begun.
+
+```
+curl -s -X POST -H "X-Brain-Token: $(cat <the table's --token-file>)" http://127.0.0.1:<port>/api/match/void
+```
 
 The match is saved with the game (the snapshot) and in `TABLE_SAVES_DIR/match.json` (0600; `match-p<port>.json` in the research folder
 when no saves folder is set). A table restarted with `--restore <snapshot> --match bo3` carries on with the match. A new table (no
@@ -97,6 +106,9 @@ and the event ids (every page's cursor stays valid). The hand page forgets its o
 mulligan picks, chosen attackers).
 
 ## Not done
+
+* **A host's own `new-game` / Reset during a match** is not tied into the match: it reshuffles as it always did, and the match keeps
+  its score. Use `POST /api/match/void` to replay a game instead.
 
 * **Sideboarding.** The draft page does let a player edit a deck after "I'm ready" (it cancels ready). The table re-reads each seat's deck
   file when it deals a game, so a sideboard step would be: (1) a pause between games in which the draft server accepts edits again for the

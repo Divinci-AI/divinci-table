@@ -3821,6 +3821,27 @@ def match_next_request(seat: str | None, action: str) -> tuple[int, dict]:
     return 200, {**match_public(), **({"note": why} if why else {})}
 
 
+def match_void_last() -> tuple[int, dict]:
+    """POST /api/match/void (the host, on the laptop): the game that just ended does not count and is played again. For a result nobody
+    meant: a life total taken to 0 by a slip. Only before the next game has begun."""
+    with VP_LOCK:
+        if MATCH is None:
+            return 409, {"error": "this table plays single games"}
+        if not GAME_OVER.get("over"):
+            return 409, {"error": "a game is being played: a result can only be taken back before the next game has begun"}
+        g = MATCH.void_last(time.time())
+        if g is None:
+            return 409, {"error": "there is no finished game to take back"}
+        nx = MATCH.next
+        first = nx["chooser"] if nx["choice"] == bo3_mod.PLAY else MATCH.other(nx["chooser"])
+        emit("match", kind="void", game=g["n"], winner=g.get("winner"), wins=dict(MATCH.wins), score=MATCH.score(), first=first)
+        line = (f"The host says game {g['n']} does not count: it is played again, {first} first as before. {MATCH.score()}. "
+                f"It starts in {MATCH.countdown:g} seconds on this table.")
+        emit("say", speaker="Table", text=line, action="match", auto=True, speech=f"Game {g['n']} does not count. It is played again.")
+    snapshot()
+    return 200, match_public()
+
+
 def table_reset_for_new_game():
     """Every piece of per-game state back to what a table that has just been started holds, on the SAME process: the seats, their keys and
     links, the table's settings (windows, each person's auto-pass, declared decks) and the public log all stay. The caller holds VP_LOCK.
@@ -3888,6 +3909,8 @@ def match_start_next_game() -> bool:
         emit("fair", kind="sealed", **fair_public())
         emit("match", kind="start", game=nx["n"], first=first, chooser=nx["chooser"], choice=nx["choice"], how=nx["how"], wins=dict(MATCH.wins), score=MATCH.score())
         line = f"Game {nx['n']} of the match ({MATCH.score()}). {first} plays first: {nx['chooser']} chose to {nx['choice']} first. No roll."
+        if nx["why"] == "replay":
+            line = f"Game {nx['n']} of the match, played again ({MATCH.score()}). {first} plays first, as before. No roll."
         emit("say", speaker="Table", text=line, action="match", auto=True, speech=f"Game {nx['n']}. {first} plays first.")
         start_turn(first)                                  # opening hands (the mulligan step), then the first turn
     snapshot()
@@ -6443,6 +6466,11 @@ class H(BaseHTTPRequestHandler):
                 else:
                     return self._send(403, {"error": "a seat's own key (X-Seat-Key) is needed for its own seat", "need_seat": True})
                 snapshot()
+                return self._send(code, out)
+            if self.path == "/api/match/void":             # the host, on the laptop: the game that just ended does not count; it is played again
+                if not (self._brain_ok() and self._is_local()):
+                    return self._send(403, {"error": "only the table's host, on the table's laptop, can take a result back"})
+                code, out = match_void_last()
                 return self._send(code, out)
             if self.path == "/api/autopass":               # {"by": "Sam", "key": …, "mode": "off"|"others"|"others-no-combat"}
                 b = self._json()

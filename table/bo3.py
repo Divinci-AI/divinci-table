@@ -11,6 +11,7 @@ the time is given it), so it can be tested alone. table/server.py holds one Matc
     public(now)                           what everyone may see (GET /api/match): never a card, never a key
 
 The rules it holds:
+  * a result that should not count (the host's call: void_last) is taken out and that game is played again, same player first;
   * the match ends when a seat has won `need` games (2 of 3), or after `max_games` games (drawn games can make it longer than three:
     the cap stops a match that would never end; then whoever has more wins takes it, and equal wins is a drawn match);
   * who goes first: game 1 is the table's own roll (not this file's business). After that there is NO roll: the loser of the previous
@@ -142,6 +143,23 @@ class Match:
         nx["go"] = True
         self.save()
         return True, ""
+
+    def void_last(self, now: float) -> dict | None:
+        """The host says the last finished game does not count (a life total reached 0 by a slip of the finger): it is taken out of the match
+        and PLAYED AGAIN, with the same player first as before. Only between two games or after the match's end: once the next game has begun
+        it is too late (None). Returns the game that was taken out."""
+        if not self.games or self.current is not None:
+            return None
+        g = self.games.pop()
+        if g.get("winner") in self.wins:
+            self.wins[g["winner"]] = max(0, self.wins[g["winner"]] - 1)
+        self.over, self.winner = False, None
+        chooser = g.get("chooser") if g.get("chooser") in self.seats else g.get("first") if g.get("first") in self.seats else self.seats[0]
+        first = g.get("first") if g.get("first") in self.seats else chooser
+        self.next = {"n": g["n"], "chooser": chooser, "why": "replay", "choice": PLAY if first == chooser else DRAW, "how": "replay",
+                     "since": round(now, 2), "due": round(now + self.countdown, 2), "hard_due": round(now + self.max_wait, 2), "holds": [], "go": False}
+        self.save()
+        return g
 
     def restart_clock(self, now: float):
         """The table came back from a save between two games: the countdown starts again (the old deadline was another process's)."""
