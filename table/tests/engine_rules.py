@@ -5,6 +5,8 @@ rehearsed game. No server, no model — pure arithmetic, runs in a second.
 """
 from __future__ import annotations
 
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file SKIPS, never fails, never downloads)
+cards_path.need_card_data()                            # the table needs the card data, and a test never downloads it (skips without it)
 import json
 import sys
 from pathlib import Path

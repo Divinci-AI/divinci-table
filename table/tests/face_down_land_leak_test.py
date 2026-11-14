@@ -4,6 +4,8 @@ count it as a land, or leave it out of the creature list. Deterministic: manifes
     TABLE_TEST_DECKS=$(python tests/fixture_decks.py) python3 table/tests/face_down_land_leak_test.py
 """
 from __future__ import annotations
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file SKIPS, never fails, never downloads)
+cards_path.need_card_data()                            # the table needs the card data, and a test never downloads it (skips without it)
 import json, os, socket, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from pathlib import Path
 

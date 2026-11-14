@@ -7,6 +7,8 @@ check every AI seat comes back identical — hand, board, graveyard, life, and t
 Two servers on free ports (A → B), fair seeding off, their own token files; never touches a
 running game. Prints fingerprints only, never a hidden card.
 """
+import cards_path  # noqa: E402  (table/tests/cards_path.py: a missing card file SKIPS, never fails, never downloads)
+cards_path.need_card_data()                            # the table needs the card data, and a test never downloads it (skips without it)
 import hashlib
 import json
 import os
