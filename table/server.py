@@ -1298,6 +1298,7 @@ def ai_passed(seat_name: str):
         if seat_name not in ps["need"] or seat_name in ps["passed"]:
             return
         PASS["passed"].append(seat_name)
+        PASS_COUNT[seat_name] = PASS_COUNT.get(seat_name, 0) + 1
         ps = passes_state()
         emit("pass", by=seat_name, ai=is_bot(seat_name), driven=True, player=PHASE["player"], step=STEPS[PHASE["step"]],      # R24: `ai` is true only for a seat nobody is driving
              left=[n for n in ps["need"] if n not in ps["passed"]])
@@ -1409,7 +1410,20 @@ def priority_reset(why: str):
                          text=f"{active}: {step}. Something new happened — you may respond, or pass.", step=step, active=active)
 
 
-HAND_TAPS: dict = {}   # (seat, permanent id) -> (active player, step index) of a pilot's own tap: undoable in that same step
+HAND_TAPS: dict = {}   # (seat, permanent id) -> (active player, step index, the seat's pass count) of a pilot's own tap: undoable in that same step, until it passes
+PASS_COUNT: dict = {}  # seat -> how many times it has passed priority (a tap made before a pass is no longer a slip to take back)
+
+
+def hand_taps_sweep(seat_name: str):
+    """A by-hand tap can be taken back only while the permanent is STILL tapped by that tap. Once it is untapped by anything (the untap step, an
+    effect, the page giving its pool back) the note goes: if the table then taps it to pay for something, that is spent mana, and taking THAT
+    back would be free mana (2026-11-13: the note used to outlive the untap, so a land tapped by hand on one turn could be untapped by hand
+    after a payment tapped it on a later turn, in the same step of the turn)."""
+    v = VPS.get(seat_name)
+    for k in [k for k in HAND_TAPS if k[0] == seat_name]:
+        p = next((q for q in (v.battlefield if v else []) if q.id == k[1]), None)
+        if p is None or not p.tapped or HAND_TAPS[k][3:] != (v.turn,):
+            HAND_TAPS.pop(k, None)
 
 
 def untap_refusal(owner: str, perm_id=None) -> str | None:
@@ -1418,8 +1432,20 @@ def untap_refusal(owner: str, perm_id=None) -> str | None:
     priority. Used by /api/brain/untap (a pilot's key) and /api/card-action (a person's real deck)."""
     if PHASE["player"] is None:
         return "the game hasn't started: nothing untaps yet"
-    if perm_id is not None and HAND_TAPS.get((owner, perm_id)) == (PHASE["player"], PHASE["step"]):
-        return None                                   # undoing your own tap, in the same step it was made (a misclick, or a land tapped by habit)
+    hand_taps_sweep(owner)
+    v_ = VPS.get(owner)
+    mine = HAND_TAPS.get((owner, perm_id)) if perm_id is not None else None
+    if mine is not None and mine[:2] == (PHASE["player"], PHASE["step"]) and mine[3:] == (v_.turn if v_ else None,):
+        if mine[2] == PASS_COUNT.get(owner, 0):
+            return None                               # undoing your own tap, in the same step it was made (a misclick, or a land tapped by habit)
+        return "you tapped that before you passed priority: it stays tapped (a tap can be taken back only until you pass)"
+    if PHASE["player"] == owner and STEPS[PHASE["step"]] == "untap":
+        return None
+    if mine is not None:
+        return f"you tapped that in an earlier step ({STEPS[mine[1]]}): it stays tapped until your untap step"
+    p_ = next((q for q in (v_.battlefield if v_ else []) if q.id == perm_id), None)
+    if p_ is not None and p_.tapped and PHASE["player"] == owner:
+        return f"{p_.name} was tapped by the table (to pay for something, or by a card), not by you by hand: that mana is spent, so it stays tapped"
     if PHASE["player"] != owner:
         return f"you can only untap in your own untap step: it's {PHASE['player']}'s turn, not {owner}'s"
     if STEPS[PHASE["step"]] != "untap":
@@ -4243,6 +4269,13 @@ def annotate_legality(sn: str, v: dict):
                 if no_target(_pl.card_slots({"name": p.name, "types": ["Instant"]}, eff_)):
                     why = "no legal target right now"
             a["can"], a["why_not"] = why is None, why
+            # (2026-11-13) what a person's page needs to offer the ability whole: the basic lands a "search your library for a basic land card"
+            # may fetch (this seat's own library: its own to know), and whether "pay it, the table does what it can, the rest by hand" is the
+            # way through an effect the table cannot run (a seat that is driven by a person; never offered to a bot)
+            if re.match(r"search your library for (?:an? |up to two )?basic land card", a["effect"], re.I):
+                a["pick_options"] = sorted({c["name"] for c in vp.library if "Basic" in (c.get("supertypes") or []) and "Land" in (c.get("types") or [])})
+            if why == "the table can't run this ability yet" and not a.get("modes") and sn in PILOTS:
+                a["by_hand_ok"] = vp.ability_why_not(p, a["index"], sorcery_ok=main, runnable=False) is None
         if x.get("equip_cost"):
             why = None if main else "Equip is sorcery speed: only in your own main phase"
             why = why or (None if vp.plan_payment(x["equip_cost"]) is not None else f"needs {x['equip_cost']}: {vp.mana_words()}")
@@ -6321,6 +6354,7 @@ class H(BaseHTTPRequestHandler):
                 if sn is None:
                     return self._send(404, {"error": f"no AI seat '{b.get('seat')}' (seats: {list(VPS)})"})
                 act = self.path.rsplit("/", 1)[-1]
+                hand_taps_sweep(sn)                       # (a by-hand tap that something has since untapped can no longer be "taken back")
                 if GAME_OVER.get("over") and act != "say" and (pilot or act not in AFTER_GAME_OK):   # M24: nothing is played after the end
                     self._refused(act, "game-over", "")
                     lost_ = [n for n in life_table() if is_out(n)]     # (409 and `stale`, as for any listed move the game has since overtaken: read the list again)
@@ -7035,7 +7069,8 @@ class H(BaseHTTPRequestHandler):
                                                      sorcery_ok=on_turn(VP.name) and STEPS[PHASE["step"]] in ("main 1", "main 2")) is None else []
                     said = ward_said_ + VP.activate(str(b.get("source", "")), x=int(b.get("x") or 0),
                                        index=None if b.get("index") in (None, "") else int(b["index"]), target=tgt,
-                                       pick=b.get("pick"), put=b.get("put"), bottom=b.get("bottom"), mode=mode,
+                                       pick=([b["pick"]] if isinstance(b.get("pick"), str) else b.get("pick")), put=b.get("put"), bottom=b.get("bottom"), mode=mode,
+                                       by_hand=bool(b.get("by_hand")) and VP.name in PILOTS,
                                        sac_ref=str(b["sac"]) if b.get("sac") not in (None, "") else None, target_owner=tgt_owner,
                                        tap_refs=[str(x) for x in b["tap"]] if isinstance(b.get("tap"), list) and b.get("tap") else None,
                                        sorcery_ok=on_turn(VP.name) and STEPS[PHASE["step"]] in ("main 1", "main 2"))
@@ -7306,7 +7341,7 @@ class H(BaseHTTPRequestHandler):
                     p = VP.perm(b["ref"])
                     p.tapped = action == "tap"
                     if action == "tap" and b.get("_pilot"):
-                        HAND_TAPS[(VP.name, p.id)] = (PHASE["player"], PHASE["step"])
+                        HAND_TAPS[(VP.name, p.id)] = (PHASE["player"], PHASE["step"], PASS_COUNT.get(VP.name, 0), VP.turn)
                     else:
                         HAND_TAPS.pop((VP.name, p.id), None)
                     said = [f"{p.name} is {action}ped."] if b.get("announce") else []

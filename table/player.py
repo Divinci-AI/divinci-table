@@ -4141,6 +4141,12 @@ def _manual(cls):
         happens before anything moves."""
         hidden = {"hand", "library-top", "library-bottom"}
         mine = lambda t_: "my " + {"library-top": "library (on top)", "library-bottom": "library (on the bottom)"}.get(t_, t_)
+        if op == "land-token":                             # a land token by hand (New Planet): name, and its ability in `to` (default: any colour)
+            nm = " ".join(str(name or "").split())[:40] or "New Planet"
+            ab = " ".join(str(to or "").split())[:120] or "{T}: Add one mana of any color."
+            if not re.match(r"\{T\}: Add ", ab):
+                raise IllegalAction("a land token's ability is a mana ability: '{T}: Add …'")
+            return ["Manual: " + x for x in self.land_token(nm, ab, tapped=bool(tapped))]
         if op == "token":
             n = max(1, min(int(n or 1), 20))
             nm = " ".join(str(name or "").split())[:40] or "Creature"
@@ -4389,7 +4395,7 @@ def _manual(cls):
         n = len(self.sources())
         return f"you have {n} untapped mana source{'s' if n != 1 else ''}"
 
-    def ability_why_not(self, p, index: int, sorcery_ok=None) -> str | None:
+    def ability_why_not(self, p, index: int, sorcery_ok=None, runnable=True) -> str | None:
         """T18: why activated ability `index` of permanent p can't be activated right now, or None. The same checks `activate` makes, in the
         same order, before anything a player has to choose (a mode, a target, which permanent to sacrifice): what the text says about when
         (sorcery, once each turn), the {T} of a tapped or summoning-sick source, a sacrifice or tap-others cost with nothing to pay it, the
@@ -4447,6 +4453,8 @@ def _manual(cls):
                     q.tapped = t_
             if not ok:
                 return f"needs {mana}{f' (less {discount})' if discount else ''}: {words}"
+        if not runnable:                                   # (asked for the COST only: could it be paid and done by hand?)
+            return None
         if modes:
             if not any(self.can_run(m_, p.name) for m_ in modes):
                 return "the table can't run this ability yet"
@@ -4685,7 +4693,7 @@ def _manual(cls):
         return back + self.impulse_expire(my_turn_ended=ended is not None and self.name in ended)
 
     def activate(self, ref, x=0, index=None, target=None, pick=None, put=None, bottom=None, mode=None, sac_ref=None, target_owner=None,
-                 tap_refs=None, sorcery_ok=None):
+                 tap_refs=None, sorcery_ok=None, by_hand=False):
         """Pay and run one activated ability of a permanent. Everything is checked BEFORE anything is paid: an ability the table
         cannot run yet is refused whole, never half-done. `target` is a Perm (the caller resolved it, any seat's).
         `mode`: for a modal ability ("Choose one —"), which of its modes (0-based, in the card's order).
@@ -4793,7 +4801,10 @@ def _manual(cls):
         extra = int(x) * mana.count("{X}") - discount
         run = None
         m = re.search(r"\bdraw (a|an|one|two|three) cards?\b(?! for each)", e)
-        if m and not re.search(r"\bdraws? (a|an|one|two|three) cards?\b.*\bthen\b", e):
+        # 2026-11-13: this shortcut used to take ANY effect with "draw N cards" in it and do only the draw: Gaseous Anomaly ("Draw two cards.
+        # Create a tapped Planet land token named New Planet …") drew two and never made the land, with nothing said about it. It now takes an
+        # effect that is only the draw; an effect with more to it goes to the shared sentence engine below when that knows all of it.
+        if m and not re.search(r"\bdraws? (a|an|one|two|three) cards?\b.*\bthen\b", e) and (len(self._sentences(self._plain(eff))) == 1 or not self.can_run(eff, src.name)):
             n = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3}[m.group(1)]
             run = lambda: (self.draw(n), [f"{src.name}: I draw {n} card{'s' if n != 1 else ''}."])[1]
         elif re.match(r"(scry|surveil) (\d)", e):
@@ -4878,6 +4889,15 @@ def _manual(cls):
                 for x_ in left:
                     self.todo.append(f"{src.name}: {x_}")
                 return [f"{src.name}: {x_}" for x_ in done]
+        if run is None and by_hand and not modes:
+            # A person at the table is not left stuck by a card the table cannot carry out: the cost is paid as for any ability (mana, {T}, the
+            # sacrifice), every sentence the table DOES know is done, and the rest is said aloud and put on the to-do list to be done by hand.
+            # Only when asked for (by_hand): a bot never pays for an effect nobody will carry out.
+            def run():
+                done, left = self.run_effects(src, eff, aim=[{"perm": target, "owner": target_owner or self}] if target is not None else [])
+                for x_ in left:
+                    self.todo.append(f"{src.name}: {x_}")
+                return [f"{src.name}: {x_}" for x_ in done] + [f"{src.name}: by hand: {x_}" for x_ in left]
         if run is None:
             raise IllegalAction(f"the table can't run this ability yet ({eff[:80]}): nothing was paid. "
                                 f"Use `say` to tell the table what you do, or ask the host")

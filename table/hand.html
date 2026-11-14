@@ -354,10 +354,14 @@ async function poolTap(p, color) {
   if (!(await act("tap", { ref: "#" + p.id, announce: true }))) return;
   poolLoad(); MPOOL.items.push({ id: p.id, color, name: p.name }); poolSave(); window.TableSfx && TableSfx.fx("tap"); matSig = ""; draw(); offerUndo(p, "tap");
 }
+function untapRefused(p) {                                       // the table's own reason, where the player is looking (not only in the small line by the step buttons)
+  const why = $("err").textContent; if (why) handToast(`${esc(p.name)} stays tapped: ${esc(why)}`, 9000);
+  poolLoad(); if (MPOOL.items.some(i => i.id === p.id)) { MPOOL.items = MPOOL.items.filter(i => i.id !== p.id); poolSave(); matSig = ""; draw(); }   // (it is not mana the page can give back)
+}
 async function poolUndo(p) {
   if (tapBlockedByChoice(p)) return;
   poolLoad(); const was = MPOOL.items.find(i => i.id === p.id);
-  if (!(await act("untap", { ref: "#" + p.id }))) return;
+  if (!(await act("untap", { ref: "#" + p.id }))) return untapRefused(p);
   poolLoad(); MPOOL.items = MPOOL.items.filter(i => i.id !== p.id); poolSave(); matSig = ""; draw(); offerUndo(p, "untap", was && was.color);
 }
 async function spendPool() {                                    // before a cast: return the pooled sources so the table's payment can tap them
@@ -500,7 +504,7 @@ function showFanErr() { const e = $("err") ? $("err").textContent : ""; if (e &&
 // ── activated abilities (what the Cards page offered): the same list, in the same order, as the engine's ability_list ──
 const ACT_LINE = /^((?:(?:\{[^}]+\})+|Sacrifice [^:,]+)(?:, ?(?:(?:\{[^}]+\})+|Sacrifice [^:,]+))*): (.+)$/;
 function abilityList(p) {
-  if (Array.isArray(p.abilities)) return p.face_down ? [] : p.abilities.map(a => ({ cost: a.cost, eff: a.effect, modes: a.modes || [], can: a.can, why: a.why_not }));   // the engine's own list (same order, same numbers)
+  if (Array.isArray(p.abilities)) return p.face_down ? [] : p.abilities.map(a => ({ cost: a.cost, eff: a.effect, modes: a.modes || [], can: a.can, why: a.why_not, picks: a.pick_options, byHand: a.by_hand_ok }));   // the engine's own list (same order, same numbers)
   const lines = (p.face_down ? "" : (p.text || "")).split("\n"), out = [];
   lines.forEach((line, i) => {
     const m = ACT_LINE.exec(line.trim());
@@ -598,10 +602,14 @@ function abilityButtons(p) {
     const tsel = /\btarget\b/i.test(a.eff) ? `<select data-atgt="${p.id}-${i}" style="max-width:240px;margin-top:3px"><option value="">(no target)</option>${targetOptions()}</select>` : "";
     const sm = /Sacrifice (another|an?|one) ([A-Za-z' -]+)/i.exec(a.cost), sacs = sm ? (S.permanents || []).filter(q => (sm[1].toLowerCase() !== "another" || q.id !== p.id) && sm[2].toLowerCase().split(" or ").some(w => new RegExp("\\b" + w.trim() + "\\b", "i").test(q.type || "") || new RegExp("\\b" + w.trim() + "\\b", "i").test(q.name || ""))) : [];
     const ssel = sm ? `<select data-asac="${p.id}-${i}" style="max-width:240px;margin-top:3px">${sacs.map(q => `<option value="#${q.id}">sacrifice ${esc(q.name)}</option>`).join("")}</select>` : "";
-    const off = a.can === false ? "disabled" : "", why = a.can === false && a.why ? `<div class="sub" style="color:#ffb38f">Can't now: ${esc(a.why)}</div>` : "";   // T18: the table's own check
-    const btns = a.modes.length ? a.modes.map((m, k) => `<button data-abil="${p.id}" data-idx="${i}" data-amode="${k}" ${off} title="${esc(m)}">${esc(a.cost)}: ${esc(m.slice(0, 40))}</button>`).join("")
+    // (2026-11-13) "search your library for a basic land card": which one, from the basics the table says are in this seat's library
+    const psel = Array.isArray(a.picks) && a.can !== false ? (a.picks.length ? `<select data-apick="${p.id}-${i}" style="max-width:240px;margin-top:3px" aria-label="which basic land to fetch">${a.picks.map(n => `<option value="${esc(n)}">fetch ${esc(n)}</option>`).join("")}</select>` : `<div class="sub" style="color:#ffb38f">No basic land left in your library: the search will find nothing.</div>`) : "";
+    // …and an effect the table cannot carry out: a person is not stuck. The cost is paid by the table (mana, {T}, the sacrifice); what it can do it does; the rest is said and goes on the to-do list.
+    const byHand = a.can === false && a.byHand ? `<button data-abil="${p.id}" data-idx="${i}" data-byhand="1" title="${esc(a.eff)}">${esc(a.cost)}: pay it, and do the rest by hand</button><div class="sub">The table pays the cost and does what it can of: ${esc(a.eff.slice(0, 90))}${a.eff.length > 90 ? "…" : ""}</div>` : "";
+    const off = a.can === false ? "disabled" : "", why = a.can === false && a.why && !byHand ? `<div class="sub" style="color:#ffb38f">Can't now: ${esc(a.why)}</div>` : "";
+    const btns = byHand ? byHand : a.modes.length ? a.modes.map((m, k) => `<button data-abil="${p.id}" data-idx="${i}" data-amode="${k}" ${off} title="${esc(m)}">${esc(a.cost)}: ${esc(m.slice(0, 40))}</button>`).join("")
       : `<button data-abil="${p.id}" data-idx="${i}" ${off} title="${esc(a.eff)}">${esc(a.cost)}: ${esc(a.eff.slice(0, 46))}${a.eff.length > 46 ? "…" : ""}</button>`;
-    return `<div style="margin-top:3px">${btns}${a.can === false ? "" : tsel + ssel}${why}</div>`;
+    return `<div style="margin-top:3px">${psel}${btns}${a.can === false ? "" : tsel + ssel}${why}</div>`;
   }).join("");
 }
 
@@ -1119,7 +1127,7 @@ function matPopup(el, ev) {
   const pop = $("matpop");
   pop.innerHTML = `<div class="nm">#${p.id} ${esc(p.face_down ? "Face-down" : p.name)}${p.pt ? " · " + esc(p.pt) : ""}</div><div class="sub" style="font-size:12px;max-height:120px;overflow:auto">${esc(p.text || p.type || "")}</div>` +
     (() => { poolLoad(); const pooled = MPOOL.items.some(i => i.id === p.id);
-      if (mana && !p.tapped) return colorsOf(p).map(c => `<button data-mpool="${p.id}" data-color="${c}">Add ${c} to pool</button>`).join("");
+      if (mana && !p.tapped) return colorsOf(p).map(c => `<button data-mpool="${p.id}" data-color="${c}">Tap for {${c}}</button>`).join("");
       if (mana && p.tapped && pooled) return `<button data-mpoolundo="${p.id}">Take it back from the pool</button>`;
       return p.tapped ? `<button data-tap="${p.id}">Untap</button>` : `<button data-tap="${p.id}">Tap</button>`; })() +
     (ready ? `<button data-atkt="${p.id}">${attackers.has(p.id) ? "Don't attack" : "Attack"}</button>` : myTurn && whyNoAttack(p) ? `<button disabled title="${esc(whyNoAttack(p))}">Can't attack: ${esc(whyNoAttack(p))}</button>` : "") +
@@ -1345,8 +1353,14 @@ document.body.addEventListener("click", async e => {
   const stk = t.closest && t.closest(".lstack");                                  // a stacked pile acts on its top card
   const mc = stk && !stk.classList.contains("fan") ? stk.querySelector(".mc.top") : t.closest && t.closest(".mc");
   if (mc && mc.dataset.mine) { const mp = (S.permanents || []).find(x => String(x.id) === mc.dataset.mc);
-    if (mp && isManaSrc(mp) && /\bLand\b/.test(mp.type || "")) { poolLoad();       // lands: one click taps for mana; other sources open their menu const inPool = MPOOL.items.some(i => i.id === mp.id);
-      if (mp.tapped && inPool) return poolUndo(mp);
+    // lands: one click taps for mana. A land that can ALSO do something else (Unexplored Territory, the Anomaly lands) opens its menu instead:
+    // "Tap for {C}" and its ability, side by side (2026-11-13: one click tapped it, and its ability then could not be reached).
+    // A click on a land this page tapped into its pool takes it back (2026-11-13: `const inPool = …` had been swallowed by the "//" comment in
+    // front of it on the same line, so this click threw "inPool is not defined" and did nothing: "we still can't untap land after we tap it").
+    if (mp && isManaSrc(mp) && /\bLand\b/.test(mp.type || "")) { poolLoad();
+      const inPool = MPOOL.items.some(i => i.id === mp.id);
+      if (mp.tapped && inPool) return poolUndo(mp); }
+    if (mp && isManaSrc(mp) && /\bLand\b/.test(mp.type || "") && !abilityList(mp).length) {
       if (!mp.tapped) { const cols = colorsOf(mp); if (cols.length === 1) return poolTap(mp, cols[0]);
         const pop = $("matpop"); pop.innerHTML = `<div class="nm">${esc(mp.name)}: add which mana?</div>` + cols.map(c => `<button data-mpool="${mp.id}" data-color="${c}">${c}</button>`).join("");
         pop.style.display = "block"; const r = mc.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(r.left, innerWidth - 270)) + "px"; pop.style.top = Math.max(60, r.top - 80) + "px"; return; } } }
@@ -1390,6 +1404,8 @@ document.body.addEventListener("click", async e => {
     if (d.amode !== undefined) body.mode = +d.amode;
     if (tv) { const [at, ref] = tv.split("|"); body.target = ref; body.at = at; }
     const sacEl = document.querySelector(`[data-asac="${d.abil}-${d.idx}"]`); if (sacEl && sacEl.value) body.sac = sacEl.value;
+    const pickEl = [...document.querySelectorAll(`[data-apick="${d.abil}-${d.idx}"]`)].find(el => el.offsetParent !== null) || document.querySelector(`[data-apick="${d.abil}-${d.idx}"]`); if (pickEl && pickEl.value) body.pick = [pickEl.value];
+    if (d.byhand !== undefined) body.by_hand = true;
     await spendPool(); const r = await act("activate", body);
     if (r) { $("matpop").style.display = "none"; matSig = ""; draw(); } return;
   }
@@ -1479,7 +1495,7 @@ document.body.addEventListener("click", async e => {
     $("effpanel").innerHTML = ""; return;
   }
   if (d.tap !== undefined) { const p = S.permanents.find(x => x.id == d.tap); if (!p || tapBlockedByChoice(p)) return;
-    const did = p.tapped ? "untap" : "tap", r = await act(did, { ref: "#" + d.tap, announce: true }); if (r) { $("matpop").style.display = "none"; offerUndo(p, did); } return r; }
+    const did = p.tapped ? "untap" : "tap", r = await act(did, { ref: "#" + d.tap, announce: true }); if (r) { $("matpop").style.display = "none"; offerUndo(p, did); } else if (did === "untap") untapRefused(p); return r; }
   if (d.atk !== undefined) { t.checked ? attackers.add(+d.atk) : attackers.delete(+d.atk); draw(); return renderSteps(); }
   if (t.id === "attack") return attackNow();
   if (t.id === "dmg") { await act("damage", { hits: {} }); lastAttack = []; return draw(); }
