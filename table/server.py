@@ -291,6 +291,32 @@ def hidden_names() -> dict:
     return out
 
 
+def card_lookup(name: str, handler=None):
+    """GET /api/card: (record, source) for a card by name. The Oracle file first; then the configured set file; then a card everyone at this
+    table can see (a face-up permanent, a token, a graveyard card). A card that is only in a DECK here answers the table's host (every deck)
+    and a seat asking with its own key (?seat=Name: its own deck), and nobody else: a deck is hidden until it is played (table/cardlookup.py)."""
+    import cardlookup
+
+    def oracle_card(n):
+        try:
+            import oracle
+            return oracle.card(n)
+        except Exception:                              # noqa: BLE001 — no Oracle file here (and TABLE_OFFLINE forbids fetching one): the other sources still answer
+            return None
+    with VP_LOCK:
+        public = [p.card for v in VPS.values() for p in v.battlefield if not p.face_down] + [c for v in VPS.values() for c in v.graveyard]
+    own = []
+    if handler is not None and VPS:
+        seats = list(VPS) if handler._brain_ok() else [sn for sn in [handler._seat_q()] if handler._pilot_ok(sn)]
+        for sn in seats:
+            try:
+                d = json.loads(Path(DECK_OF[sn]).read_text())
+                own += list(d.get("mainBoard") or []) + [c for c in (d.get("commander") or []) if isinstance(c, dict)]
+            except (OSError, ValueError, KeyError):
+                pass
+    return cardlookup.lookup(name, oracle_card, public, own)
+
+
 def public_text(text):
     """A line the table writes where everyone can read it (the event log, a table note, an announcement): never a hidden card's name.
     The engine says a face-down permanent as the board shows it; this is the backstop for any line that slipped past."""
@@ -5740,14 +5766,14 @@ class H(BaseHTTPRequestHandler):
             if not n:
                 return self._send(404, {"error": f"no seat named '{want}'"})
             return self._send(200, deckdecl_public(n))
-        if self.path.startswith("/api/card"):              # Oracle text for one card, by name (public)
-            import oracle
+        if self.path.startswith("/api/card"):              # one card's cost, type line and text, by name (public): table/cardlookup.py
+            import cardlookup
             from urllib.parse import parse_qs, urlparse
-            name = parse_qs(urlparse(self.path).query).get("name", [""])[0]
-            c = oracle.card(name) if name else None
+            name = parse_qs(urlparse(self.path).query).get("name", [""])[0][:200]
+            c, src = card_lookup(name, self)
             if not c:
                 return self._send(404, {"error": f"no card named '{name}'"})
-            return self._send(200, {"name": name, **{k: c.get(k) for k in ("cost", "type", "text", "power", "toughness")}})
+            return self._send(200, {"name": c.get("name") or name, **{k: c.get(k) for k in cardlookup.FIELDS}, "source": src})
         if self.path == "/":
             return self._send(200, body=(HERE / "scan.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path == "/table":
