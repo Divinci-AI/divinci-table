@@ -71,7 +71,9 @@ disk, puts idle rooms to sleep and wakes them on the next request. Agent tables 
        ROOM_HOST_VPC_SERVICE_ID=<the service id> ../scripts/cloud_deploy.sh --host
        # or: ROOM_HOST_ORIGIN=https://rooms.example.com ../scripts/cloud_deploy.sh --host
 
-6. **Check**: `scripts/cloud_smoke.cjs <sha>`, then start a chess table from the lobby page.
+6. **Check**: `node scripts/cloud_smoke.cjs <sha>`, then start a chess table from the lobby page.
+
+Every deploy after this one, and rolling back: `docs/deploy.md`.
 
 ## Running it
 
@@ -81,7 +83,7 @@ disk, puts idle rooms to sleep and wakes them on the next request. Agent tables 
   in `ROOM_HOST_IDLE_SECS` (default 45 minutes) is saved and stopped, and a stopped room's folder is deleted after
   `ROOM_HOST_KEEP_DAYS` (default 3). At the cap, a room quiet for five minutes is put to sleep to make space;
   otherwise the lobby says "every table is busy".
-- Updating: build the new image and `docker compose up -d`. `SIGTERM` saves every room first
+- Updating (the full order and the rollback are in `docs/deploy.md`): build the new image and `docker compose up -d`. `SIGTERM` saves every room first
   (`stop_grace_period: 60s`); players see "the table is restarting" for a few seconds and the same game comes back.
 - Shared files (the stage's avatars, D&D rooms) are served from the `--assets` folder: `assets/avatars/<name>.glb`,
   `assets/dnd/locations/...`. Without the folder the stage simply has no avatars.

@@ -11,8 +11,14 @@
 # image is built from this folder, so either would put unpublished code on the live site of an open-source
 # game (152 commits had drifted by 2026-10-05). Stamps the commit into the Worker (GIT_SHA → /version) and
 # the image (table/BUILD_SHA → /api/version in every room). Verify afterwards with scripts/cloud_smoke.cjs.
-# Run it through the deploy gate on this laptop:
-#   ~/Documents/server/scripts/deploy-gate run --target worker:divinci-table:production -- scripts/cloud_deploy.sh
+#
+# Live table.divinci.ai runs in HOST mode: always pass --host there. The plain form is the old container path and would
+# rebind its rooms to Cloudflare Containers. docs/deploy.md has the whole order (room host first, then this) and the
+# rollback for both halves.
+#
+# If you run deploys through a lock or gate of your own, wrap this script in it, e.g.
+#   "$DEPLOY_GATE" run --target worker:divinci-table:production -- scripts/cloud_deploy.sh --host
+# Nothing here depends on such a gate; DEPLOY_GATE is only the name these docs use for yours.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
