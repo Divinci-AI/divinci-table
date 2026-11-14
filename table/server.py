@@ -2287,6 +2287,8 @@ AFTER_GAME_OK = frozenset({"say", "life", "new-game", "fair-reveal", "peek"})   
 
 
 SEAT_KEYS: dict = {}   # person → [sha256 of each key a device of theirs was given]
+import seat_private as _seat_private  # noqa: E402
+SEAT_PRIVATE = _seat_private.SeatPrivate()   # a seat's own thoughts and its "show my hand on the stream" flag (docs/broadcast-director.md): never public
 SEAT_DEVICES: dict = {}   # person → [device fingerprints that claimed it]
 
 
@@ -3635,7 +3637,7 @@ REMOTE_SEAT_POSTS = {
 STRICT_SEATS = CLOUD or os.environ.get("STRICT_SEATS") == "1"
 # What another device on the LAN may reach: the player view and public table state. Nothing that
 # reveals or changes the AI's cards, resets the game, or feeds the mic/camera.
-LAN_OK = {("GET", "/me"), ("GET", "/api/events"), ("GET", "/watch"), ("GET", "/api/spectate"), ("GET", "/3d"), ("GET", "/api/life"), ("GET", "/api/fair"),
+LAN_OK = {("GET", "/me"), ("GET", "/note"), ("GET", "/api/stream-consent"), ("GET", "/api/events"), ("GET", "/watch"), ("GET", "/api/spectate"), ("GET", "/3d"), ("GET", "/api/life"), ("GET", "/api/fair"),
           ("GET", "/api/fair/verify"), ("GET", "/api/voice-config"), ("GET", "/api/card"), ("GET", "/lobby"), ("GET", "/api/lobby"), ("GET", "/api/game/summary"),
           ("POST", "/api/fair/word"), ("POST", "/api/life"), ("POST", "/api/seat/check"),
           ("GET", "/api/phase"), ("GET", "/api/checklist"), ("GET", "/api/seat/claims"), ("POST", "/api/seat/claim"), ("POST", "/api/seat/handoff"), ("POST", "/api/autopass"), ("POST", "/api/ready"), ("POST", "/api/declare-deck"), ("GET", "/api/deckdecl"), ("GET", "/api/cardnames"), ("GET", "/api/highroll"), ("POST", "/api/highroll/start"), ("POST", "/api/highroll/roll"), ("POST", "/api/phase/next"), ("POST", "/api/phase/back"), ("POST", "/api/phase/back/confirm"), ("POST", "/api/phase/windows"), ("POST", "/api/phase/hold"), ("GET", "/api/todos"), ("POST", "/api/todo/done"), ("POST", "/api/todo/answer"), ("POST", "/api/declare/attack"), ("POST", "/api/my-board"), ("POST", "/api/public-board"), ("POST", "/api/openmic/rate"), ("POST", "/api/chat"), ("POST", "/api/chat/photo"), ("POST", "/api/card-action"), ("GET", "/api/history"), ("GET", "/log"), ("GET", "/api/placed"), ("POST", "/api/placed"), ("GET", "/xr"), ("GET", "/api/board3d"),
@@ -5477,6 +5479,26 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, {"seat": sn, "entries": JOURNALS.entries(sn, GAME_OVER["over"])})
             except journal_mod.Sealed as e:
                 return self._send(409, {"error": str(e)})
+        if self.path.split("?")[0] == "/note":             # a seat's own page for the stream: a note, and "show my hand" (its data needs the seat key)
+            return self._send(200, body=(HERE / "note.html").read_bytes(), ctype="text/html; charset=utf-8")
+        if self.path.split("?")[0] == "/api/stream-consent":   # public: which seats said "my hand may be shown on the stream" for THIS game
+            return self._send(200, SEAT_PRIVATE.consent_public(FAIR.get("game"), sorted(PILOTS)))
+        if self.path.split("?")[0] == "/api/seat/thought":   # PRIVATE: a seat's own thoughts, read with that seat's key (or the host's token) only
+            sn = self._seat_q()
+            if not (self._brain_ok() or self._pilot_ok(sn)):
+                return self._send(403, {"error": "this seat's key required"})
+            if not self._brain_ok():
+                ok_, wait_ = seat_rate_ok(sn)
+                if not ok_:
+                    return self._send(429, {"error": f"slow down: {args.seat_rate:g} requests a second per seat", "retry_after": wait_})
+            if sn is None:
+                return self._send(404, {"error": f"no seat by that name (seats: {list(VPS)})"})
+            from urllib.parse import parse_qs, urlparse
+            try:
+                since_ = int((parse_qs(urlparse(self.path).query).get("since") or ["0"])[0] or 0)
+            except ValueError:
+                return self._send(400, {"error": "since must be a number"})
+            return self._send(200, SEAT_PRIVATE.read(FAIR.get("game"), sn, since_))
         if self.path.split("?")[0] == "/api/seat/legal":     # an outside agent's guide: what it may do now, ready to send
             sn = self._seat_q()
             if not (self._brain_ok() or self._pilot_ok(sn)):
@@ -5600,7 +5622,7 @@ class H(BaseHTTPRequestHandler):
         try:
             return self._do_post()
         finally:
-            if not self.path.startswith(("/api/board", "/api/show", "/api/utterance", "/api/scan", "/api/chat/photo")):   # camera/mic/photos: too often, and nothing to restore
+            if not self.path.startswith(("/api/board", "/api/show", "/api/utterance", "/api/scan", "/api/chat/photo", "/api/seat/thought")):   # camera/mic/photos: too often, and nothing to restore
                 snapshot()
 
     def _do_post(self):
@@ -6279,6 +6301,26 @@ class H(BaseHTTPRequestHandler):
                     return self._send(409, {"error": "the game is already over"})
                 finish_game(order, winner, by="host")
                 return self._send(200, {"over": True, "order": order, "winner": winner, "totals": GAME_OVER.get("totals")})
+            if self.path in ("/api/seat/thought", "/api/seat/stream-consent"):   # a seat's own: its key, its seat (docs/broadcast-director.md)
+                b = self._json()
+                sn = seat(b.get("seat"))
+                consent_ = self.path.endswith("consent")
+                # consent is the seat's OWN word: the host's token cannot give it for someone else. A thought may also come from the host's brain.
+                if not (self._pilot_ok(sn) or (not consent_ and self._brain_ok())):
+                    return self._send(403, {"error": "this seat's key required"})
+                if sn is None:
+                    return self._send(404, {"error": f"no seat '{b.get('seat')}' (seats: {list(VPS)})"})
+                if consent_:
+                    if not isinstance(b.get("show_hand"), bool):
+                        return self._send(400, {"error": "show_hand must be true or false"})
+                    out_ = SEAT_PRIVATE.set_consent(FAIR.get("game"), sn, b["show_hand"])
+                    emit("stream-consent", seat=sn, show_hand=b["show_hand"])     # public: that a seat allowed (or withdrew) it; nothing about the hand
+                    return self._send(200, out_)
+                with EV_LOCK:
+                    ev_ = EVENTS[-1]["id"] if EVENTS else 0
+                code_, out_ = SEAT_PRIVATE.post(FAIR.get("game"), sn, b.get("text"), str(b.get("kind") or "thought"), time.time(), ev_,
+                                                turn=getattr(VPS[sn], "turn", None), step=STEPS[PHASE["step"]] if PHASE.get("player") else None)
+                return self._send(code_, out_)
             if self.path.startswith("/api/brain/"):
                 b = self._json()
                 sn = seat(b.get("seat"))
@@ -6576,7 +6618,7 @@ class H(BaseHTTPRequestHandler):
             return False
         if method == "GET" and self.path.split("?")[0].startswith(LAN_PREFIXES):
             return False
-        if PILOTS and self.path.startswith(("/api/brain/", "/api/seat/legal")) and self.headers.get("X-Seat-Key"):
+        if PILOTS and self.path.startswith(("/api/brain/", "/api/seat/legal", "/api/seat/thought", "/api/seat/stream-consent")) and self.headers.get("X-Seat-Key"):
             return False                                  # a pilot's own seat: _pilot_ok checks the key next
         if method == "POST":
             self._drain(int(self.headers.get("Content-Length", 0) or 0))
