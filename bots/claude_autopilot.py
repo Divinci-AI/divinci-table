@@ -10,10 +10,12 @@ never another hand.
 
 Who plays the seat (2026-11-14). The autopilot says what it is: every request carries `X-Seat-Driver: autopilot`, and at start it tells
 the table that this seat is played by the rules autopilot (POST /api/seat/played-by), which the table shows on every page and in the
-log. A PERSON ALWAYS WINS: when the seat's own player makes a move from their page, or the host gives the seat to a person, the table
+log. At its own seat nothing else changes: its operator can still make a move by hand with the seat key, as above.
+STANDING IN FOR A PERSON (the host handed that person's seat over: launch/table_tools.py stand-in, or `Name=bot` at launch), THE PERSON
+WINS: when the seat's own player makes a move from their page, or says "I'm back" there, the table gives the seat back to them and
 refuses this bot's moves (409 with "yield": true). The bot then stands by: it plays nothing, asks the table every few seconds who plays
-the seat, and goes on only when the table says the autopilot does again (the host hands a seat over with launch/table_tools.py stand-in).
-It never argues with the table about it. AUTOPILOT_ON_YIELD=exit stops the process instead of standing by.
+the seat, and goes on only when the table says the autopilot does again. It never argues with the table about it.
+AUTOPILOT_ON_YIELD=exit stops the process instead of standing by.
 """
 from __future__ import annotations
 

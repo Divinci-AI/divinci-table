@@ -9,8 +9,10 @@ went on showing a person. Proved here, on a scratch table on a free port:
      public log says so; GET /api/played-by, /api/phase, /api/match, /api/spectate and /api/lobby all carry it, with no key;
   2. who may set it: the host any seat; a seat's own key only "a person plays it"; the autopilot only about itself, and never over a person;
      nobody without a key; a remote caller with another seat's key is refused;
-  3. THE RULE: a move from the seat's own page (no X-Seat-Driver header) at a seat the autopilot plays gives the seat back to the person, the
-     log says "is back", and the autopilot's next move is refused with 409 "yield"; table talk is not a move; a helper's pass is neutral;
+  3. THE RULE, at a seat the autopilot is STANDING IN at for a person: a move from the seat's own page (no X-Seat-Driver header) gives the
+     seat back to the person, the log says "is back", and the autopilot's next move is refused with 409 "yield"; table talk is not a
+     move; a helper's pass is neutral. At the autopilot's OWN seat a move by hand with the seat key changes nothing (it was built to
+     share its seat with its operator: retro_round4_test drives a seat by hand beside the bot);
   4. the real bot (bots/claude_autopilot.py): declares itself at start, plays, stands by the moment the person moves (it plays NOTHING
      while standing by), and plays on when the host hands the seat back; the record survives a save and restore.
 """
@@ -77,8 +79,9 @@ try:
     c, d = call(t, "POST", "/api/seat/played-by", {"seat": M, "kind": "autopilot"}, host=True)
     check(c == 200 and d["played_by"]["kind"] == "autopilot" and d["played_by"]["label"] == "the rules autopilot", "the host hands Michael's seat to the autopilot", d)
     n = notes(t)
-    check(len(n) == 1 and n[0]["text"] == "Michael's seat is now played by the rules autopilot." and n[0]["seat"] == M and n[0]["played_by"] == "autopilot",
-          "the public log says: Michael's seat is now played by the rules autopilot.", n)
+    check(len(n) == 1 and n[0]["text"] == "Michael's seat is now played by the rules autopilot. A move from Michael's own page takes it back."
+          and n[0]["seat"] == M and n[0]["played_by"] == "autopilot" and n[0]["stand_in"] is True and d["played_by"].get("stand_in") is True,
+          "the public log says: Michael's seat is now played by the rules autopilot (and that Michael takes it back by playing)", n)
     call(t, "POST", "/api/seat/played-by", {"seat": M, "kind": "autopilot"}, host=True)
     check(len(notes(t)) == 1, "saying the same thing twice is not written twice")
     ph = call(t, "GET", "/api/phase")[1]
@@ -130,7 +133,7 @@ try:
     c, d = call(t, "POST", "/api/brain/pass", {"seat": M, "player": first, "step": ph["step"]}, key=t.keys[M])
     check(not d.get("yield") and who(t, M)["kind"] == "person", "a move from the seat's own page takes the seat back", (c, d, who(t, M)))
     n = notes(t, since)
-    check(len(n) == 1 and n[0]["text"] == "Michael is back: Michael's seat is played by a person again." and n[0]["by"] == "move" and n[0]["was"] == "autopilot",
+    check(len(n) == 1 and n[0]["text"] == "Michael is back: Michael's seat is played by a person again." and n[0]["by"] == "return" and n[0]["was"] == "autopilot",
           "the log says: Michael is back", n)
     c, d = call(t, "POST", "/api/brain/pass", {"seat": M, "player": first, "step": ph["step"]}, key=t.keys[M], driver="autopilot")
     check(c == 409 and d.get("yield") is True and d["played_by"]["kind"] == "person", "from then on the autopilot's move is refused: 409, yield", (c, d))
@@ -141,23 +144,36 @@ try:
     c, d = call(t, "POST", "/api/brain/pass", {"seat": M, "player": first, "step": ph["step"]}, key=t.keys[M], driver="autopilot")
     check(not d.get("yield"), "the host hands the seat back to the autopilot and its moves are taken again", (c, d))
     call(t, "POST", "/api/seat/played-by", {"seat": M, "kind": "person"}, host=True)
-    # a seat nobody declared: the first move from its page makes it a person's
+    # the autopilot's OWN seat (not standing in for anybody): its operator may move by hand, and nothing changes hands
     t2 = L.Table(life=20)
     try:
         t2.open_game(by=C)
         ph2 = t2.phase()
         act = ph2["player"]
-        call(t2, "POST", "/api/brain/pass", {"seat": act, "player": act, "step": ph2["step"]}, key=t2.keys[act])
-        check(who(t2, act)["kind"] == "person", "a seat nobody declared becomes a person's at its first move from its page", who(t2, act))
         other = M if act == C else C
-        c, d = call(t2, "POST", "/api/brain/pass", {"seat": other, "player": act, "step": ph2["step"]}, key=t2.keys[other], driver="autopilot")
-        check(who(t2, other)["kind"] == "autopilot" and not d.get("yield"), "…and the autopilot's at its first move, when it was the autopilot that moved", who(t2, other))
-        c, d = call(t2, "POST", "/api/identity", {"seat": act, "model": "anthropic:claude-test", "role": "talk"}, key=t2.keys[act])
-        check(c == 200 and who(t2, act)["kind"] == "person" and who(t2, act).get("talk") == "anthropic:claude-test",
-              "a model that only TALKS for a seat (role: talk) is shown as its voice, not as its player", who(t2, act))
+
+        def move(seat, driver=None):
+            p_ = t2.phase()
+            return call(t2, "POST", "/api/brain/pass", {"seat": seat, "player": p_["player"], "step": p_["step"]}, key=t2.keys[seat], driver=driver)
+        move(act)
+        check(who(t2, act)["kind"] == "person", "a seat nobody declared becomes a person's at its first move from its page", who(t2, act))
         c, d = call(t2, "POST", "/api/identity", {"seat": act, "model": "ollama:gemma-test"}, key=t2.keys[act])
         check(who(t2, act)["kind"] == "model" and who(t2, act)["label"] == "ollama:gemma-test",
-              "a seat that declares the model that PLAYS it (/api/identity) is shown as that model", who(t2, act))
+              "…and a seat that then declares the model that PLAYS it (/api/identity) is shown as that model", who(t2, act))
+        move(other)
+        c, d = call(t2, "POST", "/api/seat/played-by", {"seat": other, "kind": "autopilot"}, key=t2.keys[other], driver="autopilot")
+        check(c == 200 and who(t2, other)["kind"] == "autopilot" and not who(t2, other).get("stand_in"),
+              "the autopilot, started at a seat the table had only GUESSED a person at, says what it is (its own seat: not a stand-in)", (c, d))
+        c, d = move(other)
+        check(not d.get("yield") and who(t2, other)["kind"] == "autopilot", "a move by hand at the autopilot's own seat changes nothing", (c, d, who(t2, other)))
+        c, d = move(other, driver="autopilot")
+        check(not d.get("yield"), "…and the autopilot is not refused after it", (c, d))
+        check(not [e for e in notes(t2) if e["seat"] == other and e["by"] == "return"], "…and nobody 'is back'")
+        c, d = call(t2, "POST", "/api/identity", {"seat": other, "model": "anthropic:claude-test", "role": "talk"}, key=t2.keys[other])
+        check(c == 200 and who(t2, other)["kind"] == "autopilot" and who(t2, other).get("talk") == "anthropic:claude-test",
+              "a model that only TALKS for a seat (role: talk) is shown as its voice, not as its player", who(t2, other))
+        c, d = call(t2, "POST", "/api/seat/played-by", {"seat": other, "kind": "autopilot", "stand_in": False}, host=True)
+        check(c == 200 and not d["played_by"].get("stand_in"), "the host can set a seat as the autopilot's own (stand_in: false)", d)
         # the record is saved with the game
         snap = next(Path(t2.dir / "r").rglob("snapshot.pkl"))
         t2.stop()

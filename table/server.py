@@ -3699,14 +3699,22 @@ def identity_set(seat_name: str, b: dict) -> tuple[int, dict]:
 # on his seat by hand; every page went on showing a person. So the table keeps, and publishes, who plays each seat.
 #   * The record is PUBLIC: GET /api/played-by, and `played_by` in /api/phase, /api/match, /api/spectate and /api/lobby. A change is
 #     written into the public log ("Sam's seat is now played by the rules autopilot.").
-#   * Who may set it (POST /api/seat/played-by {"seat", "kind": "person"|"autopilot"|"model", "label"?}): the table's host (the brain
-#     token) for any seat; a seat's own key to say "a person plays this seat" at any time; the autopilot itself (its requests carry
-#     `X-Seat-Driver: autopilot`) only for a seat nobody has claimed for a person.
-#   * THE RULE WHEN BOTH WOULD ACT: THE PERSON WINS. A move made with the seat key and without the autopilot's header is the seat's own
-#     player (the hand page never sends that header). The moment one arrives at a seat the autopilot is playing, the seat is the person's
-#     again, the log says so, and from then on every move the autopilot sends for that seat is refused (409, "yield": true) until the
-#     host hands the seat back to it. The autopilot stands by and plays nothing while it is refused. Table talk (`say`) is not a move.
-PLAYED_BY: dict = {}                                   # seat -> {"kind", "label", "since", "by"}; a seat with no record: see played_by()
+#   * Who may set it (POST /api/seat/played-by {"seat", "kind": "person"|"autopilot"|"model", "label"?, "stand_in"?}): the table's host
+#     (the brain token) for any seat; a seat's own key to say "a person plays this seat" at any time; the autopilot itself (its requests
+#     carry `X-Seat-Driver: autopilot`) for a seat nobody has claimed for a person.
+#   * Two ways the autopilot sits at a seat, and they differ in exactly one thing:
+#       - its OWN seat (it said so itself, or the host set it with "stand_in": false): the seat's operator may still make a move by hand
+#         with the seat key (the autopilot was built that way: it waits AUTOPILOT_GRACE seconds for them); nothing changes hands.
+#       - STANDING IN for a person (the host handed that person's seat over; "stand_in": true, the default when the host sets it):
+#         THE PERSON WINS. A move made with the seat key and WITHOUT the autopilot's header is the seat's own player (the hand page
+#         never sends that header). The moment one arrives the seat is the person's again, the log says "… is back", and from then on
+#         every move the autopilot sends for that seat is refused (409, "yield": true) until the host hands the seat over again.
+#         The autopilot stands by and plays nothing while it is refused. If both act at once, whichever request the table took first
+#         stands (it was the seat's player at that instant) and the person's move ends the autopilot's turn at the seat.
+#   * The autopilot's moves are refused at ANY seat a person (or a model) holds; it can only declare itself over a "person" the table
+#     had merely inferred from an earlier move. Table talk (`say`) is not a move. `X-Seat-Driver: helper` (bots/claude_autopass.py)
+#     is neutral: it neither claims a seat nor yields.
+PLAYED_BY: dict = {}                                   # seat -> {"kind", "label", "since", "by", "stand_in"?}; a seat with no record: see played_by()
 PLAYED_KINDS = ("person", "autopilot", "model")
 AUTOPILOT_LABEL = "the rules autopilot"
 PLAYED_BY_NOT_A_MOVE = {"say"}                         # /api/brain/<these> say nothing about who is playing the seat
@@ -3729,6 +3737,8 @@ def played_by(seat_name: str) -> dict:
     rec = PLAYED_BY.get(seat_name)
     if rec:
         out = {k: rec[k] for k in ("kind", "label", "since") if k in rec}
+        if rec.get("stand_in"):
+            out["stand_in"] = True                     # the autopilot is standing in for this seat's person, who takes it back by playing
     elif seat_name in VPS and seat_name not in PILOTS:
         out = {"kind": "table", "label": "the table's own AI"}
     elif any(h["name"] == seat_name for h in HUMANS):
@@ -3745,7 +3755,7 @@ def played_by_public() -> list:
     return [{"name": n, **played_by(n)} for n in (turn_order() or [h["name"] for h in HUMANS] + list(VPS))]
 
 
-def played_by_set(seat_name: str, kind: str, label: str = "", by: str = "host") -> dict:
+def played_by_set(seat_name: str, kind: str, label: str = "", by: str = "host", stand_in: bool = False) -> dict:
     """Record who plays a seat and say so in the public log when it changed. Returns the public record."""
     label = "".join(ch for ch in str(label or "") if ch >= " " and ch != "\x7f").strip()[:60]
     if kind == "autopilot":
@@ -3754,15 +3764,17 @@ def played_by_set(seat_name: str, kind: str, label: str = "", by: str = "host") 
         label = label or seat_name
     else:
         label = label or (_plays_by_identity(seat_name) or {}).get("label") or "a model"
+    stand_in = bool(stand_in) and kind == "autopilot"
     was = PLAYED_BY.get(seat_name)
-    if was and was.get("kind") == kind and was.get("label") == label:
+    if was and was.get("kind") == kind and was.get("label") == label and bool(was.get("stand_in")) == stand_in:
         return played_by(seat_name)
-    PLAYED_BY[seat_name] = {"kind": kind, "label": label, "since": round(time.time(), 2), "by": by}
+    PLAYED_BY[seat_name] = {"kind": kind, "label": label, "since": round(time.time(), 2), "by": by, **({"stand_in": True} if stand_in else {})}
     who = "a person" if kind == "person" and label == seat_name else f"{label} (a person)" if kind == "person" else label
-    back = kind == "person" and bool(was) and was.get("kind") != "person"
-    text = (f"{seat_name} is back: {seat_name}'s seat is played by {who} again." if back and label == seat_name
-            else f"{seat_name}'s seat is now played by {who}.")
-    emit("table-note", kind="played-by", seat=seat_name, played_by=kind, label=label, by=by, was=(was or {}).get("kind"), text=text)
+    if by == "return":
+        text = f"{seat_name} is back: {seat_name}'s seat is played by {who} again."
+    else:
+        text = f"{seat_name}'s seat is now played by {who}." + (f" A move from {seat_name}'s own page takes it back." if stand_in else "")
+    emit("table-note", kind="played-by", seat=seat_name, played_by=kind, label=label, by=by, was=(was or {}).get("kind"), stand_in=stand_in, text=text)
     print(f"played-by: {text} (set by {by})", flush=True)
     snapshot()
     return played_by(seat_name)
@@ -3784,11 +3796,14 @@ def played_by_gate(seat_name: str, driver: str, act: str) -> dict | None:
             return None
         return {"error": f"{rec['label']} is playing {seat_name}'s seat: the autopilot yields (the table's host can hand the seat back to it)",
                 "yield": True, "played_by": played_by(seat_name)}
-    if rec is None or rec["kind"] == "autopilot":                   # the seat's own player has made a move: the seat is theirs
+    # a move with the seat key and no driver header: the seat's own player, at their page
+    if rec is None:
         d = _plays_by_identity(seat_name) or {"kind": "person", "label": seat_name}
         if d["kind"] == "autopilot":
             d = {"kind": "person", "label": seat_name}             # (a move without the autopilot's header is not the autopilot)
-        played_by_set(seat_name, d["kind"], d["label"], by="move")
+        played_by_set(seat_name, d["kind"], d["label"], by="move")  # only inferred: the autopilot may still declare itself here
+    elif rec["kind"] == "autopilot" and rec.get("stand_in"):
+        played_by_set(seat_name, "person", by="return")            # the person the autopilot stood in for is back: the seat is theirs
     return None
 
 
@@ -3805,15 +3820,17 @@ def played_by_request(handler, b: dict) -> tuple[int, dict]:
         return 403, {"error": "the table's host (the brain token) or this seat's own key"}
     if sn not in PILOTS:
         return 400, {"error": f"{sn} is not a pilot seat: the table itself plays it"}
-    if host:
-        return 200, {"seat": sn, "played_by": played_by_set(sn, kind, b.get("label") or "", by="host")}
+    if host:                                           # (the host handing a seat to the autopilot means a person's seat, unless told otherwise)
+        return 200, {"seat": sn, "played_by": played_by_set(sn, kind, b.get("label") or "", by="host", stand_in=b.get("stand_in", True) is not False)}
     auto = (handler.headers.get("X-Seat-Driver") or "").strip().lower() == "autopilot"
     rec = PLAYED_BY.get(sn)
     if kind == "autopilot":
         if not auto:
             return 403, {"error": "only the table's host hands a seat to the autopilot"}
-        if rec is not None and rec["kind"] != "autopilot":
+        if rec is not None and rec["kind"] != "autopilot" and not (rec["kind"] == "person" and rec.get("by") == "move"):
             return 409, {"error": f"{rec['label']} is playing {sn}'s seat: the autopilot yields", "yield": True, "played_by": played_by(sn)}
+        if rec is not None and rec["kind"] == "autopilot":
+            return 200, {"seat": sn, "played_by": played_by(sn)}    # already the autopilot's (its own seat, or standing in): nothing changes
         return 200, {"seat": sn, "played_by": played_by_set(sn, "autopilot", by="seat")}
     if auto:
         return 403, {"error": "the autopilot can only say that it is the autopilot"}

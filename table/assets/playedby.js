@@ -25,7 +25,7 @@
   let strip = null, sig = "", err = "";
 
   function what(s) {
-    if (s.kind === "autopilot") return "the rules autopilot (no model)";
+    if (s.kind === "autopilot") return "the rules autopilot (no model)" + (s.stand_in ? `, standing in for ${esc(s.name)}` : "");
     if (s.kind === "model") return esc(s.label);
     if (s.kind === "table") return "the table's own AI";
     return "nobody has played it yet";
@@ -34,7 +34,7 @@
     const lines = (seats || []).filter(s => s.kind !== "person");
     const mine = seat();
     const html = lines.map(s => {
-      const back = s.name === mine && s.kind === "autopilot" && key() ? `<button data-pb-back>I'm back: I play my seat</button>` : "";
+      const back = s.name === mine && s.kind === "autopilot" && s.stand_in && key() ? `<button data-pb-back>I'm back: I play my seat</button>` : "";
       return `<div class="pb-line${s.kind === "unknown" ? " pb-unknown" : ""}" data-pb-seat="${esc(s.name)}" data-pb-kind="${esc(s.kind)}">${esc(s.name)}'s seat: ${what(s)}`
         + (s.talk ? ` <small>· talks as ${esc(s.talk)}</small>` : "") + back + `</div>`;
     }).join("") + (err ? `<div class="pb-line pb-unknown">${esc(err)}</div>` : "");
