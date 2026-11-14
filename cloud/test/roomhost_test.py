@@ -28,6 +28,8 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT / "table" / "tests"))
+import freeport  # noqa: E402  (table/tests/freeport.py: ports nobody listens on)
 FAILS: list[str] = []
 if not (ROOT / "table" / ".cache" / "oracle.json").exists():
     print("SKIP: the room host test needs card data: run `python3 table/fetch_data.py` once")
@@ -38,6 +40,21 @@ def check(ok, what, detail=""):
     print(("  ✅ " if ok else "  ❌ ") + what + ("" if ok else f" — {str(detail)[:300]}"), flush=True)
     if not ok:
         FAILS.append(what)
+
+
+def until(pred, secs, every=0.2) -> bool:
+    """Wait for something the room host does on its own clock, for at most `secs`: True as soon as it holds. (A fixed sleep here was
+    either too short on a busy machine, which failed the test, or longer than needed on an idle one.)"""
+    end = time.time() + secs
+    while True:
+        try:
+            if pred():
+                return True
+        except Exception:  # noqa: BLE001 — not there yet
+            pass
+        if time.time() >= end:
+            return False
+        time.sleep(every)
 
 
 s = socket.socket(); s.bind(("127.0.0.1", 0)); PORT = s.getsockname()[1]; s.close()
@@ -65,7 +82,7 @@ s = socket.socket(); s.bind(("127.0.0.1", 0)); LP = s.getsockname()[1]; s.close(
 fake = __import__("http.server").server.ThreadingHTTPServer(("127.0.0.1", LP), FakeLobby)
 threading.Thread(target=fake.serve_forever, daemon=True).start()
 host = subprocess.Popen([sys.executable, str(ROOT / "cloud" / "roomhost.py"), "--host", "127.0.0.1", "--port", str(PORT), "--data", str(TMP / "data"),
-                         "--assets", str(TMP / "assets"), "--max-rooms", "2", "--port-base", "23500"],
+                         "--assets", str(TMP / "assets"), "--max-rooms", "2", "--port-base", str(freeport.free_block(12))],   # (was 23500 in every run: rooms count up from the base)
                         env={**os.environ, "ROOM_HOST_KEY_FILE": str(TMP / "key"), "ROOM_HOST_LOBBY": f"http://127.0.0.1:{LP}", "ROOM_HOST_ABANDON_SECS": "25"},
                         stdout=open(TMP / "host.log", "w"), stderr=subprocess.STDOUT)
 
@@ -190,9 +207,12 @@ try:
     c, ph0 = room(A, "GET", "/api/phase")
 
     print("sleep and wake")
-    time.sleep(7.5)                                    # the keeper saves a changed room within a few seconds
+    # The keeper looks every 2 s and saves a changed room once 5 s have passed since its last save: "within a few seconds" on an idle
+    # machine, longer on a busy one. Wait for the file itself, not for a number of seconds (it was `time.sleep(7.5)`: flaky under load).
     snap = TMP / "data" / "rooms" / A / "snapshot.pkl"
-    check(snap.exists() and snap.stat().st_size > 1000, "the game is saved to the room's folder while it is played")
+    saved = until(lambda: snap.exists() and snap.stat().st_size > 1000, 45)
+    check(saved, "the game is saved to the room's folder while it is played (the keeper's own save, before any sleep)",
+          snap.stat().st_size if snap.exists() else "no snapshot.pkl after 45 s")
     check(oct(snap.stat().st_mode & 0o777) == "0o600", "the saved game is readable by the service only", oct(snap.stat().st_mode & 0o777))
     check(req("POST", f"/__host/rooms/{A}/sleep", {})[0] == 200, "the room goes to sleep")
     check(room(A, "GET", "/api/phase")[0] == 409, "asleep: 409 again")
@@ -247,8 +267,7 @@ try:
         time.sleep(2)
     rep = next((r for r in REPORTS if r.get("room") == G), {})
     check(rep.get("event") == "abandoned", "a started game with one seat left playing is reported abandoned (a lone seat and watchers don't keep it)", (rep, round(time.time() - t0)))
-    time.sleep(1.5)
-    check(room(G, "GET", "/api/phase")[0] == 409, "and its process is stopped")
+    check(until(lambda: room(G, "GET", "/api/phase")[0] == 409, 20), "and its process is stopped")
 
     Hh, tokH = "hhhhhhh8", secrets.token_hex(24)
     soon = int((time.time() + 14) * 1000)
