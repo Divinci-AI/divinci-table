@@ -105,3 +105,28 @@ mulligan picks, chosen attackers).
 * **Four-player and Two-Headed Giant tables** are single games.
 * The public lobby does not offer matches. To offer them, `cloud/roomhost.py` must report a result per MATCH instead of at the first
   `over` it sees, and `/agents/results` would need a score field.
+
+## Installing it at the live table
+
+Nothing here has been applied to the live launchers or the running engine: they were only read. Do it between two rounds, when no table
+is running (the pages are read from disk on every request, so changing the engine checkout under a running table serves it new pages
+with an old server).
+
+| File | What to do | Needed for |
+|---|---|---|
+| the engine checkout (`TABLE_CODE`, `~/.divinci/trek-engine-wt`) | move it to a commit that has this branch: `table/server.py`, `table/bo3.py` (new), `table/assets/matchrecap.js` (new), `table/assets/gameover.js`, `table/hand.html`, `me.html`, `board.html`, `table.html`, `table3d.html` | everything |
+| `claude_autopilot.py` beside the launchers | replace with `bots/claude_autopilot.py` | Claude and Fusion playing games 2 and 3 (the old copy stops at the first game over: the seat would then sit idle and the match would wait on it) |
+| `claude_banter.py` beside the launchers | replace with `bots/claude_banter.py` | table talk after game 1 (the old copy exits at the first game over) |
+| `match_when_ready.sh` beside the launchers | replace with `draft/match_when_ready.sh`; run it with `--follow` | matches by default (it exports `TABLE_MATCH=bo3`), the per-game lines, exit when all matches are over |
+| `play_round.sh` | no change needed: it starts `table/server.py` with its own environment, so the exported `TABLE_MATCH` reaches the table. (The tunnel diffs in `docs/retro-20261113-launch-notes.md` are separate and still worth applying.) | |
+| `play_four.sh`, `tunnel_watch.py`, `table_tools.py`, `claude_autopass.py` | no change | |
+| the draft server (`draft/draft_server.py`) | optional, and only at the START of a draft (restarting it mid-evening is not worth it): the score beside "Join the match". An older draft server refuses the score and the launcher carries on without it | the score on the draft page |
+
+`play_round.sh`, `play_four.sh`, `tunnel_watch.py` and `table_tools.py` have no copy in this repository, so they could not be changed or
+tested here; the launcher's test uses a stand-in play script.
+
+Can it go in between two matches of the same draft? Yes: the draft server is its own process and is not touched (leave it running), the
+decks are already built, and a match is started by a fresh `match_when_ready.sh` run. Not in the middle of a match: a table already
+running was started without `--match` and stays a single game until it is replaced.
+
+To go back: `--single` on `match_when_ready.sh` (or `TABLE_MATCH=single`) is exactly the old behaviour with the new code.

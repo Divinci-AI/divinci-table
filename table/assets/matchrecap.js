@@ -44,7 +44,7 @@
 
   function nextHtml(d) {
     const nx = d.next, me = seat(), isPlayer = !!me && (d.seats || []).includes(me) && !!key();
-    if (d.over) return `<div class="mr-next"><b>🏆 ${esc(d.score)}.</b><div class="mr-t">${(d.games || []).map(g => `Game ${esc(g.n)}: ${g.draw ? "a draw" : esc(g.winner)}${g.turns ? ` (${esc(g.turns)} turns)` : ""}`).join(" · ")}</div><div class="mr-t">The match is over: no further game starts.</div></div>`;
+    if (d.over) return `<div class="mr-next"><b>🏆 ${esc(d.score)}.</b><div class="mr-t">${(d.games || []).map(g => `Game ${esc(g.n)}: ${g.draw ? "a draw" : esc(g.winner)}${g.turns ? ` (${esc(g.turns)} turn${g.turns === 1 ? "" : "s"})` : ""}`).join(" · ")}</div><div class="mr-t">The match is over: no further game starts.</div></div>`;
     if (!nx) return d.current ? `<div class="mr-next mr-more"><div class="mr-t">Game ${esc(d.current.n)} is under way: ${esc(d.current.first)} plays first${d.current.chooser && d.current.choice ? ` (${esc(d.current.chooser)} chose to ${esc(d.current.choice)} first)` : ""}. This closes by itself.</div></div>` : "";
     const holding = (nx.holds || []).length, iHold = (nx.holds || []).includes(me);
     const first = nx.choice ? `${esc(nx.plays_first)} plays first (${esc(nx.chooser)} chose to ${esc(nx.choice)} first)`

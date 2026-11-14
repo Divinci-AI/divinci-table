@@ -49,6 +49,13 @@ def seat_key() -> str:
     return KEYFILE.read_text().strip()
 
 
+def match_goes_on() -> bool:
+    """A game ended, but the table plays a match (best two out of three, --match bo3) that is not decided: the next game starts on this same
+    table, so the talk goes on too. A single-game table, an older table (no /api/match) or a finished match: False, and this stops as before."""
+    c, m = http("GET", "/api/match")
+    return c == 200 and bool(m.get("on")) and not m.get("over")
+
+
 def http(method, path, body=None, key=False, timeout=30):
     h = {"Content-Type": "application/json", **({"X-Seat-Key": seat_key()} if key else {})}
     r = urllib.request.Request(BASE + path, method=method, data=None if body is None else json.dumps(body).encode(), headers=h)
@@ -210,7 +217,7 @@ def main():
             time.sleep(10); continue
         line = "" if msg.stop_reason == "refusal" else clean(next((b.text for b in msg.content if b.type == "text"), ""))
         if not line or line.upper().startswith("NOTHING"):
-            if over:
+            if over and not match_goes_on():
                 return                                            # the game ended and it chose silence: done
             continue
         c, d = http("POST", "/api/brain/say", {"seat": SEAT, "text": line}, key=True)
@@ -219,7 +226,7 @@ def main():
             print(f"{time.strftime('%H:%M:%S')} SAYS: {line}", flush=True)
         else:
             print(f"{time.strftime('%H:%M:%S')} not said ({c}): {d.get('error')}", flush=True)
-        if over:
+        if over and not match_goes_on():
             return
 
 

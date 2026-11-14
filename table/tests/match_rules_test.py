@@ -1,7 +1,7 @@
 """The match rules on their own (table/bo3.py): no table, no network. Best two out of three, drawn games, who chooses to play first,
 the countdown with Start now / Wait, and the file kept beside the table's saves.
 
-    PYTHONDONTWRITEBYTECODE=1 python3 table/tests/bo3_rules_test.py
+    PYTHONDONTWRITEBYTECODE=1 python3 table/tests/match_rules_test.py
 """
 from __future__ import annotations
 
@@ -143,12 +143,12 @@ check(bo3.load(d / "bad.json") is None, "a damaged file: no match (never an exce
 pub = json.dumps(m.public(1001.0))
 check(set(m.public(1001.0)) >= {"on", "seats", "wins", "score", "games", "over", "winner", "next", "game", "games_played"} and "key" not in pub.lower(),
       "the public view has the score, each game and who plays first next, and nothing else", sorted(m.public(1001.0)))
-for bad in ([M], [M, M], [M, S, "X"]):
+for bad, what in (([M], "one seat"), ([M, M], "the same seat twice"), ([M, S, "X"], "three seats")):
     try:
         bo3.Match(bad)
-        check(False, f"a match of {bad} is refused", "")
+        check(False, f"a match of {what} is refused", "")
     except ValueError:
-        check(True, f"a match of {len(bad)} seat(s) / the same seat twice is refused")
+        check(True, f"a match of {what} is refused")
 
 print("FAILED: " + "; ".join(FAILS) if FAILS else "all good")
 sys.exit(1 if FAILS else 0)

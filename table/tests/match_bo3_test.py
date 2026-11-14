@@ -285,6 +285,17 @@ def countdown():
         check(t.match()["current"]["how"] == "default" and t.match()["current"]["first"] == C, "(the loser had not chosen: it plays first)", t.match()["current"])
         t.end_game(M)                                                        # 1–1
         c, d = t.call("POST", "/api/match/next", {"seat": M, "action": "wait"}, key=t.keys[M])
+        import urllib.error
+        import urllib.request
+        rq = urllib.request.Request(t.b + "/api/match/next", method="POST", data=json.dumps({"action": "now"}).encode(),
+                                    headers={"Content-Type": "application/json", "X-Brain-Token": t.token, "X-Forwarded-For": "203.0.113.5"})
+        try:
+            code = urllib.request.urlopen(rq, timeout=10).status
+        except urllib.error.HTTPError as e:
+            code = e.code
+        check(code == 403 and t.match()["next"]["holds"] == [M], "the host's Start now is the laptop's: the same request through a tunnel is refused", code)
+        c, d = t.call("GET", "/api/match", key="not-a-seat-key")             # (a key makes the harness send it as a remote device would)
+        check(c == 200 and d.get("on") and d["score"] == "Tied 1–1", "/api/match is public: a remote device with no seat reads the score", (c, d.get("score")))
         c, d = t.call("POST", "/api/match/next", {"action": "now"})          # the host, with the table's own token, on the laptop
         check(c == 200 and t.next_game(3, secs=5), "the host's Start now lifts a Wait", (c, d.get("error")))
         c, d = t.call("POST", "/api/match/next", {"seat": C, "action": "now"}, key=t.keys[C])
