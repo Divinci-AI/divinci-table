@@ -167,6 +167,10 @@ def load_catalog():
             names = sorted(oracle.db())
             cache.write_text(json.dumps({"data": names}))      # same shape as Scryfall's, so later runs (and the tests) read it
             return names
+        if os.environ.get("TABLE_OFFLINE") == "1":   # the tests, and a host who wants a guarantee: nothing is ever downloaded
+            print("SKIP: needs the card data, and TABLE_OFFLINE=1 forbids downloading it: run `python3 table/fetch_data.py` once "
+                  "with network access (about 40 MB from Scryfall; after that the table is offline)", file=sys.stderr, flush=True)
+            sys.exit(77)
         cache.parent.mkdir(exist_ok=True)
         req = urllib.request.Request("https://api.scryfall.com/catalog/card-names",
                                      headers={"User-Agent": "divinci-table/0.1", "Accept": "application/json"})
