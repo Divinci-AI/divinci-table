@@ -9,8 +9,16 @@ had picked; a seat that had picked before a bot took it over keeps its own pick;
 second restart does not advance again; the draft's very last step can be the owed one; a draft nobody is waited on runs by itself.
 Part 2 (the real program, twice, on a free port with its state in a scratch folder and DRAFT_BANTER=off): three seats pick over HTTP,
 the server is stopped and started again with `--keep --bot Sam`, and with NOTHING sent to it the next pack is on the table.
+
+The same evening: the people's links and the broadcast key survived a --keep restart, the AI seats' tokens did not (they were made new
+every time), so claude_seat.py and fusion_seat.py, which read their token once, were refused from then on and had to be restarted too.
+Part 3 (in this process): a restart keeps EVERY key; both key files are 0600 and replaced whole; a seat handed to a bot loses its
+token; a key file edited by hand can never make two seats share a key or make a seat's key open the broadcast; junk in the file is
+not kept and breaks nothing.
+Part 4 (the real program): each key opens its own seat before and after `--keep`; then `--keep --bot Fusion`: Claude's token is the
+same, Fusion's opens nothing.
 """
-import json, os, socket, subprocess, sys, tempfile, time, urllib.error, urllib.request
+import json, os, socket, stat, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from pathlib import Path
 
 TMP = Path(tempfile.mkdtemp(prefix="keep-test-"))
@@ -185,7 +193,9 @@ class Program:
                 self.p.kill()
 
     def keys(self):
-        people = {l.split(": ")[0]: l.strip().split("k=")[1] for l in (self.live / "draft-links.txt").read_text().splitlines() if "k=" in l}
+        """Every SEAT's key, by name: the people's from the links file (not its Broadcast line), the AI seats' from their own file."""
+        people = {l.split(": ")[0]: l.strip().split("k=")[1] for l in (self.live / "draft-links.txt").read_text().splitlines()
+                  if "k=" in l and not l.startswith("Broadcast: ")}
         return {**people, **json.loads((self.live / "draft-agent-tokens.json").read_text())}
 
 
@@ -209,6 +219,114 @@ try:
     check(d.get("waiting_on") == ["Michael", "Claude", "Fusion"], "Sam's seat is no longer waited on", d.get("waiting_on"))
     out = prog.out.read_text()
     check("0 steps replayed; 1 more advanced now" in out, "the server says what it did when it started", out[-300:])
+finally:
+    prog.stop()
+
+print("3. A restart keeps every key (in this process)", flush=True)
+
+
+def write_keys(dr):
+    """The two key files as the program writes them at start-up."""
+    if hasattr(S, "write_key_files"):
+        return S.write_key_files(dr)
+    (S.LIVE / "draft-links.txt").write_text(S.links_text(dr))                                    # (a server from before 2026-11-14)
+    (S.LIVE / "draft-agent-tokens.json").write_text(json.dumps({S.NAMES[s]: t for t, s in dr.tokens.items() if s in S.AGENTS}))
+
+
+def keys_of(dr):
+    return {S.NAMES[s]: t for t, s in dr.tokens.items()}
+
+
+def mode(f):
+    return stat.S_IMODE(f.stat().st_mode)
+
+
+live = fresh("g")
+dr = S.Draft(41)
+write_keys(dr)
+before, bkey = keys_of(dr), dr.broadcast_key
+links, agf = live / "draft-links.txt", live / "draft-agent-tokens.json"
+check(json.loads(agf.read_text()) == {n: before[n] for n in ("Claude", "Fusion")}, "the AI seats' tokens are in their own file")
+check(mode(links) == 0o600 and mode(agf) == 0o600 and not list(live.glob("*.tmp")), "both key files are 0600, and no half-written copy is left", (oct(mode(links)), oct(mode(agf))))
+again = S.Draft(41, links)
+check({n: keys_of(again)[n] for n in ("Michael", "Sam")} == {n: before[n] for n in ("Michael", "Sam")} and again.broadcast_key == bkey,
+      "a restart keeps the people's links and the broadcast key (as before)")
+check({n: keys_of(again)[n] for n in ("Claude", "Fusion")} == {n: before[n] for n in ("Claude", "Fusion")},
+      "a restart keeps the AI seats' tokens: the same token opens the same seat", "Claude's or Fusion's token changed")
+check(list(again.tokens.values()) == list(S.NAMES), "…and the seats are in their usual order")
+write_keys(again)
+check(json.loads(agf.read_text()) == {n: before[n] for n in ("Claude", "Fusion")} and mode(agf) == 0o600 and mode(links) == 0o600,
+      "written again after the restart: the same tokens, still 0600")
+S.make_bots(["Fusion"])
+third = S.Draft(41, links)
+check(before["Fusion"] not in third.tokens and FUSION not in third.tokens.values() and keys_of(third)["Claude"] == before["Claude"],
+      "a seat handed to a bot at the restart has no token any more; the other AI seat keeps its own")
+write_keys(third)
+check(json.loads(agf.read_text()) == {"Claude": before["Claude"]}, "…and its old token is no longer in the file", sorted(json.loads(agf.read_text())))
+
+live = fresh("h")
+dr = S.Draft(42)
+write_keys(dr)
+before, bkey = keys_of(dr), dr.broadcast_key
+links, agf = live / "draft-links.txt", live / "draft-agent-tokens.json"
+agf.write_text(json.dumps({"Claude": before["Michael"], "Fusion": bkey}))          # a file edited by hand: a person's key, and the broadcast's
+again = S.Draft(42, links)
+now = keys_of(again)
+check(now["Michael"] == before["Michael"] and now["Sam"] == before["Sam"] and again.broadcast_key == bkey,
+      "an AI token that is really a person's key or the broadcast key changes nothing for the people or the broadcast")
+check(len({*now.values(), again.broadcast_key}) == 5 and now["Claude"] not in (before["Michael"], bkey) and now["Fusion"] not in (before["Michael"], bkey),
+      "…the two AI seats get new tokens: five different secrets, and no seat key opens the broadcast", sorted(now))
+agf.write_text(json.dumps({"Claude": before["Claude"], "Fusion": before["Claude"]}))
+now = keys_of(S.Draft(42, links))
+check(now["Claude"] == before["Claude"] and now["Fusion"] != before["Claude"], "the same token for two AI seats: the first keeps it, the second gets a new one")
+for junk in ("not json", '["Claude"]', '{"Claude": "short", "Fusion": 7}', json.dumps({"Claude": "has a space " + "x" * 20, "Fusion": None})):
+    agf.write_text(junk)
+    try:
+        now = keys_of(S.Draft(42, links))
+        ok = now["Michael"] == before["Michael"] and len(set(now.values())) == 4 and all(len(now[n]) >= 16 and " " not in now[n] for n in ("Claude", "Fusion"))
+    except Exception as e:                             # noqa: BLE001
+        ok, now = False, repr(e)
+    check(ok, f"junk in the AI token file ({junk[:28]}…) is not kept and breaks nothing", now)
+agf.unlink()
+now = keys_of(S.Draft(42, links))
+check(now["Michael"] == before["Michael"] and now["Sam"] == before["Sam"] and len(set(now.values())) == 4, "no AI token file at all (an older server's folder): new AI tokens, the people's links kept")
+fresh("i")
+
+print("4. The real program: every key opens its own seat before and after --keep", flush=True)
+
+
+def opens(base, key):
+    c, d = call(base, f"/api/state?k={key}")
+    return d.get("you") if c == 200 else c
+
+
+live = Path(tempfile.mkdtemp(prefix="keep-test-live-"))
+prog = Program(live)
+try:
+    prog.start("--seed", "43")
+    k = prog.keys()
+    bk = next(l.strip().split("k=")[1] for l in (live / "draft-links.txt").read_text().splitlines() if l.startswith("Broadcast: "))
+    check(sorted(k) == ["Claude", "Fusion", "Michael", "Sam"] and all(opens(prog.base, t) == n for n, t in k.items()), "started: each of the four keys opens its own seat")
+    check(mode(live / "draft-links.txt") == 0o600 and mode(live / "draft-agent-tokens.json") == 0o600, "the key files are 0600")
+    took = {}
+    for who in ("Claude", "Fusion"):                   # an AI seat holds its token and has a pick in when the server goes down
+        took[who] = call(prog.base, f"/api/state?k={k[who]}")[1]["pack"][0]["id"]
+        call(prog.base, f"/api/pick?k={k[who]}", {"id": took[who]})
+    prog.stop()
+    prog.start("--keep")
+    check(prog.keys() == k, "restarted with --keep: the key files hold the same keys", "an AI seat's token changed")
+    for who in ("Claude", "Fusion"):
+        c, d = call(prog.base, f"/api/state?k={k[who]}")
+        check(c == 200 and d.get("you") == who and d.get("my_pick") == took[who],
+              f"{who}'s token from BEFORE the restart still opens its seat, with its pick still in (a running seat process is not locked out)", (c, d.get("error")))
+    check(opens(prog.base, k["Michael"]) == "Michael" and opens(prog.base, k["Sam"]) == "Sam", "the people's links still open their seats")
+    check(call(prog.base, f"/api/broadcast?k={bk}")[0] == 200, "the broadcast key still opens the broadcast")
+    check(mode(live / "draft-links.txt") == 0o600 and mode(live / "draft-agent-tokens.json") == 0o600 and not list(live.glob("*.tmp")), "the key files are still 0600")
+    prog.stop()
+    prog.start("--keep", "--bot", "Fusion")
+    k2 = prog.keys()
+    check(k2 == {n: t for n, t in k.items() if n != "Fusion"}, "restarted with --keep --bot Fusion: the others' keys are the same and Fusion has none", sorted(k2))
+    check(opens(prog.base, k["Claude"]) == "Claude" and opens(prog.base, k["Fusion"]) == 403, "Claude's token still opens Claude's seat; Fusion's old token opens nothing")
 finally:
     prog.stop()
 

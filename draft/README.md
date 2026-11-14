@@ -36,6 +36,12 @@ waited on has its pick in, that step is advanced at once: nobody has to send a p
 until someone did). The start-up line says so: `restored: pack 1, pick 2, 0 steps replayed; 1 more advanced now (...)`.
 `DRAFT_BANTER=off` keeps the AI seats from talking by themselves (no model, local or cloud, is asked for a line).
 
+Every key is the same after `--keep`: the people's links and the broadcast key (`draft-links.txt`) and, since 2026-11-14, the AI
+seats' tokens (`draft-agent-tokens.json`). A running `claude_seat.py` or `fusion_seat.py` reads its token once, so it used to be
+refused after every restart and had to be restarted too; now it just carries on. Both files are 0600 and replaced whole. A seat
+handed to a bot at the restart (`--bot`) loses its key. Two seats never share a key and no seat's key opens the broadcast, even if a
+file was edited by hand: the people's links win, then the broadcast's key, and an AI seat whose saved token is in use gets a new one.
+
 ```bash
 python3 draft/test_keep_restart.py                          # the owed step, in-process and with the real program restarted
 ```

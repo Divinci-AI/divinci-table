@@ -108,6 +108,30 @@ def private_write(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
+AGENT_TOKENS = "draft-agent-tokens.json"     # beside the links file: {AI seat's name: its token}, 0600
+TOKEN_OK = re.compile(r"[A-Za-z0-9_-]{16,128}")
+
+
+def kept_agent_tokens(path: Path) -> dict[str, str]:
+    """The AI seats' tokens as the server last wrote them, for a --keep restart to hand back. A missing or unreadable file, or
+    anything in it that is not a token, is simply not kept (that seat gets a new one)."""
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {n: t for n, t in data.items() if isinstance(n, str) and isinstance(t, str) and TOKEN_OK.fullmatch(t)}
+
+
+def write_key_files(dr, live: Path | None = None) -> None:
+    """The two key files, 0600, each replaced whole (a reader never sees half of one): the people's links with the broadcast's
+    line, and the AI seats' tokens. Only seats that are drafting are in them: a seat handed to a bot has no key."""
+    live = live or LIVE
+    private_write(live / "draft-links.txt", links_text(dr))
+    private_write(live / AGENT_TOKENS, json.dumps({NAMES[s]: t for t, s in dr.tokens.items() if s in AGENTS}))
+
+
 def links_text(dr) -> str:
     """The 0600 links file: one line per person, then the broadcast's own line (a restart with --keep reads both back)."""
     return ("".join(f"{NAMES[s]}: /?k={t}\n" for t, s in dr.tokens.items() if s in HUMANS)
@@ -156,11 +180,30 @@ class Draft:
         # any card name, whatever its length or last character (the banter guard skips short names and ones ending in "!")
         self.bc_names = re.compile(r"(?<![a-z])(?:" + "|".join(sorted((re.escape(c["name"]) for c in self.cards.values()), key=len, reverse=True))
                                    + r")(?![a-z])", re.I)
-        if keep:                                       # a restart keeps the same links
-            old = {l.split(": ")[0]: l.strip().split("k=")[1] for l in keep.read_text().splitlines() if "k=" in l}
+        if keep:
+            # A restart keeps every key: the people's links and the broadcast's (the links file), and the AI seats' tokens (the file
+            # beside it). Until 2026-11-14 the AI seats got new tokens at every restart, so a running claude_seat.py or
+            # fusion_seat.py, which reads its token once, was refused from then on and had to be restarted too.
+            # No two seats ever share a key and the broadcast key is never a seat's, even if a file was edited by hand: the people's
+            # links win (they are open in browsers), then the broadcast's key, and an AI seat whose saved token is already in use
+            # gets a new one. A seat that is a bot now is not in NAMES, so its old token is simply gone.
+            old = {l.split(": ")[0]: l.strip().split("k=")[1] for l in (keep.read_text().splitlines() if keep.exists() else []) if "k=" in l}
+            agents = kept_agent_tokens(keep.with_name(AGENT_TOKENS))
             fresh = {s: t for t, s in self.tokens.items()}
-            self.tokens = {old.get(n) or fresh[s]: s for s, n in NAMES.items()}
+            of, taken = {}, set()
+            for s, n in NAMES.items():
+                if s in HUMANS:
+                    of[s] = old.get(n) if old.get(n) and old.get(n) not in taken else fresh[s]
+                    taken.add(of[s])
             self.broadcast_key = old.get("Broadcast") or self.broadcast_key
+            while self.broadcast_key in taken:
+                self.broadcast_key = secrets.token_urlsafe(16)
+            taken.add(self.broadcast_key)
+            for s, n in NAMES.items():
+                if s not in HUMANS:
+                    of[s] = agents.get(n) if agents.get(n) and agents.get(n) not in taken else fresh[s]
+                    taken.add(of[s])
+            self.tokens = {of[s]: s for s in NAMES}
         while self.broadcast_key in self.tokens:       # the broadcast key is never a seat key
             self.broadcast_key = secrets.token_urlsafe(16)
 
@@ -1030,7 +1073,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=random.SystemRandom().randrange(1, 10**6))
     ap.add_argument("--port", type=int, default=8820)
-    ap.add_argument("--keep", action="store_true", help="reuse the links in live/draft-links.txt")
+    ap.add_argument("--keep", action="store_true",
+                    help="carry on a draft after a restart: the saved picks, the people's links, the broadcast key and the AI seats' tokens")
     ap.add_argument("--bot", action="append", default=[], help="a named seat a bot drafts tonight (e.g. --bot Sam); repeatable")
     ap.add_argument("--broadcast-reveal", choices=BROADCAST_REVEALS, default=BROADCAST_REVEALS[0],
                     help="when the broadcast shows a pick (see the top of this file); default: when its pack ends")
@@ -1046,7 +1090,7 @@ if __name__ == "__main__":
         a.seed = json.loads(state.read_text())["seed"]
     if any(n.lower() == "broadcast" for n in NAMES.values()):
         raise SystemExit("a seat cannot be named Broadcast: that line of the links file is the stream's key")
-    dr = Draft(a.seed, links if (a.keep and links.exists()) else None, a.broadcast_reveal, a.broadcast_delay)
+    dr = Draft(a.seed, links if a.keep else None, a.broadcast_reveal, a.broadcast_delay)
     if a.keep and state.exists():
         n0 = len(json.loads(state.read_text()).get("history") or [])
         dr.restore(state)                              # (replays the saved steps, then advances a step that is owed: catch_up)
@@ -1055,12 +1099,6 @@ if __name__ == "__main__":
               + (f"; {owed} more advanced now (every seat still waited on had already picked)" if owed else ""), flush=True)
     else:
         dr.catch_up()                                  # nobody is waited on (every named seat is a bot): the draft runs by itself
-    links.touch(mode=0o600)
-    links.chmod(0o600)
-    links.write_text(links_text(dr))
-    ag = LIVE / "draft-agent-tokens.json"
-    ag.touch(mode=0o600)
-    ag.chmod(0o600)
-    ag.write_text(json.dumps({NAMES[s]: t for t, s in dr.tokens.items() if s in AGENTS}))
+    write_key_files(dr)                               # the links (people, broadcast) and the AI seats' tokens: 0600, the same after --keep
     print(f"draft seed {a.seed} on http://127.0.0.1:{a.port}/ ; links in {links}", flush=True)
     ThreadingHTTPServer(("127.0.0.1", a.port), make_handler(dr)).serve_forever()
