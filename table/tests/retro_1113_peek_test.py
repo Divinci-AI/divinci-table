@@ -60,11 +60,14 @@ def main_():
 
         print("\n── the public card lookup")
         c, d = lookup(t, "Horta")
-        check(c == 200 and sorted(d) == ["cost", "name", "power", "text", "toughness", "type"], "it answers with a card's printed text and nothing else (name, cost, type, text, power, toughness)", (c, d))
+        # (integration 2026-11-14: flow-20261114's card lookup adds "source": where the answer came from. To a caller with no key it is never
+        # "deck": a card only in a deck here answers nobody but its own seat and the host, so a 200 or a 404 says nothing about any deck.)
+        PRINTED = ["cost", "name", "power", "source", "text", "toughness", "type"]
+        check(c == 200 and sorted(d) == PRINTED and d["source"] != "deck", "it answers with a card's printed text and where it is from, and nothing else (name, cost, type, text, power, toughness, source)", (c, d))
         if outside and inside:
             a, b = outside[0], inside[0]
             (ca, da), (cb, db) = lookup(t, a), lookup(t, b)
-            check(ca == 200 and cb == 200 and sorted(da) == sorted(db) == ["cost", "name", "power", "text", "toughness", "type"],
+            check(ca == 200 and cb == 200 and sorted(da) == sorted(db) == PRINTED and da["source"] == db["source"] == "set",
                   f"a set card the Oracle file lacks is answered from the set's own file, the same for one in NO deck here ({a}) and one in the decks ({b})", (ca, cb, da, db))
             check(da["text"] == (SET[a].get("oracle_text") or "") and da["type"] == SET[a].get("type_line") and da["cost"] == (SET[a].get("mana_cost") or ""), "…and it is that card's printed text", da)
         else:
