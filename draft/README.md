@@ -62,7 +62,13 @@ the picks the reveal rule allows (`--broadcast-reveal pack-end | delayed | ai-li
 0600 links file: it opens no seat route, and no seat key opens it. It never carries a pack's contents, what was passed, a key, a card
 id or art, or anything about a pick that is not revealed yet except that it exists. Table talk is repeated only when the line names no card.
 
+A named seat handed to a bot (`--bot Sam`) keeps its column, tagged **bot**, with the number of cards it has taken, each face down
+(before 2026-11-14 the column vanished: an all-AI rehearsal showed two seats). Its picks are never shown, during the draft or after
+it, unless the host adds `--broadcast-bot-picks`: then they follow the same rule and delay as an AI seat's (`ai-live` treats a bot
+seat as an AI seat, never as a person). The top of `draft_server.py` says why that is safe to offer and why it is off by default.
+
 ```bash
 python3 draft/test_broadcast.py                             # every reveal mode, compared after every pick of a whole draft
+python3 draft/test_broadcast_bots.py                        # a --bot seat: four columns, its picks hidden unless asked for
 python3 draft/test_broadcast.py --demo --reveal delayed     # a self-driving draft to look at (prints the link)
 ```

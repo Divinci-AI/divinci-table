@@ -12,11 +12,17 @@ links file): it opens no seat route, and no seat key opens it. It never carries 
 or art, a bot seat's picks, or anything about a pick that is not yet revealed except that it exists (a face-down placeholder).
 Table talk is repeated only when the line names no card.
 
+A named seat handed to a bot (`--bot Sam`) is still a seat on the broadcast: its name, the tag "bot", how many cards it has taken,
+each of them face down. (Until 2026-11-14 it vanished: an all-AI rehearsal with bots in both people's seats showed two columns.)
+Its picks are NOT shown, during the draft or after it: the guarantee above stands. The seats nobody was named for (seats 5 to 8) are
+not shown at all, as before. A bot seat has no link, no token, no deck, and the draft never waits on it.
+
     --broadcast-reveal pack-end   (default) a pack's picks are shown when that pack ends
                        delayed    pick p is shown once the whole table has finished pick p+N of that pack, or the pack ended
                        ai-live    the AI seats as in `delayed`; people's picks when the pack ends
                        draft-end  nothing until the draft is over
     --broadcast-delay N|end       N picks (default 3) for `delayed` and `ai-live`; `end` shows nothing until the draft is over
+    --broadcast-bot-picks         (off by default) also show a `--bot` seat's picks, under the SAME rule and delay as an AI seat's
 
 What a delayed reveal still leaks, honestly. A delay hides only the pick being made now. Once a seat's pick is shown, the drafter who
 passed that pack knows exactly what was taken over what (here Michael passes to Sam, Sam to Claude, Claude to Fusion in packs 1 and 3),
@@ -27,6 +33,18 @@ unevenly: the person seated just before an AI seat reads it best. `pack-end` giv
 between packs, and the AI seats cannot watch a stream. Only `draft-end` gives a watching drafter nothing during the draft, and even
 then every pool is public before deckbuilding and the matches. `pack-end` is the default because it is the least a stream can show
 and still be worth watching: no pick in a pack can be informed by it. For a draft that matters, use `draft-end`.
+
+Is `--broadcast-bot-picks` safe? Under the same rule, it leaks nothing of a KIND the rule does not already leak for Claude's and
+Fusion's seats. A shown pick tells the drafter who passed that pack what was taken from it, and tells everyone that seat's colours and
+so what it will leave in the packs it passes on: exactly what the chosen rule already allows for an AI seat, no sooner (`ai-live`
+treats a bot seat as an AI seat, never as a person; `pack-end` shows nothing of it inside a pack; `draft-end` nothing at all). Two
+things are different about a bot, and both make its picks worth LESS to a watcher, not more: it builds no deck and plays no match, so
+nothing is learnt about a deck anyone will face; and its rule is fixed and already in this repository (draft.py bot_pick: rarity,
+then the colours of its own pool), so its shown pool lets a watcher predict its next pick more surely than a seat with a mind, which
+is the same thing a careful drafter already reads from what comes back around the table. What it does add is one more seat's worth
+of the same leak: with a short delay, one more seat whose removals from a pack are public before that pack has gone all the way
+round. So it is the host's choice, and off unless asked for: fine for a rehearsal or a show draft, pointless to switch on with
+`draft-end`, and for a draft that matters the answer is the same as above.
 """
 from __future__ import annotations
 
@@ -54,6 +72,8 @@ HUMANS = {i: n.strip() for i, n in enumerate(os.environ.get("DRAFT_HUMANS", "Mic
 AGENTS = {2: "Claude", 3: "Fusion"}          # AI participants (they pick for their own seat via the same API); the rest are bots
 NAMES = {**HUMANS, **AGENTS}
 REQUIRED = set(NAMES)                        # a step advances when all four have picked
+BOTS: dict[int, str] = {}                    # named seats a bot drafts tonight (--bot): no link, no token, no deck, never waited on;
+                                             # still a seat on the broadcast (marked "bot"), which is the only place this is read
 # Match handoff: the host publishes each player's table link here; a link is only ever shown to its own player. A published link must
 # point at the host's own table (loopback) or at a Cloudflare quick tunnel; DRAFT_LINK_HOST_SUFFIXES adds more (comma-separated).
 LINK_HOSTS = ("127.0.0.1", "localhost")
@@ -146,15 +166,18 @@ def make_bots(names) -> list[str]:
         seat = next((s for s, nm in NAMES.items() if nm.lower() == str(n).lower()), None)
         if seat is None:
             continue
+        BOTS[seat] = NAMES[seat]                      # remembered for the broadcast only (its column stays, marked "bot")
         HUMANS.pop(seat, None); AGENTS.pop(seat, None); NAMES.pop(seat, None); REQUIRED.discard(seat)
         done.append(n)
     return done
 
 
 class Draft:
-    def __init__(self, seed: int, keep: Path | None = None, reveal: str = BROADCAST_REVEALS[0], delay: int | str = 3):
+    def __init__(self, seed: int, keep: Path | None = None, reveal: str = BROADCAST_REVEALS[0], delay: int | str = 3,
+                 bot_picks: bool = False):
         self.seed = seed
         self.bc_reveal, self.bc_delay = reveal, delay
+        self.bc_bot_picks = bool(bot_picks)        # --broadcast-bot-picks: a --bot seat's picks follow the AI seats' rule (default: never shown)
         self.rng = random.Random(seed)
         self.lock = threading.Lock()
         self.cards = {c["id"]: c for c in json.loads(D.CARDS_JSON.read_text())}
@@ -211,6 +234,8 @@ class Draft:
     def _revealed(self, seat: int, i: int) -> bool:
         """May the broadcast show this seat's i-th pick (0-based, over the whole draft)?"""
         rnd, p = divmod(i, D.PACK_SIZE)                # pick p+1 of pack rnd+1
+        if seat in BOTS and not self.bc_bot_picks:
+            return False                               # a bot seat's picks: never, not even when the draft is over (the module docstring)
         if self.done:
             return True
         if self.bc_reveal == "draft-end" or self.bc_delay == "end":
@@ -218,13 +243,13 @@ class Draft:
         if rnd < self.rnd:                             # that pack has ended
             return True
         if self.bc_reveal == "pack-end" or (self.bc_reveal == "ai-live" and seat in HUMANS):
-            return False
+            return False                               # (a bot seat is not in HUMANS: `ai-live` treats it as an AI seat, never as a person)
         return self.pick_no >= p + 1 + self.bc_delay   # the whole table has finished pick p+1+N of this pack
 
     def broadcast(self) -> dict:
         with self.lock:
             seats = []
-            for seat, name in NAMES.items():
+            for seat, name in sorted({**NAMES, **BOTS}.items()):   # in seat order: a seat handed to a bot keeps its place at the table
                 shown, tally = [], {}
                 for i, c in enumerate(self.picks[seat]):
                     if not self._revealed(seat, i):
@@ -233,12 +258,12 @@ class Draft:
                         tally[col] = tally.get(col, 0) + 1
                     shown.append({"name": c["name"], "cost": c["mana_cost"] or "", "rarity": c["rarity"], "colors": c["colors"],
                                   "pack": i // D.PACK_SIZE + 1, "pick": i % D.PACK_SIZE + 1})
-                seats.append({"name": name, "kind": "human" if seat in HUMANS else "AI", "picked": len(self.picks[seat]),
+                seats.append({"name": name, "kind": "bot" if seat in BOTS else "human" if seat in HUMANS else "AI", "picked": len(self.picks[seat]),
                               "hidden": len(self.picks[seat]) - len(shown), "colors": tally, "picks": shown[::-1],
-                              "ready": self.done and seat in self.ready})
+                              "ready": self.done and seat in self.ready and seat not in BOTS})
             d = {"round": min(self.rnd + 1, D.PACKS), "pick": self.pick_no + 1, "packs": D.PACKS, "pack_size": D.PACK_SIZE,
                  "done": self.done, "waiting_on": [NAMES[s] for s in NAMES if s not in self.pending and not self.done],
-                 "reveal": {"mode": self.bc_reveal, "delay": self.bc_delay}, "seats": seats}
+                 "reveal": {"mode": self.bc_reveal, "delay": self.bc_delay}, "bot_picks": self.bc_bot_picks, "seats": seats}
         d["talk"] = [{"who": e["who"], "text": e["text"], "ai": e["ai"]}
                      for e in self.banter.since(0) if not self.bc_names.search(e["text"])][-5:]
         return d
@@ -559,7 +584,7 @@ class Draft:
         LIVE.mkdir(exist_ok=True)
         D.OUT_DIR.mkdir(exist_ok=True)
         (D.OUT_DIR / f"draft-live-seed{self.seed}.json").write_text(json.dumps(
-            {"seed": self.seed, "humans": HUMANS, "agents": AGENTS, "all_pools": [[c["id"] for c in p] for p in self.picks]}, indent=1))
+            {"seed": self.seed, "humans": HUMANS, "agents": AGENTS, "bots": BOTS, "all_pools": [[c["id"] for c in p] for p in self.picks]}, indent=1))
 
 
 PAGE = r"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -848,6 +873,8 @@ header{height:112px;flex:none;display:flex;align-items:center;gap:36px;padding:0
 .name{font-size:46px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tag{font-size:20px;font-weight:700;letter-spacing:.1em;padding:4px 12px;border-radius:999px;background:#24364a;color:#a9c6e6;text-transform:uppercase}
 .tag.ai{background:#3a2a4d;color:#d3b4f2}
+.tag.bot{background:#33383f;color:#c3ccd6}
+.seat.bot{border-style:dashed}
 .rdy{font-size:20px;font-weight:700;color:#7ddc8a;margin-left:auto}
 .count{font-size:26px;color:#a9b8c8;margin:8px 0 10px}
 .count b{color:#eef2f6;font-size:34px}
@@ -897,12 +924,12 @@ function draw(d){
   w.textContent=d.done?"Building decks":d.waiting_on.length?"Waiting on "+d.waiting_on.join(", "):"";
   $("rule").textContent=d.done?"":ruleText(d.reveal);
   const root=$("seats");root.textContent="";
-  d.seats.forEach(s=>{const c=el("div","seat"+(d.waiting_on.includes(s.name)?" waiting":""));
-    const top=el("div","top");top.appendChild(el("div","name",s.name));top.appendChild(el("div","tag"+(s.kind==="AI"?" ai":""),s.kind));
+  d.seats.forEach(s=>{const bot=s.kind==="bot";const c=el("div","seat"+(d.waiting_on.includes(s.name)?" waiting":"")+(bot?" bot":""));
+    const top=el("div","top");top.appendChild(el("div","name",s.name));top.appendChild(el("div","tag"+(s.kind==="AI"?" ai":bot?" bot":""),s.kind));
     if(s.ready)top.appendChild(el("div","rdy","READY"));c.appendChild(top);
     const cnt=el("div","count");cnt.appendChild(el("b","",String(s.picked)));cnt.appendChild(document.createTextNode(" card"+(s.picked===1?"":"s")+" picked"));c.appendChild(cnt);
     const ty=el("div","tally");"WUBRGC".split("").forEach(k=>{if(s.colors[k]){const x=el("span");x.appendChild(el("span","pip "+k));x.appendChild(document.createTextNode(String(s.colors[k])));ty.appendChild(x)}});c.appendChild(ty);
-    if(s.hidden){c.appendChild(el("div","downl",s.hidden+" face down"));const dn=el("div","down");for(let i=0;i<s.hidden;i++)dn.appendChild(el("i"));c.appendChild(dn)}
+    if(s.hidden){c.appendChild(el("div","downl",s.hidden+" face down"+(bot&&!d.bot_picks?" (a bot's picks are not shown)":"")));const dn=el("div","down");for(let i=0;i<s.hidden;i++)dn.appendChild(el("i"));c.appendChild(dn)}
     const pk=el("div","picks"+(s.picks.length>10?" dense":"")+(s.picks.length>36?" full":""));
     s.picks.forEach(p=>{const r=el("div","p "+p.rarity);r.appendChild(el("span","n",p.name));r.appendChild(pips(p.cost));pk.appendChild(r)});
     if(!s.picks.length&&!s.hidden)pk.appendChild(el("div","none","No picks yet"));
@@ -1080,6 +1107,8 @@ if __name__ == "__main__":
                     help="when the broadcast shows a pick (see the top of this file); default: when its pack ends")
     ap.add_argument("--broadcast-delay", type=broadcast_delay, default=3, metavar="N|end",
                     help="for delayed/ai-live: a pick is shown N picks later (default 3); 'end': nothing until the draft is over")
+    ap.add_argument("--broadcast-bot-picks", action="store_true",
+                    help="also show a --bot seat's picks on the broadcast, under the same rule and delay as an AI seat's (default: never shown)")
     a = ap.parse_args()
     if a.bot:
         print(f"bots draft for: {', '.join(make_bots(a.bot)) or '(no such seat)'}", flush=True)
@@ -1090,7 +1119,7 @@ if __name__ == "__main__":
         a.seed = json.loads(state.read_text())["seed"]
     if any(n.lower() == "broadcast" for n in NAMES.values()):
         raise SystemExit("a seat cannot be named Broadcast: that line of the links file is the stream's key")
-    dr = Draft(a.seed, links if a.keep else None, a.broadcast_reveal, a.broadcast_delay)
+    dr = Draft(a.seed, links if a.keep else None, a.broadcast_reveal, a.broadcast_delay, a.broadcast_bot_picks)
     if a.keep and state.exists():
         n0 = len(json.loads(state.read_text()).get("history") or [])
         dr.restore(state)                              # (replays the saved steps, then advances a step that is owed: catch_up)
