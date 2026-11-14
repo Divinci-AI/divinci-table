@@ -14,7 +14,7 @@ import { Container } from "@cloudflare/containers";
 import { DurableObject } from "cloudflare:workers";
 import { aiKeyAllowed, aiRoomRefusal, boardPrompt, parsePose, PRESENCE_MAX_BYTES, PRESENCE_MAX_PER_SEC, speechHint, CODE_FAILS_GLOBAL_PER_HOUR, CODE_FAILS_PER_HOUR, isAdmin, parseBoardReply, sameText,
 	STT_MAX_BYTES, STT_PER_10_MIN, VISION_MAX_BYTES, VISION_PER_HOUR, withinRate, dndAssetKey,
-	AGENT_BAD_KEYS_PER_10_MIN, AGENT_CLAIMS_PER_HOUR, isHouseName, AGENT_OVER_LINGER_MS, AGENT_RESULTS_KEPT, cleanReport, AGENT_OPEN_TABLES_PER_ADDRESS, AGENT_NAME_RE, AGENT_SEATS_AT_ONCE, AGENT_TABLES_PER_HOUR, agentRegRefusal, newAgentKey, roomListed, sha256Hex } from "./policy";
+	AGENT_BAD_KEYS_PER_10_MIN, AGENT_CLAIMS_PER_HOUR, isHouseName, isVendorName, RESERVED_NAME_ERROR, AGENT_OVER_LINGER_MS, AGENT_RESULTS_KEPT, cleanReport, AGENT_OPEN_TABLES_PER_ADDRESS, AGENT_NAME_RE, AGENT_SEATS_AT_ONCE, AGENT_TABLES_PER_HOUR, agentRegRefusal, newAgentKey, roomListed, sha256Hex } from "./policy";
 
 import { AI_DECKS, aiDm, aiSeatsHere, drain, hosted, hostFetch, readCapped, MAX_CREATES_PER_HOUR, MAX_LIVE_ROOMS, NAME_RE, newRoomId, PILOT_DECKS, ROOM_TTL_MS, toBase64 } from "./shared";
 import type { AiSeat, Env, GameResult, RoomConfig, RoomInfo } from "./shared";
@@ -471,9 +471,10 @@ export class Lobby extends DurableObject<Env> {
 		const here = await this.recent("areg:" + addr, 86_400_000);
 		const everywhereDay = (await this.ctx.storage.get<number>(dayKey)) ?? 0;
 		const lower = name.toLowerCase();
-		const nameOk = AGENT_NAME_RE.test(name) && (admin || !isHouseName(name));      // house names are the lobby's own
+		const nameOk = AGENT_NAME_RE.test(name);
+		const nameReserved = !admin && (isHouseName(name) || isVendorName(name));       // house names are the lobby's own; vendors' names nobody's
 		const why = agentRegRefusal({ hereHour: admin ? 0 : here.filter((t) => now - t < 3_600_000).length, hereDay: admin ? 0 : here.length,
-			everywhereDay: admin ? 0 : everywhereDay, nameOk, nameTaken: nameOk && !!(await this.ctx.storage.get("aname:" + lower)) });
+			everywhereDay: admin ? 0 : everywhereDay, nameOk, nameReserved, nameTaken: nameOk && !nameReserved && !!(await this.ctx.storage.get("aname:" + lower)) });
 		if (why) return why;
 		if (admin) {
 			await this.ctx.storage.put({ ["agent:" + keyHash]: { id, name, created: now }, ["aname:" + lower]: id });
@@ -691,6 +692,7 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 	if (game === "dnd" || game === "dnd-theater") return createDnd(request, env, lobby, form, humans, back, game === "dnd-theater" ? "theater" : "map");
 	if (humans.length < 1 || humans.length > 4) return back("Name between one and four human seats.");
 	if (!humans.every((h) => NAME_RE.test(h))) return back("Seat names: letters, numbers and spaces, up to 24 characters.");
+	if (await reservedIn(request, env, humans, form)) return back(RESERVED_NAME_ERROR);
 	const ai: AiSeat[] = [];
 	for (const [i, pick] of form.getAll("ai").map(String).entries()) {
 		const d = AI_DECKS[pick];
@@ -731,11 +733,19 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
 }
 
+/** Does a people's table use an AI vendor's or model's name for a seat or its title (policy.ts: isVendorName)? Only the
+ *  lobby's admin may (its own identified seats, with `Authorization: Bearer <ADMIN_TOKEN>`). */
+async function reservedIn(request: Request, env: Env, humans: string[], form: FormData): Promise<boolean> {
+	if (!humans.some(isVendorName) && !isVendorName(String(form.get("title") ?? ""))) return false;
+	return !(await isAdmin(request.headers.get("Authorization"), env.ADMIN_TOKEN));
+}
+
 /** A chess table: one or two people; with one, Leonardo (Stockfish) takes the black pieces. */
 async function createChess(request: Request, env: Env, lobby: DurableObjectStub<Lobby>, form: FormData, humans: string[],
 	back: (msg: string) => Response): Promise<Response> {
 	if (humans.length < 1 || humans.length > 2) return back("Chess seats one or two people (with one, Leonardo plays the other side).");
 	if (!humans.every((h) => NAME_RE.test(h) && !h.includes(":"))) return back("Seat names: letters, numbers and spaces, up to 24 characters.");
+	if (await reservedIn(request, env, humans, form)) return back(RESERVED_NAME_ERROR);
 	const level = Math.max(1, Math.min(20, Number(form.get("level")) || 6));
 	const minutes = [5, 10, 15, 30].includes(Number(form.get("minutes"))) ? Number(form.get("minutes")) : 15;
 	const white = humans[0], black = humans[1] ?? `ai:Leonardo:${level}`;
@@ -759,6 +769,7 @@ async function createDnd(request: Request, env: Env, lobby: DurableObjectStub<Lo
 		return back(ai ? "The fantasy one-shot seats one to six players." : "The fantasy one-shot seats two to seven people: the first name is the Dungeon Master.");
 	}
 	if (!humans.every((h) => NAME_RE.test(h) && !h.includes(":") && !h.includes(","))) return back("Seat names: letters, numbers and spaces, up to 24 characters.");
+	if (await reservedIn(request, env, humans, form)) return back(RESERVED_NAME_ERROR);
 	const dm = ai ? undefined : humans[0];
 	const players = ai ? humans : humans.slice(1);
 	const title = String(form.get("title") ?? "").trim().slice(0, 40) || `${humans[0]}'s adventure`;

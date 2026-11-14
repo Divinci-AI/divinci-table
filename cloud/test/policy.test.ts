@@ -224,3 +224,40 @@ test("past the daily budget the answer says when to come back", async () => {
 	assert.match((await r.json() as { error: string }).error, /agent tables.*midnight UTC/);
 	assert.equal(budgetRefusal(Date.UTC(2026, 10, 13, 23, 59, 59)).headers.get("Retry-After"), "60");
 });
+
+import { isVendorName, RESERVED_NAME_ERROR } from "../src/policy.ts";
+
+test("AI vendors' and models' names are reserved anywhere in a name, however they are written", () => {
+	for (const n of ["ChatGPT", "chat gpt", "Chat-G.P.T", "GPT-4o", "my gpt bot", "OpenAI Agent", "Open_AI", "Gemini", "G3m1n1", "gemini-pro",
+		"Google", "G00gle Bot", "Claude", "SuperClaude", "the-claude", "C l 4 u d e", "Cl4ude", "C1aude", "Anthropic", "Llama 3", "Ll4ma",
+		"MetaLlama", "Grok", "grok-2", "xAI", "x.ai", "Grok xAI", "Meta", "Meta AI", "MetaAI", "MetaBot", "meta_bot", "Mistral", "DeepSeek",
+		"Deep Seek R1", "Copilot", "Microsoft", "M1crosoft", "CLAUDE"]) assert.ok(isVendorName(n), n);
+});
+
+test("look-alike letters from other alphabets, accents, wide letters and invisible characters don't hide a vendor's name", () => {
+	for (const n of ["Сlaude", "Gемini", "Сhаtgpt", "Clаudе", "Claudé", "Ｃｌａｕｄｅ", "Cla​ude", "Grok", "Gοοgle", "ɡemini"])
+		assert.ok(isVendorName(n), n);
+});
+
+test("ordinary names, words that merely contain 'meta' or 'xai', and the house's own players pass", () => {
+	for (const n of ["Michael", "Sam", "Ada", "Metal Head", "metagame", "Xaio", "Taxaide", "Friday Commander", "Sunday chess",
+		"The Sunken Vault", "House Autopilot", "Fusion", "Leonardo", "bot_7", "Gemma", "Egypt", "Mist", "Grace"])
+		assert.ok(!isVendorName(n), n);
+});
+
+test("a reserved agent name is refused with its own reason, after the limits (a caller over its limit learns nothing)", () => {
+	const base = { hereHour: 0, hereDay: 0, everywhereDay: 0, nameTaken: false, nameOk: true };
+	assert.equal(agentRegRefusal({ ...base, nameReserved: true })?.error, RESERVED_NAME_ERROR);
+	assert.equal(agentRegRefusal({ ...base, nameReserved: true, hereHour: AGENT_REG_PER_HOUR })?.status, 429);
+	assert.equal(agentRegRefusal({ ...base, nameReserved: false }), null);
+});
+
+test("an agent table can't be titled with a vendor's name; the default title (from the agent's own name) is fine", () => {
+	const known = ["tuvasa", "kaust"];
+	assert.match(String(planAgentTable({ seats: 2, decks: [], title: "ChatGPT vs Gemini" }, known, known, "ada")), /reserved/);
+	assert.match(String(planAgentTable({ seats: 2, decks: [], title: "Сlaude's pod" }, known, known, "ada")), /reserved/);
+	const ok = planAgentTable({ seats: 2, decks: [], title: "" }, known, known, "ada");
+	assert.ok(typeof ok !== "string" && ok.title === "ada's table");
+	const fine = planAgentTable({ seats: 2, decks: [], title: "Friday pod" }, known, known, "ada");
+	assert.ok(typeof fine !== "string" && fine.title === "Friday pod");
+});

@@ -148,6 +148,55 @@ const HOUSE_WORDS = /^(fusion|claude|leonardo|divinci|admin|host|house|table|lob
  *  "h.o.u.s.e" are the same name. */
 export const isHouseName = (name: string) => HOUSE_WORDS.test(name.toLowerCase().replace(/[^a-z0-9]/g, ""));
 
+// AI vendors and their models. Nobody but the lobby's admin may present an agent, a seat or a table as one of these, so a
+// visitor watching "ChatGPT vs Gemini" is never looking at somebody else's bot wearing a vendor's name.
+// Reserved ANYWHERE in the name ("SuperClaude", "my gpt bot"), after spaces, dots, case, accents, letters from other
+// alphabets that look Latin, and digits standing in for letters are taken away ("C l 4 u d e", "Сlaude" with a Cyrillic С).
+const VENDOR_WORDS = ["chatgpt", "openai", "gpt", "gemini", "google", "claude", "anthropic", "llama", "grok", "mistral", "deepseek",
+	"copilot", "microsoft"];
+// Too short or too common inside ordinary words ("metal", "Xaio"): reserved only as a word of their own ("Meta AI", "MetaBot", "x.ai").
+const VENDOR_TOKENS = ["meta", "xai"];
+const LOOKALIKES: Record<string, string> = {
+	// Cyrillic
+	"а": "a", "в": "b", "е": "e", "ё": "e", "к": "k", "м": "m", "н": "h", "о": "o", "р": "p", "с": "c", "т": "t", "у": "y", "х": "x",
+	"і": "i", "ї": "i", "ј": "j", "ѕ": "s", "ԁ": "d", "ɡ": "g", "ӏ": "l", "ԛ": "q", "ԝ": "w",
+	// Greek
+	"α": "a", "β": "b", "ε": "e", "ι": "i", "κ": "k", "ν": "v", "ο": "o", "ρ": "p", "τ": "t", "υ": "u", "χ": "x", "γ": "y", "η": "n",
+	// Latin look-alikes NFKD leaves alone
+	"ı": "i", "ł": "l", "ø": "o", "đ": "d", "ß": "ss", "ɩ": "i", "ʟ": "l",
+};
+const DIGITS: Record<string, string> = { "0": "o", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b", "@": "a", "$": "s", "!": "i", "|": "l", "€": "e" };
+
+/** The name with accents dropped, invisible characters removed and look-alike letters made Latin; case kept. */
+function plainLetters(name: string): string {
+	return [...String(name ?? "").normalize("NFKD").replace(/[\p{M}\p{Cf}]/gu, "")]
+		.map((c) => LOOKALIKES[c] ?? LOOKALIKES[c.toLowerCase()]?.toUpperCase() ?? c).join("");
+}
+
+/** "1" is read both ways ("C1aude", "Gem1n1"); every other stand-in has one reading. */
+const unDigit = (s: string) => {
+	const base = [...s].map((c) => DIGITS[c] ?? c).join("");
+	return [base.replace(/1/g, "l"), base.replace(/1/g, "i")];
+};
+
+/** Is this an AI vendor's or model's name (see VENDOR_WORDS)? For agent names, seat names and table titles alike. */
+export function isVendorName(name: string): boolean {
+	const plain = plainLetters(name);
+	const squashed = unDigit(plain.toLowerCase()).map((s) => s.replace(/[^a-z]/g, ""));
+	if (squashed.some((s) => VENDOR_WORDS.some((w) => s.includes(w)) || s.includes("metaai"))) return true;
+	// words: split at anything not a letter or digit, and also where a capital follows a small letter ("MetaBot" → Meta, Bot);
+	// a word and the next one together count too ("x.ai", "Meta AI")
+	const split = (t: string) => t.toLowerCase().split(/[^a-z0-9@$!|€]+/).filter(Boolean);
+	for (const words of [split(plain), split(plain.replace(/([a-z])([A-Z])/g, "$1 $2"))]) {
+		const pairs = words.slice(1).map((w, i) => words[i] + w);
+		if ([...words, ...pairs].some((w) => unDigit(w).some((v) => VENDOR_TOKENS.includes(v)))) return true;
+	}
+	return false;
+}
+
+export const RESERVED_NAME_ERROR = "That name is reserved: the names of AI companies and models (ChatGPT, Claude, Gemini, Llama…) " +
+	"can't be used for seats, agents or tables here.";
+
 /** DAILY_REQUEST_BUDGET as a number: anything that is not a positive number means the default, never "closed" or "no limit". */
 export const dailyBudget = (v: string | undefined) => { const n = Number(v); return Number.isFinite(n) && n >= 1000 ? Math.floor(n) : 100_000; };
 export const AGENT_REG_PER_HOUR = 3;            // new agents from one address
@@ -161,7 +210,7 @@ export const AGENT_BAD_KEYS_PER_10_MIN = 20;    // wrong agent keys from one add
 export const AGENT_OPEN_TABLE_TTL_MS = 30 * 60_000;   // an agent table nobody filled is delisted after this
 export const AGENT_BODY_MAX = 4_000;            // bytes of JSON an agent endpoint reads
 
-export interface AgentRegAsk { hereHour: number; hereDay: number; everywhereDay: number; nameTaken: boolean; nameOk: boolean }
+export interface AgentRegAsk { hereHour: number; hereDay: number; everywhereDay: number; nameTaken: boolean; nameOk: boolean; nameReserved?: boolean }
 
 /** Why a sign-up is refused ({status, error, retryAfter seconds}), or null. The limits come before the name, so a
  *  caller over its limit learns nothing about which names exist. */
@@ -170,6 +219,7 @@ export function agentRegRefusal(a: AgentRegAsk): { status: number; error: string
 	if (a.hereHour >= AGENT_REG_PER_HOUR) return { status: 429, error: "Too many new agents from this address this hour.", retryAfter: 3600 };
 	if (a.hereDay >= AGENT_REG_PER_DAY) return { status: 429, error: "Too many new agents from this address today.", retryAfter: 6 * 3600 };
 	if (!a.nameOk) return { status: 400, error: "name: 3 to 32 plain letters (a-z), numbers, spaces, dots, dashes or underscores." };
+	if (a.nameReserved) return { status: 400, error: RESERVED_NAME_ERROR };
 	if (a.nameTaken) return { status: 409, error: "That name is taken." };
 	return null;
 }
@@ -205,8 +255,9 @@ export function planAgentTable(ask: AgentTableAsk, known: string[], shuffled: st
 	if (new Set(want).size !== want.length) return "decks: each deck once per table.";
 	const decks = [...want, ...shuffled.filter((d) => known.includes(d) && !want.includes(d))].slice(0, seats);
 	if (decks.length < seats) return "Not enough decks for that many seats.";
-	const title = String(ask.title ?? "").replace(/[^\p{L}\p{N} '._!?-]/gu, "").replace(/\s+/g, " ").trim().slice(0, 40) || `${agentName}'s table`;
-	return { seats, decks, title };
+	const asked = String(ask.title ?? "").replace(/[^\p{L}\p{N} '._!?-]/gu, "").replace(/\s+/g, " ").trim().slice(0, 40);
+	if (asked && isVendorName(asked)) return "title: " + RESERVED_NAME_ERROR;   // (the default is built from the agent's own, already checked, name)
+	return { seats, decks, title: asked || `${agentName}'s table` };
 }
 
 export const AGENT_OVER_LINGER_MS = 10 * 60_000;      // a finished agent game stays listed this long (to look at the last board)
