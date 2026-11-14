@@ -235,6 +235,8 @@ SHAPES = [
     ("destroy", re.compile(r"Destroy target artifact or enchantment", re.I), "any", ("Artifact", "Enchantment"), False),
     ("destroy", re.compile(r"Destroy target artifact", re.I), "any", ("Artifact",), False),
     ("exile", re.compile(r"Exile target creature or Spacecraft", re.I), "any", ("Creature", "Spacecraft"), False),
+    # Borg Cube: "If you can't, exile up to one target creature": exiled WITH the source (Perm.exiled_with), for it to assimilate later
+    ("exile-with", re.compile(r"Exile up to one target creature(?! you control| an opponent controls| or )", re.I), "any", ("Creature",), False),
     # Test of Priorities, Power to Life Support: out until the next end step
     ("flicker-end", re.compile(r"Exile (?:up to one )?(?:other )?target (?:creature|nonland permanent) you control(?:\.| \|\|then\|\|) Return that card to the battlefield under its owner's control at the beginning of the next end step", re.I),
      "own", ("Creature",), False),
@@ -397,6 +399,7 @@ DIED_THIS_TURN = [False]                    # "if a creature died this turn" (Pl
 DEATH_TICK = [1]                            # moves on each turn: "this ability triggers only once each turn"
 MANUAL_ZONES = ("hand", "battlefield", "graveyard", "exile", "library-top", "library-bottom")      # a person's manual moves (T10)
 COUNTER_KINDS = {"+1/+1": "counters", "charge": "charge", "quest": "quest", "lore": "lore", "stun": "stun", "promotion": "promo", "loyalty": "counters"}
+FOE_CREATURES = [None]                      # the server sets this: a callable(seat name) -> names of the face-up creatures the OTHER seats control (see hostile_targets)
 DEATH_HOOK = [None]                         # the server sets this: a creature died on some seat, and every seat's "whenever a creature dies" hears it
 STEP_KEY = [None]                           # the server sets this: a callable naming the step the game is in now. Mana added to a pool ("add {R}{R}")
                                             # empties when the step changes; with no server (an engine test) it lasts until the turn ends
@@ -547,7 +550,7 @@ def card_slots(card: dict, mode_text: str | None = None) -> list[dict]:
         return [{"side": "own" if "you control" in m.group(0).lower() or re.search(r"Untap (?:another )?target permanent you control", text, re.I) else "any",
                  "kinds": ["Creature"] if m.group(2).lower() == "creature" else ["Creature", "Artifact", "Land", "Enchantment"], "optional": not is_spell_, "label": "untap",
                  **({"other": True} if m.group(1) else {})}]
-    lab = {"damage": "damage to", "damage-x": "damage to", "damage-types": "damage to (an attacking or blocking creature)", "flicker-end": "exile until the next end step", "destroy": "destroy", "exile": "exile", "bounce": "return", "pump": "give it that",
+    lab = {"damage": "damage to", "damage-x": "damage to", "damage-types": "damage to (an attacking or blocking creature)", "flicker-end": "exile until the next end step", "destroy": "destroy", "exile": "exile", "exile-with": "exile (or no target)", "bounce": "return", "pump": "give it that",
            "stun": "tap and stun", "tap": "tap", "counter": "counter on", "shrink-etb": "shrink", "grant": "give it that", "unblockable": "give it that (can't be blocked)",
            "no-block": "tap down for blocking (it can't block)", "tuck": "return to its owner's library"}[kind]
     slot = {"side": side, "kinds": [k for k in kinds if k != "Spacecraft"] if kind not in ("exile", "tuck") else list(kinds), "optional": False, "label": lab, "player_ok": pok}
@@ -617,6 +620,11 @@ class Perm:
     temp_types: tuple = ()                  # creature types it has until end of turn ("becomes a Doctor")
     death_riders: tuple = ()                # "when that creature dies this turn, …": ((tick, who gets it, sentence, the source's name), …)
     held: tuple = ()                        # what this permanent holds in exile "until it leaves the battlefield" (Malfunctioning Holodeck): ((owner seat, card), …)
+    # Borg Cube (2026-11-13): the cards "exiled with it": ((owner seat, card), …). They stay in exile when it leaves; a Cube that comes back
+    # is a new permanent with none (this field lives and dies with the Perm). Only a CREATURE CARD among them can be assimilated.
+    exiled_with: tuple = ()
+    owner: object = None                    # the seat that OWNS this card when another seat controls it (an assimilated creature): where it goes when it leaves
+    orig_card: dict | None = None           # …and the card as printed (on the battlefield it is "a Borg artifact creature"; anywhere else it is itself again)
     id: int = field(default_factory=lambda: _new_id())
 
     @property
@@ -927,6 +935,17 @@ class VirtualPlayer:
                 out.append(c)
         return out
 
+    def hostile_targets(self) -> list[str]:
+        """Names of the creatures another seat controls that an Aura meant for an opponent's creature could go on.
+        2026-11-13 retro (C3): `castable` asked only `public_board`, which holds what REAL-deck players announced. At a table where every seat
+        is virtual it is always empty, so Vow of Flight, Vow of Wildness and Kenrith's Transformation were never castable (38 soak games, never
+        once listed). The other virtual seats' boards are the table's to know: it tells the engine through FOE_CREATURES."""
+        hook = FOE_CREATURES[0]
+        try:
+            return list(hook(self.name)) if hook else []
+        except Exception:  # noqa: BLE001 — a seat the table does not know (an engine test): nothing of theirs
+            return []
+
     def creatures(self): return [p for p in self.battlefield if p.is_("Creature")]
 
     def enchantments(self): return [p for p in self.battlefield if p.is_("Enchantment")]
@@ -1167,7 +1186,7 @@ class VirtualPlayer:
 
     def check_dead(self, p: Perm, deathtouch: bool = False) -> list[str]:
         """State-based: toughness 0 or less dies, indestructible or not; lethal damage destroys unless it is indestructible."""
-        if p not in self.battlefield or not p.is_("Creature"):
+        if p not in self.battlefield or not (p.is_("Creature") or p.face_down):    # (a face-down card is a 2/2 creature whatever its face says)
             return []
         tg = self.stats(p)[1]
         if tg <= 0 or ((p.damage >= tg or (deathtouch and p.damage > 0)) and "Indestructible" not in self.kws(p)):
@@ -1180,6 +1199,58 @@ class VirtualPlayer:
             self.move(f"#{p.id}", "graveyard", cause="damage" if tg > 0 else "state")
             return [f"{name} would die: it is exiled instead."] if instead else [f"{name} dies."]
         return []
+
+    def assimilable(self, src: "Perm") -> list:
+        """[(owner seat, card)] this permanent could assimilate now: exiled with IT, still in the owner's exile, and a creature card."""
+        return [(o, c) for o, c in src.exiled_with if "Creature" in (c.get("types") or []) and any(x is c for x in o.exile_zone())]
+
+    def assimilate_exiled(self, src_id: int, index: int) -> list[str]:
+        """Assimilate the index-th assimilable card exiled with permanent src_id (the answer to "which one")."""
+        src = next((q for q in self.battlefield if q.id == src_id), None)
+        cands = self.assimilable(src) if src is not None else []
+        if not 0 <= index < len(cands):
+            return ["That card is no longer exiled with it: nothing is assimilated."]
+        o, card = cands[index]
+        src.exiled_with = tuple(x for x in src.exiled_with if x[1] is not card)
+        return self.assimilate(o, card, by=self.shown(src))
+
+    def assimilate(self, owner, card: dict, by: str = "") -> list[str]:
+        """"To assimilate a card, put it onto the battlefield under your control with a +1/+1 counter. It's a Borg artifact creature and loses all
+        other creature types." The card leaves its owner's exile; the permanent is THIS seat's, remembers its owner (it goes to the owner's
+        graveyard, hand or library when it leaves) and the card as printed (it is itself again once it is not on the battlefield)."""
+        ex = owner.exile_zone()
+        i = next((k for k in range(len(ex) - 1, -1, -1) if ex[k] is card), None)
+        if i is None:
+            return [f"{card['name']} is no longer in exile: nothing is assimilated."]
+        ex.pop(i)
+        types = list(card.get("types") or [])
+        borg = {**card, "types": (["Artifact"] if "Artifact" not in types else []) + types, "subtypes": ["Borg"],
+                "type": " ".join(list(card.get("supertypes") or []) + (["Artifact"] if "Artifact" not in types else []) + types) + " — Borg"}
+        q = Perm(borg, sick=True, counters=1)
+        q.orig_card = card
+        q.owner = owner if owner is not self else None
+        self.battlefield.append(q)
+        said = [f"{by + ': ' if by else ''}I assimilate {card['name']}" + (f" ({owner.name}'s card)" if owner is not self else "")
+                + f": it is on the battlefield under my control with a +1/+1 counter, a Borg artifact creature ({'%d/%d' % self.stats(q)})."]
+        if owner is not self:
+            self.note_other(owner, f"{by or 'card'} assimilates your {card['name']} from exile: it is on {self.name}'s battlefield.")
+        said += self.creature_entered(q)
+        said += self.enter_effects(q, lambda card_, cands: max(cands, key=lambda k: self.stats(k)[0]))
+        return said
+
+    def sweep_dead(self) -> list[str]:
+        """State-based, for the whole board after a change to several creatures at once: every creature of this seat at toughness 0 or less (or with
+        lethal damage) dies, and the check is repeated until nothing more does (the creature that left may have been holding others up)."""
+        said = []
+        for _ in range(12):
+            gone = []
+            for q in list(self.battlefield):
+                if q in self.battlefield and (q.is_("Creature") or q.face_down):
+                    gone += self.check_dead(q)
+            if not gone:
+                break
+            said += gone
+        return said
 
     def add_counters(self, p: Perm, n: int) -> None:
         p.counters += n
@@ -1310,6 +1381,14 @@ class VirtualPlayer:
             elif re.match(r"Return that card to the battlefield under its owner's control at the beginning of the next end step\.?$", raw) \
                     and out and re.search(r"\bexile (?:up to one )?(?:other )?target (?:creature|nonland permanent) you control\.?$", out[-1], re.I):
                 out[-1] = out[-1].rstrip(".") + " ||then|| " + raw      # one effect: it goes, and comes back at the next end step
+            elif re.match(r"If X is (?:\w+) or more, ", raw) and out and re.search(r", where X is [^.|]*\.?$", out[-1]):
+                out[-1] = out[-1].rstrip(".") + " ||then|| " + raw      # The Destruction of Praxis: the X of the sentence before decides this one
+            elif re.match(r"Put (?:that card|those (?:\w+ )?cards|them) (?:onto the battlefield|into your hand)\b", raw) \
+                    and out and re.search(r"\breveal cards from the top of your library until you reveal [^.|]*\.?$", out[-1], re.I):
+                out[-1] = out[-1].rstrip(".") + " ||then|| " + raw      # "Reveal ... until you reveal N land cards. Put those ... and the rest on the bottom": one effect
+            elif re.match(r"Sacrifice (?:those lands|that land|them|it) at the beginning of (?:your|the) next end step\.?$", raw) \
+                    and out and re.search(r"\breveal cards from the top of your library until you reveal [^|]* \|\|then\|\| ", out[-1], re.I):
+                out[-1] = out[-1].rstrip(".") + " ||then|| " + raw      # (Will Riker: the lands it found go at the end step)
             elif re.match(r"(?:Until the end of your next turn, you may play (?:those cards|that card|them)|You may play (?:that card|those cards|them) this turn)\.?$", raw) \
                     and out and re.search(r"\bexile (?:the top|cards from the top)\b", out[-1], re.I):
                 out[-1] = out[-1].rstrip(".") + " ||then|| " + raw     # impulse draw: the exile and what may be played from it are one effect
@@ -1484,6 +1563,55 @@ class VirtualPlayer:
             n = 1 if m.group(1) == "the top card" else num(m.group(2)) if m.group(2) else 1
             return self.impulse_exile(n, until_nonland=bool(m.group(3)), until="next" if m.group(4).startswith("until") else "eot",
                                       by=src.name if src is not None else "")
+        # ── "Reveal cards from the top of your library until you reveal N <kind> card(s). Put those ... and the rest on the bottom in a random order." ──
+        # 2026-11-13 retro: U.S.S. Voyager, Lone Wanderer entered and the table said "By hand"; the host did it with twelve manual moves. The set's
+        # cards with this wording: U.S.S. Voyager (two lands, onto the battlefield tapped), Will Riker, First in the Field (two lands, onto the
+        # battlefield, sacrificed at the end step), Janice Rand, Essential Aide (a land, tapped) and Pavel Chekov, First Posting (a card of a chosen
+        # kind, into the hand). Every revealed card is named in the public log (a reveal is public). Lands that arrive this way enter like any
+        # other land (their own enters text, then Landfall: land_entered). The rest go to the bottom in an order nobody at the table can know
+        # (this seat's own generator, the same one that shuffles its library). Onto the battlefield is done for LAND cards only: another kind of
+        # permanent has enters triggers this sentence has no way to ask about, so that stays by hand rather than half-done.
+        m = re.fullmatch(r"(?:then )?reveal cards from the top of your library until you reveal (a|an|one|two|three|four|five) ((?:non)?[a-z]+) cards?"
+                         r" \|\|then\|\| put (?:that card|those (?:[a-z]+ )?cards|them) (onto the battlefield( tapped)?|into your hand)"
+                         r" and (?:put )?(?:the rest|all other cards revealed this way) on the bottom of your library in a random order"
+                         r"( \|\|then\|\| sacrifice (?:those lands|that land|them|it) at the beginning of (?:your|the) next end step)?", low)
+        if m and (m.group(3) == "into your hand" or m.group(2) == "land"):
+            want, kind, to_field = num(m.group(1)), m.group(2), m.group(3) != "into your hand"
+            shown, found = [], []
+            while self.library and len(found) < want:
+                c = self.library.pop()                      # (the end of the list is the top)
+                shown.append(c)
+                if card_fits(c, kind):
+                    found.append(c)
+            rest = [c for c in shown if not any(c is f for f in found)]
+            self.rng.shuffle(rest)
+            for c in rest:
+                self.library.insert(0, c)
+            what = f"{kind} card" + ("" if want == 1 else "s")
+            said = [(f"{who}: I reveal cards from the top of my library until I reveal {m.group(1) if want > 1 else ('an' if kind[0] in 'aeiou' else 'a')} {what}: "
+                     + ", ".join(c["name"] for c in shown) + ".") if shown else f"{who}: my library is empty: nothing to reveal."]
+            if shown and len(found) < want:
+                said.append(f"That was my whole library: {len(found)} {kind} card{'s' if len(found) != 1 else ''}, not {want}.")
+            entered = []
+            for c in found:
+                if to_field:
+                    q = Perm(c, sick=False, tapped=bool(m.group(4)))
+                    q.sac_at_end = bool(m.group(5))
+                    self.battlefield.append(q)
+                    entered.append(q)
+                else:
+                    self.hand.append(c)
+            if found:
+                names = ", ".join(c["name"] for c in found)
+                said.append(f"I put {names} " + (f"onto the battlefield{' tapped' if m.group(4) else ''}" if to_field else "into my hand")
+                            + (f" and the other {len(rest)} on the bottom of my library in a random order." if rest else ".")
+                            + (f" I sacrifice {'them' if len(found) > 1 else 'it'} at the beginning of my next end step." if m.group(5) and to_field else ""))
+            elif rest:
+                said.append(f"They all go on the bottom of my library in a random order ({len(rest)}).")
+            for q in entered:                               # each land's own enters text ("enters tapped", a Planet's life), then Landfall, one land at a time
+                if q in self.battlefield:
+                    said += self.land_entered(q)
+            return said
         m = re.fullmatch(r"put (a|one|two|three) quest counters? on (?:this \w+|it)", low)
         if m and src is not None:
             src.quest += num(m.group(1))
@@ -1565,6 +1693,23 @@ class VirtualPlayer:
             self.graveyard.remove(c_)
             self.hand.append(c_)
             return [f"{c_['name']} returns to my hand."] + self.left_graveyard()
+        # ── Borg Cube, Assimilation Assessor: "assimilate a creature card exiled with it" ──
+        # Only a card that is a CREATURE CARD (its printed types: a Spacecraft that was a creature on the battlefield because of its charge counters
+        # is an artifact card in exile), that this permanent exiled, and that is still in its owner's exile. With several, a driven seat chooses.
+        # What it couldn't do is remembered for "If you can't, …".
+        if low == "assimilate a creature card exiled with it" and src is not None:
+            cands = self.assimilable(src)
+            self.__dict__["last_cant"] = not cands
+            if not cands:
+                n_ = len(src.exiled_with)
+                return [f"{who}: no creature card is exiled with it" + (f" ({n_} card{'s' if n_ != 1 else ''} exiled with it, none a creature card)." if n_ else ".")]
+            if probing():
+                return ["(assimilate)"]
+            if len(cands) > 1 and self.__dict__.get("asks"):
+                return self.ask_option(src, t, [{"label": f"{c_['name']} ({o_.name}'s)", "do": {"kind": "call", "method": "assimilate_exiled", "args": [src.id, i_]}}
+                                                for i_, (o_, c_) in enumerate(cands)], label="the creature card to assimilate")
+            best = max(range(len(cands)), key=lambda i_: (float(cands[i_][1].get("manaValue") or 0), cands[i_][1]["name"]))
+            return self.assimilate_exiled(src.id, best)
         m = re.fullmatch(r"if you can't, (.+)", t, re.I)
         if m:
             if not effect_known(m.group(1), src.name if src is not None else "Something"):
@@ -1572,7 +1717,8 @@ class VirtualPlayer:
             if not self.__dict__.get("last_cant"):
                 return []
             self.__dict__["last_cant"] = False
-            return self._one_effect0(src, m.group(1), aim)
+            inner = m.group(1)[0].upper() + m.group(1)[1:]
+            return self._one_effect0(src, inner, aim)
         m = re.fullmatch(r"(?:.+?) deals (\d+) damage to each opponent and each creature your opponents control", low) \
             or re.fullmatch(r"(?:.+?) deals (\d+) damage to each creature and each player", low)
         if m:                                              # Khan, Despot by Design; Encounter the Unknown's second mode
@@ -1598,21 +1744,41 @@ class VirtualPlayer:
                 self.draw()
                 return ["I control a permanent with a counter on it: I draw a card."]
             return ["I control no permanent with a counter on it: no card."]
-        m = re.fullmatch(r"creatures you control get ([+-]\d+)/([+-]\d+) until end of turn", low)
-        if m:
-            said_ = [f"My creatures get {m.group(1)}/{m.group(2)} until end of turn."]
-            for q in list(self.creatures()):
-                q.temp = (q.temp[0] + int(m.group(1)), q.temp[1] + int(m.group(2)))
-                said_ += self.check_dead(q)
-            return said_
-        m = re.fullmatch(r"all other creatures get ([+-]\d+)/([+-]\d+) until end of turn", low)
-        if m:                                              # mine here; every other seat's through the table (it runs the same sentence there)
-            said_ = [f"All other creatures get {m.group(1)}/{m.group(2)} until end of turn."]
-            for q in list(self.creatures()):
-                if q is not src:
-                    q.temp = (q.temp[0] + int(m.group(1)), q.temp[1] + int(m.group(2)))
-                    said_ += self.check_dead(q)
-            self.out(kind="others-run", sentence=f"creatures you control get {m.group(1)}/{m.group(2)} until end of turn", source=who)
+        # ── "<All creatures | All other creatures | Creatures you control> get ±N/±N until end of turn", N a number or X ──
+        # 2026-11-13 retro: The Destruction of Praxis ("All creatures get -X/-X until end of turn, where X is the number of differently named lands you
+        # control. If X is 6 or more, create two 2/1 red Klingon Warrior creature tokens with haste.") was "By hand" for both halves, and an
+        # Oberth-Class Starship that was an artifact creature (6 charge) stayed on the table at 0 toughness. One rule for the shape, not one card:
+        #   scope  all creatures (every board) | all other creatures (every board, not the source) | creatures you control
+        #   N      a number, or X with ", where X is the number of differently named lands you control" (counted as it resolves, on the caster's board)
+        #   then   "If X is N or more, <a sentence the table can carry out>" (a rider the table could not carry out leaves the WHOLE thing by hand)
+        # The change lives in Perm.temp (it ends with the turn, clear_until_eot). Mine here; the other boards through the table, which runs
+        # "creatures you control get ±n/±n until end of turn" on each (the number already worked out: X is the caster's, not theirs). Whatever is a
+        # creature right now counts: a Spacecraft at its "artifact creature at N+" charge, a face-down card. Toughness 0 or less dies (state-based),
+        # checked after everything has its change, and again until nothing more dies (a lord's death can take the creatures it was holding up).
+        # Tokens the rider makes arrive after the change: they do not get it. An X the sentence does not define (Toxic Deluge: a life payment;
+        # Korok: opponents attacked) is not claimed.
+        m = re.fullmatch(r"(all creatures|all other creatures|creatures you control) get ([+-])(x|\d+)/([+-])(x|\d+) until end of turn"
+                         r"(, where x is the number of differently named lands you control)?"
+                         r"(?: \|\|then\|\| if x is (\w+) or more, (.+))?", t, re.I)
+        if m and not (("x" in (m.group(3).lower(), m.group(5).lower()) or m.group(7)) and not m.group(6)):
+            scope, rider = m.group(1).lower(), m.group(8)
+            if rider and not effect_known(rider, src.name if src is not None else "Something"):
+                return None
+            x = differently_named_lands(self.battlefield) if m.group(6) else 0
+            val = lambda sign, v: (-1 if sign == "-" else 1) * (x if v.lower() == "x" else int(v))
+            dp, dt = val(m.group(2), m.group(3)), val(m.group(4), m.group(5))
+            words = f"{m.group(2)}{abs(dp)}/{m.group(4)}{abs(dt)}"
+            mine = [q for q in self.battlefield if (q.is_("Creature") or q.face_down) and not (scope == "all other creatures" and q is src)]
+            for q in mine:
+                q.temp = (q.temp[0] + dp, q.temp[1] + dt)
+            said_ = [{"all creatures": "All creatures get", "all other creatures": "All other creatures get", "creatures you control": "My creatures get"}[scope]
+                     + f" {words} until end of turn" + (f" (X is {x}: I control {x} differently named land{'s' if x != 1 else ''})." if m.group(6) else ".")]
+            said_ += self.sweep_dead()
+            if scope != "creatures you control" and (dp or dt):
+                self.out(kind="others-run", sentence=f"creatures you control get {words} until end of turn", source=who)
+            if rider:
+                need = int(m.group(7)) if m.group(7).isdigit() else num(m.group(7))
+                said_ += (self._one_effect0(src, rider, aim) or []) if x >= need else [f"X is {x}, not {need} or more: {rider[0].lower() + rider[1:].rstrip('.')} does not happen."]
             return said_
         m = re.fullmatch(r"each player sacrifices an? ((?:nontoken )?[\w ]+?) of their choice", low)
         if m:
@@ -2023,6 +2189,21 @@ class VirtualPlayer:
             owner.move(f"#{p.id}", "exile")
             self.note_other(owner, f"{who} exiles your {name}.")
             return [f"{name} is exiled."]
+        if kind == "exile-with":                           # Borg Cube: exiled WITH the source, face up in its owner's exile, for a later "assimilate"
+            card, token, own = p.orig_card or p.card, p.token, p.owner or owner
+            owner.move(f"#{p.id}", "exile")
+            self.note_other(owner, f"{who} exiles your {name}.")
+            if token:
+                return [f"{name} is exiled (a token: it is gone for good)."]
+            if own.commander is not None and card["name"] == own.commander["name"]:
+                return [f"{name} is exiled; its owner's commander goes to the command zone instead."]
+            own.on_their_cards[:] = [x for x in own.on_their_cards if x != f"{card['name']} (exiled)"]
+            own.exile_zone().append(card)                  # face up, in its owner's exile: everyone may see where it is
+            if src is not None and src in self.battlefield:
+                src.exiled_with = (*src.exiled_with, (own, card))
+                kind_ = "a creature card" if "Creature" in (card.get("types") or []) else "not a creature card, so it can never be assimilated"
+                return [f"{name} is exiled with {who} ({kind_})."]
+            return [f"{name} is exiled ({who} has left the battlefield: it is exiled with nothing)."]
         if kind == "fight":                                # two targets, each hits the other
             return [f"{owner.shown(p)} has nothing to fight."]
         if kind == "bounce":
@@ -2264,8 +2445,10 @@ class VirtualPlayer:
     @staticmethod
     def hand_card_view(c: dict) -> dict:
         t = c.get("types") or []
+        # (type and text too: the seat that was shown this hand may read each card whole before it chooses. This view goes only into that
+        # seat's own pending question.)
         return {"name": c["name"], "cost": c.get("manaCost") or "", "mv": float(c.get("manaValue") or 0), "types": list(t), "land": "Land" in t,
-                "power": c.get("power"), "toughness": c.get("toughness")}
+                "power": c.get("power"), "toughness": c.get("toughness"), "type": c.get("type") or " ".join(t), "text": c.get("text") or ""}
 
     @staticmethod
     def hand_card_words(v: dict) -> str:
@@ -2665,6 +2848,8 @@ class VirtualPlayer:
         own = c.get("text") or ""
         if re.search(r"This spell costs \{X\} less to cast, where X is the number of differently named lands you control", own):
             n += differently_named_lands(self.battlefield)                                  # Strange new worlds (Cloak and Phaser)
+        if re.search(r"(?m)^Affinity for artifact creatures\b", own):                       # Borg Cube: {1} less for each artifact creature I control
+            n += sum(1 for q in self.battlefield if not q.face_down and q.is_("Artifact") and q.is_("Creature"))
         g = re.search(r"This spell costs \{(\d+)\} less to cast for each noncreature, nonland card in your graveyard", own)
         if g:                                                                              # Ravenous Cosmozoan
             n += int(g.group(1)) * sum(1 for x in self.graveyard if "Creature" not in (x.get("types") or []) and "Land" not in (x.get("types") or []))
@@ -2689,8 +2874,8 @@ class VirtualPlayer:
                 continue
             seen.add(c["name"])
             if is_hostile_aura(c):
-                if not self.public_board:
-                    continue      # nothing of theirs announced to put it on
+                if not self.public_board and not self.hostile_targets():
+                    continue      # nothing of theirs to put it on
             elif "Aura" in (c.get("subtypes") or []) and not self.aura_targets(c):
                 continue
             if guard_wipes and is_board_wipe(c) and self.creatures():
@@ -2712,7 +2897,7 @@ class VirtualPlayer:
                 continue
             seen.add(c["name"])
             if is_hostile_aura(c):
-                if not self.public_board:
+                if not self.public_board and not self.hostile_targets():
                     continue
             elif "Aura" in (c.get("subtypes") or []) and not self.aura_targets(c):
                 continue
@@ -2902,8 +3087,11 @@ class VirtualPlayer:
         def choose_modes(card, spec):
             n, all_modes = spec
             if not modes:
-                raise IllegalAction(f"{card['name']} is modal — choose {n} with --mode (1-based): "
-                                    + " | ".join(f"{i + 1}. {m}" for i, m in enumerate(all_modes)))
+                # 2026-11-13 retro (C2): this named only tablectl's --mode; an agent or a page sends JSON, where the field is "modes".
+                # (fusion_brain.py reads the tail "choose N with --mode (1-based): 1. … | 2. …" with a regex: that part keeps its shape.)
+                eg = ", ".join(str(i + 1) for i in range(n))
+                raise IllegalAction(f"{card['name']} is modal — the JSON field is \"modes\" (a list of mode numbers, e.g. \"modes\": [{eg}]); "
+                                    f"choose {n} with --mode (1-based): " + " | ".join(f"{i + 1}. {m}" for i, m in enumerate(all_modes)))
             picked = [all_modes[int(m) - 1] for m in modes]
             if len(picked) != n:
                 raise IllegalAction(f"{card['name']} needs exactly {n} modes")
@@ -3260,7 +3448,7 @@ def is_hostile_aura(c) -> bool:
 def is_board_wipe(c) -> bool:
     t = (c.get("text") or "").lower()
     return bool(re.search(r"(destroy|exile) all (creatures|nonland permanents|permanents)|"
-                          r"destroy all creatures with|deals? \d+ damage to each creature|each player sacrifices", t))
+                          r"destroy all creatures with|deals? \d+ damage to each creature|each player sacrifices|all creatures get -", t))
 
 
 def modal_after(text: str, opener: str) -> tuple[int, list[str]] | None:
@@ -3901,20 +4089,28 @@ def _manual(cls):
             self.release_exiled(x)                         # what it held in exile "until it leaves the battlefield" comes back (Malfunctioning Holodeck)
             if x.token:
                 continue
+            own, xc = (x.owner or self), (x.orig_card or x.card)   # (an assimilated creature: its owner's zones, and the card as printed)
+            if own is not self and not probing():
+                {"hand": own.hand, "exile": own.exile_zone()}.get(to, own.graveyard).append(xc) if not (to == "library" and x is p) else \
+                    (own.library.insert(0, xc) if where == "bottom" else own.library.append(xc))
+                if to == "library" and where == "shuffle":
+                    own.rng.shuffle(own.library)
+                self.note_other(own, f"{xc['name']} (your card) left the battlefield: it is in your {to}.")
+                continue
             if self.commander is not None and x.card["name"] == self.commander["name"]:
                 self.cmdr_in_zone = True
             elif to == "hand" and x is p:
-                self.hand.append(x.card)
+                self.hand.append(xc)
             elif to == "library" and x is p:
                 if where == "bottom":
-                    self.library.insert(0, x.card)
+                    self.library.insert(0, xc)
                 else:
-                    self.library.append(x.card)
+                    self.library.append(xc)
                 tucked = True
             elif to == "exile":
                 self.on_their_cards.append(f"{x.name} (exiled)")
             else:
-                self.graveyard.append(x.card)
+                self.graveyard.append(xc)
         if to == "library" and where == "shuffle" and tucked:
             self.rng.shuffle(self.library)
         where_txt = {"graveyard": "is destroyed", "exile": "is exiled", "hand": "returns to my hand",
@@ -4005,12 +4201,40 @@ def _manual(cls):
 
     # ── free manual control (T10, "think of Cockatrice"): a PERSON moves their own cards between zones, taps them, puts counters and makes
     # tokens, and the table logs every one in public words. A card coming out of a hidden zone into a hidden one is "a card".
+    def host_temp(self, ref, power=0, toughness=0) -> list[str]:
+        """The HOST corrects an "until end of turn" change on one of this seat's creatures: power / toughness are what to ADD to it (+2/+2
+        takes a mistaken -2/-2 off again; -2/-2 puts it on the creature that was meant). It lives where the engine keeps every such change
+        (Perm.temp), so it ends with the turn like the effect it corrects. State-based actions follow at once: 0 toughness dies, and so does a
+        creature whose damage is now lethal. 2026-11-13 retro (C4): a player aimed "-2/-2 until end of turn" at the wrong creature, both
+        players agreed to move it, and the host had no control for it. Refused before anything changes."""
+        p = self.perm(ref)
+        if not p.is_("Creature"):
+            raise IllegalAction(f"{self.shown(p)} is not a creature: an until-end-of-turn power/toughness correction is for a creature")
+        try:
+            dp, dt = int(power or 0), int(toughness or 0)
+        except (TypeError, ValueError):
+            raise IllegalAction("temp: power and toughness are whole numbers to add (they may be negative)")
+        if not dp and not dt:
+            raise IllegalAction("temp: say what to add, e.g. power 2, toughness 2 (or -2, -2)")
+        if abs(dp) > 20 or abs(dt) > 20:
+            raise IllegalAction("temp: at most 20 either way")
+        name = self.shown(p)
+        p.temp = (p.temp[0] + dp, p.temp[1] + dt)
+        pw, tg = self.stats(p)
+        return [f"Host: {name} gets {dp:+d}/{dt:+d} until end of turn (a correction): it is {pw}/{tg} now."] + self.check_dead(p)
+
     def manual(self, op, ref="", to="", kind="+1/+1", n=1, name="", power=1, toughness=1, tapped=False):
         """op: move (ref = "#id" for a permanent, or "<zone>:<card name>" for hand / graveyard / exile, or "library-top"; to = a zone) |
         counter (ref "#id", kind, n = +/-) | token (name, power, toughness, n, tapped). Tap/untap are the `tap`/`untap` actions. Every refusal
         happens before anything moves."""
         hidden = {"hand", "library-top", "library-bottom"}
         mine = lambda t_: "my " + {"library-top": "library (on top)", "library-bottom": "library (on the bottom)"}.get(t_, t_)
+        if op == "land-token":                             # a land token by hand (New Planet): name, and its ability in `to` (default: any colour)
+            nm = " ".join(str(name or "").split())[:40] or "New Planet"
+            ab = " ".join(str(to or "").split())[:120] or "{T}: Add one mana of any color."
+            if not re.match(r"\{T\}: Add ", ab):
+                raise IllegalAction("a land token's ability is a mana ability: '{T}: Add …'")
+            return ["Manual: " + x for x in self.land_token(nm, ab, tapped=bool(tapped))]
         if op == "token":
             n = max(1, min(int(n or 1), 20))
             nm = " ".join(str(name or "").split())[:40] or "Creature"
@@ -4259,7 +4483,7 @@ def _manual(cls):
         n = len(self.sources())
         return f"you have {n} untapped mana source{'s' if n != 1 else ''}"
 
-    def ability_why_not(self, p, index: int, sorcery_ok=None) -> str | None:
+    def ability_why_not(self, p, index: int, sorcery_ok=None, runnable=True) -> str | None:
         """T18: why activated ability `index` of permanent p can't be activated right now, or None. The same checks `activate` makes, in the
         same order, before anything a player has to choose (a mode, a target, which permanent to sacrifice): what the text says about when
         (sorcery, once each turn), the {T} of a tapped or summoning-sick source, a sacrifice or tap-others cost with nothing to pay it, the
@@ -4317,6 +4541,8 @@ def _manual(cls):
                     q.tapped = t_
             if not ok:
                 return f"needs {mana}{f' (less {discount})' if discount else ''}: {words}"
+        if not runnable:                                   # (asked for the COST only: could it be paid and done by hand?)
+            return None
         if modes:
             if not any(self.can_run(m_, p.name) for m_ in modes):
                 return "the table can't run this ability yet"
@@ -4555,7 +4781,7 @@ def _manual(cls):
         return back + self.impulse_expire(my_turn_ended=ended is not None and self.name in ended)
 
     def activate(self, ref, x=0, index=None, target=None, pick=None, put=None, bottom=None, mode=None, sac_ref=None, target_owner=None,
-                 tap_refs=None, sorcery_ok=None):
+                 tap_refs=None, sorcery_ok=None, by_hand=False):
         """Pay and run one activated ability of a permanent. Everything is checked BEFORE anything is paid: an ability the table
         cannot run yet is refused whole, never half-done. `target` is a Perm (the caller resolved it, any seat's).
         `mode`: for a modal ability ("Choose one —"), which of its modes (0-based, in the card's order).
@@ -4663,7 +4889,10 @@ def _manual(cls):
         extra = int(x) * mana.count("{X}") - discount
         run = None
         m = re.search(r"\bdraw (a|an|one|two|three) cards?\b(?! for each)", e)
-        if m and not re.search(r"\bdraws? (a|an|one|two|three) cards?\b.*\bthen\b", e):
+        # 2026-11-13: this shortcut used to take ANY effect with "draw N cards" in it and do only the draw: Gaseous Anomaly ("Draw two cards.
+        # Create a tapped Planet land token named New Planet …") drew two and never made the land, with nothing said about it. It now takes an
+        # effect that is only the draw; an effect with more to it goes to the shared sentence engine below when that knows all of it.
+        if m and not re.search(r"\bdraws? (a|an|one|two|three) cards?\b.*\bthen\b", e) and (len(self._sentences(self._plain(eff))) == 1 or not self.can_run(eff, src.name)):
             n = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3}[m.group(1)]
             run = lambda: (self.draw(n), [f"{src.name}: I draw {n} card{'s' if n != 1 else ''}."])[1]
         elif re.match(r"(scry|surveil) (\d)", e):
@@ -4748,6 +4977,15 @@ def _manual(cls):
                 for x_ in left:
                     self.todo.append(f"{src.name}: {x_}")
                 return [f"{src.name}: {x_}" for x_ in done]
+        if run is None and by_hand and not modes:
+            # A person at the table is not left stuck by a card the table cannot carry out: the cost is paid as for any ability (mana, {T}, the
+            # sacrifice), every sentence the table DOES know is done, and the rest is said aloud and put on the to-do list to be done by hand.
+            # Only when asked for (by_hand): a bot never pays for an effect nobody will carry out.
+            def run():
+                done, left = self.run_effects(src, eff, aim=[{"perm": target, "owner": target_owner or self}] if target is not None else [])
+                for x_ in left:
+                    self.todo.append(f"{src.name}: {x_}")
+                return [f"{src.name}: {x_}" for x_ in done] + [f"{src.name}: by hand: {x_}" for x_ in left]
         if run is None:
             raise IllegalAction(f"the table can't run this ability yet ({eff[:80]}): nothing was paid. "
                                 f"Use `say` to tell the table what you do, or ask the host")
@@ -4782,7 +5020,7 @@ def _manual(cls):
         return said + run()
 
     for f in (mana_words, ability_why_not, zone_abilities, activate_zone, hand_card, hand_or_exile, top_sources, top_cast_card, top_castable, perm, ability_list, abilities, clear_until_eot, station, equip, landcycle, own_death, creature_died, tapped_triggers, begin_combat, end_step, activate, begin_turn, upkeep, manual_land, manual_cast, manual_attack, attack_refusal, attack_report, attack_triggers,
-              combat_damage, move, release_exiled, search_library, make_token, make_tokens, discard, mill, peek, topdeck, take_from_top, manual, bottom,
+              combat_damage, move, release_exiled, search_library, make_token, make_tokens, discard, mill, peek, topdeck, take_from_top, manual, host_temp, bottom,
               shuffle_library, mulligan, put, blink, cast_face_down, manifest, turn_up):
         setattr(cls, f.__name__, f)
     return cls

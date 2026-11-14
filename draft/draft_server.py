@@ -778,6 +778,12 @@ def make_handler(dr: Draft):
                 if now - dr.chat_at.get(seat, 0) < 1.5:
                     return self._json(429, {"error": "slow down a little"})
                 dr.chat_at[seat] = now
+                # A typed line is held to the same rule as an AI seat's (2026-11-13: it used to skip the check). The reply says
+                # why and never repeats the name back: the name is the thing being kept off the feed, the log and the stream.
+                if dr.banter.names_card(str(b.get("text", "")), strict=NAMES[seat] in ("Claude", "Fusion")):
+                    return self._json(400, {"error": "Not sent: that line names a card in this set. Picks are hidden while the draft "
+                                                     "is on (everyone at the table and on the stream reads this feed), so say it "
+                                                     "without the card's name."})
                 e = dr.banter.add(NAMES[seat], str(b.get("text", "")), kind="chat")
                 return self._json(200 if e else 400, {"ok": True} if e else {"error": "say something first"})
             if path in ("/api/deck", "/api/deck/reset"):

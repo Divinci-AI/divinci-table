@@ -51,6 +51,15 @@ select{padding:7px;border-radius:8px;background:#071820;color:var(--ink);border:
 #fanact{min-height:46px;margin-top:54px;position:relative;z-index:400;background:linear-gradient(#0d1d25f2,#0d1d25f2);padding-top:6px;border-radius:8px}#fanact .nm{font-weight:700;color:#f4dc9b}#fanact .x{font-size:13px;color:#cfdcdc;margin:3px 0 6px;max-width:720px}
 
 .paywith{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0 2px}.paywith button{min-height:44px;padding:6px 14px}
+/* 2026-11-13 retro (B1): the cast panel always has a way out; (B3) a tapped source is shown, greyed, where the player chooses what pays */
+#fanact .fanx{float:right;margin:0 0 6px 10px;min-height:40px;padding:6px 12px;font-weight:700}
+.payg.tapped{opacity:.62}.payg.tapped .payn b{text-decoration:line-through;text-decoration-color:#ffb38f}.payg.tapped .payt{color:#ffb38f;font-size:13px;white-space:nowrap}
+.payg.tapped button{width:auto;font-size:13px;padding:4px 10px;min-height:40px}
+#handtoast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--hud-h,50px) + 14px);z-index:9700;display:none;max-width:min(560px,94vw);background:#10242cf7;color:#f1ecd8;
+  border:1px solid #d9b46a;border-radius:12px;padding:10px 14px;box-shadow:0 10px 30px #000c;font-weight:600}
+#handtoast button{margin-left:10px;min-height:40px}
+/* (B2) a choice or a surveil the table is waiting on is never painted under the cast panel or the fan */
+#choicepanel,#effpanel,#mullpanel,#heldbox,#alert{position:relative;z-index:360}
 .paypiles{margin:4px 0 8px;padding:8px;border-radius:10px;background:#ffffff08;box-shadow:inset 0 0 0 1px var(--line)}
 .payg{display:flex;align-items:center;gap:8px;min-height:48px}.payg .payn{flex:1;min-width:0}.payg button{width:48px;min-height:44px;font-size:22px;padding:0;margin:0}.payk{min-width:1.6em;text-align:center;font:800 18px ui-monospace,Menlo,monospace}
 .payc{display:inline-flex;gap:2px;min-width:30px}.pmp{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font:800 12px system-ui;border:1px solid #0008}
@@ -125,12 +134,42 @@ button.big{min-height:52px;font-size:17px}
   #fan{height:calc(var(--fw,170px) * 1.05)!important;margin-top:0!important;pointer-events:none}
   #fan .fc{pointer-events:auto;bottom:calc(var(--fw,170px) * -0.38)}
   #fanact{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--hud-h,50px) + var(--fw,170px) * 1.1);width:min(760px,92vw);z-index:350;pointer-events:auto;
-    box-shadow:0 8px 24px #000b;border:1px solid #d9b46a55;padding:8px 12px!important}
+    box-shadow:0 8px 24px #000b;border:1px solid #d9b46a55;padding:8px 12px!important;
+    max-height:calc(100vh - var(--hud-h,50px) - var(--fw,170px) * 1.1 - var(--tb-h,52px) - var(--ca-h,0px) - 16px);overflow:auto}
   #matpanel{margin-bottom:calc(var(--fw,170px) * 1.05)}
 }
 /* drag a card from the hand onto the battlefield (as in Arena) */
 .fghost{position:fixed;z-index:9600;width:150px;aspect-ratio:5/7;pointer-events:none;border-radius:9px;overflow:hidden;box-shadow:0 14px 34px #000c;transform:translate(-50%,-60%) rotate(-3deg) scale(1.05)}
 .fghost img{width:100%;height:100%;display:block}
+/* the battle line (2026-11-13): declared attackers and blockers step out of their rows to the line; a blocker stands opposite its attacker */
+.canvas .mc.bl{z-index:410}
+.canvas .mc.bl-atk{outline:2px solid #ff6b4a;outline-offset:2px}
+.canvas .mc.bl-unb{outline:3px solid #ff3b1f;outline-offset:2px;box-shadow:0 0 18px #ff3b1fcc}
+.canvas .mc.bl-blkd{outline:2px solid #d9b46a;outline-offset:2px}
+.canvas .mc.bl-blk{outline:2px solid #6fb7ff;outline-offset:2px}
+.canvas .blb{position:absolute;z-index:420;transform:translateX(-50%);pointer-events:none;white-space:nowrap;font:800 10.5px system-ui;padding:1px 6px;border-radius:7px;color:#fff;background:#8a3a1e;box-shadow:0 1px 4px #000a}
+.canvas .blb.unb{background:#d32a12}.canvas .blb.blk{background:#2a5d92}.canvas .blb.blkd{background:#7a5a1a}
+@keyframes blmove{from{translate:var(--bx,0px) var(--by,0px)}to{translate:0px 0px}}
+.canvas .mc.bl-move{animation:blmove .28s ease-out}
+@media (prefers-reduced-motion:reduce){.canvas .mc.bl-move{animation:none}}
+#blstrip:empty{display:none}
+#blstrip{margin:0 0 10px;padding:8px;border-radius:10px;border:1px dashed #d9b46a66;background:#10242d}
+#blstrip .blh{font:700 11px system-ui;letter-spacing:.1em;text-transform:uppercase;color:#9fb0b0;margin-bottom:6px}
+#blstrip .bllanes{display:flex;flex-wrap:wrap;gap:8px}
+#blstrip .bllane{flex:1 1 150px;min-width:0;max-width:100%;display:flex;flex-direction:column;gap:4px;padding:6px;border-radius:8px;background:#0b1a21;border:1px solid #ff6b4a55}
+#blstrip .bllane.unb{border-color:#ff3b1f;box-shadow:0 0 10px #ff3b1f77}
+#blstrip .blc{padding:5px 7px;border-radius:7px;font-size:13px;line-height:1.25;overflow-wrap:anywhere}
+#blstrip .blc small{display:block;opacity:.8;font-size:11px}
+#blstrip .blc.atk{background:#5a2416;color:#ffe4d9}#blstrip .blc.blk{background:#1d3f63;color:#dcebff;margin-left:14px}
+#blstrip .blnote{font-size:12px;color:#ffb38f;margin-left:14px}
+/* equip by drag or by tap (2026-11-13): creatures the Equipment may go onto light up; the one under the pointer lights up solid */
+.mc.eqdrop,#field .card.eqdrop{outline:3px dashed #6fd07a;outline-offset:2px;box-shadow:0 0 16px #6fd07a99;cursor:copy}
+.mc.eqover,#field .card.eqover{outline:4px solid #9ff0a8;box-shadow:0 0 22px #9ff0a8}
+#field .card.eqover{background:#163c32}
+.eqgrip{display:inline-block;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:grab;padding:9px 12px;margin:4px 4px 2px 0;min-height:22px;border:1px dashed #d9b46a;border-radius:9px;font:600 13px system-ui;color:#f4dc9b;background:#2a2212}
+.eqgrip:focus-visible{outline:2px solid #f4dc9b}
+.eqghost{position:fixed;z-index:9600;pointer-events:none;transform:translate(-50%,-135%);padding:7px 11px;border-radius:9px;background:#7a5a1a;color:#fff;font:700 13px system-ui;box-shadow:0 8px 20px #000c;white-space:nowrap}
+body.eqdragging{cursor:grabbing}
 body.fdragging .canvas{outline:3px dashed #3fd0c9;outline-offset:-6px}
 body.fdragging.fdrop .canvas{outline-color:#6fd07a;background-color:#163c32}
 /* the canvas: full width on a wide screen; cards placed by zone, then wherever you drag them (saved on this device) */
@@ -163,6 +202,9 @@ body.u-on .tbs [data-s="next"]{display:none}
 @media (max-width:700px){ .u-bar{left:8px!important;right:8px;transform:none!important;max-width:none!important} .u-bar{padding:6px 10px!important;gap:6px 8px!important} .u-bar .u-msg{flex-basis:100%} .u-bar .u-msg:empty{display:none} }
 </style>
 <script src="/art/index.js"></script><script src="/assets/art.js"></script>
+<script src="/assets/mana.js"></script>
+<script src="/assets/equip.js"></script>
+<script src="/assets/battleline.js"></script>
 <script src="/assets/seat.js" defer></script>
 <script src="/assets/urgent.js" defer></script>
 <script src="/assets/gameover.js" defer></script>
@@ -203,7 +245,7 @@ body.u-on .tbs [data-s="next"]{display:none}
   <div id="paypanel"></div>
   <div class="panel" id="fanpanel"><h2>Hand</h2><div id="fan"></div><div id="fanact"></div></div>
   <div class="panel" id="handpanel"><h2>Hand</h2><div id="hand"></div></div>
-  <div class="panel" id="fieldpanel"><h2>Battlefield</h2><div id="field"></div>
+  <div class="panel" id="fieldpanel"><h2>Battlefield</h2><div id="blstrip"></div><div id="field"></div>
     <div id="atk" style="margin-top:8px"></div></div>
   <div class="panel" id="oppspanel"><h2>The other players</h2><div id="opps"><div class="sub">Nobody else yet.</div></div></div>
   <div class="panel"><h2>What happened</h2><div id="log"></div></div>
@@ -258,9 +300,15 @@ function endWarning() {
 }
 window.__endCheck = endWarning;
 let endArmed = 0;
+// 2026-11-13 retro (B4): a tab left open from an earlier table. Its key is refused here; say so (seat.js puts up the banner) and stop asking with it.
+function seatIsStale() { if (!(window.TableSeat && TableSeat.dead && TableSeat.dead())) return false;
+  $("who").textContent = TableSeat.staleText; if (S) { S = null; draw(); } return true; }
+addEventListener("seat-stale", seatIsStale);
 async function load() {
+  if (seatIsStale()) return;
   if (!me()) return;
   const { ok, code, d } = await call("GET", "/api/brain/state?seat=" + encodeURIComponent(me()));
+  if (!ok && code === 403 && window.TableSeat && TableSeat.verify && (await TableSeat.verify()) === false) return seatIsStale();
   if (!ok) { loadFails = code === 403 ? loadFails + 1 : 0;
     if (S && code === 403 && loadFails < 3) { $("err").textContent = "the table didn't accept this page's seat key just now; retrying (if it keeps happening, reopen your link)"; return; }   // keep the hand on screen
     $("who").textContent = code === 403 ? `${me()} isn't a virtual-deck seat at this table (or this device's key is old: claim again).` : d.error; S = null; draw(); return; }
@@ -302,12 +350,19 @@ function colorsOf(p) {                                         // what a source 
 }
 const isManaSrc = p => /\{T\}[^:]*: Add /.test((p.text || "").replace(/"[^"]*"/g, "")) || colorsOf(p).length > 0 && /\bLand\b/.test(p.type || "");
 async function poolTap(p, color) {
+  if (tapBlockedByChoice(p)) return;                            // (B3) the table is waiting on my choice: a click taps nothing
   if (!(await act("tap", { ref: "#" + p.id, announce: true }))) return;
-  poolLoad(); MPOOL.items.push({ id: p.id, color, name: p.name }); poolSave(); window.TableSfx && TableSfx.fx("tap"); matSig = ""; draw();
+  poolLoad(); MPOOL.items.push({ id: p.id, color, name: p.name }); poolSave(); window.TableSfx && TableSfx.fx("tap"); matSig = ""; draw(); offerUndo(p, "tap");
+}
+function untapRefused(p) {                                       // the table's own reason, where the player is looking (not only in the small line by the step buttons)
+  const why = $("err").textContent; if (why) handToast(`${esc(p.name)} stays tapped: ${esc(why)}`, 9000);
+  poolLoad(); if (MPOOL.items.some(i => i.id === p.id)) { MPOOL.items = MPOOL.items.filter(i => i.id !== p.id); poolSave(); matSig = ""; draw(); }   // (it is not mana the page can give back)
 }
 async function poolUndo(p) {
-  if (!(await act("untap", { ref: "#" + p.id }))) return;
-  poolLoad(); MPOOL.items = MPOOL.items.filter(i => i.id !== p.id); poolSave(); matSig = ""; draw();
+  if (tapBlockedByChoice(p)) return;
+  poolLoad(); const was = MPOOL.items.find(i => i.id === p.id);
+  if (!(await act("untap", { ref: "#" + p.id }))) return untapRefused(p);
+  poolLoad(); MPOOL.items = MPOOL.items.filter(i => i.id !== p.id); poolSave(); matSig = ""; draw(); offerUndo(p, "untap", was && was.color);
 }
 async function spendPool() {                                    // before a cast: return the pooled sources so the table's payment can tap them
   poolLoad(); for (const it of MPOOL.items) await act("untap", { ref: "#" + it.id });
@@ -371,12 +426,21 @@ function canPayFrom(sources, cost) {                           // sources: [[col
   return sources.length - n.pips.length >= n.generic;
 }
 const pipHtml = cols => cols.map(c => `<span class="pmp" style="background:${PAYCOL[c] || "#9aa3ab"};color:${c === "W" ? "#111" : "#fff"}">${esc(c)}</span>`).join("");
+// (B3) A tapped source used to be simply missing from "Choose lands", which read as "that land isn't there". It is listed, greyed, with why.
+function payTappedRows() {
+  const g = new Map();
+  for (const p of (S.permanents || []).filter(q => q.tapped && !q.face_down && isManaSrc(q))) { const cols = colorsOf(p), key = p.name + "|" + cols.join("");
+    if (!g.has(key)) g.set(key, { name: p.name, cols, ids: [] }); g.get(key).ids.push(p.id); }
+  return [...g.values()].map(x => `<div class="payg tapped"><span class="payc">${pipHtml(x.cols.length > 2 ? ["★"] : x.cols)}</span><span class="payn"><b>${esc(x.name)}</b> <span class="t">×${x.ids.length}</span></span>
+      <span class="payt">tapped — <button data-payuntap="${x.ids[0]}" title="untap it, if the table allows it now (your own tap, in the same step)" aria-label="untap ${esc(x.name)}">untap</button></span></div>`).join("");
+}
 function payControl(c) {
-  if (!c || c.land || !S) return ""; const groups = payGroups(); if (!groups.length) return "";
+  if (!c || c.land || !S) return ""; const groups = payGroups(), tappedRows = payTappedRows();
+  if (!groups.length) return tappedRows ? `<div class="paypiles"><div class="sub" style="color:#ffb38f">Every mana source you have is tapped:</div>${tappedRows}</div>` : "";
   const ids = new Set(groups.flatMap(g => g.ids)); for (const id of [...payPick]) if (!ids.has(id)) payPick.delete(id);
   const choose = payFor === c.name && (payMode === "choose" || payPick.size > 0), n = costNeeds(c.cost);
   const head = `<div class="paywith"><span class="sub">Pay with:</span><button data-paymode="auto" data-payfor="${esc(c.name)}" class="${choose ? "" : "gold"}" aria-pressed="${!choose}">Auto</button><button data-paymode="choose" data-payfor="${esc(c.name)}" class="${choose ? "gold" : ""}" aria-pressed="${choose}">Choose lands</button></div>`;
-  if (!choose) return head;
+  if (!choose) return head + (tappedRows ? `<div class="sub" style="color:#ffb38f">Tapped, so not paying: ${esc((S.permanents || []).filter(q => q.tapped && !q.face_down && isManaSrc(q)).map(q => q.name).join(", "))}. "Choose lands" shows them.</div>` : "");
   const total = n ? n.generic + n.pips.length : null;
   const piles = groups.map(g => { const k = g.ids.filter(id => payPick.has(id)).length;
     return `<div class="payg"><span class="payc">${pipHtml(g.cols.length > 2 ? ["★"] : g.cols)}</span><span class="payn"><b>${esc(g.name)}</b> <span class="t">×${g.ids.length}</span></span>
@@ -391,7 +455,7 @@ function payControl(c) {
       const rem = left.map(q => colorsOf(q).length ? colorsOf(q) : ["C"]), ok = [], no = [];
       for (const h of others) { const r = canPayFrom(rem, h.cost); (r === null ? no : r ? ok : no).push(h.name); }
       hint += others.length ? `<div class="sub" style="color:${ok.length ? "#9be3a6" : "#ffb38f"}">Still castable after this: ${ok.length ? esc(ok.join(", ")) : "nothing else in your hand"}${ok.length && no.length ? ` (not ${esc(no.join(", "))})` : ""}.</div>` : ""; } }
-  return head + `<div class="paypiles">${piles}${hint}</div>`;
+  return head + `<div class="paypiles">${piles}${tappedRows}${hint}</div>`;
 }
 async function castWith(body) {
   if (body && body.kicked === undefined) {
@@ -440,7 +504,7 @@ function showFanErr() { const e = $("err") ? $("err").textContent : ""; if (e &&
 // ── activated abilities (what the Cards page offered): the same list, in the same order, as the engine's ability_list ──
 const ACT_LINE = /^((?:(?:\{[^}]+\})+|Sacrifice [^:,]+)(?:, ?(?:(?:\{[^}]+\})+|Sacrifice [^:,]+))*): (.+)$/;
 function abilityList(p) {
-  if (Array.isArray(p.abilities)) return p.face_down ? [] : p.abilities.map(a => ({ cost: a.cost, eff: a.effect, modes: a.modes || [], can: a.can, why: a.why_not }));   // the engine's own list (same order, same numbers)
+  if (Array.isArray(p.abilities)) return p.face_down ? [] : p.abilities.map(a => ({ cost: a.cost, eff: a.effect, modes: a.modes || [], can: a.can, why: a.why_not, picks: a.pick_options, byHand: a.by_hand_ok }));   // the engine's own list (same order, same numbers)
   const lines = (p.face_down ? "" : (p.text || "")).split("\n"), out = [];
   lines.forEach((line, i) => {
     const m = ACT_LINE.exec(line.trim());
@@ -538,10 +602,14 @@ function abilityButtons(p) {
     const tsel = /\btarget\b/i.test(a.eff) ? `<select data-atgt="${p.id}-${i}" style="max-width:240px;margin-top:3px"><option value="">(no target)</option>${targetOptions()}</select>` : "";
     const sm = /Sacrifice (another|an?|one) ([A-Za-z' -]+)/i.exec(a.cost), sacs = sm ? (S.permanents || []).filter(q => (sm[1].toLowerCase() !== "another" || q.id !== p.id) && sm[2].toLowerCase().split(" or ").some(w => new RegExp("\\b" + w.trim() + "\\b", "i").test(q.type || "") || new RegExp("\\b" + w.trim() + "\\b", "i").test(q.name || ""))) : [];
     const ssel = sm ? `<select data-asac="${p.id}-${i}" style="max-width:240px;margin-top:3px">${sacs.map(q => `<option value="#${q.id}">sacrifice ${esc(q.name)}</option>`).join("")}</select>` : "";
-    const off = a.can === false ? "disabled" : "", why = a.can === false && a.why ? `<div class="sub" style="color:#ffb38f">Can't now: ${esc(a.why)}</div>` : "";   // T18: the table's own check
-    const btns = a.modes.length ? a.modes.map((m, k) => `<button data-abil="${p.id}" data-idx="${i}" data-amode="${k}" ${off} title="${esc(m)}">${esc(a.cost)}: ${esc(m.slice(0, 40))}</button>`).join("")
+    // (2026-11-13) "search your library for a basic land card": which one, from the basics the table says are in this seat's library
+    const psel = Array.isArray(a.picks) && a.can !== false ? (a.picks.length ? `<select data-apick="${p.id}-${i}" style="max-width:240px;margin-top:3px" aria-label="which basic land to fetch">${a.picks.map(n => `<option value="${esc(n)}">fetch ${esc(n)}</option>`).join("")}</select>` : `<div class="sub" style="color:#ffb38f">No basic land left in your library: the search will find nothing.</div>`) : "";
+    // …and an effect the table cannot carry out: a person is not stuck. The cost is paid by the table (mana, {T}, the sacrifice); what it can do it does; the rest is said and goes on the to-do list.
+    const byHand = a.can === false && a.byHand ? `<button data-abil="${p.id}" data-idx="${i}" data-byhand="1" title="${esc(a.eff)}">${esc(a.cost)}: pay it, and do the rest by hand</button><div class="sub">The table pays the cost and does what it can of: ${esc(a.eff.slice(0, 90))}${a.eff.length > 90 ? "…" : ""}</div>` : "";
+    const off = a.can === false ? "disabled" : "", why = a.can === false && a.why && !byHand ? `<div class="sub" style="color:#ffb38f">Can't now: ${esc(a.why)}</div>` : "";
+    const btns = byHand ? byHand : a.modes.length ? a.modes.map((m, k) => `<button data-abil="${p.id}" data-idx="${i}" data-amode="${k}" ${off} title="${esc(m)}">${esc(a.cost)}: ${esc(m.slice(0, 40))}</button>`).join("")
       : `<button data-abil="${p.id}" data-idx="${i}" ${off} title="${esc(a.eff)}">${esc(a.cost)}: ${esc(a.eff.slice(0, 46))}${a.eff.length > 46 ? "…" : ""}</button>`;
-    return `<div style="margin-top:3px">${btns}${a.can === false ? "" : tsel + ssel}${why}</div>`;
+    return `<div style="margin-top:3px">${psel}${btns}${a.can === false ? "" : tsel + ssel}${why}</div>`;
   }).join("");
 }
 
@@ -588,9 +656,73 @@ document.addEventListener("pointerup", e => {
 });
 // ── the fanned hand ──
 let fanSel = -1, fanSig = "";
+// 2026-11-13 retro (B1): the host got stuck in the cast panel three times. It had no Cancel, Escape did nothing, and on a wide screen the panel is
+// fixed OVER the fan, so the card you had to click again to close it was covered. Now: "✕ Close" in the panel, Escape, and a click or tap anywhere
+// that is not the panel, the fan or another control. Closing only forgets which card was selected: it sends nothing to the table.
+function fanClose() { if (fanSel < 0) return false; fanSel = -1; fanSig = ""; window.TableSfx && TableSfx.fx("tap"); if (S) draw(); return true; }
+// A click elsewhere closes the panel and is USED UP by that (capture phase): the click that dismisses the panel must not also tap the land or open
+// the card it happened to land on (B3 was exactly that kind of stray click). A press on a real control (a button, a link, a field, the waiting bar,
+// a choice) is left alone and the panel stays: the player is doing something on purpose.
+const FAN_LEAVE = "button, a, input, select, textarea, label, summary, [role=button], #matpop, #matgy, .ca-bar, #choicepanel, #effpanel, #mullpanel, #heldbox, #paypanel, #handtoast";
+function fanOutsideClick(t) {                                    // what a click on `t` does while a card is selected: "" | "keep" | "close"
+  if (fanSel < 0 || !t || !t.closest) return "";
+  if (t.closest("#fanact, #fan .fc")) return "";               // the panel and the fan handle their own clicks (a second click on the card still toggles)
+  if (t.closest("#mat .mc, #mat .lstack")) return "close";      // a card on the battlefield is never a way to "press a control"
+  return t.closest(FAN_LEAVE) ? "keep" : "close";
+}
+document.addEventListener("click", e => {
+  if (fanJustDragged || matJustDragged) return;                  // the end of a drag is not a click outside
+  if (fanOutsideClick(e.target) !== "close") return;
+  e.stopPropagation(); e.preventDefault(); fanClose();
+}, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && fanSel >= 0) { e.preventDefault(); fanClose(); } });
+addEventListener("ca-show", () => { fanClose(); });              // (B2) the waiting bar's "show it": nothing stays on top of the thing being shown
+
+// 2026-11-13 retro (B3): a stray click on the player's own land tapped it ("Q Continuum is tapped." in the public log) while the table was waiting
+// on that player for a choice; the player then believed the land had entered tapped and could not pay for a spell.
+//   1. While the table waits on this seat for a choice, a click does not tap or untap: it says so and points at the choice.
+//   2. Every tap or untap made by hand shows "Undo" for 6 seconds.
+// The server is unchanged: it still accepts the same taps. This is the page not sending one the player did not mean.
+function waitingOnMyChoice() {
+  if (!S) return "";
+  const c = (S.pending_choices || [])[0];
+  if (c) return `${c.source}: ${(c.slot || {}).label || "your choice"}`;
+  if (S.pending_scry) return `scry ${S.pending_scry}`;
+  if (S.pending_surveil) return `surveil ${S.pending_surveil}`;
+  return "";
+}
+let toastTimer = 0, toastUndo = null;
+function handToast(html, ms) {
+  let el = $("handtoast"); if (!el) { el = document.createElement("div"); el.id = "handtoast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  clearTimeout(toastTimer); el.innerHTML = html; el.style.display = html ? "block" : "none";
+  if (html && ms) toastTimer = setTimeout(() => { el.style.display = "none"; el.innerHTML = ""; toastUndo = null; }, ms);
+}
+function showWaitingPanel() {                                   // scroll to the choice (or the surveil / scry) and flash it
+  const el = [$("choicepanel"), $("effpanel")].find(x => x && x.firstElementChild); fanClose(); if (!el) return scrollTo(0, 0);
+  const top = (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--tb-h")) || 52) + (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--ca-h")) || 0) + 6;
+  scrollTo(0, Math.max(0, scrollY + el.getBoundingClientRect().top - top));
+  el.firstElementChild.animate([{ boxShadow: "0 0 0 6px #ffe08a" }, { boxShadow: "0 0 0 0 #ffe08a00" }], { duration: 1400, iterations: 2 });
+}
+function tapBlockedByChoice(p) {                                // true = nothing was sent
+  const w = waitingOnMyChoice(); if (!w) return false;
+  const pp = $("matpop"); if (pp) pp.style.display = "none";
+  handToast(`${esc(p ? p.name : "That")} was not ${p && p.tapped ? "untapped" : "tapped"}: the table is waiting on you first (${esc(w)}). <button class="gold" data-showchoice>Show it ▴</button>`, 9000);
+  window.TableSfx && TableSfx.fx("hold"); return true;
+}
+function offerUndo(p, did, color) {                             // did: "tap" | "untap" (what was just done by hand to permanent p)
+  toastUndo = { id: p.id, name: p.name, did, color: color || "" };
+  handToast(`${esc(p.name)} ${did === "tap" ? "tapped" : "untapped"}. <button class="gold" data-undotap>Undo</button>`, 6000);
+}
+async function undoTap() {
+  const u = toastUndo; toastUndo = null; if (!u) return handToast("");
+  const r = await act(u.did === "tap" ? "untap" : "tap", u.did === "tap" ? { ref: "#" + u.id } : { ref: "#" + u.id, announce: true });
+  if (!r) return handToast(`Couldn't undo that: ${esc($("err").textContent || "the table refused")}`, 6000);
+  poolLoad(); MPOOL.items = MPOOL.items.filter(i => i.id !== u.id); if (u.did === "untap" && u.color) MPOOL.items.push({ id: u.id, color: u.color, name: u.name }); poolSave();
+  handToast(`${esc(u.name)} is ${u.did === "tap" ? "untapped" : "tapped"} again.`, 2500); matSig = ""; paySig = ""; fanSig = ""; draw();
+}
 function drawFan(hand, myTurn) {
   const fan = $("fan"); if (!fan || fan.offsetParent === null && fan.clientWidth === 0) return;
-  const sig = JSON.stringify([payMode, payFor, [...payPick], (S.mana_sources || []).length, hand.map(c => [c.name, !!c.castable_now, !!c.land, c.slots, c.mode_slots]), myTurn, !!S.land_played, fanSel, fan.clientWidth]);
+  const sig = JSON.stringify([payMode, payFor, [...payPick], (S.mana_sources || []).length, (S.permanents || []).filter(q => q.tapped).map(q => q.id), hand.map(c => [c.name, !!c.castable_now, !!c.land, c.slots, c.mode_slots]), myTurn, !!S.land_played, fanSel, fan.clientWidth]);
   if (sig === fanSig) return; fanSig = sig;
   if (fanSel >= hand.length) fanSel = -1;
   const cw = Math.round(Math.min(210, Math.max(160, innerWidth * 0.12)));          // bigger cards on a bigger screen
@@ -607,7 +739,7 @@ function drawFan(hand, myTurn) {
   const c = hand[fanSel];
   $("fanact").style.display = c || innerWidth < 900 ? "" : "none";
   $("fanact").innerHTML = !c ? `<div class="sub">${n ? "Click a card to play it." : ""}</div>` :
-    `<div class="nm">${esc(c.name)} <span class="sub">${esc(c.cost || "")} · ${esc(c.type || "")}${c.pt ? " · " + esc(c.pt) : ""}</span></div><div class="x">${esc(c.text || "")}</div>` +
+    `<button class="fanx" data-fanclose title="Close this panel without doing anything (Esc, or click anywhere else)">✕ Close</button><div class="nm">${esc(c.name)} <span class="sub">${esc(c.cost || "")} · ${esc(c.type || "")}${c.pt ? " · " + esc(c.pt) : ""}</span></div><div class="x">${esc(c.text || "")}</div>` +
     (c.land ? (c.shock_land ? `<button data-fanland="${fanSel}" data-pay="1" ${S.land_played || !myTurn ? "disabled" : ""}>Play it, paying the life</button><button data-fanland="${fanSel}" ${S.land_played || !myTurn ? "disabled" : ""}>Play it tapped</button>`
                             : `<button data-fanland="${fanSel}" ${S.land_played || !myTurn ? "disabled" : ""}>Play land</button>`) : "") +
     (!c.land && !c.aura_targets && !modesOf(c).length ? slotsHtml(c.slots, "fan") + xPicker(c) + kickPicker(c) + payControl(c) + `<button data-fancast="${fanSel}" ${c.castable_now && slotsReady(c.slots) ? "" : "disabled"}>Cast</button>${c.castable_now && !slotsReady(c.slots) ? '<div class="x" style="color:#ffb38f">Nothing it can aim at right now.</div>' : ""}` : "") +
@@ -638,21 +770,152 @@ function stationButtons(sc) {
 // ── Equip: pay its cost, in your main phase, onto one of your creatures. It stays on the battlefield when that creature leaves. ──
 function equipButtons(p) {
   if (!p.equip_cost) return "";
+  const TE = window.TableEquip, perms = S.permanents || [];
   const main = PH && PH.player === S.seat && /^main/.test(PH.step || "");
-  const on = p.attached_to ? (S.permanents || []).find(x => x.id === p.attached_to) : null;
-  const cs = (S.permanents || []).filter(c => c.id !== p.id && c.id !== p.attached_to && (/\bCreature\b/.test(c.type || "") || c.face_down));
+  const on = p.attached_to ? perms.find(x => x.id === p.attached_to) : null;
   const head = `<div class="sub" style="margin-top:4px">Equip ${esc(p.equip_cost)}${on ? ` · on ${esc(on.face_down ? "a face-down creature" : on.name)}` : " · not attached"}</div>`;
-  if (!main) return head + `<div class="sub">Equip only in your main phase.</div>`;
-  if (p.equip_can === false) return head + `<div class="sub" style="color:#ffb38f">Can't equip now: ${esc(p.equip_why || "")}</div>`;   // T18
-  return head + (cs.length ? cs.map(c => `<button data-equip="${p.id}" data-eqon="${c.id}">Equip ${esc(c.face_down ? "the face-down creature" : c.name)}</button>`).join("") : `<div class="sub">No creature to equip.</div>`);
+  if (p.equip_can === undefined && !main) return head + `<div class="sub">Equip only in your main phase.</div>`;      // (an older table: no reasons sent)
+  // The table's own check (T18), with one correction that is the page's business: lands tapped into the page's mana pool are given back before the
+  // table pays, so "needs {3}" worked out while they are tapped is not a refusal yet (2026-11-13: the buttons vanished exactly then).
+  const t = TE ? TE.canTry(p, eqPooled()) : { ok: p.equip_can !== false, why: p.equip_why || "", pooled: false };
+  if (!t.ok) return head + `<div class="sub" style="color:#ffb38f">Can't equip now: ${esc(t.why)}</div>`;
+  const ids = TE ? TE.targets(perms, p) : perms.filter(c => c.id !== p.id && c.id !== p.attached_to && (/\bCreature\b/.test(c.type || "") || c.face_down)).map(c => c.id);
+  const cs = perms.filter(c => ids.includes(c.id));
+  if (!cs.length) return head + `<div class="sub">No creature to equip.</div>`;
+  return head + (t.pooled ? `<div class="sub">Your pooled mana goes back first; then the table pays ${esc(p.equip_cost)}.</div>` : "") +
+    `<span class="eqgrip" role="button" tabindex="0" data-eqgrip="${p.id}" title="Drag this onto one of your creatures. Or tap it, then tap the creature.">⠿ Drag onto a creature · or tap, then tap the creature</span>` +
+    cs.map(c => `<button data-equip="${p.id}" data-eqon="${c.id}">Equip ${esc(c.face_down ? "the face-down creature" : c.name)}</button>`).join("");
 }
+// …and from the CREATURE's side: a player with a new creature looks at the creature, not at the artifact.
+function equipOffers(c) {
+  const TE = window.TableEquip; if (!TE || !S || !TE.isCre(c)) return "";
+  const of = TE.offersFor(S.permanents || [], c, eqPooled()); if (!of.length) return "";
+  return `<div class="sub" style="margin-top:4px">Equipment you control</div>` + of.map(o => o.on ? `<div class="sub">${esc(o.gear.name)} is on it.</div>`
+    : o.ok ? `<button data-equip="${o.gear.id}" data-eqon="${c.id}">Equip ${esc(o.gear.name)} ${esc(o.gear.equip_cost)}${o.gear.attached_to ? " (moves it here)" : ""}</button>`
+    : `<div class="sub" style="color:#ffb38f">${esc(o.gear.name)}: can't equip now: ${esc(o.why)}</div>`).join("");
+}
+// ── equip by drag, or by tap-then-tap. Every way ends in equipTo(): POST /api/brain/equip, the same request the buttons always sent. The page lights
+// up what the table listed and shows what the table answered; it decides nothing. ──
+const EQ = { armed: null, drag: null, list: null, justDragged: false };
+const eqPooled = () => { poolLoad(); return MPOOL.items.length; };
+const eqPerm = id => ((S && S.permanents) || []).find(x => String(x.id) === String(id));
+const EQ_CARDS = "#mat .mc[data-mine='1'], #field .card[data-zid]";
+const eqId = el => +(el.dataset.mc || el.dataset.zid);
+function eqLit() {                                               // the creature ids lit right now
+  const TE = window.TableEquip; if (!TE || !S) return new Set();
+  if (EQ.drag) return new Set(EQ.drag.try.ok ? TE.targets(S.permanents || [], EQ.drag.gear) : []);
+  const g = EQ.armed != null ? eqPerm(EQ.armed) : null;
+  return new Set(g ? TE.targets(S.permanents || [], g) : []);
+}
+function eqPaint() {
+  const lit = eqLit();
+  document.querySelectorAll(EQ_CARDS).forEach(el => { const on = lit.has(eqId(el)); el.classList.toggle("eqdrop", on); if (!on) el.classList.remove("eqover"); });
+}
+async function equipTo(gearId, creId) {
+  const g = eqPerm(gearId), c = eqPerm(creId);
+  EQ.armed = null; eqPaint();
+  const pp = $("matpop"); if (pp) pp.style.display = "none";
+  if (!g || !c) { matSig = ""; return draw(); }
+  const w = waitingOnMyChoice();                                 // (B3's guard: nothing is paid while the table waits on this seat for a choice)
+  if (w) { matSig = ""; draw(); return handToast(`${esc(g.name)} was not equipped: the table is waiting on you first (${esc(w)}). <button class="gold" data-showchoice>Show it ▴</button>`, 9000); }
+  handToast(`Equipping ${esc(g.name)} to ${esc(c.face_down ? "the face-down creature" : c.name)}…`, 8000);
+  await spendPool();
+  const r = await act("equip", { equipment: "#" + g.id, creature: "#" + c.id });
+  matSel = null; matSig = "";
+  if (!r) { const why = $("err").textContent; handToast(why ? `Not equipped: ${esc(why)}` : `Not equipped: the table had moved on. Nothing was paid; try again.`, 9000); window.TableSfx && TableSfx.fx("error"); }
+  else handToast(esc((r.said || []).join(" ") || `${g.name} is on ${c.name}.`), 4500);
+  draw();
+}
+function eqArm(id) {                                             // tap the Equipment (its grip), then tap a creature
+  const g = eqPerm(id), TE = window.TableEquip; if (!g || !TE) return;
+  const pp = $("matpop"); if (pp) pp.style.display = "none";
+  const t = TE.canTry(g, eqPooled());
+  if (!t.ok) return handToast(`Can't equip ${esc(g.name)} now: ${esc(t.why)}`, 7000);
+  if (!TE.targets(S.permanents || [], g).length) return handToast(`No creature to put ${esc(g.name)} on.`, 6000);
+  EQ.armed = g.id; matSel = null; matSig = ""; draw(); eqPaint();
+  handToast(`Equip ${esc(g.name)} ${esc(g.equip_cost)}: tap one of your highlighted creatures. <button data-eqcancel>Cancel</button>`);
+  const first = document.querySelector("#field .card.eqdrop"); if (first && !matShown() && first.scrollIntoView) first.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+function eqDisarm() { if (EQ.armed == null) return false; EQ.armed = null; matSig = ""; handToast(""); eqPaint(); if (S) draw(); return true; }
+function eqDragStart(gear) {
+  const TE = window.TableEquip; if (!TE) return;
+  EQ.armed = null; EQ.drag = { gear, try: TE.canTry(gear, eqPooled()), over: null };
+  document.body.classList.add("eqdragging");
+  if (!EQ.drag.try.ok) handToast(`Can't equip ${esc(gear.name)} now: ${esc(EQ.drag.try.why)}`, 6000);
+  else if (!TE.targets(S.permanents || [], gear).length) handToast(`No creature to put ${esc(gear.name)} on.`, 5000);
+  eqPaint();
+}
+function eqDragOver(x, y, skip) {
+  if (!EQ.drag) return null;
+  const lit = eqLit(), rects = [];
+  document.querySelectorAll(EQ_CARDS).forEach(el => { if (el === skip || !lit.has(eqId(el)) || el.offsetParent === null) return;
+    const r = el.getBoundingClientRect(); rects.push({ id: eqId(el), left: r.left, top: r.top, right: r.right, bottom: r.bottom, el }); });
+  const hit = TableEquip.pickAt(rects, x, y);
+  rects.forEach(r => r.el.classList.toggle("eqover", r.id === hit));
+  return (EQ.drag.over = hit);
+}
+function eqDragEnd() { const d = EQ.drag; EQ.drag = null; document.body.classList.remove("eqdragging"); eqPaint(); return d; }
+// the grip (in the Equipment's row on a phone, in its pop-up on the mat): a press that moves is a drag with a small label under the finger; a press
+// that does not move arms tap-then-tap. Pointer events, so a finger, a pen and a mouse are the same; the grip has touch-action:none, the list around
+// it still scrolls, and the page scrolls itself when the finger nears the top or bottom edge.
+document.addEventListener("pointerdown", e => {
+  const gr = e.target.closest && e.target.closest("[data-eqgrip]"); if (!gr || (e.pointerType === "mouse" && e.button !== 0)) return;
+  const g = eqPerm(gr.dataset.eqgrip); if (!g) return;
+  EQ.list = { gear: g, id: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, moved: false, ghost: null, raf: 0 };
+});
+document.addEventListener("pointermove", e => {
+  const d = EQ.list; if (!d || e.pointerId !== d.id) return;
+  d.x = e.clientX; d.y = e.clientY;
+  if (!d.moved && Math.hypot(d.x - d.sx, d.y - d.sy) < 8) return;
+  if (!d.moved) {
+    d.moved = true; const pp = $("matpop"); if (pp) pp.style.display = "none";
+    eqDragStart(d.gear);
+    d.ghost = document.createElement("div"); d.ghost.className = "eqghost"; d.ghost.textContent = "⚔ " + d.gear.name; document.body.appendChild(d.ghost);
+    const tick = () => { if (EQ.list !== d) return; const dy = TableEquip.edgeScroll(d.y, innerHeight); if (dy) { scrollBy(0, dy); eqDragOver(d.x, d.y); } d.raf = requestAnimationFrame(tick); };
+    d.raf = requestAnimationFrame(tick);
+  }
+  d.ghost.style.left = d.x + "px"; d.ghost.style.top = d.y + "px";
+  eqDragOver(d.x, d.y);
+});
+function eqListEnd(e, cancelled) {
+  const d = EQ.list; if (!d || (e && e.pointerId !== d.id)) return;
+  EQ.list = null; cancelAnimationFrame(d.raf); d.ghost && d.ghost.remove();
+  if (!d.moved) { if (!cancelled) { EQ.justDragged = true; setTimeout(() => { EQ.justDragged = false; }, 350); eqArm(d.gear.id); } return; }
+  const over = !cancelled && e ? eqDragOver(e.clientX, e.clientY) : null;
+  eqDragEnd(); EQ.justDragged = true; setTimeout(() => { EQ.justDragged = false; }, 350);
+  if (over != null) equipTo(d.gear.id, over); else if (S) draw();
+}
+document.addEventListener("pointerup", e => eqListEnd(e, false));
+document.addEventListener("pointercancel", e => eqListEnd(e, true));
+// A click while tap-then-tap is armed. Capture phase, and used up: the tap that picks the creature must not also open its menu or tap a land, and a
+// tap anywhere else only cancels (the same rule as the cast panel's stray click, B1 / B3). A real control still works, and ends the mode.
+document.addEventListener("click", e => {
+  const t = e.target; if (!t || !t.closest) return;
+  const used = () => { e.stopImmediatePropagation(); e.preventDefault(); };
+  if (t.closest("[data-eqgrip]")) return used();                  // the grip is worked by pointer events (and Enter / Space)
+  if (EQ.justDragged) { EQ.justDragged = false; return used(); }
+  if (EQ.armed == null) return;
+  if (t.closest("[data-eqcancel]")) { used(); return eqDisarm(); }
+  if (t.closest("#handtoast")) return;
+  if (t.closest("button, a, input, select, textarea, label, summary")) { EQ.armed = null; matSig = ""; handToast(""); eqPaint(); return; }
+  const el = t.closest(EQ_CARDS);
+  used();
+  if (el && eqLit().has(eqId(el))) return equipTo(EQ.armed, eqId(el));
+  eqDisarm();
+}, true);
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && EQ.armed != null) { e.preventDefault(); e.stopImmediatePropagation(); return eqDisarm(); }
+  const gr = (e.key === "Enter" || e.key === " ") && e.target && e.target.closest && e.target.closest("[data-eqgrip]");
+  if (gr) { e.preventDefault(); eqArm(gr.dataset.eqgrip); }
+}, true);
 // ── what a card aims at: one list per target it names, offering what the table says is legal right now ──
 const optValue = o => o.player ? "player|" + o.player : o.card ? "card|" + o.at + "|" + o.card : o.at + "|" + o.ref;
 const optTarget = v => { if (!v) return {}; const [a, r, c] = v.split("|"); return a === "player" ? { player: r } : a === "card" ? { at: r, card: c } : { at: a, ref: r }; };
 function slotsHtml(slots, key) {
   if (!slots || !slots.length) return "";
+  peekKnow();
   return `<div class="slots">` + slots.map((sl, i) => `<label>${esc(sl.label || "target")}${sl.optional ? " (optional)" : ""}
-    <select data-slot="${esc(key)}" data-sloti="${i}">${sl.optional ? '<option value="">(none)</option>' : ""}${(sl.options || []).map(o => `<option value="${esc(optValue(o))}">${esc(o.label)}${wardTag(wardOpt(optValue(o)))}</option>`).join("")}</select></label>${wardMissing(sl)}`).join("") + `</div>`;
+    <span class="peeksel"><select data-slot="${esc(key)}" data-sloti="${i}" data-peeksel>${sl.optional ? '<option value="">(none)</option>' : ""}${(sl.options || []).map(o => `<option value="${esc(optValue(o))}" data-peek="${esc(optCardName(o, null))}">${esc(o.label)}${wardTag(wardOpt(optValue(o)))}</option>`).join("")}</select>${(sl.options || []).some(o => optCardName(o, null)) && window.CardArt && CardArt.selBtn ? CardArt.selBtn() : ""}</span></label>${wardMissing(sl)}`).join("") + `</div>`;
 }
 function slotsReady(slots) { return (slots || []).every(sl => sl.optional || (sl.options || []).length); }
 function readTargets(key, slots) {
@@ -718,6 +981,24 @@ function placeAll(list, side, kind, W, H, cw, ch) {               // auto spots 
   return out;
 }
 let POSSEAT = null;
+// ── the battle line: what the table publishes as combat (declared attackers, declared blockers), read by the mat and by the list ──
+let BL_PREV = new Map();
+const blCombat = () => (S && S.combat && Array.isArray(S.combat.attacks) ? S.combat : (PH && PH.combat) || { attacks: [] });
+const blPlan = has => window.TableBattleLine ? TableBattleLine.plan(blCombat(), has) : { any: false, attackers: [], blockers: [], byId: {} };
+function blOnBoard(seat, id) {                                   // is that permanent still on that seat's battlefield, as far as this page knows?
+  if (S && seat === S.seat) return (S.permanents || []).some(p => p.id === id);
+  const so = ((B3 && B3.seats) || []).find(x => x.name === seat); return so ? (so.permanents || []).some(p => p.id === id) : true;
+}
+function blPerm(seat, id) { const so = S && seat === S.seat ? S : ((B3 && B3.seats) || []).find(x => x.name === seat); return ((so && so.permanents) || []).find(p => p.id === id) || {}; }
+// the list (a phone): the same line as lanes that wrap, one per attacker, its blockers under it
+function drawBattleStrip() {
+  const el = $("blstrip"); if (!el) return;
+  const bl = blPlan(blOnBoard), who = n => n === S.seat ? "you" : n;
+  el.innerHTML = !bl.any ? "" : `<div class="blh">⚔ The battle line</div><div class="bllanes">` + bl.attackers.map(a => { const p = blPerm(a.seat, a.id);
+    return `<div class="bllane${a.unblocked ? " unb" : ""}" data-bl-lane="${a.id}"><div class="blc atk"><b>${esc(a.name)}</b>${p.pt ? " " + esc(p.pt) : ""}<small>${esc(who(a.seat) === "you" ? "you attack" : a.seat + " attacks")} ${esc(who(a.defender))}</small></div>` +
+      (a.blockers.length ? a.blockers.map(b => `<div class="blc blk" data-bl-blocker="${b.id}">⛨ <b>${esc(b.name)}</b>${blPerm(b.seat, b.id).pt ? " " + esc(blPerm(b.seat, b.id).pt) : ""}<small>${esc(who(b.seat) === "you" ? "your blocker" : b.seat + "'s blocker")}</small></div>`).join("")
+        : `<div class="blnote">${a.unblocked ? "unblocked" : a.blocked ? "its blocker has left" : "blocks are not in yet"}</div>`) + `</div>`; }).join("") + `</div>`;
+}
 // identical lands share one pile: same name, same controller, same tapped state, nothing on them that makes a copy different
 let FANNED = new Set();
 function landPiles(lands, seat, mine, cw) {
@@ -743,9 +1024,9 @@ function drawMat() {
   const W = box.clientWidth || 1200, H = Math.max(640, innerHeight - (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--tb-h")) || 52) - (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--hud-h")) || 50) - 8), cw = Math.max(64, Math.min(124, W / 15, (H - 22 - 5 * ROW_PAD - MID_H - 30) / 4 / 1.4)), ch = cw * 1.4;
   const anyEx = [S.seat, ...opp.map(o => o.name)].some(n => exOf(n).length);
   ROWX0 = W * 0.12 + (anyEx ? Math.max(0, W * 0.015 + 2 * cw + 14 - W * 0.12) : 0);
-  const sig = JSON.stringify([opp, S.permanents, S.graveyard, S.exile, S.library, [...attackers], matSel, atk, W, H, POS, [...FANNED]]);
+  const sig = JSON.stringify([opp, S.permanents, S.graveyard, S.exile, S.library, [...attackers], matSel, atk, W, H, POS, [...FANNED], blCombat()]);
   if (sig === matSig) return; matSig = sig;
-  const cards = [];
+  const cards = [], seen = new Map();
   const zone = (side, seat, perms) => {
     const top = perms.filter(p => p.attached_to == null || p.equip_cost || p.equipment);   // Equipment stays visible (and clickable) when attached
     const lands = top.filter(p => isLandT(p.type)), crea = top.filter(p => !isLandT(p.type) && (isCreP(p) || p.face_down)), oth = top.filter(p => !isLandT(p.type) && !isCreP(p) && !p.face_down);
@@ -754,6 +1035,22 @@ function drawMat() {
   };
   opp.forEach(o => zone("opp", o.name, (o.permanents || []).map(p => ({ ...p, _seat: o.name }))));
   zone("me", S.seat, S.permanents || []);
+  // the battle line: a declared attacker steps towards the line, keeping its place along the row; a declared blocker steps up on its own side,
+  // opposite its attacker (several side by side). Only what the table publishes as combat is read. While a card is on the line its saved spot
+  // is not used (and not lost): it is back there when the combat is over.
+  const find = (seat, id) => cards.find(c => !c.p.stack && c.seat === seat && c.p.id === id);
+  const bl = blPlan((seat, id) => !!find(seat, id)), lift = Math.min(ch * 0.42, ROW_PAD + MID_H / 2 - 3), badges = [];
+  if (bl.any) {
+    const lineY = c => rowY(c.mine ? "me" : "opp", "crea", ch) + (c.mine ? -lift : lift);
+    for (const a of bl.attackers) { const c = find(a.seat, a.id); if (c) { c.line = a; c.y = lineY(c); } }
+    for (const side of [true, false]) {                           // my blockers, then theirs
+      const groups = bl.attackers.map(a => ({ a, ac: find(a.seat, a.id), bs: a.blockers.map(b => find(b.seat, b.id)).filter(c => c && c.mine === side) })).filter(g => g.ac && g.bs.length);
+      const xs = TableBattleLine.fan(groups.map(g => ({ x: g.ac.x, n: g.bs.length })), cw, ROWX0, Math.max(ROWX0 + 2 * cw, W - 8));
+      groups.forEach((g, i) => g.bs.forEach((c, j) => { c.line = bl.byId[c.seat + ":" + c.p.id]; c.x = xs[i][j]; c.y = lineY(c); }));
+    }
+    for (const c of cards) if (c.line) { const lb = TableBattleLine.label(c.line, S.seat);
+      badges.push(`<div class="blb ${lb.cls}" style="left:${c.x + cw / 2}px;top:${c.mine ? c.y - 15 : c.y + ch + 2}px" title="${esc(lb.long)}">${esc(lb.short)}</div>`); }
+  }
   const pile = (seat, side, info) => {
     const gy = info.graveyard || [], gyTop = gy.length ? gy[gy.length - 1] : "", src = gyTop && window.CardArt ? CardArt.src(gyTop) : "";
     const y = side === "me" ? rowY("me", "crea", ch) : H * ZONES[side].piles, lib = posFor(`pile:${seat}:lib`, W * 0.015, y, W, H), gp = posFor(`pile:${seat}:gy`, W * 0.015, y + ch * 1.12, W, H);
@@ -771,10 +1068,18 @@ function drawMat() {
     `<div class="zl" style="left:${ROWX0}px;top:${rowY("opp", "lands", ch) - 15}px">their lands</div><div class="zl" style="left:${ROWX0}px;top:${rowY("opp", "crea", ch) - 15}px">their creatures</div>` +
     `<div class="zl" style="left:${ROWX0}px;top:${rowY("me", "crea", ch) - 15}px">your creatures</div><div class="zl" style="left:${ROWX0}px;top:${rowY("me", "lands", ch) - 15}px">your lands</div>` +
     `<div class="zl" style="left:${W * 0.80}px;top:${rowY("me", "crea", ch) - 15}px">artifacts · enchantments</div>` +
-    `<div class="mid" style="top:${midY(ch)}px">${atk || "the battle line"}</div><button class="tidy" data-tidy title="put every card back in its zone">Tidy up</button>` +
+    `<div class="mid" style="top:${midY(ch)}px">${atk || (bl.any ? "" : "the battle line")}</div><button class="tidy" data-tidy title="put every card back in its zone">Tidy up</button>` +
     cards.map(c => { if (c.p.stack) return pileHtml(c, W, H, cw, ch);
-      const k = `${c.seat}:${c.p.id}`, [x, y] = posFor(k, c.x, c.y, W, H);
-      return mcard(c.p, c.mine).replace('<div class="mc', `<div data-pos="${esc(k)}" style="left:${x}px;top:${y}px" class="mc`); }).join("") + `</div>`;
+      const k = `${c.seat}:${c.p.id}`, [x, y] = c.line ? [c.x, c.y] : posFor(k, c.x, c.y, W, H);
+      // a card that has just stepped onto the line, or back off it, slides there from where it was (not when the page first draws it)
+      // (the mat is rebuilt whenever anything changes, so a slide that has started is carried over a rebuild: same start, same clock)
+      const was = BL_PREV.get(k), now = performance.now(), moved = was && was.line !== !!c.line && (was.x !== x || was.y !== y);
+      const mv = moved ? { bx: was.x - x, by: was.y - y, t0: now } : was && was.mv && now - was.mv.t0 < 280 && was.x === x && was.y === y ? was.mv : null;
+      seen.set(k, { x, y, line: !!c.line, mv });
+      const lc = c.line ? ` bl bl-${TableBattleLine.label(c.line, S.seat).cls}` : "";
+      return mcard(c.p, c.mine).replace('<div class="mc', `<div data-pos="${esc(k)}"${c.line ? ` data-bl="${c.line.role}"` : ""} style="left:${x}px;top:${y}px${mv ? `;--bx:${mv.bx}px;--by:${mv.by}px;animation-delay:-${Math.round(now - mv.t0)}ms` : ""}" class="mc${lc}${mv ? " bl-move" : ""}`); }).join("") + badges.join("") + `</div>`;
+  BL_PREV = seen;
+  eqPaint();                                                     // (a redraw must not put out the lights of an equip in progress)
 }
 // a pile: one draggable slot; collapsed, a click acts on its top card; the ×N badge spreads it out (and back)
 function pileHtml(c, W, H, cw, ch) {
@@ -789,19 +1094,31 @@ function posFor(k, x, y, W, H) { const p = POS[k]; return p ? [p[0] * W, p[1] * 
 document.addEventListener("pointerdown", e => {
   const el = e.target.closest && e.target.closest(".canvas [data-pos]"); if (!el || e.button !== 0) return;
   const cv = el.closest(".canvas").getBoundingClientRect();
-  matDrag = { el, k: el.dataset.pos, sx: e.clientX, sy: e.clientY, ox: el.offsetLeft, oy: el.offsetTop, cv, moved: false };
+  matDrag = { el, k: el.dataset.pos, sx: e.clientX, sy: e.clientY, ox: el.offsetLeft, oy: el.offsetTop, cv, moved: false, id: e.pointerId };
+  const gp = el.classList.contains("mc") && el.dataset.mine && window.TableEquip ? eqPerm(el.dataset.mc) : null;      // one of my Equipment: dropping it on a creature equips
+  if (gp && TableEquip.isGear(gp)) matDrag.gear = gp;
 });
 document.addEventListener("pointermove", e => {
   const d = matDrag; if (!d) return;
   const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
   if (!d.moved && Math.hypot(dx, dy) < 5) return;
-  if (!d.moved) { d.moved = true; d.el.classList.add("drag"); const pp = $("matpop"); if (pp) pp.style.display = "none"; }
+  if (!d.moved) { d.moved = true; d.el.classList.add("drag"); const pp = $("matpop"); if (pp) pp.style.display = "none"; if (d.gear) eqDragStart(d.gear); }
   d.el.style.left = Math.max(0, Math.min(d.cv.width - d.el.offsetWidth, d.ox + dx)) + "px";
   d.el.style.top = Math.max(0, Math.min(d.cv.height - d.el.offsetHeight, d.oy + dy)) + "px";
+  if (d.gear) eqDragOver(e.clientX, e.clientY, d.el);
 });
-document.addEventListener("pointerup", () => {
+document.addEventListener("pointerup", e => {
   const d = matDrag; matDrag = null; if (!d) return;
+  // An Equipment let go over a lit creature: equip (the card is NOT moved: it goes back to its place). Anywhere else it is the move it always was.
+  const over = d.gear && d.moved && EQ.drag ? eqDragOver(e.clientX, e.clientY, d.el) : null;
+  if (d.gear && EQ.drag) eqDragEnd();
+  if (d.moved && over != null) { d.el.classList.remove("drag"); matJustDragged = true; setTimeout(() => { matJustDragged = false; }, 350); matSig = ""; return equipTo(d.gear.id, over); }
   if (d.moved) { d.el.classList.remove("drag"); POS[d.k] = [d.el.offsetLeft / d.cv.width, d.el.offsetTop / d.cv.height]; savePos(); matJustDragged = true; matSig = ""; }
+});
+document.addEventListener("pointercancel", () => {             // the browser took the gesture away: nothing is moved, nothing is equipped
+  const d = matDrag; matDrag = null; if (!d) return;
+  if (d.gear && EQ.drag) eqDragEnd();
+  if (d.moved) { d.el.classList.remove("drag"); matSig = ""; if (S) drawMat(); }
 });
 function matPopup(el, ev) {
   const p = (S.permanents || []).find(x => String(x.id) === el.dataset.mc); if (!p) return;
@@ -810,14 +1127,14 @@ function matPopup(el, ev) {
   const pop = $("matpop");
   pop.innerHTML = `<div class="nm">#${p.id} ${esc(p.face_down ? "Face-down" : p.name)}${p.pt ? " · " + esc(p.pt) : ""}</div><div class="sub" style="font-size:12px;max-height:120px;overflow:auto">${esc(p.text || p.type || "")}</div>` +
     (() => { poolLoad(); const pooled = MPOOL.items.some(i => i.id === p.id);
-      if (mana && !p.tapped) return colorsOf(p).map(c => `<button data-mpool="${p.id}" data-color="${c}">Add ${c} to pool</button>`).join("");
+      if (mana && !p.tapped) return colorsOf(p).map(c => `<button data-mpool="${p.id}" data-color="${c}">Tap for {${c}}</button>`).join("");
       if (mana && p.tapped && pooled) return `<button data-mpoolundo="${p.id}">Take it back from the pool</button>`;
       return p.tapped ? `<button data-tap="${p.id}">Untap</button>` : `<button data-tap="${p.id}">Tap</button>`; })() +
     (ready ? `<button data-atkt="${p.id}">${attackers.has(p.id) ? "Don't attack" : "Attack"}</button>` : myTurn && whyNoAttack(p) ? `<button disabled title="${esc(whyNoAttack(p))}">Can't attack: ${esc(whyNoAttack(p))}</button>` : "") +
     (p.face_down && p.turn_up_cost ? `<button data-up="${p.id}">Turn face up (${esc(p.turn_up_cost)})</button>` : "") +
     (!p.face_down && /\bsurveil 1\b/i.test(p.text || "") && effOpen(p) ? `<button data-eff="surveil" data-src="${p.id}">Surveil 1</button>` : "") +
     (!p.face_down && /\bscry 1\b/i.test(p.text || "") && effOpen(p) ? `<button data-eff="scry" data-src="${p.id}">Scry 1</button>` : "") +
-    (!p.face_down && p.has_station ? stationButtons(p) : "") + equipButtons(p) + abilityButtons(p) + etbButtons(p) +
+    (!p.face_down && p.has_station ? stationButtons(p) : "") + equipButtons(p) + equipOffers(p) + abilityButtons(p) + etbButtons(p) +
     (p.by_hand && p.by_hand.length ? `<div class="note" title="the table doesn't do this: do it by hand">By hand: ${esc(p.by_hand.join(" · "))}</div>` : "") +
     (!p.face_down && window.CardArt && CardArt.has(p.name) ? `<button data-zoom="${esc(p.name)}" data-zid="${p.id}">🔍 Read it</button>` : "");
   pop.style.display = "block";
@@ -825,7 +1142,11 @@ function matPopup(el, ev) {
   pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + "px";
   { const cs = getComputedStyle(document.documentElement), tb = parseInt(cs.getPropertyValue("--tb-h")) || 52, hud = parseInt(cs.getPropertyValue("--hud-h")) || 50, ph = pop.offsetHeight;
     const want = r.top - ph - 8 < tb + 8 ? r.bottom + 8 : r.top - ph - 8;       // above the card when there is room, else below it; always clear of the two bars
-    pop.style.top = Math.max(tb + 8, Math.min(want, innerHeight - hud - ph - 8)) + "px"; }
+    pop.style.top = Math.max(tb + 8, Math.min(want, innerHeight - hud - ph - 8)) + "px";
+    // …and never with its last buttons under the "Swap a land that paid" bar (fixed, bottom right, above the menu): a menu that grew by one row
+    // (the Equip grip) put "Read it" under it. Move the menu up to clear the bar when the two would overlap.
+    const sb = $("swapbar"), sr = sb && sb.style.display !== "none" ? sb.getBoundingClientRect() : null, pr = pop.getBoundingClientRect();
+    if (sr && sr.height && pr.right > sr.left && pr.left < sr.right && pr.bottom > sr.top - 6) pop.style.top = Math.max(tb + 8, sr.top - 6 - ph) + "px"; }
 }
 // The enlarged card keeps its state under the art. The engine's own seat view has no +1/+1 counters and cuts the text, so those come from the public board.
 function zoomPerm(id, mine) {
@@ -854,6 +1175,7 @@ function zoomChips(p) {
 }
 function matZoom(name, p) {
   const bx = document.getElementById("artbox"); if (!bx || !window.CardArt || !CardArt.src(name)) return;
+  CardArt.unpeek && CardArt.unpeek(); bx.firstChild.style.display = ""; { const f = bx.querySelector("#artface"); if (f) f.style.display = "none"; }
   const old = bx.querySelector("#artinfo"); if (old) old.remove();
   const chips = p ? zoomChips(p) : [];
   bx.style.flexDirection = "column"; bx.style.gap = "10px";
@@ -960,7 +1282,7 @@ function draw() {
   drawFan(hand, myTurn);
   const perms = S.permanents || [];
   drawMulligan(); drawSurveil(); drawChoices(); drawBeam(myTurn); drawTop(); drawExile(myTurn); drawManual(); drawPay();
-  $("field").innerHTML = perms.length ? perms.map(p => {
+  (EQ.list && EQ.list.moved ? {} : $("field")).innerHTML = perms.length ? perms.map(p => {      // (not under a finger that is dragging an Equipment over it)
     const ready = myTurn && canAttack(p);
     const chg = +p.charge || 0;
     return `<div class="card" data-zid="${p.id}">${p.face_down || !window.CardArt ? "" : CardArt.img(p.name, "")}<b>#${p.id} ${esc(p.face_down ? "Face-down" : p.name)}</b>${chg ? ` <span class="tag" style="background:#3a8fe0">⚡ ${chg} charge</span>` : ""} ${counterTags({ ...p, charge: 0 })}${(p.attached_names || []).length ? ` <span class="tag" style="background:#7a5a1a">⚔ ${esc(p.attached_names.join(", "))}</span>` : ""} <span class="t">${esc(p.type || "")}${p.pt ? " · " + esc(p.pt) : ""}</span>
@@ -969,7 +1291,7 @@ function draw() {
       ${ready ? `<label class="atkbox"><input type=checkbox data-atk="${p.id}" ${attackers.has(p.id) ? "checked" : ""}> attack${p.attack_needs_partner ? " (not alone)" : ""}</label>` : myTurn && whyNoAttack(p) ? `<span class="sub">can't attack: ${esc(whyNoAttack(p))}</span>` : ""}
       ${p.face_down && p.turn_up_cost ? `<button data-up="${p.id}">Turn face up (${esc(p.turn_up_cost)})</button>` : ""}
       ${p.tapped ? `<button data-tap="${p.id}" title="your untap step, or undo your own tap in the same step">Untap</button>` : /\{T\}[^:]*: Add /.test(p.text || "") ? `<span class="tag" title="Cast taps it for you">mana · Cast taps it</span>` : `<button data-tap="${p.id}">Tap</button>`}
-      ${(!p.face_down && p.has_station ? stationButtons(p) : "")}${equipButtons(p)}
+      ${(!p.face_down && p.has_station ? stationButtons(p) : "")}${equipButtons(p)}${equipOffers(p)}
       ${!p.face_down && /\bsurveil 1\b/i.test(p.text || "") && effOpen(p) ? `<button data-eff="surveil" data-src="${p.id}">Surveil 1</button>` : ""}
       ${!p.face_down && /\bscry 1\b/i.test(p.text || "") && effOpen(p) ? `<button data-eff="scry" data-src="${p.id}">Scry 1</button>` : ""}
       ${matShown() ? "" : abilityButtons(p)}</div></div>`; }).join("") : `<div class="sub">Nothing on the battlefield yet.</div>`;
@@ -1009,6 +1331,7 @@ function draw() {
     Object.entries(pb).map(([n, v]) => `<div class="card"><b>${esc(n)}</b> <span class="t">(a real deck, from photos and what they said)</span>
       <div class="x">${esc((v.permanents || []).map(p => p.name || p).join("; ") || "nothing recorded yet")}</div></div>`).join("") : `<div class="sub">Nobody else yet.</div>`;
   const opps = Object.entries(S.life_table || {}).filter(([n, l]) => n !== S.seat && l > 0).map(([n]) => n);
+  eqPaint(); drawBattleStrip();
   setTimeout(drawMat, 0);
   $("atk").innerHTML = (attackers.size ? `<select id="target">${opps.map(o => `<option>${esc(o)}</option>`).join("")}</select>
       <button class="gold" id="attack" title="One declaration a turn: it is locked once sent (M19)">Confirm attack with ${attackers.size}</button>` : "") +
@@ -1019,13 +1342,25 @@ document.body.addEventListener("click", async e => {
   const t = e.target, d = t.dataset || {}, h = S?.hand || [];
   if (matJustDragged) { matJustDragged = false; return; }
   if (fanJustDragged) { fanJustDragged = false; return; }
+  if (d.fanclose !== undefined) return fanClose();                                 // (B1) ✕ Close: forgets the selection, sends nothing
+  if (d.undotap !== undefined) return undoTap();                                   // (B3) Undo a tap / untap made by hand
+  if (d.showchoice !== undefined) { handToast(""); return showWaitingPanel(); }
+  if (d.payuntap !== undefined) { const p = (S.permanents || []).find(x => String(x.id) === d.payuntap); if (!p || tapBlockedByChoice(p)) return;
+    const r = await act("untap", { ref: "#" + p.id }); if (!r) return showFanErr();
+    poolLoad(); MPOOL.items = MPOOL.items.filter(i => i.id !== p.id); poolSave(); matSig = ""; paySig = ""; fanSig = ""; handSig0 = ""; draw(); offerUndo(p, "untap"); return r; }
   if (d.tidy !== undefined) { POS = {}; FANNED = new Set(); savePos(); matSig = ""; return drawMat(); }
   if (d.lfan !== undefined) { FANNED.has(d.lfan) ? FANNED.delete(d.lfan) : FANNED.add(d.lfan); matSig = ""; return drawMat(); }
   const stk = t.closest && t.closest(".lstack");                                  // a stacked pile acts on its top card
   const mc = stk && !stk.classList.contains("fan") ? stk.querySelector(".mc.top") : t.closest && t.closest(".mc");
   if (mc && mc.dataset.mine) { const mp = (S.permanents || []).find(x => String(x.id) === mc.dataset.mc);
-    if (mp && isManaSrc(mp) && /\bLand\b/.test(mp.type || "")) { poolLoad();       // lands: one click taps for mana; other sources open their menu const inPool = MPOOL.items.some(i => i.id === mp.id);
-      if (mp.tapped && inPool) return poolUndo(mp);
+    // lands: one click taps for mana. A land that can ALSO do something else (Unexplored Territory, the Anomaly lands) opens its menu instead:
+    // "Tap for {C}" and its ability, side by side (2026-11-13: one click tapped it, and its ability then could not be reached).
+    // A click on a land this page tapped into its pool takes it back (2026-11-13: `const inPool = …` had been swallowed by the "//" comment in
+    // front of it on the same line, so this click threw "inPool is not defined" and did nothing: "we still can't untap land after we tap it").
+    if (mp && isManaSrc(mp) && /\bLand\b/.test(mp.type || "")) { poolLoad();
+      const inPool = MPOOL.items.some(i => i.id === mp.id);
+      if (mp.tapped && inPool) return poolUndo(mp); }
+    if (mp && isManaSrc(mp) && /\bLand\b/.test(mp.type || "") && !abilityList(mp).length) {
       if (!mp.tapped) { const cols = colorsOf(mp); if (cols.length === 1) return poolTap(mp, cols[0]);
         const pop = $("matpop"); pop.innerHTML = `<div class="nm">${esc(mp.name)}: add which mana?</div>` + cols.map(c => `<button data-mpool="${mp.id}" data-color="${c}">${c}</button>`).join("");
         pop.style.display = "block"; const r = mc.getBoundingClientRect(); pop.style.left = Math.max(8, Math.min(r.left, innerWidth - 270)) + "px"; pop.style.top = Math.max(60, r.top - 80) + "px"; return; } } }
@@ -1039,8 +1374,7 @@ document.body.addEventListener("click", async e => {
     if (r) { $("matpop").style.display = "none"; matSig = ""; draw(); } return;
   }
   if (d.equip !== undefined) {
-    await spendPool(); const r = await act("equip", { equipment: "#" + d.equip, creature: "#" + d.eqon });
-    if (r) { $("matpop").style.display = "none"; matSig = ""; draw(); } return;
+    return equipTo(d.equip, d.eqon);                              // (the same road as the drag and the tap-then-tap)
   }
   const mullc = t.closest && t.closest("[data-mullc]");                          // T15: opening hand: pick what goes on the bottom, keep, or mulligan
   if (mullc && S && S.mulligan) { const i = +mullc.dataset.mullc; if (!S.mulligan.bottom) return;
@@ -1070,6 +1404,8 @@ document.body.addEventListener("click", async e => {
     if (d.amode !== undefined) body.mode = +d.amode;
     if (tv) { const [at, ref] = tv.split("|"); body.target = ref; body.at = at; }
     const sacEl = document.querySelector(`[data-asac="${d.abil}-${d.idx}"]`); if (sacEl && sacEl.value) body.sac = sacEl.value;
+    const pickEl = [...document.querySelectorAll(`[data-apick="${d.abil}-${d.idx}"]`)].find(el => el.offsetParent !== null) || document.querySelector(`[data-apick="${d.abil}-${d.idx}"]`); if (pickEl && pickEl.value) body.pick = [pickEl.value];
+    if (d.byhand !== undefined) body.by_hand = true;
     await spendPool(); const r = await act("activate", body);
     if (r) { $("matpop").style.display = "none"; matSig = ""; draw(); } return;
   }
@@ -1158,7 +1494,8 @@ document.body.addEventListener("click", async e => {
     if (d.effput !== "top") await act("effect", { kind: d.effk, source: "#" + d.effsrc, put: d.effput });
     $("effpanel").innerHTML = ""; return;
   }
-  if (d.tap !== undefined) { const p = S.permanents.find(x => x.id == d.tap); return act(p.tapped ? "untap" : "tap", { ref: "#" + d.tap, announce: true }); }
+  if (d.tap !== undefined) { const p = S.permanents.find(x => x.id == d.tap); if (!p || tapBlockedByChoice(p)) return;
+    const did = p.tapped ? "untap" : "tap", r = await act(did, { ref: "#" + d.tap, announce: true }); if (r) { $("matpop").style.display = "none"; offerUndo(p, did); } else if (did === "untap") untapRefused(p); return r; }
   if (d.atk !== undefined) { t.checked ? attackers.add(+d.atk) : attackers.delete(+d.atk); draw(); return renderSteps(); }
   if (t.id === "attack") return attackNow();
   if (t.id === "dmg") { await act("damage", { hits: {} }); lastAttack = []; return draw(); }
@@ -1252,15 +1589,43 @@ function drawMulligan() {
     <div class="mull-hand">${hand.map((c, i) => `<div class="mull-c${mullPick.includes(i) ? " sel" : ""}" data-mullc="${i}">${window.CardArt ? CardArt.img(c.name, "") : ""}<b>${esc(c.name)}</b><div class="sub">${esc(c.land ? "Land" : c.cost || "")}${mullPick.includes(i) ? " · to the bottom" : ""}</div></div>`).join("")}</div></div>`;
 }
 let choiceSig = "";
+// The card an option names, from what this seat was already sent: a card in a zone (o.card), a permanent (o.ref "#id": mine from my state, another
+// seat's from the public board, where a face-down card has no name), or one of the cards a "look at a hand" question put in front of this seat
+// (c.reveal.cards). "" when it names no card the page can tell (the label is then asked of the public lookup: peekGuess).
+function optCardName(o, c) {
+  if (!o || !S) return "";
+  if (o.card) return String(o.card);
+  const ref = String(o.ref || "");
+  if (/^#\d+$/.test(ref)) { const id = +ref.slice(1), mine = !o.at || o.at === S.seat;
+    const p = mine ? (S.permanents || []).find(x => x.id === id) : ((((B3 && B3.seats) || []).find(x => x.name === o.at) || {}).permanents || []).find(x => x.id === id);
+    return p && p.name && (mine || !p.face_down) ? String(p.name) : ""; }
+  const lab = String(o.label || ""), names = ((c && c.reveal && c.reveal.cards) || []).map(x => x.name).filter(n => lab === n || lab.startsWith(n + " "));
+  return names.sort((a, b) => b.length - a.length)[0] || "";
+}
+function peekKnow() {                                            // what this seat was already sent about cards: used before any lookup
+  if (!window.CardArt || !CardArt.know || !S) return;
+  for (const p of S.permanents || []) CardArt.know(p);           // (my own cards, face down or not: I know them)
+  for (const s of (B3 && B3.seats) || []) for (const p of s.permanents || []) if (!p.face_down && p.name) CardArt.know(p);
+  for (const c of S.pending_choices || []) for (const x of (c.reveal && c.reveal.cards) || []) CardArt.know(x);
+  for (const c of S.hand || []) CardArt.know(c);
+}
+function peekGuess(root) {                                       // options whose card the page could not tell: ask by the label's own words
+  if (!window.CardArt || !CardArt.guess || !root) return;
+  root.querySelectorAll("[data-peekguess]").forEach(async b => { b.removeAttribute("data-peekguess");
+    const n = await CardArt.guess(b.textContent); if (!n || !b.isConnected || b.dataset.peek) return;
+    b.dataset.peek = n; if (b.parentNode.classList.contains("peekrow") && !b.parentNode.querySelector(".peekbtn")) b.insertAdjacentHTML("afterend", CardArt.viewBtn(n)); });
+}
 function drawChoices() {
   const box = $("choicepanel"), list = (S && S.pending_choices) || [], sig = JSON.stringify(list);
   if (sig === choiceSig) return; choiceSig = sig;
   // an "option" (a mode, a yes/no): one button per answer, its whole text readable on a phone; a target: the dropdown
   const isOpt = c => c.kind === "option" || (c.slot || {}).zone === "option";
   box.innerHTML = list.length ? `<div class="panel" style="outline:2px solid #d9b46a"><h2>${list.every(isOpt) ? "Your choice" : "Choose a target"}</h2>${list.map(c => `<div class="card"><b>${esc(c.source)}</b><div class="x">${isOpt(c) ? "" : esc(String(c.text).replace(" ||then|| ", ". If you do, "))}</div><div class="sub">${esc(c.slot.label || "")}${(c.picked || []).length ? " · chosen so far: " + esc(c.picked.length) : ""}</div>
-    ${isOpt(c) ? (c.slot.options || []).map(o => `<button data-choose="${c.id}" data-cv="${esc(optValue(o))}" style="display:block;width:100%;text-align:left;margin-top:6px;white-space:normal">${esc(o.label)}</button>`).join("")
-      : `<select data-chooseopt="${c.id}" style="max-width:320px">${(c.slot.options || []).map(o => `<option value="${esc(optValue(o))}">${esc(o.label)}${wardTag(wardOpt(optValue(o)))}</option>`).join("")}</select>${wardMissing(c.slot)}
+    ${isOpt(c) ? (c.slot.options || []).map(o => { const nm = optCardName(o, c);       // a card this option names: hover, focus or hold shows the whole card; 👁 opens it large
+        return `<div class="peekrow"><button data-choose="${c.id}" data-cv="${esc(optValue(o))}" ${nm ? `data-peek="${esc(nm)}"` : `data-peekguess="1"`} style="display:block;width:100%;text-align:left;margin-top:6px;white-space:normal">${esc(o.label)}</button>${nm && window.CardArt ? CardArt.viewBtn(nm) : ""}</div>`; }).join("")
+      : `<span class="peeksel"><select data-chooseopt="${c.id}" data-peeksel style="max-width:320px">${(c.slot.options || []).map(o => `<option value="${esc(optValue(o))}" data-peek="${esc(optCardName(o, c))}">${esc(o.label)}${wardTag(wardOpt(optValue(o)))}</option>`).join("")}</select>${(c.slot.options || []).some(o => optCardName(o, c)) && window.CardArt ? CardArt.selBtn() : ""}</span>${wardMissing(c.slot)}
     <button class="gold" data-choose="${c.id}">Choose</button>`}${c.slot.optional ? `<button data-choosenone="${c.id}">${isOpt(c) ? "None of these" : /\bmay\b/i.test(String(c.text)) ? "No, skip it" : "No target"}</button>` : ""}</div>`).join("")}</div>` : "";
+  peekKnow(); peekGuess(box);
 }
 // The surveil / scry the table is waiting on: choose what goes away (graveyard, or the bottom for a scry); the rest go back on top IN THE ORDER YOU
 // SET (▲ ▼). A scry's bottom cards keep the order shown too. Only you see these.
@@ -1275,7 +1640,7 @@ function drawSurveil(force) {
   box.dataset.surv = sig;
   const away = L.kind === "scry" ? "bottom" : "graveyard";
   const row = (k, list) => { const pos = list.indexOf(k), c = cards[k];
-    return `<div class="card">${window.CardArt ? CardArt.img(c, "") : ""}<b>${esc(c)}</b>
+    return `<div class="card">${window.CardArt ? CardArt.img(c, "") : ""}<b data-peek="${esc(c)}" tabindex="0">${esc(c)}</b>${window.CardArt && CardArt.viewBtn ? CardArt.viewBtn(c) : ""}
     <button data-survup="${k}" ${pos <= 0 ? "disabled" : ""} title="higher">▲</button><button data-survdn="${k}" ${pos >= list.length - 1 ? "disabled" : ""} title="lower">▼</button>
     <button data-survt="${k}">${survBin.has(k) ? "Keep it on top instead" : L.kind === "scry" ? "Put it on the bottom" : "Put it into the graveyard"}</button></div>`; };
   const kept = survOrder.filter(k => !survBin.has(k)), gone = survOrder.filter(k => survBin.has(k));

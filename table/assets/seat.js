@@ -13,13 +13,13 @@
   let mine = load();
   // Every tab of this site shares one localStorage entry, but each tab used to copy it into memory once and never look again:
   // a tab opened before you claimed kept asking who you are, and a tab holding an old key kept using it. Follow the shared entry.
-  addEventListener("storage", e => { if (e.key === KEY) { mine = load(); chip(); } });
+  addEventListener("storage", e => { if (e.key === KEY) { mine = load(); if (mine.key) alive(); chip(); } });   // (a fresh key from another tab: this one is alive again)
   const post = (p, b) => fetch(p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) })
     .then(async r => ({ ok: r.ok, d: await r.json().catch(() => ({})) }));
   const gameId = async () => { try { return (await (await fetch("/api/phase", { cache: "no-store" })).json()).game_id || ""; } catch { return ""; } };
   async function claim(name, key, invite) {
     const r = await post("/api/seat/claim", { name, key, invite });
-    if (r.ok) { mine = { name: r.d.name, key: r.d.key, game: await gameId() }; save(mine); chip(); }
+    if (r.ok) { mine = { name: r.d.name, key: r.d.key, game: await gameId() }; save(mine); alive(); chip(); }
     return r;
   }
   // T2: a tab holding last round's key. The table was restarted (a new game), so that key is unknown here and every seat reads "claimed on
@@ -29,9 +29,45 @@
     el.setAttribute("role", "alert");
     el.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:10002;background:#3a2a05;color:#ffe9a8;border-bottom:3px solid #f2b705;padding:12px 14px;font:600 16px system-ui,sans-serif";
     el.innerHTML = `This game was restarted${old && now && old !== now ? " (a new game started on this table)" : ""}: the seat link this tab used belongs to the earlier game. ` +
-      `Open your new seat link (the host has it), or ask the host to send it again. <button style="margin-left:8px" onclick="this.parentNode.remove()">OK</button>`;
+      `Open your new seat link (your draft page's Join the match button, or ask the host). <button style="margin-left:8px" onclick="this.parentNode.remove()">OK</button>`;
     document.body.appendChild(el);
   }
+  // 2026-11-13 retro (B4): the table was REPLACED (a new table, not a restart of the game) while a tab was open. That tab kept its old key: the new
+  // table refused it on every call, and the page showed "Claim your seat (👤)" over an empty hand with no reason given. The check above only runs
+  // when a page loads, and its notice is gone after one reload (the dead key is forgotten, so nothing is left to explain).
+  //   * TableSeat.verify(): a page whose own call was refused asks the table (POST /api/seat/check, the key in X-Seat-Key). "not a seated player"
+  //     means the key is dead here: the banner goes up, TableSeat.dead() turns true, and the pages stop polling with that key.
+  //   * The banner stays until a seat is claimed again, across reloads too (a note in this browser's storage; never the key itself).
+  let dead = false, deadEl = null, verifying = null;
+  const STALE_TEXT = "This tab's seat key is from an earlier table. Open your new seat link (your draft page's Join the match button, or ask the host).";
+  function deadNotice() {
+    if (deadEl || !document.body) return;
+    deadEl = document.createElement("div");
+    deadEl.setAttribute("role", "alert"); deadEl.setAttribute("data-seat-stale", "1");
+    deadEl.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:10002;background:#3a2a05;color:#ffe9a8;border-bottom:3px solid #f2b705;padding:12px 14px;font:600 16px system-ui,sans-serif";
+    deadEl.textContent = STALE_TEXT;                   // no OK button: until this tab has a seat again, this is the one thing to know
+    document.body.appendChild(deadEl);
+  }
+  function markDead(name) {
+    dead = true;
+    const cur = load();
+    if (!cur.key || cur.key === mine.key) save({ stale: name || mine.name || cur.stale || "a player" });   // forget the dead key, keep the reason (unless another tab already has a fresh one)
+    mine = load(); chip();
+    deadNotice();
+    try { window.dispatchEvent(new CustomEvent("seat-stale", { detail: { text: STALE_TEXT } })); } catch {}
+  }
+  function alive() { dead = false; if (deadEl) { deadEl.remove(); deadEl = null; } }
+  function verify() {                                  // -> Promise<true | false | null>: the key is good / dead here / couldn't tell (offline: say nothing)
+    if (dead) return Promise.resolve(false);
+    if (!mine.key) return Promise.resolve(null);
+    const sent = mine.key;
+    return verifying || (verifying = _rawFetch("/api/seat/check", { method: "POST", headers: { "Content-Type": "application/json", "X-Seat-Key": sent }, body: "{}" })
+      .then(async r => { const d = await r.json().catch(() => ({}));
+        if (r.status === 403 && /not a seated player/.test(d.error || "") && mine.key === sent) { markDead(mine.name); return false; }
+        return r.ok ? true : null; })
+      .catch(() => null).finally(() => { verifying = null; }));
+  }
+  const _rawFetch = (u, init) => fetch(u, init);
   const chipEl = document.createElement("button");
   chipEl.style.cssText = "position:fixed;right:12px;top:12px;z-index:62;padding:5px 10px;border-radius:999px;border:1px solid #3a3f4a;" +
     "background:#1b1e25;color:#eee;font:600 12.5px system-ui,-apple-system,sans-serif;cursor:pointer;opacity:.9";
@@ -108,9 +144,10 @@
         chip();
       } else if (!r.ok && r.d && /claimed on another device|only a person/.test(r.d.error || "")) {
         const old = mine.game || "", now = await gameId();
-        if (load().key === sent) { mine = {}; save(mine); } else mine = load();          // forget it only if no other tab has replaced it meanwhile
+        const was = mine.name;
+        if (load().key === sent) { mine = { stale: was }; save(mine); } else mine = load();   // forget it only if no other tab has replaced it meanwhile (keep WHY, for the next reload)
         chip();
-        if (!mine.name) staleNotice(old, now);                                         // (another tab had a fresh key: nothing to say)
+        if (!mine.name) { dead = true; staleNotice(old, now); }                         // (another tab had a fresh key: nothing to say)
       }
     }                                                 // (any address, any tab) pick up the same seat
     if (!mine.name && !qp) {
@@ -123,6 +160,8 @@
       const r = await claim(qp, qk || undefined);
       if (qk && r.ok) history.replaceState(null, "", location.pathname + "?player=" + encodeURIComponent(qp));   // don't leave the key in the bar (query or #)
     }
+    if (!mine.name && load().stale && !dead) { dead = true; deadNotice(); }             // a reload of a tab whose key was already found dead: still say why
+    else if (mine.name && mine.key && !proxied) await verify();                          // a key in storage that this table does not know (claim above issued none)
   })();
   // Every POST this page makes to its own table carries this device's seat key (X-Seat-Key), so the table can
   // check that a change comes from a seated player, and for their own seat. Same origin only: never sent elsewhere.
@@ -140,5 +179,6 @@
     return _fetch(input, init);
   };
   window.TableSeat = { name: () => (proxied ? qp : mine.name) || "",
-                       body: (extra = {}) => ({ by: (proxied ? qp : mine.name) || "", key: mine.key || "", ...extra }), pick, ready };
+                       body: (extra = {}) => ({ by: (proxied ? qp : mine.name) || "", key: mine.key || "", ...extra }), pick, ready,
+                       verify, dead: () => dead, staleText: STALE_TEXT };
 })();

@@ -590,6 +590,19 @@ def legal_actions(sn: str) -> dict:
                     if tg_ is not None:
                         add("cast", {"name": n, "modes": [i + 1], **({"targets": tg_} if tg_ else {})}, f"mode {i + 1}: {mtext[:60]}")
                 return
+        # 2026-11-13 retro (C2): "Choose two —" (Austere Command) was listed as a plain cast with no modes, and following the list got
+        # 400 "is modal — choose 2". `modal` above only knows "choose one". One entry per legal pair (or triple), `modes` as the engine
+        # wants them (1-based, in the card's order), with the first legal targets when a chosen mode aims at something; a combination
+        # with a mode that has nothing legal to aim at is left out. No entry at all if there is none: it can't be cast right now.
+        sp = _pl.modal_options(c) if ("Instant" in c["types"] or "Sorcery" in c["types"]) else None
+        if sp and sp[0] > 1:
+            import itertools as _it
+            for combo in _it.combinations(range(len(sp[1])), sp[0]):
+                tg_ = first_legal_aim(sn, [s_ for i in combo for s_ in _pl.card_slots(c, sp[1][i])])
+                if tg_ is not None:
+                    add("cast", {"name": n, "modes": [i + 1 for i in combo], **({"targets": tg_} if tg_ else {})},
+                        "modes " + " + ".join(str(i + 1) for i in combo) + ": " + " / ".join(sp[1][i][:40] for i in combo))
+            return
         if "Aura" not in (c.get("subtypes") or []) and not (modal(c) and ("Instant" in c["types"] or "Sorcery" in c["types"])):
             sl = _pl.card_slots(c)
             tg_ = first_legal_aim(sn, sl)
@@ -600,10 +613,17 @@ def legal_actions(sn: str) -> dict:
                 return
         if "Aura" in (c.get("subtypes") or []):        # an Aura needs a target: one entry per legal one (golden-path test:
             if _pl.is_hostile_aura(c):                 # without it an agent retried an untargeted Aura 1,489 times)
-                foes = [(o, x) for o, ov in VPS.items() if not on_turn(o) and not is_out(o) for x in ov.battlefield
-                        if x.is_("Creature") and not x.face_down]
-                for o, x in foes:
-                    add("cast", {"name": n, "on": x.name, **extra}, f"put it on {o}'s {x.name}")
+                # 2026-11-13 retro (C3): one entry per enemy creature, virtual seat or not. (This used to read "seats that are not on turn",
+                # which is the caster only on the caster's own turn; and it was never reached at an all-virtual table: see hostile_targets.)
+                seen_ = set()
+                for o, x in foe_creatures(sn):
+                    if (o, x.name) not in seen_:               # the cast names its target by name: two of the same creature are one entry
+                        seen_.add((o, x.name))
+                        add("cast", {"name": n, "on": x.name, **extra}, f"put it on {o}'s {x.name}")
+                for oc in v.opponents_cards("Creature"):       # a real-deck player's announced creatures (the table knows them by name only)
+                    if not any(nm == oc.get("name") for _, nm in seen_) and oc.get("name"):
+                        seen_.add(("", oc["name"]))
+                        add("cast", {"name": n, "on": oc["name"], **extra}, f"put it on {oc['name']} (announced by another player)")
             else:
                 for x in v.aura_targets(c):
                     add("cast", {"name": n, "on": f"#{x.id}", **extra}, f"enchant your {v.shown(x)}")
@@ -937,6 +957,31 @@ def split_cards(text: str) -> list[str]:
     return out
 
 
+_SET_CARDS: dict | None = None
+
+
+def set_card(name: str) -> dict | None:
+    """A card of the set being played, by name, from the set's own card file ($TABLE_CARDS_JSON, else table/.cache/cards-trk.json: the Scryfall-
+    shaped list the decks were built from), in the shape oracle.card gives. For /api/card when the Oracle bulk file does not have the card (a
+    set newer than the download). It is a STATIC file of every card in the set: it is not the decks at this table and knows nothing about the
+    game, so an answer says only what a card anyone can name says, never whether (or where) a copy of it is in play, in a hand or in a library."""
+    global _SET_CARDS
+    if _SET_CARDS is None:
+        _SET_CARDS = {}
+        for f in (os.environ.get("TABLE_CARDS_JSON"), HERE / ".cache" / "cards-trk.json"):
+            try:
+                if f and Path(f).expanduser().is_file():
+                    for c in json.loads(Path(f).expanduser().read_text()):
+                        f0 = (c.get("card_faces") or [c])[0]
+                        _SET_CARDS.setdefault(c["name"], {"cost": c.get("mana_cost") or f0.get("mana_cost") or "", "type": c.get("type_line") or f0.get("type_line") or "",
+                                                          "text": "\n//\n".join(x.get("oracle_text") or "" for x in (c.get("card_faces") or [c])),
+                                                          "power": f0.get("power"), "toughness": f0.get("toughness")})
+                    break
+            except Exception as e:                      # noqa: BLE001 — a preview's text must never stop the table
+                print(f"set_card: {f}: {e}", file=sys.stderr, flush=True)
+    return _SET_CARDS.get(name)
+
+
 def _card_view(name: str | None, **kw) -> dict:
     """One card as the 3D board draws it. name None = face down: nothing about it but its back."""
     import oracle
@@ -1253,6 +1298,7 @@ def ai_passed(seat_name: str):
         if seat_name not in ps["need"] or seat_name in ps["passed"]:
             return
         PASS["passed"].append(seat_name)
+        PASS_COUNT[seat_name] = PASS_COUNT.get(seat_name, 0) + 1
         ps = passes_state()
         emit("pass", by=seat_name, ai=is_bot(seat_name), driven=True, player=PHASE["player"], step=STEPS[PHASE["step"]],      # R24: `ai` is true only for a seat nobody is driving
              left=[n for n in ps["need"] if n not in ps["passed"]])
@@ -1364,7 +1410,20 @@ def priority_reset(why: str):
                          text=f"{active}: {step}. Something new happened — you may respond, or pass.", step=step, active=active)
 
 
-HAND_TAPS: dict = {}   # (seat, permanent id) -> (active player, step index) of a pilot's own tap: undoable in that same step
+HAND_TAPS: dict = {}   # (seat, permanent id) -> (active player, step index, the seat's pass count) of a pilot's own tap: undoable in that same step, until it passes
+PASS_COUNT: dict = {}  # seat -> how many times it has passed priority (a tap made before a pass is no longer a slip to take back)
+
+
+def hand_taps_sweep(seat_name: str):
+    """A by-hand tap can be taken back only while the permanent is STILL tapped by that tap. Once it is untapped by anything (the untap step, an
+    effect, the page giving its pool back) the note goes: if the table then taps it to pay for something, that is spent mana, and taking THAT
+    back would be free mana (2026-11-13: the note used to outlive the untap, so a land tapped by hand on one turn could be untapped by hand
+    after a payment tapped it on a later turn, in the same step of the turn)."""
+    v = VPS.get(seat_name)
+    for k in [k for k in HAND_TAPS if k[0] == seat_name]:
+        p = next((q for q in (v.battlefield if v else []) if q.id == k[1]), None)
+        if p is None or not p.tapped or HAND_TAPS[k][3:] != (v.turn,):
+            HAND_TAPS.pop(k, None)
 
 
 def untap_refusal(owner: str, perm_id=None) -> str | None:
@@ -1373,8 +1432,20 @@ def untap_refusal(owner: str, perm_id=None) -> str | None:
     priority. Used by /api/brain/untap (a pilot's key) and /api/card-action (a person's real deck)."""
     if PHASE["player"] is None:
         return "the game hasn't started: nothing untaps yet"
-    if perm_id is not None and HAND_TAPS.get((owner, perm_id)) == (PHASE["player"], PHASE["step"]):
-        return None                                   # undoing your own tap, in the same step it was made (a misclick, or a land tapped by habit)
+    hand_taps_sweep(owner)
+    v_ = VPS.get(owner)
+    mine = HAND_TAPS.get((owner, perm_id)) if perm_id is not None else None
+    if mine is not None and mine[:2] == (PHASE["player"], PHASE["step"]) and mine[3:] == (v_.turn if v_ else None,):
+        if mine[2] == PASS_COUNT.get(owner, 0):
+            return None                               # undoing your own tap, in the same step it was made (a misclick, or a land tapped by habit)
+        return "you tapped that before you passed priority: it stays tapped (a tap can be taken back only until you pass)"
+    if PHASE["player"] == owner and STEPS[PHASE["step"]] == "untap":
+        return None
+    if mine is not None:
+        return f"you tapped that in an earlier step ({STEPS[mine[1]]}): it stays tapped until your untap step"
+    p_ = next((q for q in (v_.battlefield if v_ else []) if q.id == perm_id), None)
+    if p_ is not None and p_.tapped and PHASE["player"] == owner:
+        return f"{p_.name} was tapped by the table (to pay for something, or by a card), not by you by hand: that mana is spent, so it stays tapped until your untap step"
     if PHASE["player"] != owner:
         return f"you can only untap in your own untap step: it's {PHASE['player']}'s turn, not {owner}'s"
     if STEPS[PHASE["step"]] != "untap":
@@ -4198,11 +4269,21 @@ def annotate_legality(sn: str, v: dict):
                 if no_target(_pl.card_slots({"name": p.name, "types": ["Instant"]}, eff_)):
                     why = "no legal target right now"
             a["can"], a["why_not"] = why is None, why
+            # (2026-11-13) what a person's page needs to offer the ability whole: the basic lands a "search your library for a basic land card"
+            # may fetch (this seat's own library: its own to know), and whether "pay it, the table does what it can, the rest by hand" is the
+            # way through an effect the table cannot run (a seat that is driven by a person; never offered to a bot)
+            if re.match(r"search your library for (?:an? |up to two )?basic land card", a["effect"], re.I):
+                a["pick_options"] = sorted({c["name"] for c in vp.library if "Basic" in (c.get("supertypes") or []) and "Land" in (c.get("types") or [])})
+            if why == "the table can't run this ability yet" and not a.get("modes") and sn in PILOTS:
+                a["by_hand_ok"] = vp.ability_why_not(p, a["index"], sorcery_ok=main, runnable=False) is None
         if x.get("equip_cost"):
             why = None if main else "Equip is sorcery speed: only in your own main phase"
             why = why or (None if vp.plan_payment(x["equip_cost"]) is not None else f"needs {x['equip_cost']}: {vp.mana_words()}")
             why = why or (None if any((c.is_("Creature") or c.face_down) and p.attached_to != c.id for c in vp.battlefield) else "no creature to equip")
             x["equip_can"], x["equip_why"] = why is None, why
+            # the creatures it may go onto, whether or not it can be paid for right now (the page lights these up for a drag or a tap; the
+            # action itself still checks everything): this seat's creatures and face-down cards, not itself, not the one it is on
+            x["equip_targets"] = [c.id for c in vp.battlefield if (c.is_("Creature") or c.face_down) and c.id != p.id and p.attached_to != c.id]
         if x.get("has_station") and not p.face_down:
             top = _pl.station_top(p.card)
             why = None if main else "Station is sorcery speed: only in your own main phase"
@@ -4505,6 +4586,17 @@ def on_creature_died(owner, dead):
 
 __import__("player").DEATH_HOOK[0] = on_creature_died
 __import__("player").STEP_KEY[0] = lambda: (PHASE.get("player"), PHASE.get("step"))   # mana in a pool empties when the step changes
+
+
+def foe_creatures(seat: str) -> list:
+    """(owner, permanent) for every face-up creature a seat that is not `seat` (nor its teammate, nor out of the game) controls: what an Aura
+    meant for an opponent's creature may go on. One list for "may it be cast" (player.hostile_targets) and "what the legal list offers"."""
+    mates = set(teammates(seat)) if TEAMS.get(seat) else set()
+    return [(o, x) for o, ov in list(VPS.items()) if o != seat and o not in mates and not is_out(o) for x in list(ov.battlefield)
+            if x.is_("Creature") and not x.face_down]
+
+
+__import__("player").FOE_CREATURES[0] = lambda seat: [x.name for _, x in foe_creatures(seat)]
 MANUAL_SAID: set = set()
 NOTED: set = set()
 
@@ -5248,7 +5340,7 @@ class H(BaseHTTPRequestHandler):
             import oracle
             from urllib.parse import parse_qs, urlparse
             name = parse_qs(urlparse(self.path).query).get("name", [""])[0]
-            c = oracle.card(name) if name else None
+            c = (oracle.card(name) or set_card(name)) if name else None      # (the Oracle file, then the set's own card file: both static, neither knows the game)
             if not c:
                 return self._send(404, {"error": f"no card named '{name}'"})
             return self._send(200, {"name": name, **{k: c.get(k) for k in ("cost", "type", "text", "power", "toughness")}})
@@ -5264,7 +5356,8 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / "table3d.html").read_bytes(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/watch":            # the board for spectators: a turn behind (/api/spectate), no actions
             # The helper scripts (life bar, history, todos, questions…) read the LIVE game; on /watch they would undo the delay.
-            page = re.sub(r'<script src="/assets/(?!art\.js)[^"]+"[^>]*></script>\n?', "", (HERE / "board.html").read_text())   # art.js: static art lookup only
+            # (kept: art.js, a static art lookup, and mana.js, which only redraws "{2}{R}" as pictures in text already on the page: neither fetches game data)
+            page = re.sub(r'<script src="/assets/(?!art\.js|mana\.js)[^"]+"[^>]*></script>\n?', "", (HERE / "board.html").read_text())
             return self._send(200, body=page.encode(), ctype="text/html; charset=utf-8")
         if self.path.split("?")[0] == "/board":            # the whole board in plain HTML: any device, no 3D
             return self._send(200, body=(HERE / "board.html").read_bytes(), ctype="text/html; charset=utf-8")
@@ -6261,6 +6354,7 @@ class H(BaseHTTPRequestHandler):
                 if sn is None:
                     return self._send(404, {"error": f"no AI seat '{b.get('seat')}' (seats: {list(VPS)})"})
                 act = self.path.rsplit("/", 1)[-1]
+                hand_taps_sweep(sn)                       # (a by-hand tap that something has since untapped can no longer be "taken back")
                 if GAME_OVER.get("over") and act != "say" and (pilot or act not in AFTER_GAME_OK):   # M24: nothing is played after the end
                     self._refused(act, "game-over", "")
                     lost_ = [n for n in life_table() if is_out(n)]     # (409 and `stale`, as for any listed move the game has since overtaken: read the list again)
@@ -6975,7 +7069,8 @@ class H(BaseHTTPRequestHandler):
                                                      sorcery_ok=on_turn(VP.name) and STEPS[PHASE["step"]] in ("main 1", "main 2")) is None else []
                     said = ward_said_ + VP.activate(str(b.get("source", "")), x=int(b.get("x") or 0),
                                        index=None if b.get("index") in (None, "") else int(b["index"]), target=tgt,
-                                       pick=b.get("pick"), put=b.get("put"), bottom=b.get("bottom"), mode=mode,
+                                       pick=([b["pick"]] if isinstance(b.get("pick"), str) else b.get("pick")), put=b.get("put"), bottom=b.get("bottom"), mode=mode,
+                                       by_hand=bool(b.get("by_hand")) and VP.name in PILOTS,
                                        sac_ref=str(b["sac"]) if b.get("sac") not in (None, "") else None, target_owner=tgt_owner,
                                        tap_refs=[str(x) for x in b["tap"]] if isinstance(b.get("tap"), list) and b.get("tap") else None,
                                        sorcery_ok=on_turn(VP.name) and STEPS[PHASE["step"]] in ("main 1", "main 2"))
@@ -7178,6 +7273,15 @@ class H(BaseHTTPRequestHandler):
                             return self._send(409, {**phase_public(), "choose": True, "stale": True,
                                                     "error": f"{tg_['ref']} has left play since that list was made: read your choices again"})
                     said = answer_choice(VP.name, item_, tg_)
+                elif action == "manual" and str(b.get("op", "")) == "temp":
+                    # 2026-11-13 retro (C4): the host undoes or moves a mistaken "until end of turn" change. {"op": "temp", "ref": "#id",
+                    # "power": ±n, "toughness": ±n} on ANY virtual seat's creature (the seat named is its controller). The HOST only: the brain
+                    # token, never a seat's key (a pilot's request carries _pilot; `manual` is otherwise a pilot's own-cards tool, and a
+                    # player must not be able to resize a creature in the middle of combat).
+                    if b.get("_pilot"):
+                        self._refused(action, "host-only", "")
+                        return self._send(403, {"error": "only the table's host can correct an until-end-of-turn change (ask the host; both players should agree)"})
+                    said = VPS[VP.name].host_temp(str(b.get("ref", "")), b.get("power") or 0, b.get("toughness") or 0)
                 elif action == "manual":                 # T10: a person's own cards, by hand, logged in public words (pilot seats; never a bot)
                     if VP.name not in PILOTS:
                         raise IllegalAction("manual moves are for a person's own seat (a pilot); a bot plays its cards through the engine")
@@ -7237,7 +7341,7 @@ class H(BaseHTTPRequestHandler):
                     p = VP.perm(b["ref"])
                     p.tapped = action == "tap"
                     if action == "tap" and b.get("_pilot"):
-                        HAND_TAPS[(VP.name, p.id)] = (PHASE["player"], PHASE["step"])
+                        HAND_TAPS[(VP.name, p.id)] = (PHASE["player"], PHASE["step"], PASS_COUNT.get(VP.name, 0), VP.turn)
                     else:
                         HAND_TAPS.pop((VP.name, p.id), None)
                     said = [f"{p.name} is {action}ped."] if b.get("announce") else []
