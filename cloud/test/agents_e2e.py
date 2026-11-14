@@ -135,7 +135,12 @@ try:
     check(c == 302 and h.get("Location", "").endswith("/agents/skill.md"), "/agents leads to the guide", (c, h.get("Location")))
     r = urllib.request.urlopen(W + "/agents/skill.md", timeout=10)
     check(r.status == 200 and b"/agents/register" in r.read(), "the guide is served")
-    check(b"For AI agents" in urllib.request.urlopen(W + "/", timeout=10).read(), "the lobby page points agents to it")
+    home = urllib.request.urlopen(W + "/", timeout=10).read()
+    check(b"For AI agents" in home, "the lobby page points agents to it")
+    check(b"About this site" in home and b"github.com/Divinci-AI/divinci-table/issues" in home and b"Fan Content Policy" in home,
+          "the lobby page has its contact, conduct, privacy and Fan Content lines")
+    check(b"AI opponents" not in home and b"aicode" not in home and b"personalities" not in home and b"share photos" not in home,
+          "a lobby without AI seats offers none, and claims no voices, personalities or photo sharing")
 
     print("sign-up")
     check(req("POST", "/agents/register", {"name": "x"})[0] == 400, "a name too short is refused")
@@ -143,6 +148,9 @@ try:
     check(req("POST", "/agents/register", {"name": "Fusion"})[0] == 400 and req("POST", "/agents/register", {"name": "House Autopilot"})[0] == 400
           and req("POST", "/agents/register", {"name": "claude-2"})[0] == 400 and req("POST", "/agents/register", {"name": "HouseAutopilot"})[0] == 400
           and req("POST", "/agents/register", {"name": "\u0397ouse Autopilot"})[0] == 400, "a house name is refused, run together or with a look-alike letter")
+    vendor = [req("POST", "/agents/register", {"name": n}) for n in ("ChatGPT", "my gpt bot", "Gemini-Pro", "Cl4ude", "x.ai", "Meta AI")]
+    check(all(c == 400 and "reserved" in d.get("error", "") for c, d, _ in vendor), "AI vendors' and models' names are refused, with the reason",
+          [(c, d.get("error")) for c, d, _ in vendor])
     c, d, _ = req("POST", "/agents/register", {"name": "House Autopilot"}, {"Authorization": "Bearer " + ADMIN})
     check(c == 201 and d.get("key", "").startswith("dta_"), "… except to the lobby's admin (and it does not count against the address)", (c, {k: v for k, v in d.items() if k != "key"}))
     check(req("POST", "/agents/register", b"[1,2]")[0] == 400 and req("POST", "/agents/register", b"{" + b" " * 5000 + b"}")[0] == 400, "a body that is not a small JSON object is refused")
@@ -300,6 +308,12 @@ try:
     print("a people's table still works")
     c, d, h = req("POST", "/lobby/rooms", form={"game": "magic", "humans": "-x, Bo", "title": "flag"})
     check(c == 303 and "error=" in h.get("Location", ""), "a seat name starting with a dash is refused by the form", (c, h.get("Location")))
+    for f, what in (({"game": "magic", "humans": "Gemini, Bo", "title": "e2e"}, "a seat"), ({"game": "chess", "humans": "Ann", "title": "ChatGPT night"}, "a title"),
+                    ({"game": "dnd", "humans": "Dee, Сlaude", "title": "e2e"}, "a seat with a look-alike letter")):
+        c, d, h = req("POST", "/lobby/rooms", form=f)
+        check(c == 303 and "reserved" in urllib.parse.unquote(h.get("Location", "")), f"{what} named for an AI vendor is refused", (c, h.get("Location")))
+    c, d, h = req("POST", "/lobby/rooms", form={"game": "chess", "humans": "Claude", "title": "E2E admin seat", "minutes": "5", "level": "2"}, headers=bearer(ADMIN))
+    check(c == 303 and "/r/" in h.get("Location", ""), "the lobby's admin may name its own seat Claude", (c, h.get("Location")))
     c, d, h = req("POST", "/lobby/rooms", form={"game": "chess", "humans": "Ann", "title": "E2E chess", "minutes": "5", "level": "2"})
     loc = h.get("Location", "")
     rid = loc.rsplit("/", 1)[-1]
