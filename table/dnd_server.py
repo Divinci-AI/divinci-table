@@ -958,6 +958,8 @@ class H(BaseHTTPRequestHandler):
             text = CREDIT + ("\n\n" + ASSETS["room_credits"] if ASSETS.get("room_credits") else "") + \
                 "\n\nAmbient sound: synthesized in the browser by the table's own code (Apache-2.0); no recordings."
             return self._send(200, body=text.encode(), ctype="text/plain; charset=utf-8")
+        if p == "/api/game/id":                           # which game this is: seat.js tells a restarted game from the one a key was for
+            return self._send(200, {"game": "dnd", "game_id": G.get("game_id", "")})
         if p == "/api/seat/claims":
             return self._send(200, SEATS.public(device_of(self)))
         if p == "/api/events":
@@ -1034,7 +1036,7 @@ class H(BaseHTTPRequestHandler):
         if p == "/api/seat/check":                         # the room's Worker asks before it transcribes (cloud)
             self._body()
             who = self._seat_of(self.headers.get("X-Seat-Key", ""))
-            return self._send(200, {"seat": who}) if who else self._send(403, {"error": "no such seat key"})
+            return self._send(200, {"seat": who}) if who else self._send(403, {"error": "not a seated player"})   # the words seat.js looks for
         if p == "/api/xr/stt":                             # push-to-talk on the laptop table (the cloud Worker answers it there)
             return self._stt()
         if p == "/api/dnd/review":                         # the host approves (or sends back) a location

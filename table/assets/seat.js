@@ -16,7 +16,9 @@
   addEventListener("storage", e => { if (e.key === KEY) { mine = load(); if (mine.key) alive(); chip(); } });   // (a fresh key from another tab: this one is alive again)
   const post = (p, b) => fetch(p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) })
     .then(async r => ({ ok: r.ok, d: await r.json().catch(() => ({})) }));
-  const gameId = async () => { try { return (await (await fetch("/api/phase", { cache: "no-store" })).json()).game_id || ""; } catch { return ""; } };
+  // /api/game/id is answered by every table (Magic, chess, D&D, poker); /api/phase is Magic's alone, and asking a D&D or chess table for it
+  // put a 404 in the console of every page load there.
+  const gameId = async () => { try { return (await (await fetch("/api/game/id", { cache: "no-store" })).json()).game_id || ""; } catch { return ""; } };
   async function claim(name, key, invite) {
     const r = await post("/api/seat/claim", { name, key, invite });
     if (r.ok) { mine = { name: r.d.name, key: r.d.key, game: await gameId() }; save(mine); alive(); chip(); }

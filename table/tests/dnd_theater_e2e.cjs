@@ -12,7 +12,7 @@ const { chromium } = require(process.env.PW || "@playwright/test");
 
 const ROOT = path.join(__dirname, "..", "..");
 const PY = path.join(os.homedir(), ".venvs", "table", "bin", "python");
-const PORT = 8000 + Math.floor(Math.random() * 900) + 90;
+const PORT = require("./test_port.cjs").testPort();
 const BASE = `http://127.0.0.1:${PORT}`;
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "dnd-theater-"));
 const SCRIPT = path.join(TMP, "dm.txt");

@@ -13,7 +13,7 @@ const { chromium } = require(process.env.PW || "@playwright/test");
 const ROOT = path.join(__dirname, "..", "..");
 const PY = path.join(os.homedir(), ".venvs", "table", "bin", "python");
 const MODEL = process.argv[2] || "gemma4:e2b", TRIALS = +(process.argv[3] || 5), OUT = process.argv[4];
-const PORT = 8000 + Math.floor(Math.random() * 900) + 80, BASE = `http://127.0.0.1:${PORT}`;
+const PORT = require("./test_port.cjs").testPort(), BASE = `http://127.0.0.1:${PORT}`;
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "voice-loop-"));
 const LINES = ["I walk up to the bar and ask the barkeep about the missing caravan.",
                "I draw my sword and step between the bandit and the old woman.",
