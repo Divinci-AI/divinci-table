@@ -31,6 +31,7 @@
 // Y = roll a d20. Say "roll a d20 for stealth" to roll; anything else you say is what your character says or does.
 import * as THREE from "three";
 import { createDndScene } from "/assets/dnd-scene.js";
+import { createStory } from "/assets/dnd-story.js";
 import { moveOffset, turnOffset, yawOf } from "/assets/xr-controls.js";
 import { installPresence } from "/assets/xr-presence.js";
 
@@ -65,8 +66,43 @@ scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x2a2016, 1.1));
 const sun = new THREE.DirectionalLight(0xfff1dc, 1.6); sun.position.set(-1, 3, 1); scene.add(sun);
 const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.01, 200); camera.position.set(0, 1.4, 1.2);
 addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+// ── the world around the table: sky, ground and fog in the location's colours, and a wooden table under the
+// diorama. In VR and the preview only: in AR your own room is the world (passthrough), so none of this is drawn.
+const THEMES = {                                           // sky top, horizon, ground, fog
+  tavern: [0x1a120c, 0x5a3b22, 0x2b2016, 0x3a2818], keep: [0x14161c, 0x4b4a52, 0x2a2a2e, 0x34343a],
+  road: [0x4a78b8, 0xd8c79a, 0x5b6b38, 0xb9b08a], forest: [0x3c6a9c, 0xb8cfa8, 0x34502a, 0x8fa88a],
+  cave: [0x05070a, 0x1a2026, 0x15181b, 0x0e1216], crypt: [0x07060c, 0x231c30, 0x18151d, 0x15111c],
+  bridge: [0x2b3f6b, 0xe0a070, 0x3a4048, 0x8c7a78], ruins: [0x30406a, 0xc99a74, 0x4b4536, 0x8a7d6c] };
+function gradientTexture(top, mid) {
+  const cv = document.createElement("canvas"); cv.width = 2; cv.height = 256; const g = cv.getContext("2d");
+  const gr = g.createLinearGradient(0, 0, 0, 256), hex = n => "#" + n.toString(16).padStart(6, "0");
+  gr.addColorStop(0, hex(top)); gr.addColorStop(0.62, hex(mid)); gr.addColorStop(1, hex(mid));
+  g.fillStyle = gr; g.fillRect(0, 0, 2, 256); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const world = new THREE.Group(); scene.add(world);
+const sky = new THREE.Mesh(new THREE.SphereGeometry(80, 32, 16), new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false, depthWrite: false }));
+sky.renderOrder = -1; world.add(sky);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(60, 48).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial());   // cheap per pixel: it fills the view
+ground.receiveShadow = true; world.add(ground);
+const wood = new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.75 });
+const tabletop = new THREE.Group();
+{ const top = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.05, 48), wood); top.position.y = -0.04; top.receiveShadow = true;
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.018, 8, 64).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xd9b46a, metalness: 0.6, roughness: 0.35 }));
+  rim.position.y = -0.016;
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 0.8, 16), wood); leg.position.y = -0.46;
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.04, 32), wood); foot.position.y = -0.84;
+  tabletop.add(top, rim, leg, foot); }
+scene.add(tabletop);
+let themeNow = "";
+function setTheme(theme) {
+  const t = THEMES[theme] || THEMES.forest; if (theme === themeNow) return; themeNow = theme;
+  sky.material.map?.dispose(); sky.material.map = gradientTexture(t[0], t[1]); sky.material.needsUpdate = true;
+  ground.material.color.setHex(t[2]); scene.fog = new THREE.Fog(t[3], 9, 55);
+}
+setTheme("forest");
 const table = new THREE.Group(); scene.add(table);          // metres: scale 1 at life size (presence only then)
 const dnd = createDndScene(); table.add(dnd.root);
+const story = createStory(THREE, { me: () => me() }); scene.add(story.mesh);
 dnd.root.scale.setScalar(SQUARE_M);
 function fit() {                                           // centre the map on the table; diorama ≈ 0.8 m across
   const { w, h } = dnd.size();
@@ -112,7 +148,7 @@ renderer.xr.addEventListener("sessionstart", async () => {
 renderer.xr.addEventListener("sessionend", () => { hitSource = null; table.visible = true; table.position.set(0, 0, 0); checkXR(); });
 
 // ── the wrist panel (left hand): state and buttons, hit-tested from the right hand's ray ─────────────────
-const PW = 640, PH = 520;
+const PW = 640, PH = 820;
 const pc = document.createElement("canvas"); pc.width = PW; pc.height = PH;
 const ptex = new THREE.CanvasTexture(pc); ptex.colorSpace = THREE.SRGBColorSpace;
 const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2 * PH / PW), new THREE.MeshBasicMaterial({ map: ptex, transparent: true }));
@@ -130,8 +166,28 @@ function drawPanel() {
   if (s) g.fillText(`${me()} · ${s.hp}/${s.max_hp} HP · AC ${s.ac}`, 28, 146);
   if (t && now === me()) g.fillText(`${Math.max(0, t.speed - ((S.map.used || {})[t.id] || 0))} ft of movement left`, 28, 188);
   g.fillStyle = "#ff9b6a"; g.font = "24px system-ui"; g.fillText((note || (sel ? "Now point at a square" : "")).slice(0, 44), 28, 230);
-  buttons = [["d20", "Roll d20", 28, 260], ["next", "Next turn", 330, 260], ["size", life ? "Diorama" : "Life size", 28, 380]];
-  if (!life && renderer.xr.getSession()?.environmentBlendMode !== "opaque") buttons.push(["replace", "Re-place", 330, 380]);
+  buttons = [["d20", "Roll d20", 28, 260], ["next", "Next turn", 330, 260], ["size", life ? "Diorama" : "Life size", 28, 380],
+             ["voice", story.voice.on ? "Voice: on" : "Voice: off", 330, 380]];
+  if (!life && renderer.xr.getSession()?.environmentBlendMode !== "opaque") buttons.push(["replace", "Re-place", 28, 500]);
+  const ini = S?.initiative;                                 // the turn order and the party, at a glance
+  let y = 640;
+  if (ini?.active && ini.order.length) {
+    g.fillStyle = "#d9b46a"; g.font = "700 24px system-ui"; g.fillText(`Round ${ini.round}`, 28, y - 30);
+    g.font = "24px system-ui"; let x = 28;
+    ini.order.forEach((o, i) => {
+      const t = (i === ini.turn && !ini.pending.length ? "▶ " : "") + o.name, w = g.measureText(t).width + 22;
+      if (x + w > PW - 20) { x = 28; y += 32; }
+      g.fillStyle = i === ini.turn && !ini.pending.length ? "#f4dc9b" : "#9fb0b0"; g.fillText(t, x, y); x += w;
+    });
+    y += 44;
+  }
+  g.font = "22px system-ui";
+  for (const [n, sh] of Object.entries(S?.sheets || {}).slice(0, 6)) {
+    if (y > PH - 20) break;
+    g.fillStyle = sh.hp <= 0 ? "#ff7b6a" : sh.hp <= sh.max_hp / 2 ? "#ffb347" : "#9fd8b0";
+    g.fillText(`${n} ${sh.hp}/${sh.max_hp}${sh.conditions?.length ? " · " + sh.conditions.join(", ") : ""}`.slice(0, 44), 28 + (Object.keys(S.sheets).indexOf(n) % 2) * 300, y);
+    if (Object.keys(S.sheets).indexOf(n) % 2) y += 30;
+  }
   for (const [id, text, x, y] of buttons) {
     const off = id === "next" && now !== me();
     g.fillStyle = off ? "#1a2a30" : "#10242d"; g.beginPath(); g.roundRect(x, y, 282, 96, 18); g.fill();
@@ -148,6 +204,7 @@ function pressPanel(uv) {
   if (id === "next" && turnName() === me()) post("/api/dnd/initiative", { action: "next" });
   if (id === "size") { life = !life; if (life) table.position.set(0, 0, 0); fit(); drawPanel(); }
   if (id === "replace") { placed = false; table.visible = false; }
+  if (id === "voice") { story.voice.toggle(); drawPanel(); }
   return true;
 }
 
@@ -219,9 +276,13 @@ async function talkOff() {
 
 // ── state, presence, the loop ──────────────────────────────────────────────────────────────────────
 async function poll() {
-  try { S = await (await fetch("/api/dnd")).json(); dnd.update(S); fit(); drawPanel(); } catch {}
+  try { S = await (await fetch("/api/dnd")).json(); dnd.update(S); fit(); setTheme(S.map?.theme); story.setState(S); drawPanel(); } catch {}
 }
 await poll(); setInterval(poll, 3000);               // the safety net; events below make it feel instant
+try {                                                // the story so far, quietly (nothing is spoken twice)
+  const back = await (await fetch("/api/events?since=0")).json();
+  for (const e of (back.events || []).slice(-60)) story.push(e, { quiet: true });
+} catch {}
 (async function eventsLoop() {                       // long poll: re-read the state the moment anything happens
   let since = null;
   for (;;) {
@@ -230,6 +291,7 @@ await poll(); setInterval(poll, 3000);               // the safety net; events b
       if (since === null) since = (await (await fetch("/api/events?since=latest")).json()).last;
       const e = await (await fetch(`/api/events?since=${since}&wait=${document.hidden ? 0 : 20}`)).json();
       since = e.restarted ? null : e.last; got = e.events.length > 0;
+      for (const ev of e.events) story.push(ev);
       if (got) await poll();
     } catch {}
     if (!got && performance.now() - t0 < 800) await new Promise((r) => setTimeout(r, 1500));   // error or no long-poll support
@@ -251,7 +313,8 @@ function offset(pos, quat) {                                 // life size: move 
 const headPos = () => { const xc = renderer.xr.getCamera(); xc.updateMatrixWorld(); return new THREE.Vector3().setFromMatrixPosition(xc.matrixWorld); };
 const headYaw = () => { const d = new THREE.Vector3(); renderer.xr.getCamera().getWorldDirection(d); return yawOf(d); };
 let t0 = performance.now();
-window.DNDXR = { dnd, table, frames: [], state: () => S, rollFromSpeech };
+const _eye = new THREE.Vector3(), _fwd = new THREE.Vector3(), _goal = new THREE.Vector3();
+window.DNDXR = { dnd, table, camera, frames: [], state: () => S, rollFromSpeech, story, world: () => ({ theme: themeNow, sky: world.visible, tabletop: tabletop.visible }) };
 renderer.setAnimationLoop((now, frame) => {
   const dt = Math.min(0.1, (now - t0) / 1000); t0 = now; DNDXR.frames.push(dt * 1000); if (DNDXR.frames.length > 300) DNDXR.frames.shift();
   if (frame && hitSource && !placed) {
@@ -277,9 +340,29 @@ renderer.setAnimationLoop((now, frame) => {
     prevBtn.set(c, Object.assign(gp.buttons.map(b => b.pressed), { ax: gp.axes[2] || 0 }));
   }
   if (!renderer.xr.isPresenting) {
-    camera.position.set(Math.sin(yaw) * 1.1, 0.3 + Math.cos(pitch) * 0.9, Math.cos(yaw) * 1.1); camera.lookAt(0, 0, 0);
+    camera.position.set(Math.sin(yaw) * 1.6, 0.3 + Math.cos(pitch) * 0.95, Math.cos(yaw) * 1.6); camera.lookAt(0, 0.2, 0);   // the map and the story above it
   }
-  dnd.tick(dt, renderer.xr.isPresenting ? renderer.xr.getCamera() : camera);
+  const view = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+  const passthrough = renderer.xr.isPresenting && renderer.xr.getSession()?.environmentBlendMode !== "opaque";
+  world.visible = !passthrough; if (passthrough) scene.fog = null; else if (!scene.fog) { const t = themeNow; themeNow = ""; setTheme(t); }
+  tabletop.visible = !passthrough && !life && table.visible;
+  tabletop.position.copy(table.position);
+  ground.position.y = life ? table.position.y - 0.01 : table.position.y - 0.86;
+  view.getWorldPosition(_eye);
+  if (life) {                                                // life size: the story waits a couple of metres ahead of you
+    view.getWorldDirection(_fwd); _fwd.y = 0; _fwd.normalize();
+    _goal.copy(_eye).addScaledVector(_fwd, 2.2); _goal.y = _eye.y + 0.25;
+    story.mesh.scale.setScalar(2);
+  } else {                                                   // diorama: just beyond the map, on the far side from you
+    _fwd.copy(table.position).sub(_eye); _fwd.y = 0; if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1); _fwd.normalize();
+    _goal.copy(table.position).addScaledVector(_fwd, 0.62); _goal.y = table.position.y + 0.42;
+    story.mesh.scale.setScalar(1);
+  }
+  story.mesh.position.lerp(_goal, story.mesh.userData.placed ? Math.min(1, dt * 3) : 1); story.mesh.userData.placed = true;
+  story.mesh.lookAt(_eye.x, story.mesh.position.y, _eye.z);
+  story.mesh.visible = !!S && table.visible;
+  story.tick();
+  dnd.tick(dt, view);
   renderer.render(scene, camera);
 });
 </script>

@@ -27,7 +27,8 @@ body[data-brand="me"] #next.wait{background:#2b3d44;border-color:#3e5961;color:#
 
 /* brand mark (added by brand.js) */
 .dt-mark{position:fixed;left:14px;bottom:12px;z-index:60;display:flex;align-items:center;gap:8px;text-decoration:none;
-  font:700 12px Cinzel,Georgia,serif;letter-spacing:.22em;color:var(--dt-gold);opacity:.8}
+  font:700 12px Cinzel,Georgia,serif;letter-spacing:.22em;color:var(--dt-gold);opacity:.8;
+  padding:4px 12px 4px 6px;border-radius:999px;background:rgba(4,13,18,.82)}   /* a badge, not text over the page's text */
 .dt-mark svg{width:24px;height:24px;filter:drop-shadow(0 0 6px #3fd0c9aa)}
 .dt-mark .core{transform-box:fill-box;transform-origin:center;animation:dt-mark-pulse 2.6s ease-in-out infinite}
 @keyframes dt-mark-pulse{0%,100%{transform:scale(.85);opacity:.8}50%{transform:scale(1.15);opacity:1}}

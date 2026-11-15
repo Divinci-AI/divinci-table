@@ -100,10 +100,11 @@ export function createDndScene() {
   // A name tag over every token, drawn through walls (depthTest off): in rooms with tall walls a token can stand where
   // the camera can't see it (the tavern's back room hid both players' characters, 2026-11-14), and a standee's own name
   // is too small to read from across the table. It never takes a tap (raycast off): picking stays on the token itself.
-  function nameTag(t) {
+  function nameTag(t, mark = "") {
     const c = document.createElement("canvas"); c.width = 512; c.height = 112;
     const g = c.getContext("2d"), col = "#" + (SIDE[t.side] || 0xcccccc).toString(16).padStart(6, "0");
-    const name = t.name.length > 18 ? t.name.slice(0, 17) + "…" : t.name;
+    const base = t.name.length > (mark ? 13 : 18) ? t.name.slice(0, mark ? 12 : 17) + "…" : t.name;
+    const name = mark ? `${base} ${mark}` : base;
     g.font = "700 54px system-ui"; const w = Math.min(500, g.measureText(name).width + 56), x0 = (512 - w) / 2;
     g.fillStyle = "rgba(6,18,26,.86)"; g.beginPath(); g.roundRect(x0, 10, w, 92, 46); g.fill();
     g.lineWidth = 7; g.strokeStyle = col; g.stroke();
@@ -131,7 +132,8 @@ export function createDndScene() {
     group.add(base, ring, turn, body, tag);
     group.userData.tokenId = t.id;
     group.traverse(o => { o.userData.tokenId = t.id; });
-    const rec = { group, body, ring, turn, tag, from: null, to: null, t: 1, data: t, mixer: null };
+    const rec = { group, body, ring, turn, tag, from: null, to: null, t: 1, data: t, mixer: null,
+                  tagBase: 0.93 * n + 0.32, tagLift: 0, tagKey: t.name };
     const url = t.mini && minis[t.mini] ? assetURL(minis[t.mini]) : null;
     if (url) loadRetry(url, () => toks.get(t.id) === rec, gltf => {   // the standee stays until (unless) it arrives
       const model = cloneSkinned(gltf.scene);
@@ -139,7 +141,7 @@ export function createDndScene() {
       model.position.y = 0.05;
       group.remove(rec.body); group.add(model); rec.body = model;
       const top = new THREE.Box3().setFromObject(model).max.y - group.position.y;   // the tag sits just over the mini's head
-      if (Number.isFinite(top) && top > 0) rec.tag.position.y = top + 0.28;
+      if (Number.isFinite(top) && top > 0) rec.tagBase = top + 0.28;
       if (gltf.animations?.length) {
         rec.mixer = new THREE.AnimationMixer(model);
         const clip = gltf.animations.find(a => /idle/i.test(a.name)) || gltf.animations[0];
@@ -156,6 +158,13 @@ export function createDndScene() {
     if (t.kind === "pc") { const s = state.sheets?.[t.name]; return !s ? "ok" : s.hp <= 0 ? "down" : s.hp <= s.max_hp / 2 ? "hurt" : "ok"; }
     const m = (state.monsters || []).find(x => x.name === t.name);
     return !m ? "ok" : m.hp <= 0 ? "down" : m.hp <= m.max_hp / 2 ? "hurt" : "ok";
+  }
+
+  // What a creature's tag says beside its name: asleep / unconscious as 💤, otherwise its first condition.
+  function markOf(state, t) {
+    const conds = t.kind === "pc" ? state.sheets?.[t.name]?.conditions : (state.monsters || []).find(x => x.name === t.name)?.conditions;
+    if (!conds || !conds.length) return "";
+    return conds.includes("unconscious") ? "💤" : conds[0];
   }
 
   function update(state) {
@@ -182,6 +191,12 @@ export function createDndScene() {
       r.ring.material.color.setHex(HP[hs]);
       r.group.userData.down = hs === "down";
       r.turn.visible = t.name === now;
+      const mark = markOf(state, t), key = t.name + "|" + mark;
+      if (r.tagKey !== key) {                            // a condition came or went: redraw the tag in place
+        const tag = nameTag(t, mark); tag.position.copy(r.tag.position); tag.userData.tokenId = t.id;
+        r.group.remove(r.tag); r.tag.material.map.dispose(); r.tag.material.dispose();
+        r.group.add(tag); r.tag = tag; r.tagKey = key;
+      }
       r.tag.material.opacity = hs === "down" ? 0.45 : 1;
       r.tagTurn = t.name === now;                        // whose turn: a bigger tag (sized in tick)
     }
@@ -207,6 +222,34 @@ export function createDndScene() {
         r.body.rotation.y = Math.atan2(_q.x - r.body.position.x, _q.z - r.body.position.z);
       }
     }
+    if (camera) declutter(dt, camera);
+  }
+
+  // Tags of creatures standing close together overlapped on screen (the party bunched at the start, 2026-11-15): each
+  // frame, nearest tag first, a tag that would cover one already placed steps up until it's clear (at most four
+  // steps), easing there so nothing jitters. Screen space, so it works from any angle and in the headset.
+  const _c = new THREE.Vector3(), _rv = new THREE.Vector3(), _uv = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3();
+  function tagRect(r, lift, camera) {
+    _c.set(0, r.tagBase + lift, 0); r.group.localToWorld(_c);
+    const ws = r.group.getWorldScale(_s).x, hw = r.tag.scale.x * ws / 2, hh = r.tag.scale.y * ws / 2;
+    _rv.setFromMatrixColumn(camera.matrixWorld, 0).normalize().multiplyScalar(hw);
+    _uv.setFromMatrixColumn(camera.matrixWorld, 1).normalize().multiplyScalar(hh);
+    _a.copy(_c).sub(_rv).sub(_uv).project(camera); _b.copy(_c).add(_rv).add(_uv).project(camera);
+    return [Math.min(_a.x, _b.x), Math.min(_a.y, _b.y), Math.max(_a.x, _b.x), Math.max(_a.y, _b.y)];
+  }
+  const overlaps = (p, q) => p[0] < q[2] && q[0] < p[2] && p[1] < q[3] && q[1] < p[3];
+  function declutter(dt, camera) {
+    camera.updateMatrixWorld();
+    camera.getWorldPosition(_q);
+    const recs = [...toks.values()].map(r => { r.group.getWorldPosition(_w); return [r, _q.distanceTo(_w)]; }).sort((x, y) => x[1] - y[1]);
+    const placed = [];
+    for (const [r] of recs) {
+      let lift = 0, rect = tagRect(r, 0, camera);
+      for (let i = 0; i < 4 && placed.some(p => overlaps(rect, p)); i++) { lift += r.tag.scale.y * 1.08; rect = tagRect(r, lift, camera); }
+      placed.push(rect);
+      r.tagLift += (lift - r.tagLift) * Math.min(1, dt * 8);
+      r.tag.position.y = r.tagBase + r.tagLift;
+    }
   }
 
   const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), _p = new THREE.Vector3(), _inv = new THREE.Matrix4();
@@ -223,6 +266,6 @@ export function createDndScene() {
   }
 
   const debug = () => Object.fromEntries([...toks].map(([id, r]) => [id, { to: [r.to.x, r.to.z], at: [r.group.position.x, r.group.position.z],
-    mini: !r.body?.userData.billboard }]));
+    mini: !r.body?.userData.billboard, tag: r.tagKey, lift: r.tagLift }]));
   return { root, update, tick, squareAt, tokenAt, size: () => ({ w: W, h: H }), debug };
 }
