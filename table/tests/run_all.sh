@@ -52,6 +52,7 @@ run dnd-voice-srv /usr/bin/python3 table/tests/dnd_voice_test.py
 run events-longpoll /usr/bin/python3 table/tests/events_longpoll_test.py
 run dnd-assets    /usr/bin/python3 table/tests/dnd_assets_test.py
 run dnd-dm-sim    /usr/bin/python3 table/tests/dnd_dm_sim_test.py
+run dnd-agent     $PY table/tests/dnd_agent_test.py
 run chess         $PY table/tests/chess_test.py
 run poker         $PY table/tests/poker_test.py
 run ledger        /usr/bin/python3 table/tests/ledger_test.py
