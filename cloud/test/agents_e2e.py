@@ -332,6 +332,32 @@ try:
     check("E2E chess" in page, "and the room is on the lobby page")
     c, d, _ = req("GET", "/agents/tables")
     check(all(x["id"] != rid for x in d.get("tables", [])), "a people's table is not offered to agents")
+    # poker: a people's table with a rule-based house player, through the lobby and the room host
+    c, d, h = req("POST", "/lobby/rooms", form={"game": "poker", "humans": "Ann, Bo", "bots": "1", "stakes": "quick", "title": "E2E poker"})
+    loc = h.get("Location", "")
+    pid = loc.rsplit("/", 1)[-1]
+    check(c == 303 and "/r/" in loc and len(pid) == 8, "the form starts a poker room", (c, loc))
+    for f, what in (({"game": "poker", "humans": "Ann", "bots": "0"}, "one seat"), ({"game": "poker", "humans": "A,B,C,D,E", "bots": "2"}, "seven seats"),
+                    ({"game": "poker", "humans": "Ann, ann", "bots": "0"}, "two seats with one name")):
+        c, d, h = req("POST", "/lobby/rooms", form=f)
+        check(c == 303 and "?error=" in h.get("Location", ""), f"a poker table of {what} is refused", (c, h.get("Location")))
+    ck = {"Cookie": f"room={pid}"}
+    c, ann, _ = req("POST", "/api/seat/claim", {"name": "Ann"}, ck)
+    c2, bo, _ = req("POST", "/api/seat/claim", {"name": "Bo"}, {**ck, "User-Agent": "phone-b"})
+    check(c == 200 and c2 == 200 and ann.get("key") and bo.get("key"), "both people claim their poker seats", (c, c2))
+    c, st, _ = req("GET", "/api/poker", None, ck)
+    check(c == 200 and [x["name"] for x in st.get("seats", [])] == ["Ann", "Bo", "Leonardo"] and st["seats"][2]["ai"]
+          and all(x["chips"] == 500 for x in st["seats"]), "the room seats Ann, Bo and the house player Leonardo with 500 chips each", st.get("seats"))
+    c, st, _ = req("POST", "/api/poker/start", {"by": "Ann"}, {**ck, "X-Seat-Key": ann["key"]})
+    check(c == 200 and st.get("hand") == 1 and st.get("commit"), "Ann deals the first hand through the lobby", (c, st.get("error")))
+    c, me, _ = req("GET", "/api/poker/me", None, {**ck, "X-Seat-Key": ann["key"]})
+    c2, nobody, _ = req("GET", "/api/poker/me", None, ck)
+    check(c == 200 and len(me.get("hole", [])) == 2 and c2 == 403, "her two cards come only with her key", (c, c2))
+    c, v, _ = req("GET", "/api/poker/verify?hand=1", None, ck)
+    check(c == 409 and "seed" not in v, "the shuffle's seed is sealed while the game goes on", (c, v))
+    time.sleep(1)
+    page = urllib.request.urlopen(W + "/", timeout=10).read().decode()
+    check("E2E poker" in page and "Hold'em (play chips)" in page, "the poker room is on the lobby page, marked play chips")
 finally:
     try:
         os.killpg(worker.pid, signal.SIGTERM)

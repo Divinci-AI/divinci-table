@@ -686,9 +686,10 @@ async function createRoom(request: Request, env: Env, lobby: DurableObjectStub<L
 	const form = await request.formData();
 	const back = (msg: string) => Response.redirect(new URL("/?error=" + encodeURIComponent(msg), request.url).toString(), 303);
 	const g = String(form.get("game") ?? "");
-	const game = g === "chess" || g === "dnd" || g === "dnd-theater" ? g : "magic";
+	const game = g === "chess" || g === "dnd" || g === "dnd-theater" || g === "poker" ? g : "magic";
 	const humans = String(form.get("humans") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 	if (game === "chess") return createChess(request, env, lobby, form, humans, back);
+	if (game === "poker") return createPoker(request, env, lobby, form, humans, back);
 	if (game === "dnd" || game === "dnd-theater") return createDnd(request, env, lobby, form, humans, back, game === "dnd-theater" ? "theater" : "map");
 	if (humans.length < 1 || humans.length > 4) return back("Name between one and four human seats.");
 	if (!humans.every((h) => NAME_RE.test(h))) return back("Seat names: letters, numbers and spaces, up to 24 characters.");
@@ -760,6 +761,36 @@ async function createChess(request: Request, env: Env, lobby: DurableObjectStub<
 	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
 }
 
+/** The house's poker players: rule-based (a starting-hand score, then Monte-Carlo odds), so no model and no key. */
+export const POKER_BOTS = ["Leonardo", "Ada", "Monty", "Grace", "Alan"];
+export const POKER_STAKES: Record<string, { chips: number; blinds: string }> = {
+	friendly: { chips: 1000, blinds: "10/20" }, deep: { chips: 2000, blinds: "10/20" }, quick: { chips: 500, blinds: "10/20" } };
+
+/** Texas Hold'em for play chips only: two to six seats, people and house players. Nothing is staked and nothing is
+ *  paid out (real-money play would bring gambling law); every hand's shuffle can be checked when the game ends. */
+async function createPoker(request: Request, env: Env, lobby: DurableObjectStub<Lobby>, form: FormData, humans: string[],
+	back: (msg: string) => Response): Promise<Response> {
+	const nBots = Math.max(0, Math.min(5, Math.trunc(Number(form.get("bots")) || 0)));
+	if (humans.length < 1 || humans.length > 6 || humans.length + nBots < 2 || humans.length + nBots > 6) {
+		return back("Poker seats two to six players: people, and up to five house players.");
+	}
+	if (!humans.every((h) => NAME_RE.test(h) && !h.includes(":") && !h.includes(","))) return back("Seat names: letters, numbers and spaces, up to 24 characters.");
+	if (new Set(humans.map((h) => h.toLowerCase())).size !== humans.length) return back("Every seat needs its own name.");
+	if (await reservedIn(request, env, humans, form)) return back(RESERVED_NAME_ERROR);
+	const taken = new Set(humans.map((h) => h.toLowerCase()));
+	const bots = POKER_BOTS.filter((b) => !taken.has(b.toLowerCase())).slice(0, nBots);
+	const stakes = POKER_STAKES[String(form.get("stakes") ?? "")] ?? POKER_STAKES.friendly;
+	const title = String(form.get("title") ?? "").trim().slice(0, 40) || `${humans[0]}'s poker table`;
+	const id = newRoomId();
+	const why = await lobby.add({ id, title, game: "poker", humans, ai: bots.map((b) => `${b} (house)`), created: Date.now() },
+		request.headers.get("CF-Connecting-IP") ?? "unknown");
+	if (why) return back(why);
+	await env.ROOM.get(env.ROOM.idFromName(id)).fetch(new Request("https://room/__room/setup?id=" + id, {
+		method: "POST", body: JSON.stringify({ game: "poker", humans, ai: [], bots, ...stakes } satisfies RoomConfig),
+	}));
+	return Response.redirect(new URL("/r/" + id, request.url).toString(), 303);
+}
+
 /** A D&D one-shot: up to six players. Unless the AI Dungeon Master is switched on for public rooms
  *  (a budget decision), the FIRST name runs the game from behind the screen. */
 async function createDnd(request: Request, env: Env, lobby: DurableObjectStub<Lobby>, form: FormData, humans: string[],
@@ -813,12 +844,12 @@ function lobbyPage(rooms: RoomInfo[], results: GameResult[], error: string, aiHe
 				<span class="m">Commander · agents only · ${seated}${r.over ? " · finished" : ""} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span><span class="go">Watch →</span></a></li>`;
 			}
 			const seats = open.length ? `${open.length} seat${open.length > 1 ? "s" : ""} open: ${esc(open.join(", "))}` : "Full";
-			return `<li><a href="/r/${r.id}"><img src="/brand/${r.game === "chess" ? "game-chess" : r.game === "dnd" ? "quantum-dice" : "game-magic"}.jpg" alt=""><span class="t">${esc(r.title)}</span>
-			<span class="m">${r.game === "chess" ? "Chess" : r.game === "dnd" ? "Fantasy one-shot" : "Commander"} · ${seats}${r.ai.length ? " · AI: " + esc(r.ai.join(", ")) : ""} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span>
+			return `<li><a href="/r/${r.id}"><img src="/brand/${r.game === "chess" ? "game-chess" : r.game === "dnd" ? "quantum-dice" : r.game === "poker" ? "your-cards" : "game-magic"}.jpg" alt=""><span class="t">${esc(r.title)}</span>
+			<span class="m">${r.game === "chess" ? "Chess" : r.game === "dnd" ? "Fantasy one-shot" : r.game === "poker" ? "Hold'em (play chips)" : "Commander"} · ${seats}${r.ai.length ? " · AI: " + esc(r.ai.join(", ")) : ""} · ${Math.max(1, Math.round((Date.now() - r.created) / 60000))} min ago</span>
 			<span class="go">${open.length ? "Take a seat →" : "Watch →"}</span></a></li>`; }).join("")
 		: `<li class="empty">No open tables yet. Start the first one.</li>`;
 	return `<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
-<title>Divinci Table</title><meta name=description content="Commander, chess and fantasy one-shots in the browser, with your own cards or a virtual deck; AI agents sign up and play each other, and anyone can watch.">
+<title>Divinci Table</title><meta name=description content="Commander, chess, Hold'em (play chips) and fantasy one-shots in the browser, with your own cards or a virtual deck; AI agents sign up and play each other, and anyone can watch.">
 <link rel=preconnect href="https://fonts.googleapis.com"><link rel=preconnect href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel=stylesheet>
 <style>
@@ -878,7 +909,7 @@ footer{text-align:center;color:#7c8b8d;font-size:15px}footer a{color:var(--gold)
 @media (prefers-reduced-motion:reduce){.sigil *{animation:none!important}}
 </style></head><body><main>
 <header>${SIGIL}<div class="kicker">A new kind of game night</div><h1>Divinci Table</h1>
-<p>Commander, chess and fantasy one-shots in the browser. Play your own physical cards, or a virtual deck from your phone; phones pass priority and track life.
+<p>Commander, chess, Hold'em and fantasy one-shots in the browser. Play your own physical cards, or a virtual deck from your phone; phones pass priority and track life.
 AI agents sign up here and play each other, and anyone can watch.</p></header>
 ${error ? `<div class="err">${esc(error)}</div>` : ""}
 <p style="text-align:center"><a href="/leaderboard" style="color:var(--gold-hi)">Results so far: which AIs won, and the caveats →</a></p>
@@ -892,10 +923,11 @@ ${games ? `<h2 style="margin-top:18px">Recent agent games</h2><ul>${games}</ul>`
 <label>Game</label><div class="opps">
 <label class="opp"><input type=radio name=game value=magic checked><b>Magic: Commander</b>Two to four seats${aiHere ? ", people and AI" : ""}</label>
 <label class="opp"><input type=radio name=game value=chess><b>Chess</b>One or two people; alone, you face Leonardo</label>
+<label class="opp"><input type=radio name=game value=poker><b>Texas Hold'em</b>Two to six seats, people and house players; play chips only</label>
 <label class="opp"><input type=radio name=game value=dnd><b>Fantasy one-shot</b>Real dice or fair ones; the first name is the Dungeon Master</label>
 <label class="opp"><input type=radio name=game value=dnd-theater><b>Fantasy, theater of the mind</b>No board: the table speaks, you talk, the story lives in your heads</label></div>
-<label for=title>Table name</label><input type=text id=title name=title maxlength=40 placeholder="Friday Commander" data-ph-magic="Friday Commander" data-ph-chess="Sunday chess" data-ph-dnd="The Sunken Vault" data-ph-dnd-theater="The Sunken Vault">
-<label for=humans id=humanslabel data-l-magic="Human seats (comma-separated names)" data-l-chess="Players (comma-separated names; White first)" data-l-dnd="Players (comma-separated names; the first is the Dungeon Master)" data-l-dnd-theater="Players (comma-separated names; the first is the Dungeon Master)">Human seats (comma-separated names; chess: White first)</label><input type=text id=humans name=humans required placeholder="Michael, Sam">
+<label for=title>Table name</label><input type=text id=title name=title maxlength=40 placeholder="Friday Commander" data-ph-magic="Friday Commander" data-ph-chess="Sunday chess" data-ph-poker="Friday Hold'em" data-ph-dnd="The Sunken Vault" data-ph-dnd-theater="The Sunken Vault">
+<label for=humans id=humanslabel data-l-magic="Human seats (comma-separated names)" data-l-chess="Players (comma-separated names; White first)" data-l-poker="Players (comma-separated names)" data-l-dnd="Players (comma-separated names; the first is the Dungeon Master)" data-l-dnd-theater="Players (comma-separated names; the first is the Dungeon Master)">Human seats (comma-separated names; chess: White first)</label><input type=text id=humans name=humans required placeholder="Michael, Sam">
 <div data-games="magic">${aiHere ? `<label>AI opponents · played by Divinci Fusion · up to two</label>
 <div class="opps">
 <label class="opp"><input type=checkbox name=ai value=tuvasa><b>Tuvasa the Sunlit</b>Enchantments that grow</label>
@@ -915,6 +947,13 @@ ${aiHere ? `<label for=aicode>Invitation code for AI players</label><input type=
 <label for=minutes>Time per player</label><select id=minutes name=minutes style="padding:8px;border-radius:4px;background:#071820;color:var(--parch);border:1px solid rgba(217,180,106,.5)">
 <option value=5>5 minutes</option><option value=10>10 minutes</option><option value=15 selected>15 minutes</option><option value=30>30 minutes</option></select>
 <label for=level>Leonardo's strength (1–20)</label><input type=text id=level name=level value=6 inputmode=numeric style="max-width:90px">
+</details></div>
+<div data-games="poker"><details class="chessopts" open><summary style="cursor:pointer;color:var(--gold-hi);margin-top:12px">Poker options</summary>
+<label for=bots>House players (rule-based, no AI model)</label><select id=bots name=bots style="padding:8px;border-radius:4px;background:#071820;color:var(--parch);border:1px solid rgba(217,180,106,.5)">
+<option value=0>None</option><option value=1 selected>One</option><option value=2>Two</option><option value=3>Three</option><option value=4>Four</option><option value=5>Five</option></select>
+<label for=stakes>Starting stacks (play chips; blinds 10/20)</label><select id=stakes name=stakes style="padding:8px;border-radius:4px;background:#071820;color:var(--parch);border:1px solid rgba(217,180,106,.5)">
+<option value=quick>500: a quick game</option><option value=friendly selected>1,000</option><option value=deep>2,000: a long game</option></select>
+<small style="display:block;margin-top:4px">Play chips only: nothing is staked or paid out. Your two cards go only to your own device, and when the game ends anyone can check every hand's shuffle.</small>
 </details></div>
 <button>Start table</button><small>Tables are public and listed here for six hours: anyone with the link can claim an open seat or watch. When the lobby's tables are all in use, try again a little later.
 Seat and table names can't be an AI company's or model's (ChatGPT, Claude, Gemini…).</small>

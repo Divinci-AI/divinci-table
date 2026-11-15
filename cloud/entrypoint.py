@@ -34,6 +34,15 @@ if cfg.get("game") == "chess":                      # chess: one process, AI sea
     env = dict(os.environ, TABLE_CLOUD="1")
     sys.exit(subprocess.call(chess_args, cwd=ROOT, env=env))
 
+if cfg.get("game") == "poker":                      # poker: one process; AI seats are rule-based (no model spend); never --seed
+    names = [str(b) for b in cfg.get("bots") or []]   # rule-based house players: not "ai", so no AI key reaches this room
+    poker_args = [sys.executable, "-u", "table/poker_server.py", "--host", BIND, "--port", os.environ.get("PORT", "8800"),
+                  "--players=" + ",".join(cfg.get("humans") or ["Player 1"]),
+                  "--ai=" + ",".join("ai:" + n for n in names),
+                  "--chips", str(int(cfg.get("chips", 1000))), "--blinds", str(cfg.get("blinds", "10/20"))]
+    env = dict(os.environ, TABLE_CLOUD="1")
+    sys.exit(subprocess.call(poker_args, cwd=ROOT, env=env))
+
 if cfg.get("game") == "dnd":                        # D&D: one process; the AI DM only when the Worker switched it on
     dnd_args = [sys.executable, "-u", "table/dnd_server.py", "--host", BIND, "--port", os.environ.get("PORT", "8800"),
                 "--players=" + ",".join(cfg.get("humans") or ["Player 1"])]

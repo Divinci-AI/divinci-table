@@ -52,6 +52,8 @@ run dnd-voice-srv /usr/bin/python3 table/tests/dnd_voice_test.py
 run events-longpoll /usr/bin/python3 table/tests/events_longpoll_test.py
 run dnd-assets    /usr/bin/python3 table/tests/dnd_assets_test.py
 run dnd-dm-sim    /usr/bin/python3 table/tests/dnd_dm_sim_test.py
+run chess         $PY table/tests/chess_test.py
+run poker         $PY table/tests/poker_test.py
 run ledger        /usr/bin/python3 table/tests/ledger_test.py
 run ratings       $PY table/tests/ratings_test.py
 run audit         $PY table/tests/audit_test.py
@@ -132,6 +134,8 @@ else
   run pass-ui     env PW=$PW node table/tests/pass_ui_e2e.cjs
   run photo-up    env PW=$PW node table/tests/photo_upload_e2e.cjs
   run dnd-sound   env PW=$PW node table/tests/dnd_sound_e2e.cjs
+  run chess-page  env PW=$PW node table/tests/chess_page_e2e.cjs
+  run poker-page  env PW=$PW node table/tests/poker_page_e2e.cjs
   run router      $PY table/tests/route_eval.py
   pid=$(lsof -ti tcp:8800 -sTCP:LISTEN); [ -n "$pid" ] && kill -TERM $pid
 fi

@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Divinci Table — Hold'em</title>
+<meta name="theme-color" content="#040d12">
+<!-- The brand palette is inlined, not /assets/brand.css: that sheet @imports a web font, and this table makes no
+     network calls at all (Cinzel falls back to Georgia). -->
+<style>
+:root{--bg:#040d12;--panel:#0d1d25;--line:#d9b46a33;--ink:#ece4cf;--dim:#9fb0b0;--gold:#d9b46a;--gold-hi:#f4dc9b;--gold-lo:#8a6a2e;--teal:#3fd0c9;--red:#ff9b6a}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--ink);font:17px/1.45 system-ui,-apple-system,sans-serif;
+  background:radial-gradient(800px 500px at 50% -80px,#16465a 0%,transparent 70%),var(--bg)}
+main{max-width:1240px;margin:0 auto;padding:14px 16px 60px;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,360px);gap:20px;align-items:start}
+@media (max-width:860px){main{grid-template-columns:1fr} h1{padding-right:110px}}
+h1{font:900 22px Cinzel,Georgia,serif;letter-spacing:.06em;margin:4px 0 2px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+h1 .t{background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--dim);font-size:14px;margin:0 0 10px}
+.panel{background:var(--panel);border-radius:12px;padding:14px;box-shadow:inset 0 0 0 1px var(--line);margin-bottom:14px}
+.panel h2{font:700 14px Cinzel,Georgia,serif;letter-spacing:.12em;color:var(--gold);margin:0 0 8px;text-transform:uppercase}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button{font:600 15px system-ui;border-radius:8px;border:1px solid #d9b46a55;background:#10242d;color:var(--ink);padding:9px 14px;cursor:pointer}
+button.gold{background:linear-gradient(180deg,var(--gold-hi),var(--gold) 55%,var(--gold-lo));color:#1a1206;border-color:var(--gold-lo);font-family:Cinzel,Georgia,serif;letter-spacing:.06em}
+button.on{box-shadow:inset 0 0 0 2px var(--teal)}
+button:disabled{opacity:.4;cursor:default}
+.views button{padding:3px 10px;font-size:13px;font-family:system-ui}
+#table3d{position:relative;height:min(64vh,600px);border-radius:12px;overflow:hidden;background:#061116;touch-action:none;display:none;box-shadow:inset 0 0 0 1px var(--line)}
+#table3d canvas{display:block;width:100%;height:100%}
+#flat{display:none}
+.card{display:inline-grid;place-items:center;width:44px;height:62px;border-radius:7px;background:#fbf6ea;color:#15161c;font:800 19px Georgia,serif;
+  box-shadow:0 0 0 2px #d9b46a,0 4px 10px #0008;margin:2px;vertical-align:middle;line-height:1}
+.card.red{color:#b8322a}
+.card.back{background:repeating-linear-gradient(45deg,#0d4b52 0 6px,#0a3a40 6px 12px);box-shadow:0 0 0 2px #d9b46a,0 4px 10px #0008}
+.card.slot{background:transparent;box-shadow:inset 0 0 0 2px #d9b46a44}
+.card.big{width:74px;height:104px;font-size:32px;border-radius:10px}
+.card.sm{width:30px;height:42px;font-size:14px;border-radius:5px}
+#felt{background:radial-gradient(ellipse at 50% 45%,#15685f,#0a3934 75%);border-radius:28px;padding:12px;box-shadow:inset 0 0 0 3px #d9b46a66,0 0 0 6px #0f2129}
+#board2d{text-align:center;min-height:66px}
+#pot2d{text-align:center;color:var(--gold-hi);font:700 17px Georgia,serif;margin:4px 0 8px}
+#seats2d{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.seat{background:#06121acc;border-radius:10px;padding:7px 9px;box-shadow:inset 0 0 0 1px var(--line);font-size:14px;min-width:0}
+.seat.on{box-shadow:inset 0 0 0 2px var(--gold-hi),0 0 14px #3fd0c955}
+.seat.dim{opacity:.55}
+.seat .n{font:700 15px Georgia,serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seat .c{color:var(--gold);font:700 14px ui-monospace,Menlo,monospace}
+.seat .s{color:var(--dim);font-size:13px;min-height:1.2em}
+.tag{display:inline-block;font:800 11px system-ui;border-radius:999px;padding:1px 6px;margin-left:4px;background:#f1ece0;color:#15161c;vertical-align:1px}
+.tag.b{background:#d9b46a}
+#mine{min-height:108px}
+body.v3d #mine{min-height:0}body.v3d #mine .card.big{width:52px;height:74px;font-size:23px}
+#handname{color:var(--teal);min-height:1.3em;font-style:italic}
+#status{min-height:1.4em;margin:6px 0;color:var(--gold-hi);font-weight:600}
+#err{color:#ffb38f;min-height:1.2em;font-size:15px}
+.nums{font-size:15px;color:var(--dim);margin:4px 0 10px}.nums b{color:var(--ink);font-variant-numeric:tabular-nums}
+.raise{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.raise input[type=range]{flex:1 1 160px;min-width:0;accent-color:var(--gold)}
+.raise input[type=number]{width:96px;padding:7px;border-radius:8px;border:1px solid #d9b46a55;background:#071820;color:var(--ink);font:15px system-ui}
+.raise button{padding:6px 10px;font-size:13.5px}
+#hlog{max-height:260px;overflow:auto;font-size:14.5px;line-height:1.5}#hlog div{padding:1px 0}
+#log{max-height:220px;overflow:auto;font-size:15px}#log div{padding:3px 0;border-bottom:1px solid #ffffff0d}#log b{color:var(--gold-hi)}
+input[type=text]{width:100%;padding:9px;border-radius:8px;border:1px solid #d9b46a55;background:#071820;color:var(--ink);font:16px system-ui}
+#verify{margin-top:8px;font-size:14px;color:var(--dim)}#verify a{color:var(--teal)}
+.watch .seatonly{display:none}
+/* brand.js's corner mark (its rules, copied from brand.css) */
+.dt-mark{position:fixed;left:14px;bottom:12px;z-index:60;display:flex;align-items:center;gap:8px;text-decoration:none;
+  font:700 12px Cinzel,Georgia,serif;letter-spacing:.22em;color:var(--dt-gold);opacity:.8}
+.dt-mark svg{width:24px;height:24px;filter:drop-shadow(0 0 6px #3fd0c9aa)}
+.dt-mark .core{transform-box:fill-box;transform-origin:center;animation:dt-mark-pulse 2600ms ease-in-out infinite}
+@keyframes dt-mark-pulse{0%,100%{transform:scale(.85);opacity:.8}50%{transform:scale(1.15);opacity:1}}
+@media (prefers-reduced-motion:reduce){.dt-mark .core{animation:none}}
+@media (max-width:860px){.dt-mark{display:none}}   /* on a phone it would sit over the action buttons */
+</style>
+<script src="/assets/brand.js" defer></script>
+</head>
+<body data-brand="me">
+<main>
+  <section>
+    <h1><span class="t">Divinci Table · Hold'em</span><span class="btns views"><button data-view="flat" aria-label="flat table view">2D</button><button data-view="table" aria-label="3D table view">3D</button></span></h1>
+    <p class="sub" id="sub">No-limit Texas Hold'em, play chips only.</p>
+    <div id="table3d" aria-label="the poker table in 3D"></div>
+    <div id="flat">
+      <div id="felt">
+        <div id="board2d" aria-label="community cards"></div>
+        <div id="pot2d" aria-live="polite"></div>
+        <div id="seats2d" aria-label="players"></div>
+      </div>
+    </div>
+  </section>
+  <aside>
+    <div class="panel" id="you">
+      <h2 class="seatonly">Your hand</h2>
+      <div id="mine" class="seatonly" aria-label="your cards"></div>
+      <div id="handname" class="seatonly"></div>
+      <div id="status" role="status" aria-live="polite"></div>
+      <div class="nums seatonly">Your stack <b id="nStack">–</b> · Pot <b id="nPot">0</b> · To call <b id="nCall">0</b></div>
+      <div class="btns seatonly">
+        <button id="fold" aria-label="fold your hand">Fold</button>
+        <button id="call" aria-label="check or call">Check</button>
+        <button id="raise" class="gold" aria-label="bet or raise the amount chosen below">Bet</button>
+      </div>
+      <div class="raise seatonly">
+        <input type="range" id="amt" min="0" max="0" step="1" aria-label="bet or raise to">
+        <input type="number" id="amtN" min="0" step="1" aria-label="amount in chips">
+        <button data-q="half" aria-label="half the pot">½ pot</button><button data-q="pot" aria-label="the size of the pot">Pot</button><button data-q="all" aria-label="all in">All-in</button>
+      </div>
+      <div class="btns seatonly" style="margin-top:10px">
+        <button id="start" class="gold" hidden>Deal the first hand</button>
+        <button id="next" hidden>Next hand now</button>
+        <button id="show" hidden>Show my cards</button>
+        <button id="end" hidden title="Stop play. Bets in a hand being played go back, and every hand's shuffle can then be checked.">End game</button>
+      </div>
+      <div id="err" role="alert"></div>
+    </div>
+    <div class="panel"><h2>Hand log</h2><div id="hlog"></div><div id="verify"></div></div>
+    <div class="panel"><h2>Table talk</h2><div id="log" aria-live="polite"></div>
+      <div class="seatonly" style="display:flex;gap:6px;margin-top:8px"><input type="text" id="say" placeholder="Say something to the table" autocomplete="off" aria-label="message to the table"><button id="send">Send</button></div></div>
+  </aside>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const WATCH = location.pathname === "/watch";
+if (WATCH) { document.body.classList.add("watch"); $("sub").textContent = "Watching: you see what the whole table sees, never a hidden card."; }
+else { const s = document.createElement("script"); s.src = "/assets/seat.js"; document.head.appendChild(s); }
+const RANKW = { A: "Ace", K: "King", Q: "Queen", J: "Jack", T: "Ten", 9: "Nine", 8: "Eight", 7: "Seven", 6: "Six", 5: "Five", 4: "Four", 3: "Three", 2: "Two" };
+const SUITW = { s: "spades", h: "hearts", d: "diamonds", c: "clubs" }, SYM = { s: "♠", h: "♥", d: "♦", c: "♣" };
+const cardText = c => (c[0] === "T" ? "10" : c[0]) + SYM[c[1]];
+const cardHTML = (c, cls = "") => c ? `<span class="card ${cls} ${"hd".includes(c[1]) ? "red" : ""}" role="img" aria-label="${RANKW[c[0]]} of ${SUITW[c[1]]}">${cardText(c)}</span>`
+  : `<span class="card back ${cls}" role="img" aria-label="a face-down card"></span>`;
+const prettyLine = s => esc(s).replace(/\b([2-9TJQKA])([shdc])\b/g, (_, r, x) => `<span style="color:${"hd".includes(x) ? "#ff8a7a" : "inherit"}">${r === "T" ? "10" : r}${SYM[x]}</span>`);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let S = null, ME = null, since = 0;
+window.POKER = { get state() { return S ? { ...S, me: ME } : null; } };     // the public state plus this device's own cards
+const me = () => WATCH ? "" : (window.TableSeat && TableSeat.name()) || "";
+const seatKey = () => (window.TableSeat && TableSeat.body().key) || "";
+const body = extra => Object.assign(window.TableSeat ? TableSeat.body() : { by: me() }, extra || {});
+async function jsonOf(r) { const t = await r.text(); try { return JSON.parse(t); } catch { return { error: t.slice(0, 160) || `HTTP ${r.status}` }; } }
+async function post(path, extra) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body(extra)) });
+  const d = await jsonOf(r);
+  $("err").textContent = d.error || "";
+  if (d.seats) { S = d; if (d.me) ME = d.me; render(); }
+  return d;
+}
+async function refresh() {
+  try {
+    S = await jsonOf(await fetch("/api/poker", { cache: "no-store" }));
+    const k = seatKey();
+    if (me() && k) {                                  // my cards: a GET carrying my key (seat.js adds it to POSTs only)
+      const r = await fetch("/api/poker/me?player=" + encodeURIComponent(me()), { headers: { "X-Seat-Key": k }, cache: "no-store" });
+      ME = r.ok ? await jsonOf(r) : null;
+    } else ME = null;
+    render();
+  } catch {}
+}
+function onEvent(x) {
+  if (x.type === "chat") $("log").insertAdjacentHTML("beforeend", `<div><b>${esc(x.by)}</b> ${esc(x.text)}</div>`);
+  if (x.type === "chat") $("log").scrollTop = 1e9;
+}
+async function loop() {                              // a long poll: anything that happens reaches this screen at once
+  for (;;) {
+    try {
+      const e = await jsonOf(await fetch(`/api/events?since=${since}&wait=20`, { cache: "no-store" }));
+      if (e.restarted) since = 0;
+      for (const x of e.events || []) { since = x.id; onEvent(x); }
+      await refresh();
+    } catch { await sleep(1500); }
+  }
+}
+
+function legal() { return (ME && ME.legal && ME.legal.your_turn) ? ME.legal : null; }
+function quick(q) {
+  const L = legal(); if (!L) return;
+  const pot = L.pot + L.to_call;                     // a pot-sized raise: call, then raise the pot as it would then be
+  const to = q === "all" ? L.max_to : L.cur + Math.round((q === "half" ? .5 : 1) * pot);
+  setAmt(to);
+}
+function setAmt(v) {
+  const L = legal(); if (!L) return;
+  v = Math.max(L.min_to, Math.min(L.max_to, Math.round(+v || 0)));
+  $("amt").value = v; $("amtN").value = v; label();
+}
+function label() {
+  const L = legal(), v = +$("amtN").value || 0;
+  $("raise").textContent = !L ? "Bet" : v >= L.max_to ? `All-in ${L.max_to}` : `${L.cur ? "Raise to" : "Bet"} ${v}`;
+}
+function seatStatus(s, i) {
+  if (s.out) return "out of chips";
+  if (S.street === "done" && S.result && S.result.names && S.result.names[s.name]) return S.result.names[s.name];
+  if (S.to_act === i && S.street !== "done") return "to act";
+  return s.folded ? "folded" : s.allin ? "all-in" : s.last || "";
+}
+function render() {
+  if (!S || !S.seats) return;
+  const mine = ME && ME.hole && ME.hole.length ? ME.hole : null, L = legal(), myName = me();
+  // the 2D table (phones): the board, the pot, everyone's seat
+  $("board2d").innerHTML = [0, 1, 2, 3, 4].map(k => S.board[k] ? cardHTML(S.board[k]) : '<span class="card slot" aria-hidden="true"></span>').join("");
+  $("pot2d").textContent = S.pot_total ? `Pot ${S.pot_total.toLocaleString("en-US")}` : S.started ? "" : "Waiting for the first hand";
+  $("seats2d").innerHTML = S.seats.map((s, i) => {
+    const cards = s.cards ? s.cards.map(c => cardHTML(c, "sm")).join("") : s.has_cards && s.name !== myName ? cardHTML(null, "sm") + cardHTML(null, "sm") : "";
+    const tags = (i === S.button ? '<span class="tag" title="dealer button">D</span>' : "") + (S.street !== "done" && i === S.sb_seat ? '<span class="tag b">SB</span>' : "") + (S.street !== "done" && i === S.bb_seat ? '<span class="tag b">BB</span>' : "");
+    return `<div class="seat ${S.to_act === i && S.street !== "done" ? "on" : ""} ${s.folded || s.out ? "dim" : ""}" aria-label="${esc(s.name)}, ${s.chips} chips${s.bet ? ", betting " + s.bet : ""}, ${esc(seatStatus(s, i))}">
+      <div class="n">${esc(s.name)}${s.ai ? " · AI" : ""}${s.name === myName ? " (you)" : ""}${tags}</div>
+      <div class="c">${s.chips.toLocaleString("en-US")}${s.bet ? ` <span style="color:var(--teal)">· bet ${s.bet}</span>` : ""}</div>
+      <div class="s">${esc(seatStatus(s, i))}</div><div>${s.name === myName ? "" : cards}</div></div>`;
+  }).join("");
+  // my hand
+  $("mine").innerHTML = mine ? mine.map(c => cardHTML(c, "big")).join("") : '<span style="color:var(--dim)">' + (myName ? "No cards right now." : "Claim your seat (👤) to see your cards.") + "</span>";
+  $("handname").textContent = ME && ME.hand_name ? ME.hand_name : "";
+  const meSeat = S.seats.find(s => s.name === myName);
+  $("nStack").textContent = meSeat ? meSeat.chips.toLocaleString("en-US") : "–";
+  $("nPot").textContent = (S.pot_total || 0).toLocaleString("en-US");
+  $("nCall").textContent = L ? L.to_call : 0;
+  // what happens now
+  let st;
+  if (S.over) st = S.seats.filter(x => x.chips > 0).length === 1 ? `Game over: ${S.winner} has every chip at the table.`
+    : `The game has ended${S.winner ? `: ${S.winner} has the most chips` : ""}. Every hand's shuffle can now be checked below.`;
+  else if (!S.started) st = myName ? "When everyone's here, deal the first hand." : "Waiting for a player to deal the first hand.";
+  else if (S.street === "done" && S.result) {
+    const p = S.result.pots[0];
+    st = `${p.winners.join(" & ")} ${p.winners.length > 1 ? "split" : "wins"} ${p.amount}${p.hand ? " with " + p.hand : S.result.uncontested ? " — everyone else folded" : ""}. Next hand in a moment.`;
+  } else if (L) st = `Your turn${L.to_call ? ` — ${L.to_call} to call` : ""}.`;
+  else st = S.to_act_name ? `${S.to_act_name} to act.` : "";
+  $("status").textContent = st;
+  // the buttons: only what's legal, and only on my turn
+  $("fold").disabled = !L; $("call").disabled = !L; $("raise").disabled = !L || !(L.bet || L.raise);
+  for (const b of document.querySelectorAll("[data-q]")) b.disabled = !L || !(L.bet || L.raise);
+  $("amt").disabled = $("amtN").disabled = !L || !(L.bet || L.raise);
+  $("call").textContent = !L ? "Check" : L.check ? "Check" : `Call ${L.to_call}${meSeat && L.to_call >= meSeat.chips ? " (all-in)" : ""}`;
+  if (L) {
+    $("amt").min = L.min_to; $("amt").max = L.max_to; $("amt").step = 1;
+    const v = +$("amtN").value; if (!(v >= L.min_to && v <= L.max_to)) setAmt(L.min_to);
+  }
+  label();
+  $("start").hidden = WATCH || S.started || !myName;
+  $("next").hidden = WATCH || !myName || S.over || S.street !== "done";
+  $("end").hidden = WATCH || !myName || S.over || !S.started;
+  $("show").hidden = WATCH || !(ME && ME.can_show);
+  // the hand log, and the last finished hand's fair-shuffle check
+  $("hlog").innerHTML = (S.log || []).map(l => `<div>${prettyLine(l)}</div>`).join("");
+  $("hlog").scrollTop = 1e9;
+  for (const [no, c] of Object.entries(S.commits || {})) if (!SEEN[no]) SEEN[no] = c;   // what this screen saw before each deal
+  try { sessionStorage.setItem(SEEN_KEY, JSON.stringify(SEEN)); } catch {}
+  const vs = S.verifiable || [];
+  $("verify").innerHTML = vs.length
+    ? `The game is over, so every hand's seed is public. <a href="#" data-verify-all>Verify all ${vs.length} hand${vs.length > 1 ? "s" : ""}</a> <span id="vres"></span>`
+    : S.commit ? `Shuffle commit ${esc(S.commit.slice(0, 12))}… for this hand, published before the deal. Every hand's seed is revealed when the game ends (sooner would show the folded cards).` : "";
+}
+// rebuild each hand's deck from its revealed seed, here in the browser: the same steps as fair.py
+const DECK = [..."23456789TJQKA"].flatMap(r => [..."shdc"].map(s => r + s));
+const SEEN_KEY = "poker.commits." + location.host, SEEN = (() => { try { return JSON.parse(sessionStorage.getItem(SEEN_KEY) || "{}"); } catch { return {}; } })();
+async function sha256hex(t) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join(""); }
+async function checkHand(no) {
+  const v = await jsonOf(await fetch(`/api/poker/verify?hand=${no}`));
+  if (v.error) return `hand ${no}: ${v.error}`;
+  const deck = DECK.slice();
+  for (let i = 51; i > 0; i--) { const j = Number(BigInt("0x" + await sha256hex(`${v.seed}:${i}`)) % BigInt(i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+  const sawIt = !SEEN[no] || SEEN[no] === v.commit;      // the commit this screen saw before the deal, when it was here for it
+  return (await sha256hex(v.seed)) === v.commit && deck.join() === v.deck.join() && sawIt ? null : `hand ${no} does not check out`;
+}
+$("verify").addEventListener("click", async ev => {
+  const a = ev.target.closest("[data-verify-all]"); if (!a) return;
+  ev.preventDefault();
+  const out = $("vres");
+  if (!(window.crypto && crypto.subtle)) { out.textContent = "This browser can't hash here (it needs a secure page)."; return; }
+  const hands = (S.verifiable || []).slice(), bad = [];
+  out.textContent = "checking…";
+  for (const no of hands) { const r = await checkHand(no); if (r) bad.push(r); }
+  const saw = hands.filter(n => SEEN[n]).length;
+  out.textContent = bad.length ? `❌ ${bad.join("; ")}`
+    : `✅ all ${hands.length}: each SHA-256(seed) is the commit published before that deal (${saw} of them seen by this screen at the time), and each seed rebuilds the deck that was dealt.`;
+});
+$("fold").onclick = () => post("/api/poker/act", { action: "fold" });
+$("call").onclick = () => { const L = legal(); if (L) post("/api/poker/act", { action: L.check ? "check" : "call" }); };
+$("raise").onclick = () => { const L = legal(); if (!L) return; const v = +$("amtN").value;
+  post("/api/poker/act", v >= L.max_to ? { action: "allin" } : { action: L.cur ? "raise" : "bet", amount: v }); };
+$("amt").oninput = () => setAmt($("amt").value); $("amtN").onchange = () => setAmt($("amtN").value);
+document.querySelectorAll("[data-q]").forEach(b => b.onclick = () => quick(b.dataset.q));
+$("start").onclick = () => post("/api/poker/start");
+$("end").onclick = () => { if ($("end").dataset.sure) post("/api/poker/end"); else { $("end").dataset.sure = "1"; $("end").textContent = "End game? Press again"; setTimeout(() => { delete $("end").dataset.sure; $("end").textContent = "End game"; }, 4000); } };
+$("next").onclick = () => post("/api/poker/next");
+$("show").onclick = () => post("/api/poker/show");
+async function sendSay() { const t = $("say").value.trim(); if (!t) return; const d = await post("/api/chat", { text: t }); if (!d.error) $("say").value = ""; }
+$("send").onclick = sendSay; $("say").addEventListener("keydown", e => { if (e.key === "Enter") sendSay(); });
+(async () => { if (!WATCH) { for (let i = 0; i < 40 && !window.TableSeat; i++) await sleep(50); try { await TableSeat.ready; } catch {} } await refresh(); loop(); setInterval(refresh, 4000); })();
+</script>
+<script type="importmap">{ "imports": { "three": "/vendor/three.module.min.js" } }</script>
+<script type="module">
+// The 3D table (assets/poker-scene.js): drag to look around a little, wheel or pinch to zoom. Phones and anyone who
+// asks for reduced motion get the 2D table instead, and WebGL is never started for them.
+import * as THREE from "three";
+import { createPokerScene } from "/assets/poker-scene.js";
+const box = document.getElementById("table3d"), flat = document.getElementById("flat");
+const can3d = (() => { try { return !!document.createElement("canvas").getContext("webgl2"); } catch { return false; } })();
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const saved = (() => { try { return localStorage.getItem("poker.view"); } catch { return null; } })();
+let mode = reduce ? "2d" : saved || (can3d && innerWidth >= 860 ? "3d" : "2d");
+let renderer = null, camera, scene3, poker, lastS = null, lastMe = null;
+const frames = [];
+const VIEWS = { flat: "2d", table: "3d" };            // (the buttons don't say "2d": that's also a card, the two of diamonds)
+const BASE = Math.PI / 2, orbit = { az: BASE, phi: 0.66, r: 9.2 };
+
+function start() {
+  if (renderer) return true;
+  try { renderer = new THREE.WebGLRenderer({ antialias: true }); } catch { return false; }
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  box.appendChild(renderer.domElement);
+  scene3 = new THREE.Scene(); scene3.background = new THREE.Color(0x061116); scene3.fog = new THREE.Fog(0x061116, 16, 30);
+  scene3.add(new THREE.HemisphereLight(0xcfe6ff, 0x1a1208, 0.75));
+  const lamp = new THREE.SpotLight(0xfff0d8, 3.2, 0, Math.PI / 4.2, 0.55, 0);   // the lamp over the table (decay 0: not physical falloff)
+  lamp.position.set(0, 9, 1.2); lamp.castShadow = true; lamp.shadow.mapSize.set(2048, 2048); lamp.shadow.bias = -0.0004;
+  scene3.add(lamp, lamp.target);
+  const rim = new THREE.DirectionalLight(0x7ff3ea, 0.35); rim.position.set(-6, 4, -6); scene3.add(rim);
+  camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+  poker = createPokerScene(); scene3.add(poker.root);
+  window.POKER3D = { frames, mode: () => mode, debug: () => poker.debug(), camera };
+  let t0 = performance.now();
+  renderer.setAnimationLoop(now => {
+    const dt = Math.min(0.1, (now - t0) / 1000); t0 = now;
+    if (mode !== "3d") return;
+    frames.push(dt * 1000); if (frames.length > 240) frames.shift();
+    if (typeof S !== "undefined" && S && S.seats && (S !== lastS || ME !== lastMe)) {
+      lastS = S; lastMe = ME;
+      const who = window.TableSeat && !document.body.classList.contains("watch") ? TableSeat.name() : "";
+      poker.update(S, ME || (who ? { name: who, hole: [] } : null));
+    }
+    const W = box.clientWidth, H = box.clientHeight;
+    if (renderer.domElement.width !== Math.round(W * renderer.getPixelRatio()) || renderer.domElement.height !== Math.round(H * renderer.getPixelRatio())) {
+      renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix();
+    }
+    const fit = Math.max(1, 1.9 / Math.max(0.5, camera.aspect));      // a narrow window steps back so the whole table fits
+    const r = orbit.r * fit;
+    camera.position.set(r * Math.sin(orbit.phi) * Math.cos(orbit.az), r * Math.cos(orbit.phi), r * Math.sin(orbit.phi) * Math.sin(orbit.az));
+    camera.lookAt(0, -0.45, 0.85);
+    poker.tick(dt, camera);
+    renderer.render(scene3, camera);
+  });
+  input();
+  return true;
+}
+
+function input() {
+  const el = renderer.domElement, pts = new Map(); let pinch = null;
+  el.addEventListener("pointerdown", ev => { el.setPointerCapture(ev.pointerId); pts.set(ev.pointerId, [ev.clientX, ev.clientY]); });
+  el.addEventListener("pointermove", ev => {
+    if (!pts.has(ev.pointerId)) return;
+    const [px, py] = pts.get(ev.pointerId); pts.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    if (pts.size === 2) {                                  // pinch to zoom
+      const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      if (pinch) orbit.r = Math.min(14, Math.max(6.5, orbit.r * pinch / d)); pinch = d; return;
+    }
+    orbit.az = Math.min(BASE + 0.8, Math.max(BASE - 0.8, orbit.az + (ev.clientX - px) * 0.006));   // a little way round, never behind
+    orbit.phi = Math.min(1.18, Math.max(0.42, orbit.phi - (ev.clientY - py) * 0.005));
+  });
+  const up = ev => { pts.delete(ev.pointerId); if (pts.size < 2) pinch = null; };
+  el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+  el.addEventListener("wheel", ev => { ev.preventDefault(); orbit.r = Math.min(14, Math.max(6.5, orbit.r * (1 + Math.sign(ev.deltaY) * 0.08))); }, { passive: false });
+  el.addEventListener("dblclick", () => Object.assign(orbit, { az: BASE, phi: 0.66, r: 9.2 }));
+}
+
+function setMode(m) {
+  if (m === "3d" && (!can3d || !start())) m = "2d";
+  document.body.classList.toggle("v3d", m === "3d");
+  mode = m; try { localStorage.setItem("poker.view", m); } catch {}
+  box.style.display = m === "3d" ? "block" : "none"; flat.style.display = m === "3d" ? "none" : "block";
+  document.querySelectorAll("[data-view]").forEach(b => b.classList.toggle("on", VIEWS[b.dataset.view] === m));
+}
+document.querySelector(".views").addEventListener("click", ev => { const v = VIEWS[ev.target.dataset.view]; if (v) setMode(v); });
+setMode(mode);
+</script>
+</body>
+</html>

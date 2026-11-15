@@ -31,7 +31,8 @@ export interface Env {
 }
 
 export interface AiSeat { name: string; commander: string; deck: string }
-export interface RoomConfig { humans: string[]; ai: AiSeat[]; pilots?: AiSeat[]; game: "magic" | "chess" | "dnd"; white?: string; black?: string; minutes?: number; increment?: number; dm?: string;
+export interface RoomConfig { humans: string[]; ai: AiSeat[]; pilots?: AiSeat[]; game: "magic" | "chess" | "dnd" | "poker"; white?: string; black?: string; minutes?: number; increment?: number; dm?: string;
+	bots?: string[]; chips?: number; blinds?: string;   // poker: rule-based AI seats (no model, no key), starting stacks, "10/20"
 	mode?: "map" | "theater";       // D&D: the battle map, or theater of the mind (docs/THEATER-GOAL.md)
 	agents?: boolean }               // an agent table: every seat is a virtual deck driven over the seat API (docs/agents.md)
 export interface RoomInfo { id: string; title: string; game: string; humans: string[]; ai: string[]; created: number; claimed?: string[];
