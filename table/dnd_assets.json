@@ -26,12 +26,12 @@
         "#BB....OO......#",
         "################"
       ],
-      "art": null,
+      "art": "dnd/locations/tavern/art.jpg",
       "shot": null,
       "room": "dnd/locations/tavern/room.glb",
       "map_image": "dnd/locations/tavern/map.jpg",
       "view": "dnd/locations/tavern/view.jpg",
-      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "licence": "Layout and room: Divinci Table (Apache-2.0); key art: Meshy output (Divinci account)",
       "credit": "",
       "triangles": 60697,
       "review_note": ""
@@ -56,12 +56,12 @@
         "T~~.......R....M..TT",
         "TT~~..T.......T...TT"
       ],
-      "art": null,
+      "art": "dnd/locations/road/art.jpg",
       "shot": null,
       "room": "dnd/locations/road/room.glb",
       "map_image": "dnd/locations/road/map.jpg",
       "view": "dnd/locations/road/view.jpg",
-      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "licence": "Layout and room: Divinci Table (Apache-2.0); key art: Meshy output (Divinci account)",
       "credit": "",
       "triangles": 6481,
       "review_note": ""
@@ -86,12 +86,12 @@
         "T....~~~.......T",
         "TTT..~..TTT..TTT"
       ],
-      "art": null,
+      "art": "dnd/locations/clearing/art.jpg",
       "shot": null,
       "room": "dnd/locations/clearing/room.glb",
       "map_image": "dnd/locations/clearing/map.jpg",
       "view": "dnd/locations/clearing/view.jpg",
-      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "licence": "Layout and room: Divinci Table (Apache-2.0); key art: Meshy output (Divinci account)",
       "credit": "",
       "triangles": 10942,
       "review_note": ""
@@ -119,12 +119,12 @@
         "##..~~~..#####.#",
         "################"
       ],
-      "art": null,
+      "art": "dnd/locations/cave/art.jpg",
       "shot": null,
       "room": "dnd/locations/cave/room.glb",
       "map_image": "dnd/locations/cave/map.jpg",
       "view": "dnd/locations/cave/view.jpg",
-      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "licence": "Layout and room: Divinci Table (Apache-2.0); key art: Meshy output (Divinci account)",
       "credit": "",
       "triangles": 76826,
       "review_note": ""
@@ -151,12 +151,12 @@
         "#P.....S......#",
         "###############"
       ],
-      "art": null,
+      "art": "dnd/locations/crypt/art.jpg",
       "shot": null,
       "room": "dnd/locations/crypt/room.glb",
       "map_image": "dnd/locations/crypt/map.jpg",
       "view": "dnd/locations/crypt/view.jpg",
-      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "licence": "Layout and room: Divinci Table (Apache-2.0); key art: Meshy output (Divinci account)",
       "credit": "",
       "triangles": 96654,
       "review_note": ""
@@ -184,12 +184,12 @@
         "#..P.....##......#",
         "##################"
       ],
-      "art": null,
+      "art": "dnd/locations/keep/art.jpg",
       "shot": null,
       "room": "dnd/locations/keep/room.glb",
       "map_image": "dnd/locations/keep/map.jpg",
       "view": "dnd/locations/keep/view.jpg",
-      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "licence": "Layout and room: Divinci Table (Apache-2.0); key art: Meshy output (Divinci account)",
       "credit": "",
       "triangles": 93082,
       "review_note": ""
@@ -218,12 +218,12 @@
         "T......T.....M...TTT",
         "TTTT..TTTTT..TTTTTTT"
       ],
-      "art": null,
+      "art": "dnd/locations/bridge/art.jpg",
       "shot": null,
       "room": "dnd/locations/bridge/room.glb",
       "map_image": "dnd/locations/bridge/map.jpg",
       "view": "dnd/locations/bridge/view.jpg",
-      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "licence": "Layout and room: Divinci Table (Apache-2.0); key art: Meshy output (Divinci account)",
       "credit": "",
       "triangles": 11499,
       "review_note": ""
@@ -251,18 +251,283 @@
         "##..R...~~....R..#",
         "###.##########.###"
       ],
-      "art": null,
+      "art": "dnd/locations/ruins/art.jpg",
       "shot": null,
       "room": "dnd/locations/ruins/room.glb",
       "map_image": "dnd/locations/ruins/map.jpg",
       "view": "dnd/locations/ruins/view.jpg",
-      "licence": "Layout and room: Divinci Table (Apache-2.0)",
+      "licence": "Layout and room: Divinci Table (Apache-2.0); key art: Meshy output (Divinci account)",
       "credit": "",
       "triangles": 51071,
       "review_note": ""
     }
   ],
-  "minis": [],
+  "minis": [
+    {
+      "id": "wolf",
+      "name": "Wolf",
+      "size": "medium",
+      "glb": "dnd/minis/wolf.glb",
+      "tris": 19400,
+      "kb": 1009,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "goblin",
+      "name": "Goblin",
+      "size": "small",
+      "glb": "dnd/minis/goblin.glb",
+      "tris": 18808,
+      "kb": 1381,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "skeleton",
+      "name": "Skeleton",
+      "size": "medium",
+      "glb": "dnd/minis/skeleton.glb",
+      "tris": 18747,
+      "kb": 1788,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "giant-rat",
+      "name": "Giant Rat",
+      "size": "small",
+      "glb": "dnd/minis/giant-rat.glb",
+      "tris": 19400,
+      "kb": 844,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "kobold",
+      "name": "Kobold",
+      "size": "small",
+      "glb": "dnd/minis/kobold.glb",
+      "tris": 18819,
+      "kb": 1424,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "zombie",
+      "name": "Zombie",
+      "size": "medium",
+      "glb": "dnd/minis/zombie.glb",
+      "tris": 18753,
+      "kb": 1657,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "bandit",
+      "name": "Bandit",
+      "size": "medium",
+      "glb": "dnd/minis/bandit.glb",
+      "tris": 18596,
+      "kb": 1624,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "ogre",
+      "name": "Ogre",
+      "size": "large",
+      "glb": "dnd/minis/ogre.glb",
+      "tris": 18793,
+      "kb": 1733,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "orc",
+      "name": "Orc",
+      "size": "medium",
+      "glb": "dnd/minis/orc.glb",
+      "tris": 18648,
+      "kb": 2304,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "giant-spider",
+      "name": "Giant Spider",
+      "size": "large",
+      "glb": "dnd/minis/giant-spider.glb",
+      "tris": 19400,
+      "kb": 892,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "dire-wolf",
+      "name": "Dire Wolf",
+      "size": "large",
+      "glb": "dnd/minis/dire-wolf.glb",
+      "tris": 19400,
+      "kb": 928,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "owlbear",
+      "name": "Owlbear",
+      "size": "large",
+      "glb": "dnd/minis/owlbear.glb",
+      "tris": 19400,
+      "kb": 876,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "bugbear",
+      "name": "Bugbear",
+      "size": "medium",
+      "glb": "dnd/minis/bugbear.glb",
+      "tris": 18799,
+      "kb": 2192,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "cultist",
+      "name": "Cultist",
+      "size": "medium",
+      "glb": "dnd/minis/cultist.glb",
+      "tris": 18540,
+      "kb": 1862,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "ghoul",
+      "name": "Ghoul",
+      "size": "medium",
+      "glb": "dnd/minis/ghoul.glb",
+      "tris": 18725,
+      "kb": 1591,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "shadow",
+      "name": "Shadow",
+      "size": "medium",
+      "glb": "dnd/minis/shadow.glb",
+      "tris": 19400,
+      "kb": 810,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "mimic",
+      "name": "Mimic",
+      "size": "medium",
+      "glb": "dnd/minis/mimic.glb",
+      "tris": 19399,
+      "kb": 917,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "hobgoblin",
+      "name": "Hobgoblin",
+      "size": "medium",
+      "glb": "dnd/minis/hobgoblin.glb",
+      "tris": 18717,
+      "kb": 2257,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "gnoll",
+      "name": "Gnoll",
+      "size": "medium",
+      "glb": "dnd/minis/gnoll.glb",
+      "tris": 18786,
+      "kb": 2184,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "gelatinous-cube",
+      "name": "Gelatinous Cube",
+      "size": "large",
+      "glb": "dnd/minis/gelatinous-cube.glb",
+      "tris": 19400,
+      "kb": 1037,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "hero-fighter",
+      "name": "Human fighter",
+      "size": "medium",
+      "glb": "dnd/minis/hero-fighter.glb",
+      "tris": 18797,
+      "kb": 2046,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "hero-rogue",
+      "name": "Halfling rogue",
+      "size": "small",
+      "glb": "dnd/minis/hero-rogue.glb",
+      "tris": 18760,
+      "kb": 1987,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "hero-wizard",
+      "name": "High elf wizard",
+      "size": "medium",
+      "glb": "dnd/minis/hero-wizard.glb",
+      "tris": 18457,
+      "kb": 1816,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    },
+    {
+      "id": "hero-cleric",
+      "name": "Dwarf cleric",
+      "size": "medium",
+      "glb": "dnd/minis/hero-cleric.glb",
+      "tris": 18713,
+      "kb": 2084,
+      "licence": "Meshy output (Divinci account)",
+      "credit": "",
+      "source": "Meshy image-to-3D + auto-rig (walk) from a Meshy concept image, 2026-11-15"
+    }
+  ],
   "bestiary": [
     {
       "srd_name": "Goblin",
@@ -270,7 +535,7 @@
       "speed": 30,
       "ac": 15,
       "hp": 7,
-      "mini": null,
+      "mini": "goblin",
       "standee": true
     },
     {
@@ -279,7 +544,7 @@
       "speed": 40,
       "ac": 13,
       "hp": 11,
-      "mini": null,
+      "mini": "wolf",
       "standee": true
     },
     {
@@ -288,7 +553,7 @@
       "speed": 30,
       "ac": 13,
       "hp": 13,
-      "mini": null,
+      "mini": "skeleton",
       "standee": true
     },
     {
@@ -297,7 +562,7 @@
       "speed": 20,
       "ac": 8,
       "hp": 22,
-      "mini": null,
+      "mini": "zombie",
       "standee": true
     },
     {
@@ -306,7 +571,7 @@
       "speed": 30,
       "ac": 12,
       "hp": 11,
-      "mini": null,
+      "mini": "bandit",
       "standee": true
     },
     {
@@ -315,7 +580,7 @@
       "speed": 40,
       "ac": 11,
       "hp": 59,
-      "mini": null,
+      "mini": "ogre",
       "standee": true
     },
     {
@@ -324,7 +589,7 @@
       "speed": 30,
       "ac": 12,
       "hp": 7,
-      "mini": null,
+      "mini": "giant-rat",
       "standee": true
     },
     {
@@ -333,7 +598,7 @@
       "speed": 30,
       "ac": 12,
       "hp": 5,
-      "mini": null,
+      "mini": "kobold",
       "standee": true
     },
     {
@@ -342,7 +607,7 @@
       "speed": 30,
       "ac": 13,
       "hp": 15,
-      "mini": null,
+      "mini": "orc",
       "standee": true
     },
     {
@@ -351,7 +616,7 @@
       "speed": 30,
       "ac": 16,
       "hp": 27,
-      "mini": null,
+      "mini": "bugbear",
       "standee": true
     },
     {
@@ -360,7 +625,7 @@
       "speed": 30,
       "ac": 14,
       "hp": 26,
-      "mini": null,
+      "mini": "giant-spider",
       "standee": true
     },
     {
@@ -369,7 +634,7 @@
       "speed": 30,
       "ac": 12,
       "hp": 22,
-      "mini": null,
+      "mini": "ghoul",
       "standee": true
     },
     {
@@ -378,7 +643,7 @@
       "speed": 30,
       "ac": 12,
       "hp": 9,
-      "mini": null,
+      "mini": "cultist",
       "standee": true
     },
     {
@@ -387,7 +652,7 @@
       "speed": 50,
       "ac": 14,
       "hp": 37,
-      "mini": null,
+      "mini": "dire-wolf",
       "standee": true
     },
     {
@@ -396,7 +661,7 @@
       "speed": 40,
       "ac": 13,
       "hp": 59,
-      "mini": null,
+      "mini": "owlbear",
       "standee": true
     },
     {
@@ -405,7 +670,7 @@
       "speed": 30,
       "ac": 18,
       "hp": 11,
-      "mini": null,
+      "mini": "hobgoblin",
       "standee": true
     },
     {
@@ -414,7 +679,7 @@
       "speed": 30,
       "ac": 15,
       "hp": 22,
-      "mini": null,
+      "mini": "gnoll",
       "standee": true
     },
     {
@@ -423,7 +688,7 @@
       "speed": 40,
       "ac": 12,
       "hp": 16,
-      "mini": null,
+      "mini": "shadow",
       "standee": true
     },
     {
@@ -432,7 +697,7 @@
       "speed": 15,
       "ac": 12,
       "hp": 58,
-      "mini": null,
+      "mini": "mimic",
       "standee": true
     },
     {
@@ -441,7 +706,7 @@
       "speed": 15,
       "ac": 6,
       "hp": 84,
-      "mini": null,
+      "mini": "gelatinous-cube",
       "standee": true
     }
   ],

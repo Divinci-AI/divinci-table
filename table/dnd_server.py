@@ -290,9 +290,15 @@ def set_location(loc_id: str, start: bool = False) -> str | None:
         return "no such location"
     G["map"] = MAP.new_map(loc, ASSETS.get("cell_ft", 5))
     for name, s in G["sheets"].items():
-        MAP.place(G["map"], name, "pc", owner=None if s.get("companion") else name, speed=s.get("speed", 30))
+        MAP.place(G["map"], name, "pc", owner=None if s.get("companion") else name, speed=s.get("speed", 30), mini=pc_mini(s))
     sync_monster_tokens()
     return None
+
+
+def pc_mini(sheet: dict) -> str | None:
+    """A character's mini: its pregen's hero (dnd_pregens.json "mini"), if that mini is in the manifest; else the standee."""
+    want = (PREGENS.get(sheet.get("class", "")) or {}).get("mini")
+    return want if want and any(m.get("id") == want and m.get("glb") for m in ASSETS.get("minis", [])) else None
 
 
 ASSET_KEYS = ("room", "map_image", "view", "art", "shot", "shot_orig")
@@ -1311,6 +1317,9 @@ class H(BaseHTTPRequestHandler):
             s = G["sheets"][by]
             if b.get("pregen") in PREGENS:
                 G["sheets"][by] = sheet_from_pregen(by, b["pregen"])
+                t = MAP.token_by_name(G["map"], by)
+                if t:                                         # the token takes the new class's mini (or a standee)
+                    t["mini"] = pc_mini(G["sheets"][by])
                 EVENTS.emit("dnd", kind="sheet", text=f"{by} is now a {b['pregen']}")
                 return 200, public_state(), None
             for k, typ in SHEET_KEYS.items():

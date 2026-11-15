@@ -401,6 +401,12 @@ try:
 except TypeError as e:
     check("a snapshot never carries a pending follow-up (it would not serialise)", False, str(e))
 D.G.pop("after_dm", None); D.G.pop("after_lock", None)
+saved_minis = list(D.ASSETS.get("minis", []))
+D.ASSETS["minis"] = [m for m in saved_minis if m.get("id") != "hero-wizard"]
+check("a character without its hero mini in the manifest stays a standee", D.pc_mini({"class": "wizard"}) is None)
+D.ASSETS["minis"] = saved_minis + [{"id": "hero-wizard", "glb": "dnd/minis/hero-wizard.glb"}]
+check("…and with it, the wizard's token gets the hero-wizard mini", D.pc_mini({"class": "wizard"}) == "hero-wizard")
+D.ASSETS["minis"] = saved_minis
 check("the opening asks for people and a place, not a fight", "not a fight" in open(D.__file__).read())
 
 print("push-to-talk and the seat check")
