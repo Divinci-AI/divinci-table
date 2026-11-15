@@ -97,6 +97,24 @@ export function createDndScene() {
     return card;
   }
 
+  // A name tag over every token, drawn through walls (depthTest off): in rooms with tall walls a token can stand where
+  // the camera can't see it (the tavern's back room hid both players' characters, 2026-11-14), and a standee's own name
+  // is too small to read from across the table. It never takes a tap (raycast off): picking stays on the token itself.
+  function nameTag(t) {
+    const c = document.createElement("canvas"); c.width = 512; c.height = 112;
+    const g = c.getContext("2d"), col = "#" + (SIDE[t.side] || 0xcccccc).toString(16).padStart(6, "0");
+    const name = t.name.length > 18 ? t.name.slice(0, 17) + "…" : t.name;
+    g.font = "700 54px system-ui"; const w = Math.min(500, g.measureText(name).width + 56), x0 = (512 - w) / 2;
+    g.fillStyle = "rgba(6,18,26,.86)"; g.beginPath(); g.roundRect(x0, 10, w, 92, 46); g.fill();
+    g.lineWidth = 7; g.strokeStyle = col; g.stroke();
+    g.fillStyle = "#ece4cf"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(name, 256, 58);
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }));
+    s.scale.set(1.25, 1.25 * 112 / 512, 1); s.renderOrder = 999; s.raycast = () => {};
+    s.userData.tag = true;
+    return s;
+  }
+
   function ringMesh(n, inner, outer, color) {
     const m = new THREE.Mesh(new THREE.RingGeometry(inner * n, outer * n, 40), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .9, side: THREE.DoubleSide }));
     m.rotation.x = -Math.PI / 2; m.position.y = 0.03; return m;
@@ -109,16 +127,19 @@ export function createDndScene() {
     const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4 * n, 0.42 * n, 0.05, 32), new THREE.MeshStandardMaterial({ color: SIDE[t.side] || 0xcccccc, roughness: .6 }));
     base.position.y = 0.025;
     let body = standee(t);
-    group.add(base, ring, turn, body);
+    const tag = nameTag(t); tag.position.y = 0.93 * n + 0.32;
+    group.add(base, ring, turn, body, tag);
     group.userData.tokenId = t.id;
     group.traverse(o => { o.userData.tokenId = t.id; });
-    const rec = { group, body, ring, turn, from: null, to: null, t: 1, data: t, mixer: null };
+    const rec = { group, body, ring, turn, tag, from: null, to: null, t: 1, data: t, mixer: null };
     const url = t.mini && minis[t.mini] ? assetURL(minis[t.mini]) : null;
     if (url) loadRetry(url, () => toks.get(t.id) === rec, gltf => {   // the standee stays until (unless) it arrives
       const model = cloneSkinned(gltf.scene);
       model.traverse(o => { if (o.isMesh) o.castShadow = true; o.userData.tokenId = t.id; });
       model.position.y = 0.05;
       group.remove(rec.body); group.add(model); rec.body = model;
+      const top = new THREE.Box3().setFromObject(model).max.y - group.position.y;   // the tag sits just over the mini's head
+      if (Number.isFinite(top) && top > 0) rec.tag.position.y = top + 0.28;
       if (gltf.animations?.length) {
         rec.mixer = new THREE.AnimationMixer(model);
         const clip = gltf.animations.find(a => /idle/i.test(a.name)) || gltf.animations[0];
@@ -161,11 +182,13 @@ export function createDndScene() {
       r.ring.material.color.setHex(HP[hs]);
       r.group.userData.down = hs === "down";
       r.turn.visible = t.name === now;
+      r.tag.material.opacity = hs === "down" ? 0.45 : 1;
+      r.tagTurn = t.name === now;                        // whose turn: a bigger tag (sized in tick)
     }
     for (const [id, r] of toks) if (!seen.has(id)) { tokG.remove(r.group); toks.delete(id); }
   }
 
-  const _q = new THREE.Vector3();
+  const _q = new THREE.Vector3(), _w = new THREE.Vector3(), _s = new THREE.Vector3();
   function tick(dt, camera) {
     const time = performance.now() / 1000;
     for (const r of toks.values()) {
@@ -174,6 +197,11 @@ export function createDndScene() {
       r.mixer?.update(dt);
       r.turn.material.opacity = 0.55 + 0.45 * Math.sin(time * 4);
       if (r.body) r.body.rotation.z = r.group.userData.down ? Math.PI / 2.2 : 0;
+      if (camera) {                                      // tags keep a readable size on screen: bigger in world units the farther the camera
+        camera.getWorldPosition(_q); r.tag.getWorldPosition(_w);
+        const k = Math.min(5, Math.max(1.1, _q.distanceTo(_w) / root.getWorldScale(_s).x * 0.12)) * (r.tagTurn ? 1.18 : 1);
+        r.tag.scale.set(k, k * 112 / 512, 1);
+      }
       if (camera && r.body?.userData.billboard) {         // standees face the viewer (around the vertical only)
         camera.getWorldPosition(_q); r.body.parent.worldToLocal(_q);
         r.body.rotation.y = Math.atan2(_q.x - r.body.position.x, _q.z - r.body.position.z);
