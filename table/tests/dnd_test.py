@@ -302,6 +302,107 @@ check("the DM's own numbers win over the bestiary's", dw["speed"] == 45 and dw["
 D.apply_table_line('x\nTABLE: {"monsters":[{"name":"Goblin 1","ac":15,"hp":7,"max_hp":7}]}')
 check("gone from the list, gone from the map", D.MAP.token_by_name(D.G["map"], "Ogre 1") is None)
 
+print("dice sums (sneak attack) and the AI DM running its own creatures")
+r = D.roll("1d6+3+2d6")
+check("1d6+3+2d6 rolls three d6 and adds 3", len(r["faces"]) == 3 and all(1 <= f <= 6 for f in r["faces"]) and r["total"] == sum(r["faces"]) + 3
+      and r["expr"] == "d6+2d6+3", str(r))
+check("…a single group still rolls as before", D.roll("2d6+3")["expr"] == "2d6+3" and D.parse_dice("2d6+3") == (2, 6, 3))
+for bad in ("1d6-2d6", "11d6+10d6", "1d6+2d7", "d20; rm", "1d6++2", "1d6+200"):
+    try:
+        D.roll(bad)
+        check(f"refuse {bad!r}", False, "accepted")
+    except ValueError:
+        check(f"refuse {bad!r}", True)
+check("physical dice for a sum are checked die by die", D.roll("1d6+2d8", physical=[6, 8, 1])["total"] == 15)
+try:
+    D.roll("1d6+2d8", physical=[7, 1, 1]); check("…a 7 on a d6 is refused", False)
+except ValueError:
+    check("…a 7 on a d6 is refused", True)
+D.G["monsters"] = [{"name": "Goblin 1", "ac": 15, "hp": 7, "max_hp": 7, "size": "small", "speed": 30, "dex": 14, "conditions": []}]
+D.G.pop("after_dm", None); D.G["roll_chain"] = 0
+n0 = D.EVENTS.next_id
+D.apply_table_line('Steel flashes.\nTABLE: {"rolls":[{"for":"Goblin 1","dice":"d20+4","why":"scimitar vs Michael"}]}')
+evs = [e for e in D.EVENTS.items if e["id"] >= n0 and e["type"] == "roll"]
+check("the DM's roll for its goblin is made by the table, in public", len(evs) == 1 and evs[0]["text"].startswith("ROLL Goblin 1: d20+4")
+      and evs[0].get("dm") and callable(D.G.get("after_dm")), str(evs))
+D.G.pop("after_dm", None)
+n0 = D.EVENTS.next_id
+D.apply_table_line('x\nTABLE: {"rolls":[{"for":"Michael","dice":"d20+9","why":"his save"},{"for":"Nobody","dice":"d20"}]}')
+check("…but never for a player, or for a name that isn't its creature", not [e for e in D.EVENTS.items if e["id"] >= n0 and e["type"] == "roll"]
+      and "after_dm" not in D.G)
+D.G["roll_chain"] = 3
+D.apply_table_line('x\nTABLE: {"rolls":[{"for":"Goblin 1","dice":"1d6+2"}]}')
+check("a fourth roll in a row without a player is made but doesn't call the DM again", "after_dm" not in D.G)
+D.G["roll_chain"] = 0
+D.G["initiative"] = {"active": True, "turn": 1, "round": 1, "pending": [], "order": [
+    {"name": "Michael", "total": 20, "dex": 10}, {"name": "Goblin 1", "total": 15, "dex": 14, "monster": True},
+    {"name": "Sam", "total": 10, "dex": 10}, {"name": "Leonardo", "total": 5, "dex": 10}]}
+D.apply_table_line('The goblin snarls and backs off.\nTABLE: {"next":true}')
+check("the DM ends its goblin's turn: initiative moves on to Sam", D.G["initiative"]["turn"] == 2)
+D.G.pop("after_dm", None)
+D.apply_table_line('x\nTABLE: {"next":true}')
+check("…but can't end a player's turn", D.G["initiative"]["turn"] == 2)
+D.apply_table_line('x\nTABLE: {"monsters":[{"name":"Goblin 1","ac":15,"hp":7,"max_hp":7,"conditions":["asleep","made-up"]}]}')
+gob = D.G["monsters"][0]
+check("a monster's conditions: 'asleep' is unconscious, unknown ones are dropped", gob["conditions"] == ["unconscious"], str(gob))
+D.apply_table_line('x\nTABLE: {"monsters":[{"name":"Goblin 1","ac":15,"hp":7,"max_hp":7}]}')
+check("…and they stay until the DM changes them", D.G["monsters"][0]["conditions"] == ["unconscious"])
+D.G["initiative"]["turn"] = 0
+n0 = D.EVENTS.next_id
+then = D.advance_turn()
+check("a sleeping goblin loses its turn with no DM call", D.G["initiative"]["turn"] == 2 and then is None
+      and any("loses its turn" in (e.get("text") or "") for e in D.EVENTS.items if e["id"] >= n0))
+D.G["initiative"]["turn"] = 2
+then = D.advance_turn()
+check("…a companion's turn goes to the DM", D.G["initiative"]["turn"] == 3 and callable(then))
+D.apply_table_line('x\nTABLE: {"monsters":[{"name":"Goblin 1","ac":15,"hp":7,"max_hp":7,"conditions":[],"dex":30}]}')
+check("…cleared by the DM, and Dex kept", D.G["monsters"][0]["conditions"] == [] and D.G["monsters"][0]["dex"] == 30)
+D.initiative_start()
+g = next(o for o in D.G["initiative"]["order"] if o["name"] == "Goblin 1")
+check("monster initiative adds its Dex (+10 at Dex 30)", g["total"] >= 11 and g["dex"] == 30, str(g))
+order_before = json.dumps(D.G["initiative"]["order"])
+code, out = call("/api/dnd/initiative", {"by": "Michael", "key": mk, "action": "start"})
+check("pressing Roll initiative mid-fight doesn't reroll it (409)", code == 409 and json.dumps(D.G["initiative"]["order"]) == order_before, str(code))
+D.G["initiative"] = {"active": False, "order": [], "turn": 0, "round": 1, "pending": []}
+D.G.pop("after_dm", None)
+D.G["monsters"] = [{"name": "Goblin 1", "ac": 15, "hp": 7, "max_hp": 7, "size": "small", "speed": 30, "dex": 14, "conditions": []}]
+D.G["initiative"] = {"active": True, "turn": 0, "round": 1, "pending": [], "order": [
+    {"name": "Michael", "total": 20, "dex": 10}, {"name": "Goblin 1", "total": 15, "dex": 14, "monster": True}]}
+n0 = D.EVENTS.next_id
+D.apply_table_line('x\nTABLE: {"rolls":[{"for":"Goblin 1","dice":"d20+4","why":"scimitar vs Michael"},{"for":"Goblin 1","dice":"d20+2","why":"initiative"},'
+                   '{"for":"Goblin 1","dice":"d20+2","why":"Dexterity saving throw vs Sacred Flame"}]}')
+got = [e["text"] for e in D.EVENTS.items if e["id"] >= n0 and e["type"] == "roll"]
+check("on Michael's turn the goblin may roll a save, not an attack, and never its initiative",
+      len(got) == 1 and "saving throw" in got[0], str(got))
+D.G.pop("after_dm", None)
+D.G["initiative"] = {"active": False, "order": [], "turn": 0, "round": 1, "pending": []}
+D.apply_table_line('Steel rings out.\nTABLE: {"initiative":"start"}')
+ini = D.G["initiative"]
+check("the DM calls the fight: the table rolls its goblin, the people roll their own",
+      ini["active"] and any(o["name"] == "Goblin 1" for o in ini["order"]) and set(ini["pending"]) == set(D.HUMANS), str(ini))
+D.apply_table_line('x\nTABLE: {"initiative":"start"}')
+check("…a second call doesn't reroll it", D.G["initiative"] is ini)
+D.apply_table_line('The last goblin flees.\nTABLE: {"initiative":"end"}')
+check("…and ends it", not D.G["initiative"]["active"])
+D.G.pop("after_dm", None)
+for i in range(6):
+    D.EVENTS.emit("say", by="Michael", text=f"line {i}", ic=True)
+D.EVENTS.emit("say", by="Sam", text="hm", ic=True)
+check("the spotlight goes to whoever has had least to do", D.quiet_players(["Michael", "Sam"]) == ["Sam"], str(D.quiet_players(["Michael", "Sam"])))
+D.EVENTS.emit("say", by="Sam", text="a", ic=True); D.EVENTS.emit("say", by="Sam", text="b", ic=True); D.EVENTS.emit("say", by="Sam", text="c", ic=True)
+check("…and nobody when it's even", D.quiet_players(["Michael", "Sam"]) == [])
+try:
+    D.roll("d6", physical=[1] * 5000); check("a physical list longer than 20 is refused before it's read", False)
+except ValueError:
+    check("a physical list longer than 20 is refused before it's read", True)
+D.G["after_dm"] = lambda: None; D.G["after_lock"] = lambda: None
+try:
+    json.dumps(D.dump()); check("a snapshot never carries a pending follow-up (it would not serialise)", True)
+except TypeError as e:
+    check("a snapshot never carries a pending follow-up (it would not serialise)", False, str(e))
+D.G.pop("after_dm", None); D.G.pop("after_lock", None)
+check("the opening asks for people and a place, not a fight", "not a fight" in open(D.__file__).read())
+
 print("push-to-talk and the seat check")
 def raw(path, data=b"", headers=None):
     req = urllib.request.Request(BASE + path, data=data, method="POST", headers=headers or {})

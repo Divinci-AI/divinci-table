@@ -165,10 +165,54 @@ def parse_dice(expr: str) -> tuple[int, int, int]:
     return n, int(m.group(2)), int((m.group(3) or "0").replace(" ", ""))
 
 
+POOL_TERM = re.compile(r"([+-])?\s*(?:(\d{0,2})d(4|6|8|10|12|20|100)|(\d{1,2}))\s*", re.I)
+
+
+def parse_pool(expr: str) -> tuple[list[tuple[int, int]], int]:
+    """'1d6+3+2d6' → ([(1, 6), (2, 6)], 3): a sum of dice groups and numbers, as a rogue writes sneak-attack damage.
+    Only added dice (no '-2d6'), the usual dice, at most 20 dice in all and a modifier of -99..99."""
+    e = (expr or "").strip()
+    if not e or len(e) > 40:
+        raise ValueError("dice look like d20+5, 2d6-1 or 1d6+3+2d6")
+    groups, mod, pos = [], 0, 0
+    while pos < len(e):
+        m = POOL_TERM.match(e, pos)
+        if not m or m.end() == pos or (pos and not m.group(1)):
+            raise ValueError("dice look like d20+5, 2d6-1 or 1d6+3+2d6")
+        if m.group(3):
+            if m.group(1) == "-":
+                raise ValueError("dice are added, not taken away (write 2d6-1, not 1d6-2d6)")
+            groups.append((int(m.group(2) or 1), int(m.group(3))))
+        else:
+            mod += int(m.group(4)) * (-1 if m.group(1) == "-" else 1)
+        pos = m.end()
+    if not groups or not 1 <= sum(n for n, _ in groups) <= 20 or not -99 <= mod <= 99 or any(n < 1 for n, _ in groups):
+        raise ValueError("roll 1 to 20 dice at a time")
+    return groups, mod
+
+
 def roll(expr: str, mode: str = "", physical: list | None = None) -> dict:
     """Fair dice (or a physical roll the player read off the table). mode 'adv'/'dis' rolls a d20 twice.
     Physical results are checked against the dice, never trusted blind."""
-    n, sides, mod = parse_dice(expr)
+    if physical is not None and (not isinstance(physical, list) or len(physical) > 20):
+        raise ValueError("enter at most 20 results")               # before converting a client's list, however long
+    try:
+        n, sides, mod = parse_dice(expr)
+    except ValueError:
+        groups, mod = parse_pool(expr)                    # a sum of dice groups: no advantage, every die listed
+        if len(groups) == 1:
+            n, sides = groups[0]
+        else:
+            need = [sd for k, sd in groups for _ in range(k)]
+            if physical:
+                faces = [int(x) for x in physical]
+                if len(faces) != len(need) or any(not 1 <= f <= sd for f, sd in zip(faces, need)):
+                    raise ValueError(f"enter {len(need)} results, one per die in order ({expr})")
+            else:
+                faces = [RNG.randint(1, sd) for sd in need]
+            label = "+".join(f"{k if k > 1 else ''}d{sd}" for k, sd in groups) + (f"{mod:+d}" if mod else "")
+            return {"expr": label, "faces": faces, "mode": "", "mod": mod, "total": sum(faces) + mod,
+                    "physical": bool(physical), "crit": False, "fumble": False}
     adv = mode in ("adv", "dis") and n == 1 and sides == 20
     need = 2 if adv else n
     if physical:
@@ -489,20 +533,115 @@ def apply_table_line(text: str) -> str:
                 try:
                     b = bestiary(x["name"]) or {}
                     mx = max(1, int(x.get("max_hp") or x.get("hp") or b.get("hp") or 1))
-                    mons.append({"name": clean_text(x["name"], 40), "ac": int(x.get("ac") or b.get("ac") or 10),
+                    name = clean_text(x["name"], 40)
+                    was = next((o for o in G["monsters"] if o["name"].lower() == name.lower()), {})
+                    conds = x.get("conditions") if isinstance(x.get("conditions"), list) else was.get("conditions", [])
+                    mons.append({"name": name, "ac": int(x.get("ac") or b.get("ac") or 10),
                                  "hp": max(0, min(mx, int(x.get("hp", mx)))), "max_hp": mx,
                                  "size": x["size"] if x.get("size") in MAP.SIZES else b.get("size", "medium"),
-                                 "speed": max(0, min(120, int(x.get("speed") or b.get("speed") or 30)))})
+                                 "speed": max(0, min(120, int(x.get("speed") or b.get("speed") or 30))),
+                                 "dex": max(1, min(30, int(x.get("dex") or was.get("dex") or b.get("dex") or 10))),
+                                 "conditions": monster_conditions(conds)})
                 except (TypeError, ValueError):
                     continue
         G["monsters"] = mons
         sync_monster_tokens()
         sync_zone_creatures()
+        ini = G["initiative"]
+        if ini["active"] and not ini["pending"] and any(o.get("monster") for o in ini["order"]) \
+                and not any(m["hp"] > 0 for m in mons):          # the last foe fell: the fight is over (no turns for the dead)
+            G["initiative"] = {"active": False, "order": [], "turn": 0, "round": 1, "pending": []}
+            EVENTS.emit("dnd", kind="initiative", text="Combat is over.")
     if isinstance(d.get("scene"), str):
         G["scene"] = clean_text(d["scene"], 80)
     apply_map_lines(d)
     apply_zone_lines(d)
+    if d.get("initiative") == "start" and not G["initiative"]["active"] and G["monsters"]:
+        initiative_start()                                       # the DM calls the fight; the table rolls its creatures, players their own
+    elif d.get("initiative") == "end" and G["initiative"]["active"]:
+        G["initiative"] = {"active": False, "order": [], "turn": 0, "round": 1, "pending": []}
+        EVENTS.emit("dnd", kind="initiative", text="Combat is over.")
+    rolled = dm_rolls(d.get("rolls"))
+    if rolled:                                               # the DM is called back to resolve what the dice said
+        G["roll_chain"] = G.get("roll_chain", 0) + 1
+        if G["roll_chain"] <= 3:
+            G["after_dm"] = lambda: dm_turn(f"The table rolled for {', '.join(rolled)} (the latest ROLL lines in RECENT). "
+                                            "Resolve them.")
+    elif d.get("next") is True and creature_turn():           # the DM ends its own creature's turn, never a player's
+        G["after_dm"] = advance_turn()
     return text[:m.start()].strip()
+
+
+INCAPACITATING = {"unconscious", "stunned", "paralyzed", "petrified", "incapacitated"}
+
+
+def monster_conditions(conds) -> list[str]:
+    out = []
+    for c in conds or []:
+        c = {"asleep": "unconscious", "sleeping": "unconscious"}.get(str(c).lower().strip(), str(c).lower().strip())
+        if c in CONDITIONS and c not in out:
+            out.append(c)
+    return out
+
+
+def creature_turn() -> bool:
+    """Is it a monster's or an AI companion's turn (the DM's to run), with initiative set?"""
+    now = turn_name()
+    return bool(now) and now not in HUMANS
+
+
+def dm_rolls(spec) -> list[str]:
+    """The AI DM asks the table to roll for ITS creatures: fair dice, in the public log, like everyone's. Never for a
+    player (players roll their own); at most four rolls a reply. Returns whom the table rolled for."""
+    if not isinstance(spec, list):
+        return []
+    mine = {m["name"].lower(): m["name"] for m in G["monsters"]} | {c["name"].lower(): c["name"] for c in COMPANIONS}
+    done = []
+    for x in spec[:4]:
+        if not isinstance(x, dict):
+            continue
+        who = mine.get(str(x.get("for", "")).strip().lower())
+        why = str(x.get("why", ""))
+        if not who or re.search(r"initiative", why, re.I):        # initiative is the table's (Roll initiative), never a DM roll
+            continue
+        now = turn_name()                                        # in a fight a creature attacks on its own turn; saves and
+        if now and now != who and not re.search(r"sav(e|ing)|reaction|opportunity", why, re.I):   # reactions come any time
+            continue
+        try:
+            r = roll(str(x.get("dice", "")), "adv" if x.get("mode") == "adv" else "dis" if x.get("mode") == "dis" else "")
+        except ValueError:
+            continue
+        EVENTS.emit("roll", by="DM", text=roll_text(who, r, clean_text(x.get("why"), 60)), roll=r, dm=True)
+        done.append(who)
+    return done
+
+
+def advance_turn():
+    """Move initiative on one turn, past monsters that can't act (no DM call for those). Returns what to run after the
+    lock: the DM's turn when the next creature is its own."""
+    ini = G["initiative"]
+    if not (ini["active"] and ini["order"]):
+        return None
+    for _ in range(len(ini["order"]) + 1):
+        ini["turn"] += 1
+        if ini["turn"] >= len(ini["order"]):
+            ini["turn"], ini["round"] = 0, ini["round"] + 1
+        now_name = ini["order"][ini["turn"]]["name"]
+        t = MAP.token_by_name(G["map"], now_name)
+        MAP.new_turn(G["map"], t and t["id"])
+        ZONES.new_turn(G["card"], now_name)
+        mon = next((m for m in G["monsters"] if m["name"] == now_name), None)
+        if mon is None and ini["order"][ini["turn"]].get("monster"):
+            continue                                             # gone from the fight (destroyed, fled): no turn, no call
+        out = sorted(INCAPACITATING & set(mon["conditions"])) if mon and mon.get("conditions") else []
+        if mon and (out or mon["hp"] <= 0):
+            EVENTS.emit("dnd", kind="turn", text=f"Round {ini['round']}: {now_name} is {out[0] if out else 'down'} and loses its turn")
+            continue
+        EVENTS.emit("dnd", kind="turn", text=f"Round {ini['round']}: {now_name}'s turn")
+        if now_name not in HUMANS:
+            return lambda: dm_turn(f"It is {now_name}'s turn. Take it.", [now_name] if companion(now_name) else [])
+        return None
+    return None
 
 
 def state_for_dm() -> dict:
@@ -519,10 +658,18 @@ def state_for_dm() -> dict:
 
 
 def recent_lines(n: int = 30) -> list[str]:
+    """The scene so far, for the DM. Its own older narration comes back as the first sentence only: replaying it whole
+    made RECENT ~2,200 of a ~3,200-token prompt, and the DM's reply time grows with the prompt (22 s at 1.4k tokens,
+    54 s at 3.2k, measured 2026-11-15). The last two DM lines, and everything the players said and rolled, stay whole."""
     out = []
+    dm_ids = [e["id"] for e in EVENTS.items[-200:] if e["type"] == "dm"][-2:]
     for e in EVENTS.items[-200:]:
         if e["type"] == "dm":
-            out.append(f"DM: {e['text']}")
+            text = e["text"]
+            if e["id"] not in dm_ids:
+                first = re.split(r"(?<=[.!?])\s+", text.strip(), maxsplit=1)[0]
+                text = first[:220] + (" …" if len(first) < len(text.strip()) else "")
+            out.append(f"DM: {text}")
         elif e["type"] == "say":
             out.append(f"{e['by']}{' (in character)' if e.get('ic') else ''}: {e['text']}")
         elif e["type"] == "roll":
@@ -532,12 +679,22 @@ def recent_lines(n: int = 30) -> list[str]:
     return out[-n:]
 
 
+CREATURE_HELP = (
+    'Your creatures (monsters and AI companions) are yours to run, and the table rolls for them: put their dice in '
+    '"rolls":[{"for":"Goblin 1","dice":"d20+4","why":"scimitar vs Mara"}] and you will be called back with the results '
+    '(attack first; damage after a hit). Never ask a player to roll for your creatures; players roll only their own. '
+    'When a creature\'s turn is done, add "next":true (only on a monster\'s or companion\'s turn; players end their own). '
+    'Give monsters "conditions" (e.g. ["unconscious"] for Sleep, ["prone"]): they stay until you change them, and an '
+    'unconscious, stunned or paralyzed monster loses its turns. To start a fight add "initiative":"start" (the table rolls '
+    'initiative for your creatures and asks the players for theirs; never roll initiative yourself); when the last foe falls '
+    'or flees, "initiative":"end". Never say whose turn it is next: the table moves initiative.')
 MAP_TABLE_HELP = [
     'If monsters, the scene title or the map change, end with ONE line: TABLE: {"monsters":[{"name":"Goblin 1","ac":15,'
-    '"hp":7,"max_hp":7,"size":"small","speed":30}],"scene":"<short title>","location":"<one of map.locations>",'
-    '"place":[{"name":"Goblin 1","x":9,"y":2}],"move":[{"name":"Goblin 1","x":7,"y":3}]} '
+    '"hp":7,"max_hp":7,"size":"small","speed":30,"dex":14,"conditions":[]}],"scene":"<short title>","location":"<one of map.locations>",'
+    '"place":[{"name":"Goblin 1","x":9,"y":2}],"move":[{"name":"Goblin 1","x":7,"y":3}],"rolls":[...],"next":true} '
     '(list every monster still in play; include only the keys that change; omit the line otherwise). '
-    "Only move monsters and companions, never the players' characters, and in combat only the creature whose turn it is."]
+    "Only move monsters and companions, never the players' characters, and in combat only the creature whose turn it is.",
+    CREATURE_HELP]
 THEATER_TABLE_HELP = [
     "This is theater of the mind: there is no board. Paint the scene in words, and keep it consistent with STATE.scene_card "
     "(its zones, who is where, who is fighting whom).",
@@ -546,7 +703,18 @@ THEATER_TABLE_HELP = [
     '{"name":"the door"}],"zone":{"Goblin 1":"the door"},"engage":[["Goblin 1","<a character>"]]} '
     "(include only the keys that change; omit the line otherwise). Set zones only outside a fight: 2 to 6 short places. "
     "In combat a creature moves one zone (two with a Dash) on its own turn. Only move monsters and companions, never "
-    "the players' characters; engage only creatures in the same zone."]
+    "the players' characters; engage only creatures in the same zone. The same line may carry \"rolls\" and \"next\".",
+    CREATURE_HELP]
+
+
+def quiet_players(people: list[str]) -> list[str]:
+    """Players who have spoken or acted least in the last dozen in-character lines (none if it's even)."""
+    recent = [e["by"] for e in EVENTS.items[-80:] if e["type"] in ("say", "roll") and e.get("by") in people][-12:]
+    if len(recent) < 4:
+        return []
+    counts = {p: recent.count(p) for p in people}
+    low = min(counts.values())
+    return [p for p in people if counts[p] == low] if max(counts.values()) - low >= 3 else []
 
 
 def build_prompt(reason: str, speak: list[str]) -> str:
@@ -559,6 +727,10 @@ def build_prompt(reason: str, speak: list[str]) -> str:
     if people:                                       # T4: the local model sometimes wrote players' lines and actions
         lines.append(f"PLAYERS (real people): {', '.join(people)}. Never write their words or decide what they do; "
                      "describe the world's response and ask them.")
+        quiet = quiet_players(people)                # the fastest player took every beat in a playtest (2026-11-15)
+        if quiet and not G["initiative"]["active"]:
+            lines.append(f"SPOTLIGHT: {', '.join(quiet)} {'has' if len(quiet) == 1 else 'have'} had the least to do lately: "
+                         "when you hand the scene back, turn to them first.")
     if G["mode"] == "theater" and not G["card"]["zones"]:         # solo rehearsal: the DM never set any
         lines.append('RULE: there is no scene card yet. End this reply with ONE line that sets 2 to 5 zones for where the '
                      'party is now, exactly like: TABLE: {"zones":[{"name":"the gate","desc":"rusted iron"},{"name":"the yard"}]}')
@@ -736,7 +908,10 @@ def _dm_worker(prompt: str, speak: list[str]) -> None:
         G["dm_busy"] = False
         again, more = G["dm_dirty"], G.pop("dm_pending_speak", [])
         G["dm_dirty"] = False
-    if again:
+        after = G.pop("after_dm", None)
+    if after and not again:
+        after()
+    elif again:
         dm_turn("Players acted while you were narrating (see RECENT). Respond to them.", more)
 
 
@@ -784,8 +959,9 @@ def initiative_start() -> None:
         ini["order"].append({"name": c["name"], "total": r["total"], "dex": s["abilities"]["dex"]})
         EVENTS.emit("roll", by=c["name"], text=roll_text(c["name"], r, "initiative"), roll=r)
     for m in G["monsters"]:
-        r = roll("d20")
-        ini["order"].append({"name": m["name"], "total": r["total"], "dex": 10, "monster": True})
+        dex = int(m.get("dex") or 10)
+        r = roll(f"d20{mod_of(dex):+d}" if mod_of(dex) else "d20")
+        ini["order"].append({"name": m["name"], "total": r["total"], "dex": dex, "monster": True})
         EVENTS.emit("roll", by="DM", text=roll_text(m["name"], r, "initiative"), roll=r)
     G["initiative"] = ini
     G["map"]["used"] = {}
@@ -833,7 +1009,7 @@ def public_state(viewer: str | None = None) -> dict:
 
 def dump() -> dict:
     with LOCK:
-        g = {k: v for k, v in G.items() if k not in ("dm_busy", "dm_dirty")}
+        g = {k: v for k, v in G.items() if k not in ("dm_busy", "dm_dirty", "after_dm", "after_lock")}   # follow-ups are code, not state
         g["map"] = MAP.public(G["map"])                    # the parsed grid is a cache, rebuilt on use
         return {"g": g, "spoke": {c["name"]: c["spoke_at"] for c in COMPANIONS},
                 "seats": SEATS.state(), "events": EVENTS.state(), "saved": time.time()}
@@ -1110,6 +1286,7 @@ class H(BaseHTTPRequestHandler):
                 return self._act("/api/dnd/roll", r, by, is_dm)
             EVENTS.emit("say", by=by, text=text, ic=True)
             G["ai_spoke"] = None
+            G["roll_chain"] = 0
             speak = companions_to_speak(text, now)
             return 200, {"ok": True}, (lambda: dm_turn(f"{by} acts or speaks (latest line in RECENT).", speak))
         if p == "/api/dnd/roll":
@@ -1120,6 +1297,8 @@ class H(BaseHTTPRequestHandler):
                 return 400, {"error": str(e)}, None
             who = clean_text(b.get("for"), 40) if is_dm else by
             EVENTS.emit("roll", by=by, text=roll_text(who or by, r, why), roll=r)
+            if not is_dm:
+                G["roll_chain"] = 0
             then = None
             if why.lower().startswith("init") and not is_dm and G["initiative"]["active"]:
                 initiative_enter(by, r["total"])
@@ -1180,26 +1359,20 @@ class H(BaseHTTPRequestHandler):
             premise = clean_text(b.get("premise"), 400) or "a short heroic one-shot for a level 3 party"
             EVENTS.emit("dnd", kind="begin", by=by, text=f"The adventure begins: {premise}")
             return 200, public_state(), (lambda: dm_turn(
-                f"Begin the adventure: {premise}. Set the opening scene and give each character a reason to be here."))
+                f"Begin the adventure: {premise}. Set the opening scene and give each character a reason to be here. "
+                "Open with people and a place to explore, not a fight: no monsters and no initiative in this first reply."))
         if p == "/api/dnd/continue":
             return 200, public_state(), (lambda: dm_turn("The table asks you to continue the scene."))
         if p == "/api/dnd/initiative":
             act = str(b.get("action", "start"))
             if act == "start":
+                if G["initiative"]["active"]:                # a second press (or two seats at once) never rerolls a fight
+                    return 409, {"error": "combat has already started: End combat first to roll again"}, None
                 initiative_start()
             elif act == "next" and G["initiative"]["active"] and G["initiative"]["order"]:
-                ini = G["initiative"]
-                ini["turn"] += 1
-                if ini["turn"] >= len(ini["order"]):
-                    ini["turn"], ini["round"] = 0, ini["round"] + 1
-                now_name = ini["order"][ini["turn"]]["name"]
-                t = MAP.token_by_name(G["map"], now_name)
-                MAP.new_turn(G["map"], t and t["id"])
-                ZONES.new_turn(G["card"], now_name)
-                EVENTS.emit("dnd", kind="turn", text=f"Round {ini['round']}: {now_name}'s turn")
-                if not any(now_name == h for h in HUMANS):
-                    return 200, public_state(), (lambda: dm_turn(f"It is {now_name}'s turn. Take it.",
-                                                                 [now_name] if companion(now_name) else []))
+                then = advance_turn()
+                if then:
+                    return 200, public_state(), then
             elif act == "end":
                 G["initiative"] = {"active": False, "order": [], "turn": 0, "round": 1, "pending": []}
                 EVENTS.emit("dnd", kind="initiative", text="Combat is over.")
@@ -1288,7 +1461,7 @@ class H(BaseHTTPRequestHandler):
             text = clean_text_keep_lines(b.get("text"), 2000)
             if text:
                 EVENTS.emit("dm", text=apply_table_line(text), human=True)
-            return 200, public_state(), None
+            return 200, public_state(), G.pop("after_dm", None)
         return 404, {"error": "not found"}, None
 
 
