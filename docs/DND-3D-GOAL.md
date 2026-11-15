@@ -149,11 +149,26 @@ models and the Zombay pipeline. Tick a box only when its check has been run and 
       *Built and checked outside a headset (`dnd_xr_e2e` 8/8: renders, every token, 0.80 m diorama, spoken dice
       parsed, no errors). The immersive check itself needs Michael and the Quest.*
 
+- [x] **Polish from playing it (2026-11-15, `docs/results/dnd-ai-session-2026-11-15/RETRO.md`):** a world around the table
+      in VR and the preview (sky, ground and fog in the location's colours, a wooden table under the diorama; none over AR
+      passthrough), the story parchment (the DM's narration as it streams, who's speaking, the last action and roll, whose
+      turn), the headset's own voice (Voice on the wrist panel), the turn order and party on the wrist panel, condition
+      marks on tags (💤), and tags that step aside when creatures stand close. *Check:* `dnd_xr_e2e` 18/18. The 72 fps
+      check on the Quest is still to do with all of this on.
+
 ## D7 — The AI DM runs the map
 - [x] The DM picks a location from the library (never generates one live), places monsters at spawn
       points, and moves them on their turns; every move is validated server-side.
 - [x] **Check:** three simulated encounters (`dnd_test` with a fake DM): no illegal move accepted, no
       token teleports, the DM never moves a player's character.
+
+- [x] **The AI DM runs its creatures (2026-11-15, from two sessions with AI players; RETRO.md above):** the table rolls
+      for the DM's monsters and companions (`"rolls"`, public and fair, never for a player; attacks only on the creature's
+      own turn), the DM ends its creatures' turns (`"next"`), starts and ends fights (`"initiative":"start"|"end"`), and sets
+      monster `conditions` (an unconscious monster loses its turns with no DM call; the dead and the gone too; the fight
+      ends when no foe stands). Dice sums (`1d6+3+2d6`), monster Dex on initiative, no mid-fight re-roll, an opening
+      without a fight, a spotlight hint for quiet players, a shorter replay of the DM's own narration (it was 2/3 of the
+      prompt, and the DM's reply time grows with the prompt). *Check:* `dnd_test` 159 passed; mutation-checked.
 
 ## D8 — Walk-in worlds (research, gated)
 - [ ] Blender rooms → known-pose renders → splat (Zombay's pipeline) for one location, viewed with Spark.js
