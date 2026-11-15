@@ -354,17 +354,26 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, body=(HERE / STATIC[p]).read_bytes(), ctype="text/html; charset=utf-8")
         if p == "/api/chess":
             return self._send(200, public_state())
+        if p == "/api/game/id":                           # which game this is: seat.js tells a restarted game from the one a key was for
+            return self._send(200, {"game": "chess", "game_id": G.get("game_id", "")})
         if p == "/api/seat/claims":
             return self._send(200, SEATS.public(device_of(self)))
-        if p == "/api/events":
-            q = parse_qs(u.query).get("since", ["0"])[0]
-            return self._send(200, EVENTS.since(EVENTS.next_id - 1 if q == "latest" else int(q or 0)))
+        if p == "/api/events":                            # ?wait=N: a long poll, so a move reaches the other screens at once (not on the next 1 s poll)
+            qs = parse_qs(u.query)
+            q = qs.get("since", ["0"])[0]
+            n = EVENTS.next_id - 1 if q == "latest" else int(q or 0)
+            try:
+                wait = float(qs.get("wait", ["0"])[0])
+            except ValueError:
+                wait = 0.0
+            return self._send(200, EVENTS.wait_since(n, wait) if wait > 0 and q != "latest" else EVENTS.since(n))
         if p == "/api/voice-config":
             return self._send(200, {"humans": [{"name": n} for n in HUMANS], "ai_players": [{"name": x["name"]} for x in PLAYERS.values() if x["ai"]]})
-        if p.startswith("/assets/"):
-            f = (HERE / "assets" / p[8:]).resolve()
-            if f.is_file() and (HERE / "assets") in f.parents and f.suffix in ASSET_TYPES:
-                return self._send(200, body=f.read_bytes(), ctype=ASSET_TYPES[f.suffix])
+        for pre, root in (("/assets/", HERE / "assets"), ("/vendor/", HERE / "vendor")):   # page code; three.js for the 3D board
+            if p.startswith(pre):
+                f = (root / unquote(p[len(pre):])).resolve()
+                if f.is_file() and root.resolve() in f.parents and f.suffix in ASSET_TYPES:
+                    return self._send(200, body=f.read_bytes(), ctype=ASSET_TYPES[f.suffix])
         if p.startswith("/photos/"):
             f = (RESEARCH / G["game_id"] / "photos" / p[8:]).resolve()
             if f.is_file() and RESEARCH in f.parents and f.suffix in (".jpg", ".png"):
@@ -377,6 +386,11 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         p = urlparse(self.path).path
+        if p == "/api/seat/check":                         # seat.js: is this tab's key still a seat here? (a restarted table issues new keys)
+            self._body()
+            key = str(self.headers.get("X-Seat-Key", ""))[:200]
+            who = next((n for n in HUMANS if key and SEATS.ok(n, key)), None)
+            return self._send(200, {"seat": who}) if who else self._send(403, {"error": "not a seated player"})
         if self._room("POST", p):
             return
         if p == "/api/seat/claim":
@@ -468,7 +482,9 @@ class H(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    srv = ThreadingHTTPServer((args.host, args.port), H)
+    class Server(ThreadingHTTPServer):
+        request_queue_size = 128                  # the default of 5 drops connections when several screens open at once (long polls hold one each)
+    srv = Server((args.host, args.port), H)
     srv.daemon_threads = True
     print(f"chess: {PLAYERS['white']['name']} (white) vs {PLAYERS['black']['name']} (black), "
           f"{args.minutes:g}+{args.increment:g} — http://localhost:{args.port}/", flush=True)

@@ -43,6 +43,12 @@ button:disabled{opacity:.45;cursor:default}
 #log img{max-width:100%;border-radius:6px;margin-top:4px}
 input[type=text]{width:100%;padding:9px;border-radius:8px;border:1px solid #d9b46a55;background:#071820;color:var(--ink);font:16px system-ui}
 #promo{display:none;gap:6px;margin-top:8px}#promo button{font-size:28px;padding:4px 12px}
+#board3d{display:none;width:100%;aspect-ratio:1/0.92;border-radius:10px;overflow:hidden;background:#071820;touch-action:none;cursor:pointer;
+  box-shadow:0 0 0 3px var(--gold-lo),0 0 0 6px #0b2430,0 0 0 7px var(--gold-lo),0 20px 50px #000a}
+#board3d canvas{display:block;width:100%;height:100%}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.views{display:flex;gap:6px}.views button{padding:5px 11px;font-size:14px}.views button.on{border-color:var(--teal);box-shadow:inset 0 0 0 1px var(--teal)}
+.hint3d{font-size:13px;color:var(--dim);margin:6px 2px 0;min-height:1.2em}
 </style>
 <script src="/assets/seat.js" defer></script>
 <script src="/assets/photo.js" defer></script>
@@ -51,9 +57,12 @@ input[type=text]{width:100%;padding:9px;border-radius:8px;border:1px solid #d9b4
 <body data-brand="me">
 <main>
   <section>
-    <h1>Divinci Table · Chess</h1>
+    <div class="top"><h1>Divinci Table · Chess</h1>
+      <div class="views" role="group" aria-label="board view"><button data-view="2d">2D</button><button data-view="3d">3D</button></div></div>
     <div class="player" id="pTop"><span class="n"></span><span class="clock"></span></div>
     <div id="board" aria-label="chess board"></div>
+    <div id="board3d" aria-label="chess board in 3D: tap a piece, then a square"></div>
+    <div class="hint3d" id="hint3d" hidden>Drag to look around · scroll or pinch to zoom · tap a piece, then a square.</div>
     <div class="player" id="pBottom"><span class="n"></span><span class="clock"></span></div>
     <div id="status" role="status" aria-live="polite"></div>
     <div id="promo" aria-label="promote to"></div>
@@ -108,7 +117,7 @@ function draw() {
     $(el).querySelector(".n").textContent = `${c === "white" ? "♔" : "♚"} ${p.name}${p.ai ? " · AI" : ""}${c === myColor() ? " (you)" : ""}`;
     $(el).classList.toggle("on", S.started && !S.result && S.turn === c);
   }
-  tick();
+  tick(); drawn++;
   $("moves").innerHTML = S.san.reduce((h, m, i) => h + (i % 2 === 0 ? `<span>${i / 2 + 1}.</span>` : "") + `<span>${esc(m)}</span>` + (i % 2 ? "<br>" : ""), "") || '<span style="color:var(--dim)">No moves yet.</span>';
   $("moves").scrollTop = 1e9;
   const mine = myColor();
@@ -126,9 +135,13 @@ function tick() {
     const n = $(id).querySelector(".clock"); n.textContent = fmt(v); n.classList.toggle("low", v < 30);
   }
 }
-$("board").addEventListener("click", ev => {
-  const q = ev.target.closest(".sq"); if (!q || !S || S.result) return;
-  const name = q.dataset.sq;
+function tapSquare(name) {                           // the 2D board and the 3D board both end here: select, then move
+  if (!S || S.result || !name) return;
+  const mine = myColor();                            // say why up front, rather than letting the server refuse it
+  if (!mine) { $("err").textContent = "You're watching: only the two players move pieces."; return; }
+  if (!S.started) { $("err").textContent = "Press Start the clocks first."; return; }
+  if (S.turn !== mine) { $("err").textContent = `It's ${S.players[S.turn].name}'s move.`; sel = null; draw(); return; }
+  $("err").textContent = "";
   if (sel && S.legal.some(m => m.startsWith(sel + name))) {
     const opts = S.legal.filter(m => m.startsWith(sel + name));
     if (opts.length > 1) {                              // a pawn reaching the last rank: choose the piece
@@ -139,7 +152,15 @@ $("board").addEventListener("click", ev => {
     sel = null; draw(); return;
   }
   sel = S.legal.some(m => m.startsWith(name)) ? name : null; draw();
-});
+}
+$("board").addEventListener("click", ev => { const q = ev.target.closest(".sq"); if (q) tapSquare(q.dataset.sq); });
+let drawn = 0;                                       // bumped by draw(); the 3D board redraws when it changes
+function view3d() {                                  // what the 3D board shows: the same marks as the 2D one
+  const sqs = squares(), kingSq = S.check ? sqs.find(q => q.piece === (S.turn === "white" ? "K" : "k"))?.name : null;
+  return { fen: S.fen, side: myColor() === "black" ? "black" : "white", sel, lastmove: S.lastmove,
+           last: S.lastmove ? [S.lastmove.slice(0, 2), S.lastmove.slice(2, 4)] : [],
+           targets: sel ? S.legal.filter(m => m.startsWith(sel)).map(m => m.slice(2, 4)) : [], check: kingSq };
+}
 $("promo").addEventListener("click", ev => { const b = ev.target.closest("button"); if (!b) return;
   post("/api/chess/move", { move: pendingPromo + b.dataset.p }); $("promo").style.display = "none"; pendingPromo = null; });
 $("start").onclick = () => post("/api/chess/start");
@@ -149,10 +170,8 @@ async function sendSay() { const t = $("say").value.trim(); if (!t) return; cons
 $("send").onclick = sendSay; $("say").addEventListener("keydown", e => { if (e.key === "Enter") sendSay(); });
 $("photo").onchange = async () => { const f = $("photo").files[0]; if (!f) return;
   const r = await window.sendTablePhoto(f, me(), $("say").value.trim()); $("err").textContent = r.error || ""; $("photo").value = ""; };
-async function poll() {
-  try {
-    const r = await fetch("/api/chess"); S = await r.json(); fetchedAt = Date.now(); draw();
-    const e = await (await fetch("/api/events?since=" + since)).json();
+async function refresh() { try { const r = await fetch("/api/chess"); S = await r.json(); fetchedAt = Date.now(); draw(); } catch {} }
+function onEvents(e) {
     if (e.restarted) since = 0;
     for (const x of e.events || []) {
       since = x.id;
@@ -160,9 +179,116 @@ async function poll() {
       if (x.type === "chess" && x.kind === "over") $("log").insertAdjacentHTML("beforeend", `<div><b>Game over</b> ${esc(x.result)} · ${esc(x.reason)}</div>`);
     }
     $("log").scrollTop = 1e9;
-  } catch {}
+    return (e.events || []).some(x => x.type === "chess" || x.type === "seat") || e.restarted;
 }
-setInterval(poll, 1000); setInterval(tick, 250); poll();
+// A long poll: the server holds /api/events until something happens, so a move reaches every screen at once (D&D's
+// playtest found a 1 s poll too slow). A 4 s refresh is the safety net; a hidden tab doesn't hold a connection.
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function listen() {
+  for (;;) {
+    try {
+      const e = await (await fetch(`/api/events?since=${since}&wait=${document.hidden ? 0 : 20}`, { cache: "no-store" })).json();
+      if (onEvents(e)) await refresh();
+    } catch { await sleep(1500); }
+    if (document.hidden) await sleep(3000);
+  }
+}
+setInterval(refresh, 4000); setInterval(tick, 250);
+refresh().then(listen);
+</script>
+<script type="importmap">{ "imports": { "three": "/vendor/three.module.min.js" } }</script>
+<script type="module">
+// The 3D board (assets/chess-scene.js): drag to orbit, wheel or pinch to zoom, tap a piece then a square. Phones and
+// reduced motion get the 2D board (and never start WebGL); the choice is remembered per browser.
+import * as THREE from "three";
+import { createChessScene } from "/assets/chess-scene.js";
+const box = document.getElementById("board3d"), flat = document.getElementById("board");
+const can3d = (() => { try { return !!document.createElement("canvas").getContext("webgl2"); } catch { return false; } })();
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const saved = (() => { try { return localStorage.getItem("chess.view"); } catch { return null; } })();
+let mode = saved || (can3d && !reduce && innerWidth >= 860 ? "3d" : "2d");
+let renderer = null, camera, scene3, board, seen = -1, side = null, frames = [], dirty = true, renders = 0;
+// A chess board is still most of the time: draw only when something changed (a move, the camera, an animation),
+// not 60 times a second. Saves a laptop's battery and a phone's heat when someone picks 3D there.
+const orbit = { theta: 0, phi: 0.82, r: 13.5 };
+
+function start() {
+  if (renderer) return true;
+  try { renderer = new THREE.WebGLRenderer({ antialias: true }); } catch { return false; }
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  box.appendChild(renderer.domElement);
+  scene3 = new THREE.Scene(); scene3.background = new THREE.Color(0x071820);
+  scene3.add(new THREE.HemisphereLight(0xe3ecff, 0x2a2016, 1.0));
+  const key = new THREE.DirectionalLight(0xfff0d8, 2.2); key.position.set(-5, 11, 6); key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: 1, far: 30 }); key.shadow.bias = -0.0005;
+  const rim = new THREE.DirectionalLight(0x3fd0c9, 0.6); rim.position.set(6, 5, -7);
+  scene3.add(key, rim);
+  camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+  board = createChessScene(); scene3.add(board.root);
+  window.CHESS3D = { board, camera, frames, mode: () => mode, renders: () => renders };
+  let t0 = performance.now();
+  renderer.setAnimationLoop(now => {
+    const dt = Math.min(0.1, (now - t0) / 1000); t0 = now;
+    if (mode !== "3d") return;
+    frames.push(dt * 1000); if (frames.length > 240) frames.shift();
+    if (typeof S !== "undefined" && S && drawn !== seen) {
+      seen = drawn; dirty = true; const v = view3d(); board.update(v);
+      if (v.side !== side) { side = v.side; orbit.theta = side === "black" ? Math.PI : 0; }   // sit on your own side
+    }
+    const W = box.clientWidth, H = box.clientHeight;
+    if (renderer.domElement.width !== Math.round(W * renderer.getPixelRatio())) { renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); dirty = true; }
+    const moving = board.animating();
+    if (!dirty && !moving) return;
+    dirty = false; renders++;
+    camera.position.set(orbit.r * Math.sin(orbit.phi) * Math.sin(orbit.theta), orbit.r * Math.cos(orbit.phi), orbit.r * Math.sin(orbit.phi) * Math.cos(orbit.theta));
+    camera.lookAt(0, -0.4, 0);
+    board.tick(dt);
+    renderer.render(scene3, camera);
+  });
+  input();
+  return true;
+}
+
+function input() {
+  const el = renderer.domElement, pts = new Map(); let down = null, pinch = null;
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  el.addEventListener("pointerdown", ev => { el.setPointerCapture(ev.pointerId); pts.set(ev.pointerId, [ev.clientX, ev.clientY]); down = { x: ev.clientX, y: ev.clientY, moved: false }; });
+  el.addEventListener("pointermove", ev => {
+    if (!pts.has(ev.pointerId)) return;
+    const [px, py] = pts.get(ev.pointerId); pts.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      if (pinch) orbit.r = Math.min(24, Math.max(7, orbit.r * pinch / d)); pinch = d; dirty = true; if (down) down.moved = true; return;
+    }
+    if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > 6) down.moved = true;
+    if (down && down.moved) { orbit.theta -= (ev.clientX - px) * 0.008; orbit.phi = Math.min(1.3, Math.max(0.2, orbit.phi - (ev.clientY - py) * 0.006)); dirty = true; }
+  });
+  const up = ev => {
+    pts.delete(ev.pointerId); if (pts.size < 2) pinch = null;
+    if (!down || down.moved) { down = null; return; }
+    down = null;
+    const r = el.getBoundingClientRect(); ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    tapSquare(board.squareAt(ray));
+  };
+  el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+  el.addEventListener("wheel", ev => { ev.preventDefault(); orbit.r = Math.min(24, Math.max(7, orbit.r * (1 + Math.sign(ev.deltaY) * 0.08))); dirty = true; }, { passive: false });
+}
+
+function setMode(m) {
+  if (m === "3d" && !can3d) m = "2d";
+  if (m === "3d" && !start()) m = "2d";
+  mode = m; try { localStorage.setItem("chess.view", m); } catch {}
+  box.style.display = m === "3d" ? "block" : "none"; flat.style.display = m === "3d" ? "none" : "grid";
+  document.getElementById("hint3d").hidden = m !== "3d";
+  document.querySelectorAll("[data-view]").forEach(b => { b.classList.toggle("on", b.dataset.view === m); b.setAttribute("aria-pressed", String(b.dataset.view === m)); });
+  if (m === "3d") { seen = -1; dirty = true; }
+}
+document.querySelector(".views").addEventListener("click", ev => { const v = ev.target.dataset.view; if (v) setMode(v); });
+if (!can3d) document.querySelector('[data-view="3d"]').disabled = true;
+setMode(mode);
 </script>
 </body>
 </html>
