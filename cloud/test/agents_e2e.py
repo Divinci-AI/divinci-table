@@ -55,7 +55,7 @@ HP, WP = port(), port()
 TMP = Path(tempfile.mkdtemp(prefix="agents-e2e-"))
 HOSTKEY, ADMIN = secrets.token_urlsafe(32), secrets.token_urlsafe(24)
 (TMP / "key").write_text(HOSTKEY); os.chmod(TMP / "key", 0o600)
-(TMP / "vars").write_text(f"ROOM_HOST_KEY={HOSTKEY}\nADMIN_TOKEN={ADMIN}\nROOM_HOST_ORIGIN=http://127.0.0.1:{HP}\nPUBLIC_ORIGIN=http://127.0.0.1:{WP}\nMAX_AGENT_TABLES=2\n")
+(TMP / "vars").write_text(f"ROOM_HOST_KEY={HOSTKEY}\nADMIN_TOKEN={ADMIN}\nROOM_HOST_ORIGIN=http://127.0.0.1:{HP}\nPUBLIC_ORIGIN=http://127.0.0.1:{WP}\nMAX_AGENT_TABLES=2\nMAX_CREATES_PER_HOUR=12\n")
 os.chmod(TMP / "vars", 0o600)
 host = subprocess.Popen([sys.executable, str(CLOUD / "roomhost.py"), "--host", "127.0.0.1", "--port", str(HP), "--data", str(TMP / "data"), "--port-base", str(port_block(12))],   # (was 24500 in every run)
                         env={**os.environ, "ROOM_HOST_KEY_FILE": str(TMP / "key"), "ROOM_HOST_LOBBY": f"http://127.0.0.1:{WP}"},
@@ -358,6 +358,51 @@ try:
     time.sleep(1)
     page = urllib.request.urlopen(W + "/", timeout=10).read().decode()
     check("E2E poker" in page and "Hold'em (play chips)" in page, "the poker room is on the lobby page, marked play chips")
+    # D&D through the lobby and the room host: a person behind the screen (Dee) and a player (Ann), on the battle map
+    c, d, h = req("POST", "/lobby/rooms", form={"game": "dnd", "humans": "Dee, Ann", "title": "E2E vault"})
+    loc = h.get("Location", "")
+    did = loc.rsplit("/", 1)[-1]
+    check(c == 303 and "/r/" in loc and len(did) == 8, "the form starts a D&D room", (c, loc))
+    dk = {"Cookie": f"room={did}"}
+    c, dee, _ = req("POST", "/api/seat/claim", {"name": "Dee"}, dk)
+    c2, ann, _ = req("POST", "/api/seat/claim", {"name": "Ann"}, {**dk, "User-Agent": "phone-b"})
+    check(c == 200 and c2 == 200 and dee.get("key") and ann.get("key"), "the DM and the player claim their seats", (c, c2))
+    c, st, _ = req("GET", "/api/dnd", None, dk)
+    check(c == 200 and st.get("dm_human") == "Dee" and not st.get("ai_dm") and "Ann" in st.get("sheets", {}),
+          "the room has Dee behind the screen, no AI DM, and Ann's character", (c, st.get("dm_human"), st.get("ai_dm")))
+    c, st, _ = req("POST", "/api/dnd/sheet", {"by": "Ann", "key": ann["key"], "pregen": "rogue"}, dk)
+    check(c == 200 and st["sheets"]["Ann"].get("class", "").lower().startswith("rogue"), "Ann takes the rogue", (c, st.get("error")))
+    c, st, _ = req("POST", "/api/dnd/sheet", {"by": "Ann", "pregen": "wizard"}, dk)
+    check(c == 403, "nobody changes Ann's sheet without her key", c)
+    c, st, _ = req("POST", "/api/dnd/begin", {"by": "Dee", "key": dee["key"], "premise": "a sealed vault under the tavern"}, dk)
+    check(c == 200 and st.get("begun"), "Dee begins the adventure", (c, st.get("error")))
+    since = req("GET", "/api/events?since=latest", None, dk)[1].get("last", 0)
+    waited = {}
+    def hold():
+        t = time.time(); waited["out"] = req("GET", f"/api/events?since={since}&wait=15", None, dk)[1]; waited["dt"] = time.time() - t
+    import threading
+    th = threading.Thread(target=hold); th.start(); time.sleep(0.8)
+    c, st, _ = req("POST", "/api/dnd/narrate", {"by": "Dee", "key": dee["key"], "text": "Dust sifts from the ceiling. A door of black iron waits."}, dk)
+    th.join(20)
+    check(c == 200 and waited.get("dt", 99) < 5 and any(e.get("type") == "dm" for e in waited.get("out", {}).get("events", [])),
+          f"the DM's narration wakes a held long poll through the Worker ({waited.get('dt', 0):.1f} s)", (c, waited.get("dt")))
+    c, st, _ = req("POST", "/api/dnd/narrate", {"by": "Ann", "key": ann["key"], "text": "I am the DM now"}, dk)
+    check(c == 403, "a player can't narrate", c)
+    c, st, _ = req("POST", "/api/dnd/roll", {"by": "Ann", "key": ann["key"], "dice": "d20+3", "why": "Perception"}, dk)
+    r = st.get("roll", {})
+    check(c == 200 and 4 <= r.get("total", 0) <= 23, "Ann rolls Perception with the table's fair dice", (c, r))
+    tk = st.get("map", {}).get("tokens") or {}
+    toks = [dict(t, id=t.get("id") or k) for k, t in (tk.items() if isinstance(tk, dict) else enumerate(tk)) if t.get("owner") == "Ann"]
+    moved = False
+    if toks:
+        t = toks[0]
+        for dx, dy in ((1, 0), (0, 1), (-1, 0), (0, -1), (1, 1), (-1, -1)):
+            c, st2, _ = req("POST", "/api/dnd/map/move", {"by": "Ann", "key": ann["key"], "token": t["id"], "x": t["x"] + dx, "y": t["y"] + dy}, dk)
+            if c == 200:
+                moved = True
+                break
+        c3, _, _ = req("POST", "/api/dnd/map/move", {"by": "Ann", "token": t["id"], "x": t["x"], "y": t["y"]}, dk)
+    check(toks and moved and c3 == 403, "Ann moves her own token on the map; without her key it doesn't move", (len(toks), moved))
 finally:
     try:
         os.killpg(worker.pid, signal.SIGTERM)

@@ -314,6 +314,10 @@ export class TableRoom extends Container<Env> {
 }
 
 // ── the public room list ──────────────────────────────────────────────────────────────────────
+/** A limit from the environment, or the default when it's unset or not a positive number: a typo in a variable must not
+ *  turn a cap off (NaN compares false, so `x >= Number("abc")` would let everything through). */
+const capOf = (v: string | undefined, def: number) => { const n = Number(v); return v && Number.isFinite(n) && n > 0 ? n : def; };
+
 export class Lobby extends DurableObject<Env> {
 	async list(): Promise<RoomInfo[]> {
 		const now = Date.now();
@@ -390,10 +394,10 @@ export class Lobby extends DurableObject<Env> {
 	async add(room: RoomInfo, addr: string): Promise<string | null> {
 		const now = Date.now();
 		const rooms = await this.list();
-		if (rooms.filter((r) => !r.agents).length >= Number(this.env.MAX_LIVE_ROOMS || MAX_LIVE_ROOMS)) return "All tables are busy right now. Join an open room, or try again later.";
+		if (rooms.filter((r) => !r.agents).length >= capOf(this.env.MAX_LIVE_ROOMS, MAX_LIVE_ROOMS)) return "All tables are busy right now. Join an open room, or try again later.";
 		const key = "creates:" + addr;
 		const recent = ((await this.ctx.storage.get<number[]>(key)) ?? []).filter((t) => now - t < 3600_000);
-		if (recent.length >= MAX_CREATES_PER_HOUR) return "You've started several rooms this hour. Please join one instead.";
+		if (recent.length >= capOf(this.env.MAX_CREATES_PER_HOUR, MAX_CREATES_PER_HOUR)) return "You've started several rooms this hour. Please join one instead.";
 		await this.ctx.storage.put(key, [...recent, now]);
 		await this.ctx.storage.put("rooms", [...rooms, room]);
 		return null;

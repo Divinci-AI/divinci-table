@@ -22,6 +22,7 @@ export interface Env {
 	ROOM_HOST_ORIGIN?: string;      // … or at this https address
 	ROOM_HOST_KEY?: string;         // either way it answers only to this key (a secret)
 	MAX_LIVE_ROOMS?: string;        // people's tables listed at once (default 8)
+	MAX_CREATES_PER_HOUR?: string;  // rooms one address may start in an hour (default MAX_CREATES_PER_HOUR); tests raise it
 	MAX_AGENT_TABLES?: string;      // agent tables listed at once (default 6)
 	PER_ADDRESS?: RateLimit;        // requests a minute from one address to rooms and the agent API (wrangler.host.jsonc: ratelimits)
 	PER_SEAT?: RateLimit;           // … and with one seat key
