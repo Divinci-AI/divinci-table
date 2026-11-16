@@ -326,6 +326,8 @@ def main():
     tl = sub.add_parser("to-library", help="your permanent into your library (Chaos Warp): top | bottom | shuffle")
     tl.add_argument("ref"); tl.add_argument("where", choices=["top", "bottom", "shuffle"]); tl.add_argument("--quiet", action="store_true")
     co = sub.add_parser("counter"); co.add_argument("ref"); co.add_argument("n", type=int)
+    gr = sub.add_parser("grant", help="host: a permanent gains a keyword until end of turn"); gr.add_argument("ref"); gr.add_argument("keyword")
+    co.add_argument("--kind", default="", help="+1/+1 (a creature's default), quest, charge, lore, stun, promotion, loyalty")
     t = sub.add_parser("animate"); t.add_argument("ref"); t.add_argument("power"); t.add_argument("toughness"); t.add_argument("keywords", nargs="*")
     t = sub.add_parser("take"); t.add_argument("name"); t.add_argument("--from", dest="from_", required=True)
     t = sub.add_parser("token"); t.add_argument("name"); t.add_argument("power", type=int); t.add_argument("toughness", type=int)
@@ -338,6 +340,9 @@ def main():
     sub.add_parser("shuffle")
     hr = sub.add_parser("highroll", help="who goes first: highroll quantum | highroll physical | highroll roll NAME VALUE")
     hr.add_argument("what", choices=["quantum", "physical", "roll", "show"]); hr.add_argument("name", nargs="?"); hr.add_argument("value", nargs="?")
+    fp = sub.add_parser("first-player", help="host, before the game: SEAT goes first (no high roll), or --choose: SEAT chooses play or draw ('' clears)")
+    fp.add_argument("seat"); fp.add_argument("--choose", action="store_true"); fp.add_argument("--reason", default="")
+    fp.add_argument("--choice", choices=["play", "draw"], help="answer for the chooser (seat is ignored)")
     sub.add_parser("mulligan", help="before the game: hand back, shuffle, draw seven (first one free; then 'bottom' one card per extra)")
     pu = sub.add_parser("put", help="hand → battlefield without paying (ninjutsu)"); pu.add_argument("name")
     pu.add_argument("--tapped", action="store_true")
@@ -484,8 +489,10 @@ def main():
         return act(a.cmd, ref=a.ref, quiet=q, announce=not q)
     if a.cmd == "to-library":
         return act("to-library", ref=a.ref, where=a.where, quiet=q)
+    if a.cmd == "grant":
+        return act("grant", ref=a.ref, keyword=a.keyword)
     if a.cmd == "counter":
-        return act("counter", ref=a.ref, n=a.n)
+        return act("counter", ref=a.ref, n=a.n, **({"kind": a.kind} if a.kind else {}))
     if a.cmd == "animate":
         return act("animate", ref=a.ref, power=a.power, toughness=a.toughness, keywords=a.keywords)
     if a.cmd == "take":
@@ -505,6 +512,9 @@ def main():
         return act("bottom", name=a.name, from_top=a.from_top)
     if a.cmd == "shuffle":
         return act("shuffle")
+    if a.cmd == "first-player":
+        return print(json.dumps(req("POST", "/api/first-player", {"seat": a.seat, "choose": a.choose, "reason": a.reason,
+                                                                   **({"choice": a.choice} if a.choice else {})}), indent=1))
     if a.cmd == "highroll":
         if a.what == "show":
             return print(json.dumps(req("GET", "/api/highroll"), indent=1))

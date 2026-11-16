@@ -1016,6 +1016,13 @@ class VirtualPlayer:
                     pw, tg = pw + int(m.group(2)), tg + int(m.group(3))
         return pw + p.temp[0], tg + p.temp[1]
 
+    def mana_tap_refusal(self, p: Perm) -> str | None:
+        """Why this permanent can't be tapped for mana right now (None: it can). A creature's {T} abilities, its mana abilities too, wait
+        while it has summoning sickness, unless it has haste (rule 302.6). A land that isn't a creature is never sick."""
+        if p.is_("Creature") and p.sick and "Haste" not in self.kws(p, my_turn=True):
+            return f"{self.shown(p)} has summoning sickness: its {{T}} mana ability can't be used until your next turn"
+        return None
+
     def kws(self, p: Perm, my_turn: bool = False) -> list[str]:
         """Every keyword this permanent has right now: its own (Perm.keywords), what its Equipment and Auras give it, and what its
         controller's other permanents give it ("Artifact creatures you control have vigilance"). my_turn: it is its controller's turn."""
@@ -1118,6 +1125,15 @@ class VirtualPlayer:
                 self.life += 1
                 self.out(kind="life", player=self.name, delta=1)
                 said.append(f"{q.name}: I gain 1 life.")
+            # Support Mission: a quest counter on the enchantment (kept apart from +1/+1 counters), then one +1/+1 counter on the creature,
+            # or two once the enchantment has the number of quest counters its text names (counting the one just put on)
+            m = re.search(r"Whenever a creature you control enters, put a quest counter on this \w+\. Put a \+1/\+1 counter on that creature\. "
+                          r"If this \w+ has (\w+) or more quest counters on it, instead put two \+1/\+1 counters on that creature", t)
+            if m and p.is_("Creature") and p in self.battlefield:
+                q.quest += 1
+                n = 2 if q.quest >= num(m.group(1)) else 1
+                p.counters += n
+                said.append(f"{q.name} gets a quest counter ({q.quest}); {self.shown(p)} gets {'a +1/+1 counter' if n == 1 else 'two +1/+1 counters'}.")
         return said
 
     def left_graveyard(self) -> list[str]:
@@ -1889,11 +1905,18 @@ class VirtualPlayer:
                 return [f"My artifact creatures gain {m.group(1)} until end of turn."]
         if src is not None:
             m = re.fullmatch(r"(?:this creature|[\w' ]+?) gains ([a-z ]+?) until end of turn", low)
+            if m and re.match(r"(?:up to \w+ )?(?:another )?target\b", low):
+                m = None                                   # "Target creature you control gains …" is aimed (Tal Shiar Operative): it is asked
+                                                           # or picked below, never given to the source as if the subject were its name
             if m:
                 k = next((kw for kw in EVERY_KEYWORD if kw.lower() == m.group(1)), None)
-                if k:
-                    src.temp_kw = (*src.temp_kw, k)
-                    return [f"{who} gains {m.group(1)} until end of turn."]
+                on = src
+                if re.match(r"(?:enchanted|equipped) creature\b", low):   # Captain's Tutelage: "enchanted creature gains first strike": the creature
+                    on = next((q for q in self.battlefield if q.id == src.attached_to), None) or (src if probing() else None)   # the Aura is on,
+                    # never the Aura itself (a dry run's scratch source is attached to nothing: "could the table do this" is still yes)
+                if k and on is not None:
+                    on.temp_kw = (*on.temp_kw, k)
+                    return [f"{self.shown(on) if on is not src else who} gains {m.group(1)} until end of turn."]
         m = re.fullmatch(r"you gain life equal to the greatest power among creatures you control", low)
         if m:
             n = max([self.stats(q)[0] for q in self.creatures()] + [0])

@@ -920,6 +920,7 @@ def reshuffle_all():
     from player import VirtualPlayer
     words = dict(FAIR["words"])
     MULL.update(on=False, done=False, first=None, since=0.0)       # a new game has new opening hands
+    FIRSTPICK.update(seat=None, choose=False, choice=None, reason="", by="", asked=False)   # who goes first is set again for each game
     FAIR.update(game=new_game_id(), words={}, revealed=False)
     online = {}
     if args.fair_seed == "online":
@@ -1078,7 +1079,7 @@ def board3d() -> dict:
                     perms.append(_card_view(None, id=p.id, tapped=p.tapped, pt=pt, ward=p.ward2, how=how))
                 else:
                     perms.append(_card_view(p.name, id=p.id, tapped=p.tapped, token=p.token, counters=p.counters, charge=p.charge,
-                                            attached_to=p.attached_to, role=p.role, pt=pt, stun=p.stun, damage=p.damage, lore=p.lore, quest=p.quest,
+                                            attached_to=p.attached_to, role=p.role, pt=pt, stun=p.stun, damage=p.damage, lore=p.lore, quest=p.quest, promo=getattr(p, "promo", 0),
                                             keywords=v.kws(p, my_turn=PHASE.get("player") == n), sick=p.sick and p.is_("Creature"),
                                             attached_names=[v.shown(a) for a in v.battlefield if a.attached_to == p.id],
                                             by_hand=_by_hand_public(p.card), text=p.card.get("text") or "",
@@ -1144,7 +1145,7 @@ def snapshot():
             seq = snapfile.SNAP_SEQ[0]
             blob = pickle.dumps({"VPS": VPS, "DECK_OF": DECK_OF, "LIFE": LIFE, "FAIR": FAIR, "PHASE": PHASE,
                                  "ORDER": turn_order(), "EVENTS": list(EVENTS[-1500:]), "HAND_N": HAND_N, "PUBLIC_BOARD": PUBLIC_BOARD, "WINDOWS": WINDOWS, "TODOS": TODOS, "PLACED": sorted(PLACED),
-                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "SEAT_PROXY": SEAT_PROXY, "SEAT_INVITES": SEAT_INVITES, "DECKDECL": DECKDECL, "MULL": dict(MULL), "CONCEDED": sorted(CONCEDED), "ev_id": _ev_id[0], "saved": time.time(),
+                                 "HIGHROLL": HIGHROLL, "SEAT_KEYS": SEAT_KEYS, "SEAT_DEVICES": SEAT_DEVICES, "AUTOPASS": AUTOPASS, "SEAT_PROXY": SEAT_PROXY, "SEAT_INVITES": SEAT_INVITES, "DECKDECL": DECKDECL, "MULL": dict(MULL), "FIRSTPICK": dict(FIRSTPICK), "CONCEDED": sorted(CONCEDED), "ev_id": _ev_id[0], "saved": time.time(),
                                  "MATCH": MATCH.to_json() if MATCH is not None else None, "PLAYED_BY": dict(PLAYED_BY)})
         snapfile.write_snapshot(research_dir() / "snapshot.pkl", blob, seq)
     except Exception as e:                            # never let saving break the table
@@ -1169,6 +1170,7 @@ def restore(path: str):
                                   "done": d["PHASE"].get("player") is not None})                # already under way never opens it
     if MULL["on"]:
         MULL["since"] = time.time()                   # the clock starts again with the table
+    FIRSTPICK.update(d.get("FIRSTPICK") or {})        # a host-set first player (and a play/draw question) survives a restart
     CONCEDED.clear(); CONCEDED.update(d.get("CONCEDED") or [])      # (a snapshot from before concede: nobody has)
     match_restore(d.get("MATCH"))
     PLAYED_BY.clear(); PLAYED_BY.update({n: r for n, r in (d.get("PLAYED_BY") or {}).items() if n in VPS})   # (a snapshot from before 2026-11-14: nobody on record)
@@ -1585,6 +1587,24 @@ def begin_refusal(seat_name: str, host: bool = False) -> str | None:
 AI_STEP_OF = {"begin": "main 1", "attack": "declare attackers", "damage": "combat damage", "end": "end step"}
 AI_MAIN_ACTIONS = {"land", "cast", "turn-up", "manifest", "put", "blink", "token"}
 AI_OPENED: dict = {"key": None}                      # (player, step) whose round has been announced
+BOC_MADE: dict = {}                                  # seat → (turn, lines, ids) of creatures its "at the beginning of combat" made, until its attack is declared
+
+
+def boc_triggers(seat_name: str) -> list[str]:
+    """The seat's "at the beginning of combat on your turn" triggers (L'Rell's token), run as its turn ENTERS beginning of combat, said in the log.
+    Once per turn (begin_combat keeps the turn). Records in BOC_MADE whether it made a creature, so an attack declared in the same request can be
+    sent back to be declared again with it (once). Returns the lines."""
+    v = VPS.get(seat_name)
+    if v is None:
+        return []
+    before = {p.id for p in v.battlefield}
+    lines = v.begin_combat()
+    for line in lines:
+        emit("say", speaker=seat_name, text=line, action="trigger", auto=True)
+    made = [p.id for p in v.battlefield if p.id not in before and p.is_("Creature")]
+    if made:
+        BOC_MADE[seat_name] = (v.turn, lines, made)
+    return lines
 
 
 def ai_advance(seat_name: str, action: str) -> str | None:
@@ -1620,6 +1640,10 @@ def ai_advance(seat_name: str, action: str) -> str | None:
             combat_flush(PHASE["player"])
         PHASE["step"] += 1
         emit("phase", player=PHASE["player"], step=STEPS[PHASE["step"]], index=PHASE["step"])
+        if STEPS[PHASE["step"]] == "beginning of combat" and action == "attack":
+            boc_triggers(seat_name)                    # an attack from main 1 walks THROUGH beginning of combat: its triggers happen here, not after
+            # the attack is declared. (A NEXT that stops there runs them in its handler, as before; End or a main-phase action that walks the
+            # turn past combat without attacking leaves them alone, as the table always has: e.g. Cantankerous Captain's target question.)
     if PHASE["step"] == goal and target in ("end step", "declare attackers") and STEPS[goal] not in NO_PRIORITY:
         key = (PHASE["player"], PHASE["step"])
         if target == "end step":                       # the end step's own round, before the turn passes on
@@ -2737,6 +2761,107 @@ def highroll_enter(name: str, value, by: str) -> tuple[int, dict]:
     return 200, highroll_public()
 
 
+
+# ── Who goes first, set by the host (retro 2026-11-15, game 2): in a best-of-three the loser of the previous game chooses to play or draw, so a game
+# after the first must not open with a high roll. The host (brain token, or the laptop) names the seat before the first turn: POST /api/first-player
+# {"seat": "Michael", "choose": true, "reason": "lost game 1"}, or a launcher starts the table with TABLE_FIRST=Michael:choose (TABLE_FIRST=Michael:
+# that seat simply goes first). START then skips the high roll and says why in the log; a seat that chooses is asked on its own page (play or draw)
+# and an engine seat nobody drives plays. The mulligan step runs after, exactly as after a roll (the first turn waits on it).
+FIRSTPICK: dict = {"seat": None, "choose": False, "choice": None, "reason": "", "by": "", "asked": False, "env_used": False}
+
+
+def firstpick_public() -> dict | None:
+    if not FIRSTPICK.get("seat"):
+        return None
+    return {"seat": FIRSTPICK["seat"], "choose": bool(FIRSTPICK["choose"]), "choice": FIRSTPICK.get("choice"),
+            "reason": FIRSTPICK.get("reason") or "", "pending": bool(FIRSTPICK["choose"] and FIRSTPICK.get("asked") and FIRSTPICK.get("choice") is None)}
+
+
+def firstpick_set(seat_name: str, choose: bool, reason: str, by: str) -> tuple[int, dict]:
+    """The host names who goes first (choose=False) or who chooses play/draw (choose=True). Only before the game starts."""
+    if PHASE["player"] is not None or HIGHROLL.get("winner") or MULL.get("on") or CEREMONY.get("on"):
+        return 409, {"error": "the game has already started (or its high roll is under way): who goes first is set before it"}
+    if FIRSTPICK.get("asked"):
+        return 409, {"error": f"{FIRSTPICK['seat']} has already been asked to play or draw"}
+    who = next((n for n in turn_order() if n.lower() == str(seat_name or "").strip().lower() and not is_out(n)), None)
+    if who is None:
+        if str(seat_name or "").strip() == "":
+            FIRSTPICK.update(seat=None, choose=False, choice=None, reason="", by="", asked=False)
+            return 200, {"first_player": None, "text": "cleared: the game opens with a high roll"}
+        return 400, {"error": f"no seat '{str(seat_name)[:40]}' (seats: {', '.join(turn_order())})"}
+    FIRSTPICK.update(seat=who, choose=bool(choose), choice=None, reason=str(reason or "")[:120], by=str(by or "host")[:30], asked=False)
+    emit("table-note", kind="host", text=(f"The host set who goes first: {who} chooses to play or draw" if choose else f"The host set who goes first: {who}")
+         + (f" ({FIRSTPICK['reason']})." if FIRSTPICK["reason"] else ". No high roll this game."))
+    return 200, {"first_player": firstpick_public()}
+
+
+def firstpick_from_env():
+    """TABLE_FIRST=<seat> or <seat>:choose (a launcher passing the previous game's loser). Read once per process: the next game in the same process
+    is set by the host again (POST /api/first-player)."""
+    raw = (os.environ.get("TABLE_FIRST") or "").strip()
+    if FIRSTPICK.get("env_used") or not raw:
+        return
+    FIRSTPICK["env_used"] = True
+    name, _, how = raw.partition(":")
+    code, d = firstpick_set(name, how.strip().lower() in ("choose", "chooses", "play-draw", "playdraw"),
+                            os.environ.get("TABLE_FIRST_REASON") or "set by the launcher (TABLE_FIRST)", "launcher")
+    if code != 200:
+        print(f"TABLE_FIRST ignored: {d.get('error')}", file=sys.stderr, flush=True)
+
+
+def firstpick_settle(choice: str | None, auto: str = "") -> tuple[int, dict]:
+    """Decide the order from the host's pick (and the chooser's play/draw) and begin, as a high roll's winner would. PHASE_LOCK held."""
+    who = FIRSTPICK["seat"]
+    seats = [n for n in turn_order() if not is_out(n)]
+    first = who if choice in (None, "play") else seats[(seats.index(who) + 1) % len(seats)]
+    i = seats.index(first)
+    order = seats[i:] + seats[:i]
+    ORDER[:] = order
+    FIRSTPICK["choice"] = choice or "play"
+    reason = FIRSTPICK.get("reason") or "set by the host"
+    HIGHROLL.clear()
+    HIGHROLL.update(mode="host", sides=0, round=0, contenders=[], rolls={}, seating=seats, winner=first, order=order,
+                    skipped=f"no high roll: {reason}", by=FIRSTPICK.get("by") or "host", chooser=who if FIRSTPICK["choose"] else None,
+                    choice=choice, started=round(time.time(), 2))
+    if choice is None:
+        text = f"No high roll ({reason}): the host set {first} to go first."
+    else:
+        text = (f"No high roll ({reason}): {who} chooses to {choice}" + (f" ({auto})" if auto else "")
+                + (f", so {who} goes first." if choice == "play" else f", so {first} goes first and {who} draws on the first turn."))
+    emit("say", speaker="Table", text=text, action="first-player", auto=True, speech="")   # (no "highroll" event: there were no dice to show)
+    start_turn(first)                                  # the mulligan step opens here, as after a roll (start_turn → mull_gate)
+    return 200, {**phase_public(), "first": first, "highroll": highroll_public()}
+
+
+def firstpick_begin(by: str) -> tuple[int, dict]:
+    """START with a host-set first player: no high roll. A seat that chooses is asked (a person) or plays (an engine seat). PHASE_LOCK held."""
+    who = FIRSTPICK["seat"]
+    if not FIRSTPICK["choose"]:
+        return firstpick_settle(None)
+    if FIRSTPICK.get("choice") is None and (is_bot(who) or who not in persons()):
+        return firstpick_settle("play", auto="an engine seat: it plays")
+    if not FIRSTPICK.get("asked"):
+        FIRSTPICK["asked"] = True
+        emit("say", speaker="Table", text=f"No high roll ({FIRSTPICK.get('reason') or 'set by the host'}): {who} chooses to play first or to draw.",
+             action="first-player", auto=True, speech="")
+        emit("attention", kind="playdraw", addressee=who, text="You choose: play first, or draw (the other player goes first).")
+    return 202, {**phase_public(), "playdraw": firstpick_public(), "error": f"waiting for {who} to choose play or draw"}
+
+
+def firstpick_choose(seat_name: str, choice: str) -> tuple[int, dict]:
+    """The chooser's answer from their page (POST /api/brain/playdraw {"seat", "choice": "play"|"draw"}). PHASE_LOCK held."""
+    if PHASE["player"] is not None or HIGHROLL.get("winner"):
+        return 409, {**phase_public(), "error": "who goes first is already decided"}
+    if not (FIRSTPICK.get("choose") and FIRSTPICK.get("asked") and FIRSTPICK.get("choice") is None):
+        return 409, {**phase_public(), "error": "nobody is being asked to play or draw"}
+    if seat_name != FIRSTPICK["seat"]:
+        return 403, {**phase_public(), "error": f"{FIRSTPICK['seat']} chooses play or draw, not {seat_name}"}
+    c = str(choice or "").strip().lower()
+    if c not in ("play", "draw"):
+        return 400, {**phase_public(), "error": "choice is play or draw"}
+    return firstpick_settle(c)
+
+
 CEREMONY = {"on": False}
 READY: set = set()                                   # seats that pressed Ready at the check-in (cleared with a new game)
 
@@ -2972,7 +3097,8 @@ def begin_game(by: str) -> tuple[int, dict]:
             return 200, phase_public()
         if match_on() and MATCH.games:                 # games 2 and 3 are started by the match itself (the loser's choice, no roll, no "first seat")
             return 409, {**phase_public(), "error": "the next game of the match starts by itself: the loser of the last game chooses who plays first"}
-        if mode == "first":
+        firstpick_from_env()
+        if mode == "first" and not FIRSTPICK.get("seat"):
             start_turn(turn_order()[0])
             return 200, phase_public()
         if checkin_required() and not checkin_public()["all_ready"]:
@@ -2981,6 +3107,8 @@ def begin_game(by: str) -> tuple[int, dict]:
         if checkin_required() and checkin_public()["undeclared"]:
             ci = checkin_public()
             return 409, {**phase_public(), "error": "waiting for " + ", ".join(ci["undeclared"]) + " to declare a commander", "checkin": ci}
+        if FIRSTPICK.get("seat") and not HIGHROLL.get("winner"):
+            return firstpick_begin(by)                 # the host set who goes first (the previous game's loser chooses): no high roll
         if HIGHROLL.get("mode") == "physical" and not HIGHROLL.get("winner"):
             return 409, {**phase_public(), "highroll": highroll_public(), "error": "a real-dice roll is under way: enter the dice"}
         if CEREMONY["on"]:
@@ -3077,6 +3205,7 @@ def _phase_public0() -> dict:
                 "open_questions": sum(1 for t in TODOS if t.get("kind") == "question" and not t["done"]),
                 "passes": passes_state(), "autopass": dict(AUTOPASS), "autopass_default": AUTOPASS_DEFAULT,
                 **({"mulligan": mull_public()} if MULL["on"] else {}),
+                **({"first_player": firstpick_public()} if FIRSTPICK.get("seat") and PHASE["player"] is None else {}),
                 **({"held": held_public()} if HELD.get("seat") else {}),
                 **({"start": START_HINT, "checkin": checkin_public(), "checkin_required": checkin_required()} if PHASE["player"] is None else {})}
 
@@ -3334,7 +3463,29 @@ def rewind_mark(ev: dict):
         print(f"rewind mark failed: {e}", file=sys.stderr, flush=True)
 
 
-def rewind_target() -> tuple[dict | None, str | None]:
+# Host corrections (retro 2026-11-15): the host's by-hand fixes to the game state (a counter the engine missed, a token, a keyword until end of turn, a
+# life total, a manual move) are part of the game a rewind restores, so a BACK to a point before one used to undo it without a word (wave 1 found
+# a +1/+1 counter from `counter` gone after BACK into the previous turn). The smallest safe rule: a BACK that would cross a host correction is
+# REFUSED, and says which; the host can still force it ({"force": true} from the laptop or with the host token), and the log then lists the
+# corrections it undid so they can be made again. Re-applying them automatically is not safe: the permanent a correction named may not exist at
+# the point the table goes back to (it entered later), and a counter added twice is worse than one missing and named.
+HOST_FIX_ACTIONS = frozenset({"counter", "grant", "token", "manual", "animate", "role", "life", "take"})
+HOST_FIXES: list = []                                  # {"ev": just after the event id it followed, "seat", "action", "text"}
+
+
+def host_fix_note(seat_name: str, action: str, said) -> None:
+    text = next((str(x) for x in (said or []) if x), action)
+    with EV_LOCK:
+        ev = _ev_id[0] + 0.5                           # after everything logged so far, before anything logged next (a quiet fix logs nothing)
+    HOST_FIXES.append({"ev": ev, "seat": seat_name, "action": action, "text": text[:120]})
+    del HOST_FIXES[:-200]
+
+
+def host_fixes_after(t: dict) -> list:
+    return [f for f in HOST_FIXES if f["ev"] > t["ev"] and not any(lo < f["ev"] <= hi for lo, hi in VOID)]
+
+
+def rewind_target(force_fixes: bool = False) -> tuple[dict | None, str | None]:
     """(the point BACK returns to, or None and why). The start of this step if anything happened in it, else the start of the one before.
     Refused if that point is in a bot's turn, or a bot did anything since it (its moves are already made: undoing them is not ours)."""
     cur = PHASE.get("player")
@@ -3367,6 +3518,11 @@ def rewind_target() -> tuple[dict | None, str | None]:
         bot_moves = [e for e in EVENTS if e["id"] > t["ev"] and e["type"] == "say" and is_bot(e.get("speaker"))]
     if bot_moves:
         return None, f"{bot_moves[0]['speaker']} (a bot) has acted since then: BACK can't undo a bot's moves"
+    fixes = host_fixes_after(t)
+    if fixes and not force_fixes:
+        return None, (f"BACK to {t['player']}, {STEPS[t['step']]} would undo the host's correction{'s' if len(fixes) > 1 else ''} made since then ("
+                      + "; ".join(f"{f['seat']}: {f['text']}" for f in fixes[-3:]) + "). The host can go back anyway with force, then make "
+                      + ("them" if len(fixes) > 1 else "it") + " again")
     return t, None
 
 
@@ -3392,7 +3548,10 @@ def rewind_to(t: dict, by: str) -> tuple[int, dict]:
         while REWIND and REWIND[-1] is not t:          # the points after it are a future that no longer happened
             REWIND.pop()
         BACK_REQ.clear()
+    fixes_ = host_fixes_after(t)
     what = "; ".join(f"{e.get('speaker')}: {str(e.get('text'))[:60]}" for e in undone[-3:]) or "nothing yet"
+    if fixes_:
+        what += "; and the host's correction" + ("s" if len(fixes_) > 1 else "") + ", to be made again: " + "; ".join(f"{f['seat']}: {f['text'][:60]}" for f in fixes_)
     emit("phase", player=PHASE["player"], step=STEPS[PHASE["step"]], index=PHASE["step"], by=by, back=True, rewound=True)
     ev_ = emit("say", speaker="Table", text=f"Back to {PHASE['player']}, {STEPS[PHASE['step']]} (undoing: {what}).", action="back", auto=True, speech="")
     VOID.append((t["ev"], ev_["id"]))
@@ -6633,7 +6792,7 @@ class H(BaseHTTPRequestHandler):
                     next((n for n in persons() if n.lower() == str(b.get("by", "")).lower()), None) if not STRICT_SEATS else None)
                 host_ = self._is_local() or self._brain_ok()
                 with PHASE_LOCK:
-                    t_, why_ = rewind_target()
+                    t_, why_ = rewind_target(force_fixes=host_ and bool(b.get("force")))
                     if t_ is None:
                         return self._send(409, {**phase_public(), "error": why_})
                     to_ = f"{t_['player']}, {STEPS[t_['step']]}"
@@ -6843,6 +7002,17 @@ class H(BaseHTTPRequestHandler):
                 emit("seat", name=name, kind="released")
                 snapshot()
                 return self._send(200, {"released": name})
+            if self.path == "/api/first-player":           # host: {"seat": "Michael", "choose": true, "reason": "lost game 1"} (seat "" clears it)
+                b = self._json()
+                if not (self._brain_ok() or self._is_local()):
+                    return self._send(403, {"error": "only the table's host sets who goes first"})
+                with PHASE_LOCK:
+                    if b.get("choice"):                    # the host answers play/draw for the chooser (a person at the table without a page)
+                        code, out = firstpick_choose(FIRSTPICK.get("seat") or "", str(b["choice"]))
+                    else:
+                        code, out = firstpick_set(str(b.get("seat") or ""), bool(b.get("choose")), str(b.get("reason") or ""), str(b.get("by") or "host"))
+                snapshot()
+                return self._send(code, {**out, "phase": phase_public()})
             if self.path == "/api/highroll/start":         # {"mode": "physical"|"quantum", "sides": 20, "by": "Sam"}
                 b = self._json()
                 with PHASE_LOCK:
@@ -6958,6 +7128,11 @@ class H(BaseHTTPRequestHandler):
                     lost_ = [n for n in life_table() if is_out(n)]     # (409 and `stale`, as for any listed move the game has since overtaken: read the list again)
                     return self._send(409, {**phase_public(), "game_over": True, "stale": True,
                                             "error": "the game is over" + (f" ({', '.join(lost_)} has lost)" if lost_ else "") + ": nothing more is played (talk still works)"})
+                if act == "playdraw":                     # the chooser's play/draw answer (the host's pick): its own key, or the host for it
+                    with PHASE_LOCK:
+                        code_, out_ = firstpick_choose(sn, str(b.get("choice") or ""))
+                    snapshot()
+                    return self._send(code_, out_)
                 if act == "concede":                      # R15: the host (any seat) or the seat's own key (its own seat only: _pilot_ok checked it)
                     code_, out_ = do_concede(sn, by="host" if not pilot else "seat")
                     return self._send(code_, out_)
@@ -7603,7 +7778,22 @@ class H(BaseHTTPRequestHandler):
                             raise IllegalAction(f"{VP.shown(c0)} is already attacking this turn" if c0.id in ATTACKED["ids"]
                                                 else f"{VP.shown(c0)} has already attacked this turn")
                     look0_ = (VPS[VP.name].__dict__.get("pending_surveil", 0), VPS[VP.name].__dict__.get("pending_scry", 0))   # (owed from before the attack)
-                    combat_lines = VP.begin_combat()
+                    before_ = {p_.id for p_ in VP.battlefield}
+                    combat_lines = VP.begin_combat()           # (already run if the turn walked through beginning of combat: then nothing)
+                    rec_ = BOC_MADE.pop(VP.name, None)
+                    new_ids_ = [p_.id for p_ in VP.battlefield if p_.id not in before_ and p_.is_("Creature")]
+                    if rec_ and rec_[0] == VP.turn:              # made earlier this turn, by the walk into beginning of combat: unless this attack names one
+                        new_ids_ = rec_[2]                                # of them, it was chosen without them (a retry of an older choice)
+                        if any(VP.perm(r_).id in new_ids_ for r_ in dict(b["assign"])):
+                            new_ids_ = []
+                    made_ = (combat_lines or (rec_[1] if rec_ else [])) if new_ids_ and any(i_ in {p_.id for p_ in VP.battlefield} for i_ in new_ids_) else None
+                    if made_ and b.get("_pilot"):
+                        for line_ in combat_lines:              # (this request says nothing else: the lines are logged here)
+                            emit("say", speaker=VP.name, text=line_, action="trigger", auto=True)
+                        # Beginning of combat made a creature (L'Rell's hasty token) after these attackers were chosen: the seat chooses again,
+                        # with it on the list. Nothing is declared yet; the triggers do not run a second time this turn.
+                        return self._send(409, {**phase_public(), "redeclare": True, "said": made_,
+                                                "error": "beginning of combat: " + " ".join(made_) + " Declare your attackers again (it can attack too)."})
                     said = VP.manual_attack(b["assign"], role_on=b.get("role_on"))
                     said = combat_lines + (said if isinstance(said, list) else [said])
                     for ref in dict(b["assign"]):
@@ -7907,6 +8097,7 @@ class H(BaseHTTPRequestHandler):
                         said += self._combat_damage(b)   # exactly as Finish combat damage does
                     if STEPS[PHASE["step"]] == "beginning of combat":
                         said += VP.begin_combat()
+                        BOC_MADE.pop(VP.name, None)
                 elif action == "role":
                     said = VP.add_role(VP.perm(b["ref"]), b["kind"].strip().title())
                 elif action == "end":
@@ -7937,6 +8128,10 @@ class H(BaseHTTPRequestHandler):
                     said = VP.move(b["ref"], "library", where=str(b.get("where") or ""))
                 elif action in ("tap", "untap"):
                     p = VP.perm(b["ref"])
+                    if action == "tap" and b.get("for_mana") and not p.tapped:
+                        why_ = VP.mana_tap_refusal(p)          # {T}: Add … on a summoning-sick creature (no haste) can't be activated yet
+                        if why_:
+                            raise IllegalAction(why_)
                     p.tapped = action == "tap"
                     if action == "tap" and b.get("_pilot"):
                         HAND_TAPS[(VP.name, p.id)] = (PHASE["player"], PHASE["step"], PASS_COUNT.get(VP.name, 0), VP.turn)
@@ -7949,8 +8144,27 @@ class H(BaseHTTPRequestHandler):
                     said = [f"{VP.shown(p)} can't block this turn."]
                 elif action == "counter":
                     p = VP.perm(b["ref"])
-                    p.counters += int(b.get("n", 1))
-                    said = [f"{p.name} gets {int(b.get('n', 1)):+d}/{int(b.get('n', 1)):+d} counters."]
+                    n_ = int(b.get("n", 1))
+                    kind_ = str(b.get("kind") or "")              # "+1/+1" (default on a creature), "quest", "charge", "lore", "stun", "promotion", "loyalty"
+                    if not kind_:                                 # no kind on a non-creature: the counter its own text speaks of (Support Mission: quest)
+                        kind_ = "+1/+1" if p.is_("Creature") else next(
+                            (k for k in ("quest", "charge", "lore", "loyalty") if f"{k} counter" in (p.card.get("text") or "").lower()), "")
+                    attr_ = __import__("player").COUNTER_KINDS.get(kind_)
+                    if attr_ is None:
+                        raise IllegalAction(f"{p.name} is not a creature: say which counter with kind (one of {', '.join(__import__('player').COUNTER_KINDS)})")
+                    setattr(p, attr_, getattr(p, attr_) + n_)
+                    said = [f"{p.name} gets {n_:+d}/{n_:+d} counters." if kind_ == "+1/+1"
+                            else f"{p.name} gets {n_} {kind_} counter{'' if abs(n_) == 1 else 's'} (now {getattr(p, attr_)})."]
+                elif action == "grant":                    # host: "target creature gains <keyword> until end of turn", by hand (it ends with the turn)
+                    import player as _pl
+                    p = VP.perm(b["ref"])
+                    want_ = str(b.get("keyword") or "").strip().lower()
+                    k_ = next((kw for kw in _pl.EVERY_KEYWORD if kw.lower() == want_), None)
+                    if k_ is None:
+                        raise IllegalAction(f"unknown keyword '{want_[:40]}': one of {', '.join(_pl.EVERY_KEYWORD)}")
+                    if k_ not in p.temp_kw:
+                        p.temp_kw = (*p.temp_kw, k_)
+                    said = [f"{VP.shown(p)} gains {k_.lower()} until end of turn."]
                 elif action == "token":
                     said = VP.make_tokens(b["name"], int(b["power"]), int(b["toughness"]), b.get("keywords") or [],
                                           n=int(b.get("n") or 1), tapped=bool(b.get("tapped")))
@@ -8098,6 +8312,8 @@ class H(BaseHTTPRequestHandler):
         for line in said:
             if speak and line:
                 emit("say", speaker=VP.name, text=line, action=action, speech=spoken(line))
+        if not b.get("_pilot") and action in HOST_FIX_ACTIONS and PHASE.get("player") is not None:
+            host_fix_note(VP.name, action, said)       # a host correction: BACK will not silently undo it (rewind_target)
         with VP_LOCK:
             settle_and_drain()
             if speak:

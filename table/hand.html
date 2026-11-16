@@ -23,6 +23,8 @@ select{padding:7px;border-radius:8px;background:#071820;color:var(--ink);border:
 .mull-hand{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.mull-c{flex:1 1 130px;max-width:190px;min-height:64px;padding:8px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--line);cursor:pointer;user-select:none}
 .mull-c img{width:100%;border-radius:7px;display:block;margin-bottom:4px;pointer-events:none}.mull-c *{pointer-events:none}.mull-c.sel{box-shadow:inset 0 0 0 3px #ff6b5e;opacity:.6}
 .mull-row{display:flex;flex-wrap:wrap;gap:10px;position:sticky;top:calc(var(--tb-h,0px));z-index:55;background:var(--panel);padding:8px 0}.mull-row button{flex:1 1 150px;min-height:52px;font-size:17px}
+.mull-hand.picking .mull-c:not(.sel){box-shadow:inset 0 0 0 2px #d9b46a;animation:mullpulse 1.3s ease-in-out infinite}
+@keyframes mullpulse{50%{box-shadow:inset 0 0 0 3px #f4dc9b,0 0 14px #d9b46a}}.mull-nudge{margin:6px 0;padding:8px 10px;border-radius:10px;background:#3a2a10;box-shadow:inset 0 0 0 2px #d9b46a;font-weight:700}
 .mull-c img{max-height:150px;object-fit:cover;object-position:top}@media (max-width:700px){.mull-c{flex:1 1 92px;max-width:32%;padding:5px;font-size:13px}.mull-c img{max-height:96px}}
 .card{padding:9px 0;border-bottom:1px solid #ffffff10;overflow:auto}.card:last-child{border:0}
 .card b{color:var(--gold-hi)}.card .t{color:var(--dim);font-size:13.5px}.card .x{font-size:13.5px;color:#cfdcdc;margin:3px 0}
@@ -223,6 +225,7 @@ body.u-on .tbs [data-s="next"]{display:none}
   <div class="sub" id="who">Claim your seat (👤, top right) to see your cards. Only your device sees them.</div>
   <div id="alert"></div>
   <div id="heldbox"></div>
+  <div id="playdrawpanel"></div>
   <div id="mullpanel"></div>
   <div id="choicepanel"></div>
   <div id="effpanel"></div>
@@ -354,9 +357,13 @@ function colorsOf(p) {                                         // what a source 
   return [...out];
 }
 const isManaSrc = p => /\{T\}[^:]*: Add /.test((p.text || "").replace(/"[^"]*"/g, "")) || colorsOf(p).length > 0 && /\bLand\b/.test(p.type || "");
+// a creature's {T} abilities, mana included, wait while it is summoning sick (unless it has haste): the table refuses that tap too (for_mana)
+const MANA_SICK_WHY = "A creature's {T} abilities, mana abilities included, can't be used the turn it came under your control (unless it has haste).";
+const manaSick = p => isCreP(p) && !!p.sick && !(p.keywords || []).includes("Haste");
 async function poolTap(p, color) {
   if (tapBlockedByChoice(p)) return;                            // (B3) the table is waiting on my choice: a click taps nothing
-  if (!(await act("tap", { ref: "#" + p.id, announce: true }))) return;
+  if (manaSick(p)) { $("err").textContent = `${p.name}: ${MANA_SICK_WHY}`; return; }
+  if (!(await act("tap", { ref: "#" + p.id, announce: true, for_mana: true }))) return;
   poolLoad(); MPOOL.items.push({ id: p.id, color, name: p.name }); poolSave(); window.TableSfx && TableSfx.fx("tap"); matSig = ""; draw(); offerUndo(p, "tap");
 }
 function untapRefused(p) {                                       // the table's own reason, where the player is looking (not only in the small line by the step buttons)
@@ -944,14 +951,14 @@ const ROMANS = { I: 1, V: 5, X: 10 }, romanN = r => [...r].reduce((a, c, i, A) =
 function sagaChapters(text) { let m, hi = 0; const re = /(?:^|\n)\s*((?:[IVX]+, )*[IVX]+)\s*[—–-]/g; while ((m = re.exec(String(text || "")))) for (const r of m[1].split(", ")) hi = Math.max(hi, romanN(r)); return hi; }
 function counterList(p, withCharge, skipPlus) {
   const n = k => Math.max(0, Math.floor(+p[k] || 0)), out = [], pw = /\bPlaneswalker\b/.test(p.type || "");
-  if (n("counters") && (pw || !skipPlus)) out.push(pw ? ["◈ " + n("counters"), `${n("counters")} loyalty counter${n("counters") === 1 ? "" : "s"}`, "#7a3a8a"]
+  if (n("counters") && (pw || !skipPlus)) out.push(pw ? ["◈ loyalty " + n("counters"), `${n("counters")} loyalty counter${n("counters") === 1 ? "" : "s"}`, "#7a3a8a"]
     : [`+${n("counters")}/+${n("counters")}`, `${n("counters")} +1/+1 counter${n("counters") === 1 ? "" : "s"}`, "#2a6"]);
-  if (n("quest")) out.push(["◆ " + n("quest"), `${n("quest")} quest counter${n("quest") === 1 ? "" : "s"}`, "#b5542f"]);
+  if (n("quest")) out.push(["◆ quest " + n("quest"), `${n("quest")} quest counter${n("quest") === 1 ? "" : "s"}`, "#b5542f"]);
   if (n("lore")) { const tot = /\bSaga\b/.test(p.type || "") ? sagaChapters(p.text) : 0;
-    out.push([`📖 ${n("lore")}${tot ? "/" + tot : ""}`, `${n("lore")} lore counter${n("lore") === 1 ? "" : "s"}${/\bSaga\b/.test(p.type || "") ? ": chapter " + roman(n("lore")) + (tot ? " of " + roman(tot) : "") : ""}`, "#6a4fb0"]); }
-  if (n("stun")) out.push(["❄ " + n("stun"), `${n("stun")} stun counter${n("stun") === 1 ? "" : "s"}: it doesn't untap (a counter comes off instead)`, "#3a6a8a"]);
-  if (n("promo")) out.push(["★ " + n("promo"), `${n("promo")} promotion counter${n("promo") === 1 ? "" : "s"}`, "#a07a1a"]);
-  if (withCharge && n("charge")) out.push(["⚡ " + n("charge"), `${n("charge")} charge counter${n("charge") === 1 ? "" : "s"}`, "#3a8fe0"]);
+    out.push([`📖 lore ${n("lore")}${tot ? "/" + tot : ""}`, `${n("lore")} lore counter${n("lore") === 1 ? "" : "s"}${/\bSaga\b/.test(p.type || "") ? ": chapter " + roman(n("lore")) + (tot ? " of " + roman(tot) : "") : ""}`, "#6a4fb0"]); }
+  if (n("stun")) out.push(["❄ stun " + n("stun"), `${n("stun")} stun counter${n("stun") === 1 ? "" : "s"}: it doesn't untap (a counter comes off instead)`, "#3a6a8a"]);
+  if (n("promo")) out.push(["★ promotion " + n("promo"), `${n("promo")} promotion counter${n("promo") === 1 ? "" : "s"}`, "#a07a1a"]);
+  if (withCharge && n("charge")) out.push(["⚡ charge " + n("charge"), `${n("charge")} charge counter${n("charge") === 1 ? "" : "s"}`, "#3a8fe0"]);
   return out;
 }
 const counterTags = p => counterList(p, true).map(([t, ti, bg]) => ` <span class="tag" style="background:${bg}" title="${esc(ti)}">${esc(t)}</span>`).join("");
@@ -960,7 +967,7 @@ function mcard(p, mine) {
   const inner = src ? `<img src="${src}" alt="${esc(p.name)}">` : `<div class="tx"><b>${esc(p.face_down ? "Face down" : p.name)}</b><br>${esc((p.type || "").split("—")[0])}</div>`;
   const pw = p.pt || "", cl = counterList(p, false, true), plus = Math.max(0, Math.floor(+p.counters || 0)), ct = (plus && !/\bPlaneswalker\b/.test(p.type || "") ? `<span class="bd ct" title="${plus} +1/+1 counter${plus === 1 ? "" : "s"}">+${plus}</span>` : "") + (cl.length ? `<div class="cbs${src ? "" : " noart"}">${cl.map(([t, ti, bg]) => `<span style="background:${bg}" title="${esc(ti)}">${esc(t)}</span>`).join("")}</div>` : "");
   const chg = +p.charge || 0, gear = p.attached_names || [];
-  return `<div class="mc${p.tapped ? " tapped" : ""}${mine && matSel === p.id ? " sel" : ""}${mine && attackers.has(p.id) ? " atk" : ""}" data-mc="${p.id}" data-mine="${mine ? 1 : ""}" data-name="${esc(p.face_down ? "" : p.name)}" title="${esc(p.face_down ? "Face-down card" : p.name)}">${inner}${pw ? `<span class="bd pt">${esc(pw)}</span>` : ""}${ct}${chg ? `<span class="bd" style="right:2px;top:2px;background:#3a8fe0" title="charge counters">⚡${chg}</span>` : ""}${gear.length ? `<span class="bd" style="left:2px;bottom:${plus ? 20 : 2}px;background:#7a5a1a" title="${esc(gear.join(", "))}">⚔${gear.length}</span>` : ""}${(p.equip_cost || p.equipment) && p.attached_to ? `<span class="bd" style="left:2px;top:2px;background:#7a5a1a" title="attached to #${p.attached_to}">→#${p.attached_to}</span>` : ""}${mine && (window.__manaPool || []).length && MPOOL.items.some(i => i.id === p.id) ? `<span class="bd" style="left:2px;top:2px;background:#2a6" title="in your mana pool: click to take it back">${esc((MPOOL.items.find(i => i.id === p.id) || {}).color || "")}</span>` : ""}${mine && p.sick && isCreT(p.type) ? '<span class="bd zz" title="summoning sick">💤</span>' : ""}</div>`;
+  return `<div class="mc${p.tapped ? " tapped" : ""}${mine && matSel === p.id ? " sel" : ""}${mine && attackers.has(p.id) ? " atk" : ""}" data-mc="${p.id}" data-mine="${mine ? 1 : ""}" data-name="${esc(p.face_down ? "" : p.name)}" title="${esc(p.face_down ? "Face-down card" : p.name)}">${inner}${pw ? `<span class="bd pt">${esc(pw)}</span>` : ""}${ct}${chg ? `<span class="bd" style="right:2px;top:2px;background:#3a8fe0" title="${chg} charge counter${chg === 1 ? "" : "s"}">⚡${chg} charge</span>` : ""}${gear.length ? `<span class="bd" style="left:2px;bottom:${plus ? 20 : 2}px;background:#7a5a1a" title="${esc(gear.join(", "))}">⚔${gear.length}</span>` : ""}${(p.equip_cost || p.equipment) && p.attached_to ? `<span class="bd" style="left:2px;top:2px;background:#7a5a1a" title="attached to #${p.attached_to}">→#${p.attached_to}</span>` : ""}${mine && (window.__manaPool || []).length && MPOOL.items.some(i => i.id === p.id) ? `<span class="bd" style="left:2px;top:2px;background:#2a6" title="in your mana pool: click to take it back">${esc((MPOOL.items.find(i => i.id === p.id) || {}).color || "")}</span>` : ""}${mine && p.sick && isCreT(p.type) ? '<span class="bd zz" title="summoning sick">💤</span>' : ""}</div>`;
 }
 // default spots, as fractions of the canvas: the opponent mirrored on top, you below; piles left, artifacts and enchantments right
 const ZONES = { opp: { lands: 0.04, crea: 0.21, piles: 0.05, other: 0.05 }, me: { crea: 0.47, lands: 0.64, piles: 0.46, other: 0.46 } };
@@ -976,11 +983,16 @@ const rowY = (side, kind, ch) => side === "opp" ? (kind === "lands" ? 22 : 22 + 
 const midY = ch => 22 + 2 * (ch + ROW_PAD) + 2;
 function placeAll(list, side, kind, W, H, cw, ch) {               // auto spots for a zone: a row from the left (lands, creatures) or a grid on the right
   const out = [], gap = cw * 0.18, z = ZONES[side]; let acc = 0;
+  // A row (lands, creatures) runs from ROWX0 to the artifacts · enchantments grid at 80%. Every card's width is counted where it sits (a tapped
+  // card is wider), and a row that would run past the grid or off the mat is squeezed to fit: the cards overlap more, and every one keeps a
+  // visible, clickable edge. (2026-11-15: a ninth creature, Collation Trimatrix, was placed under the artifacts grid and could not be found.)
+  const wOf = p => (kind === "lands" ? (p.span || cw * (p.tapped ? 1.45 : 1.1)) : cw * (p.tapped ? 1.45 : 1.1)) + gap * 0.4;
+  const room = Math.max(cw, W * 0.80 - gap - ROWX0 - cw), widths = kind === "other" ? [] : list.map(wOf);
+  const run = widths.slice(0, -1).reduce((a, b) => a + b, 0), squeeze = run > room ? room / run : 1;
   list.forEach((p, i) => {
     let x, y;
     if (kind === "other") { const cols = 2; x = W * 0.80 + (i % cols) * (cw + gap); y = (side === "me" ? rowY("me", "crea", ch) : H * z.other) + Math.floor(i / cols) * (ch * 0.55); }
-    else if (kind === "lands") { x = ROWX0 + acc; acc += (p.span || cw * (p.tapped ? 1.45 : 1.1)) + gap * 0.4; y = rowY(side, kind, ch); }
-    else { x = ROWX0 + i * (cw * (p.tapped ? 1.45 : 1.1) + gap * 0.4); y = rowY(side, kind, ch); }
+    else { x = ROWX0 + acc; acc += widths[i] * squeeze; y = rowY(side, kind, ch); }
     out.push([p, x, y]);
   });
   return out;
@@ -1132,6 +1144,7 @@ function matPopup(el, ev) {
   const pop = $("matpop");
   pop.innerHTML = `<div class="nm">#${p.id} ${esc(p.face_down ? "Face-down" : p.name)}${p.pt ? " · " + esc(p.pt) : ""}</div><div class="sub" style="font-size:12px;max-height:120px;overflow:auto">${esc(p.text || p.type || "")}</div>` +
     (() => { poolLoad(); const pooled = MPOOL.items.some(i => i.id === p.id);
+      if (mana && !p.tapped && manaSick(p)) return `<button disabled title="${esc(MANA_SICK_WHY)}">Can't add mana: summoning sick</button><div class="sub">${esc(MANA_SICK_WHY)}</div>`;
       if (mana && !p.tapped) return colorsOf(p).map(c => `<button data-mpool="${p.id}" data-color="${c}">Tap for {${c}}</button>`).join("");
       if (mana && p.tapped && pooled) return `<button data-mpoolundo="${p.id}">Take it back from the pool</button>`;
       return p.tapped ? `<button data-tap="${p.id}">Untap</button>` : `<button data-tap="${p.id}">Tap</button>`; })() +
@@ -1384,6 +1397,8 @@ document.body.addEventListener("click", async e => {
   const mullc = t.closest && t.closest("[data-mullc]");                          // T15: opening hand: pick what goes on the bottom, keep, or mulligan
   if (mullc && S && S.mulligan) { const i = +mullc.dataset.mullc; if (!S.mulligan.bottom) return;
     mullPick = mullPick.includes(i) ? mullPick.filter(x => x !== i) : mullPick.length < S.mulligan.bottom ? [...mullPick, i] : [...mullPick.slice(1), i]; return drawMulligan(); }
+  if (d.mullkeep !== undefined && S && S.mulligan && S.mulligan.bottom - mullPick.length > 0) {   // not chosen yet: point at the cards, send nothing
+    mullNudge = Date.now(); drawMulligan(); setTimeout(drawMulligan, 8100); const mh = document.querySelector("#mullpanel .mull-hand"); if (mh && mh.scrollIntoView) mh.scrollIntoView({ block: "nearest", behavior: "smooth" }); return; }
   if (d.mullkeep !== undefined) { const res = await act("keep", { bottom: mullPick.map(i => h[i].name) }); if (res) { mullPick = []; mullSig = ""; draw(); } return; }
   if (d.mullagain !== undefined) { if (!(mullArm && Date.now() - mullArm < 6000)) { mullArm = Date.now(); drawMulligan(); setTimeout(drawMulligan, 6100); return; }
     mullArm = 0; const res = await act("mulligan"); if (res) { mullPick = []; mullSig = ""; draw(); } return; }
@@ -1515,6 +1530,8 @@ document.body.addEventListener("click", async e => {
   if (d.dmg !== undefined) { await act("damage", { hits: {} }); lastAttack = []; return draw(); }
   if (d.pass !== undefined) { alert = null; draw(); return passNow(); }
   if (d.dismiss !== undefined) { alert = null; return draw(); }
+  if (d.playdraw !== undefined) { const res = await act("playdraw", { choice: d.playdraw }); if (res) { pdSig = ""; refreshPhase(); } return; }
+  if (d.beginturn !== undefined) { alert = null; draw(); return $("begin").onclick(); }   // the banner's button IS Begin my turn: the same request
 });
 let blockPick = {}, survBin = new Set(), takeArm = {};
 // An aimed trigger is waiting on you (a Landfall counter, an enters trigger you didn't aim when you cast it): the table holds the turn until you answer.
@@ -1570,9 +1587,22 @@ function drawManual() {
     <div style="margin-top:6px">Token <input id="mtname" placeholder="name" size="10" maxlength="40"> <input id="mtp" type="number" value="1" style="width:3em">/<input id="mtt" type="number" value="1" style="width:3em">
       × <input id="mtn" type="number" value="1" min="1" max="20" style="width:3em"> <button data-mtoken>Create</button></div></details></div>`;
 }
+// Who goes first, set by the host (a best-of-three: the loser of the last game chooses). The chooser gets Play first / Draw here; everyone else
+// is told who is choosing. PH.first_player comes from /api/phase before the first turn.
+let pdSig = "";
+function drawPlayDraw() {
+  const box = $("playdrawpanel"), f = PH && !PH.player ? PH.first_player : null, ask = !!(f && f.pending);
+  const sig = JSON.stringify([ask, f && f.seat, me()]); if (sig === pdSig) return; pdSig = sig;
+  if (!ask) { box.innerHTML = ""; return; }
+  const mine = (f.seat || "").toLowerCase() === (me() || "").toLowerCase(), why = f.reason ? ` (${esc(f.reason)})` : "";
+  box.innerHTML = mine ? `<div class="panel" style="outline:2px solid #d9b46a"><h2>You choose: play or draw?</h2>
+    <div class="sub">No high roll this game${why}. Play: you take the first turn and skip its draw. Draw: the other player goes first and you draw on your first turn.</div>
+    <div class="mull-row"><button class="gold" data-playdraw="play">Play first</button><button data-playdraw="draw">Draw (go second)</button></div></div>`
+    : `<div class="panel"><h2>Who goes first</h2><div>${esc(f.seat)} is choosing to play or draw${why}…</div></div>`;
+}
 // T15: the opening-hand step. Before turn 1 the table asks every seat: keep, or mulligan (London: a new seven, then one card on the bottom of
 // the library per mulligan taken when you keep). S.mulligan is this seat's own view; the suggestion is the table's, from the land count.
-let mullSig = "", mullPick = [], mullArm = 0;        // mullArm: Mulligan takes a second tap (the page's pattern for what can't be undone)
+let mullSig = "", mullPick = [], mullArm = 0, mullNudge = 0;   // mullNudge: Keep was pressed before the bottom card(s) were chosen        // mullArm: Mulligan takes a second tap (the page's pattern for what can't be undone)
 function drawMulligan() {
   const box = $("mullpanel"), m = S && S.mulligan, hand = (S && S.hand) || [];
   // while the question is open, the fan and the hand list are hidden: the prompt shows the same cards, and nothing may cover Keep / Mulligan
@@ -1581,7 +1611,8 @@ function drawMulligan() {
   if (!m || !m.open) { if (mullSig) { box.innerHTML = ""; mullSig = ""; mullPick = []; } return; }
   mullPick = mullPick.filter(i => i < hand.length).slice(0, m.bottom);
   const armed = mullArm && Date.now() - mullArm < 6000;
-  const sig = JSON.stringify([m, hand.map(c => c.name), mullPick, armed]);
+  const nudged = mullNudge && Date.now() - mullNudge < 8000;
+  const sig = JSON.stringify([m, hand.map(c => c.name), mullPick, armed, nudged]);
   if (sig === mullSig) return; mullSig = sig;
   const W = ["zero", "one", "two", "three", "four", "five", "six", "seven"], others = (m.waiting || []).filter(n => n !== S.seat);
   if (m.kept) { box.innerHTML = `<div class="panel" style="outline:2px solid #d9b46a"><h2>Opening hand</h2><div>You kept ${W[m.keeps] || m.keeps}. ${others.length ? "Waiting for " + esc(others.join(", ")) + "…" : "The first turn is starting…"}</div></div>`; return; }
@@ -1589,9 +1620,12 @@ function drawMulligan() {
   box.innerHTML = `<div class="panel" style="outline:2px solid #d9b46a"><h2>Opening hand: keep or mulligan?</h2>
     <div style="font-weight:700;color:${col}">${esc((m.advice || {}).text || "")}</div>
     <div class="sub">${m.taken ? `You have taken ${m.taken} mulligan${m.taken > 1 ? "s" : ""}. To keep, tap ${m.bottom} card${m.bottom > 1 ? "s" : ""} to put on the bottom of your library (${need > 0 ? need + " more" : "chosen"}).` : "Only you can see this. A mulligan draws a new seven; you then keep one card fewer."}</div>
-    <div class="mull-row"><button class="gold" data-mullkeep ${need > 0 ? "disabled" : ""}>Keep ${W[m.keeps] || m.keeps}${m.bottom ? ` (bottom ${m.bottom})` : ""}</button>
+    ${need > 0 && nudged ? `<div class="mull-nudge" role="status">First tap ${need === 1 ? "the card" : need + " cards"} below that you want to put on the bottom of your library, then press Keep.</div>` : ""}
+    <div class="mull-row"><button class="gold" data-mullkeep data-need="${need}" aria-label="${need > 0 ? `Tap ${need} card${need > 1 ? "s" : ""} to put on the bottom` : `Keep ${W[m.keeps] || m.keeps}`}">${need > 0
+      ? `Tap ${need} card${need > 1 ? "s" : ""} to put on the bottom`
+      : `Keep ${W[m.keeps] || m.keeps}${m.bottom ? ` (bottom: ${esc(mullPick.map(i => hand[i].name).join(", "))})` : ""}`}</button>
       <button data-mullagain ${m.can_mulligan ? "" : "disabled"}>${armed ? "Tap again: mulligan to " + W[Math.max(0, m.keeps - 1)] : "Mulligan to " + W[Math.max(0, m.keeps - 1)]}</button></div>
-    <div class="mull-hand">${hand.map((c, i) => `<div class="mull-c${mullPick.includes(i) ? " sel" : ""}" data-mullc="${i}">${window.CardArt ? CardArt.img(c.name, "") : ""}<b>${esc(c.name)}</b><div class="sub">${esc(c.land ? "Land" : c.cost || "")}${mullPick.includes(i) ? " · to the bottom" : ""}</div></div>`).join("")}</div></div>`;
+    <div class="mull-hand${need > 0 ? " picking" : ""}">${hand.map((c, i) => `<div class="mull-c${mullPick.includes(i) ? " sel" : ""}" data-mullc="${i}">${window.CardArt ? CardArt.img(c.name, "") : ""}<b>${esc(c.name)}</b><div class="sub">${esc(c.land ? "Land" : c.cost || "")}${mullPick.includes(i) ? " · to the bottom" : ""}</div></div>`).join("")}</div></div>`;
 }
 let choiceSig = "";
 // The card an option names, from what this seat was already sent: a card in a zone (o.card), a permanent (o.ref "#id": mine from my state, another
@@ -1781,7 +1815,7 @@ async function poll() {
     if (since !== "latest" && !r.restarted) for (const e of r.events) {
       const own = e.type === "say" && e.speaker === me();   // my own lines aren't logged twice, but still reload (turn start: untap + draw)
       if (e.type === "attention" && (e.addressee || "").toLowerCase() === me().toLowerCase()) {
-        if (e.kind === "turn") alert = { html: "It's your turn. <button class='gold' data-dismiss>OK</button> Press <b>Begin my turn</b>." };
+        if (e.kind === "turn") alert = { html: "It's your turn. <button class='gold' data-beginturn>Begin my turn</button> <button data-dismiss title='hide this; Begin my turn stays in the step row' aria-label='Dismiss'>✕</button>" };
         else if (e.kind === "priority" || e.kind === "respond") { needLoad = true; continue; }   // (respond: the held-spell prompt below draws itself from /api/phase)   // T17: the priority chip (top of the page) is the one prompt: no second banner
         else if (e.kind === "attacked") {                  // the panel under the life total lists every attacker, with what the table lets block it
           alert = null; needLoad = true;
@@ -1823,8 +1857,8 @@ function buttons() {
 async function refreshPhase() {
   try { const p = await (await fetch("/api/phase")).json(); PH = p; const ps = p.passes || {}, mine = ps.next && ps.next.toLowerCase() === me().toLowerCase();
     $("phase").textContent = p.player ? `${p.player} · ${p.step}` + (ps.next ? ` · waiting on ${ps.next}${ps.seconds_left != null ? ` (${Math.ceil(ps.seconds_left)}s${mine ? " — then the table passes for you" : ""})` : ""}` : "") : "game not started";
-    $("startrow").style.display = p.player || !me() || (p.mulligan && p.mulligan.on) ? "none" : ""; } catch {}
-  buttons(); drawPrio(); drawHeld(); drawZone();
+    $("startrow").style.display = p.player || !me() || (p.mulligan && p.mulligan.on) || (p.first_player && p.first_player.pending) ? "none" : ""; } catch {}
+  drawPlayDraw(); buttons(); drawPrio(); drawHeld(); drawZone();
   { const mt = !!(S && PH && PH.player === S.seat); const eb = $("end"); if (eb) { eb.disabled = !mt; eb.title = mt ? "" : "not your turn"; } if (S && mt !== myTurnShown) { myTurnShown = mt; draw(); } }
   if (canUntap() !== uiUntap) { uiUntap = canUntap(); if (S) draw(); }   // Untap appears / goes away with the step
 }
