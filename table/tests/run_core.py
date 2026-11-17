@@ -6,6 +6,9 @@ free ports (it never touches 8800/8801/8820/8830/8883, so it is safe beside a li
     python3 table/tests/run_core.py retro_round4    only tests whose file name contains this
     python3 table/tests/run_core.py -j 6 -t 240     6 at a time, 240 s per test
     python3 table/tests/run_core.py --shard 2/4     the second quarter of the list (every 4th file, by name): a full run in pieces
+    PW=<node_modules/@playwright/test> python3 table/tests/run_core.py --e2e
+                                                    also the *_e2e.cjs browser checks (a real browser on a free port); without PW, or
+                                                    without the card data, each is SKIPPED (77), never failed
 
 Run it with the interpreter you installed table/requirements.txt into (numpy; docs/testing.md lists what else a few tests use). The
 first lines say which interpreter runs the tests and what it lacks. Nothing is ever downloaded: every test runs with TABLE_OFFLINE=1.
@@ -64,6 +67,25 @@ def candidates(filt: str):
             yield p
 
 
+def playwright_dir() -> str | None:
+    """$PW (the @playwright/test package the browser checks require), when it is there."""
+    pw = os.path.expanduser(os.environ.get("PW") or "")
+    return pw if pw and Path(pw).is_dir() else None
+
+
+E2E_OWN_TABLE = "await freePort()"          # a browser check that starts its own table on a free port says so; only those run here
+
+
+def e2e_candidates(filt: str):
+    """(--e2e) table/tests/*_e2e.cjs that start their OWN table on a free port: (path, None). The rest drive a table on a fixed port (some on
+    the owner's live ones) or one started for them, so they are listed as not run here: (path, why)."""
+    for p in sorted(TESTS.glob("*_e2e.cjs")):
+        if filt and filt not in p.name:
+            continue
+        own = E2E_OWN_TABLE in p.read_text(errors="replace")
+        yield p, None if own else "a browser check on a fixed port or a table started for it (run_all.sh runs it)"
+
+
 def run_one(p: Path, timeout: int):
     tmp = tempfile.mkdtemp(prefix="core-")
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "NO_GEMMA": "1", "HF_HUB_OFFLINE": "1", "ROUTER": "code", "REPLIES": "template", "TABLE_NO_VOICE": "1",
@@ -71,7 +93,12 @@ def run_one(p: Path, timeout: int):
            "TABLE_RESEARCH_DIR": tmp + "/research", "TABLE_SAVES_DIR": tmp + "/saves"}
     env.pop("TYPESAFE_API_KEY", None)
     t0 = time.time()
-    proc = subprocess.Popen([sys.executable, str(p)], cwd=REPO, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
+    cmd = ["node", str(p)] if p.suffix == ".cjs" else [sys.executable, str(p)]
+    if p.suffix == ".cjs":
+        env.setdefault("PY", sys.executable)                   # (the browser checks start the table with this interpreter)
+        if not shutil.which("node"):
+            return {"name": p.name, "status": "skip", "secs": 0.0, "why": "needs node (the browser checks are .cjs)", "tail": []}
+    proc = subprocess.Popen(cmd, cwd=REPO, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
     try:
         out, _ = proc.communicate(timeout=timeout)
         rc = proc.returncode
@@ -140,11 +167,21 @@ def main() -> int:
     ap.add_argument("-j", type=int, default=3, help="tests at once")
     ap.add_argument("-t", type=int, default=600, help="seconds per test (retro_game4_test alone takes about 5 minutes)")
     ap.add_argument("--shard", default="", metavar="I/N", help="run only part I of N (every N-th test file by name): N runs cover the whole suite")
+    ap.add_argument("--e2e", action="store_true", help="also the *_e2e.cjs browser checks, when PW (the @playwright/test package) resolves")
     a = ap.parse_args()
     preflight()
     run, skipped_here = [], []
+    e2e = []
+    if a.e2e:
+        if playwright_dir():
+            e2e = list(e2e_candidates(a.filter))
+            print(f"--e2e: {sum(1 for _, why in e2e if why is None)} browser checks that start their own table, with Playwright at $PW", flush=True)
+        else:
+            print("--e2e: PW is not set to a Playwright package (node_modules/@playwright/test): the browser checks are not run", flush=True)
     for p in candidates(a.filter):
         reason = next((why for rx, why in EXCLUDE.items() if re.search(rx, p.name)), None)
+        (skipped_here if reason else run).append((p, reason))
+    for p, reason in e2e:
         (skipped_here if reason else run).append((p, reason))
     total = len(run)
     if a.shard:

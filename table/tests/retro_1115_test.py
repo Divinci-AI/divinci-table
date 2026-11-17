@@ -11,6 +11,12 @@ game's: 8800, 8801, 8820, 8830, 8883 are refused), through the route a player us
   4  a summoning-sick creature's {T} mana ability is refused (tap for_mana)
   5  Tal Shiar Operative's "Target creature you control gains deathtouch until end of turn" asks for its target; the host's `grant` gives a
      keyword until end of turn, combat damage honours it, and it is gone the next turn
+  10 the redeclare 409 (review of the L'Rell fix): the autopilot declares again and both attack; the old choice sent again is taken (one 409);
+     a host-token attack and an attack after NEXT into beginning of combat get none; a token that can't attack (tapped) gets none; after the
+     409, End still sacrifices the token
+  11 the host's `counter`: a planeswalker defaults to loyalty, each kind lands in its own field, an unknown kind and |n| > 99 are refused, and
+     a count never goes below 0
+  12 summoning sickness and haste: a creature with printed or granted haste taps for mana the turn it arrives
 
     PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 HF_HUB_OFFLINE=1 python3 table/tests/retro_1115_test.py
     R1115_ONLY="support|lrell"   only the sections whose title names one of these
@@ -29,6 +35,7 @@ sys.dont_write_bytecode = True
 from v6_harness import R, Table, check, choices, answer  # noqa: E402
 
 LIVE_PORTS = (8800, 8801, 8820, 8830, 8883)
+BOT = HERE.parent / "bots"                                 # the rules autopilot (claude_autopilot.py), for section 10
 _free0 = R.free_port
 R.free_port = lambda: next(p for p in iter(_free0, None) if p not in LIVE_PORTS)   # never a live game's port
 R.POOL.update({n: 6 for n in ("Starfleet Security", "Captain's Tutelage", "Cybernetic Specialist", "Boarding Action", "Plasma Cascade", "Transporter Malfunction", "Support Mission", "Xenobotanist", "Tal Shiar Operative", "L'Rell, Fierce Visionary", "Mugato", "Xindi Surveyors", "Horta")})
@@ -49,6 +56,40 @@ def perm_id(t, seat, name):
 
 def says(t, ev0=0):
     return [e.get("text") or "" for e in t.events(ev0) if e.get("type") == "say"]
+
+
+def act_until(t, seat, action, secs=60, **body):
+    """t.act with a DEADLINE, not a try count: with response windows on, a step's round can take ~20 s (the pass timers), which a count of 80
+    tries at a quarter second gave up on half the time. Retries while the table says it is waiting on passes (passing for the other seats here,
+    as a person would), and returns the first other answer."""
+    end = time.time() + secs
+    c, d = 0, {}
+    while time.time() < end:
+        c, d = t.call("POST", f"/api/brain/{action}", {"seat": seat, **body}, key=t.keys[seat])
+        if not (c == 409 and "waiting on" in str(d.get("error", "")) and "defenders" not in str(d.get("error"))):
+            return c, d
+        ph = t.call("GET", "/api/phase")[1]
+        for w in set(str(d.get("waiting") or "").split(", ")) | {(ph.get("passes") or {}).get("next")}:
+            if w in t.keys and w != seat:
+                t.call("POST", "/api/brain/pass", {"seat": w, "player": ph.get("player"), "step": ph.get("step")}, key=t.keys[w])
+        time.sleep(0.25)
+    return c, d
+
+
+def attackers(t, seat):
+    """The refs attacking for `seat` this turn, from the public combat."""
+    for a in (t.call("GET", "/api/phase")[1].get("combat") or {}).get("attacks") or []:
+        if a.get("attacker") == seat:
+            return sorted(r.get("ref") for r in a.get("attackers") or [])
+    return []
+
+
+def take_all(t, defender=M):
+    """The defender answers every attack: no block (it takes it)."""
+    for a in (t.call("GET", "/api/phase")[1].get("combat") or {}).get("attacks") or []:
+        for r in a.get("attackers") or []:
+            if r.get("defender") == defender and not r.get("answered"):
+                t.call("POST", "/api/brain/block", {"seat": defender, "attacker": r["ref"]}, key=t.keys[defender])
 
 
 def support_mission():
@@ -144,14 +185,14 @@ def lrell():
             t.call("POST", "/api/brain/pass", {"seat": M, "player": ph.get("player"), "step": ph.get("step")}, key=t.keys[M])
             time.sleep(0.25)
         check(at_boc is not None and len(at_boc) == 1, "windows on: the turn stands in beginning of combat with L'Rell's token already there", (c, d.get("error"), ph.get("step"), at_boc))
-        c, d = t.act(C, "attack", tries=80, assign={f"#{lr}": M})   # (the same choice again, once the window closes)
+        c, d = act_until(t, C, "attack", assign={f"#{lr}": M})   # (the same choice again, once the window closes)
         ph = t.call("GET", "/api/phase")[1]
         check(c == 409 and d.get("redeclare") and len(kl()) == 1 and ph.get("step") in ("beginning of combat", "declare attackers")
               and not (t.call("GET", "/api/phase")[1].get("combat") or {}).get("attacks"),
               "…and the attack chosen before it existed is sent back (the night: no token)",
               (c, d.get("error"), ph.get("step"), kl()))
         tok = kl()[0]["id"]
-        c, d = t.act(C, "attack", tries=80, assign={f"#{lr}": M, f"#{tok}": M})
+        c, d = act_until(t, C, "attack", assign={f"#{lr}": M, f"#{tok}": M})
         check(c == 200 and len(kl()) == 1, "…declared again with the token: it attacks", (c, d.get("said") or d, kl()))
     finally:
         t.stop()
@@ -293,13 +334,15 @@ def tutelage_after_blocks():
         t.call("POST", "/api/brain/token", {"seat": C, "name": "Klingon Warrior", "power": 2, "toughness": 1, "keywords": ["Haste"]})
         tok = next(p["id"] for p in t.state(C)["permanents"] if p["name"].startswith("Klingon"))
         t.call("POST", "/api/phase/windows", {"on": True, "by": "host"}, host=False)   # a window after blocks, as on the night
-        c, d = t.act(C, "attack", tries=80, assign={f"#{tok}": M})
+        c, d = act_until(t, C, "attack", assign={f"#{tok}": M})
+        check(c == 200 and attackers(t, C) == [f"#{tok}"], "the token's attack is declared (through the windows, however long they take)",
+              (c, d.get("error") or d.get("said"), t.call("GET", "/api/phase")[1].get("step")))
         c, d = t.call("POST", "/api/brain/block", {"seat": M, "attacker": f"#{tok}", "blocker": f"#{ss}"}, key=t.keys[M])
         ph = t.call("GET", "/api/phase")[1]
         check(c == 200 and ph.get("step") == "declare blockers" and t.perm(M, "Starfleet Security") and t.perm(C, "Klingon Warrior token"),
               "Starfleet Security blocks the token; nothing dealt yet (declare blockers, a window)", (c, d.get("said") or d, ph.get("step")))
         t.hand(C, "Captain's Tutelage")
-        c, d = t.act(C, "cast", tries=80, name="Captain's Tutelage", on=f"#{tok}")
+        c, d = act_until(t, C, "cast", name="Captain's Tutelage", on=f"#{tok}")
         tk = next((p for p in t.state(C)["permanents"] if p["id"] == tok), None)
         check(c == 200 and tk and tk["pt"] == "4/1" and "First strike" in tk["keywords"]
               and not any("Captain's Tutelage gains" in x for x in d.get("said") or []),
@@ -321,6 +364,166 @@ def tutelage_after_blocks():
         t.stop()
 
 
+def bot_for(t, seat):
+    """The rules autopilot (bots/claude_autopilot.py) on `seat`, in this process, through that seat's own key (as bot_v6_test does)."""
+    import importlib
+    import tempfile
+    keyf = Path(tempfile.mkdtemp()) / "k"
+    keyf.write_text(t.keys[seat])
+    keyf.chmod(0o600)
+    os.environ.update(CLAUDE_SEAT=seat, CLAUDE_KEY_FILE=str(keyf), TABLE_URL=t.b)
+    if str(BOT) not in sys.path:
+        sys.path.insert(0, str(BOT))
+    ap = importlib.import_module("claude_autopilot")
+    ap.BASE, ap.SEAT, ap.KEY = t.b, seat, t.keys[seat]
+    ap.REFUSED.clear()
+    return ap
+
+
+def redeclare():
+    t = table()
+    try:
+        t.call("POST", "/api/life", {"player": M, "delta": 60, "by": "test"}, host=False)   # (several turns of L'Rell's attacks ahead)
+        lr = t.onto(C, "L'Rell, Fierce Visionary")
+        kl = lambda: [p for p in t.state(C)["permanents"] if p["name"].startswith("Klingon")]
+        # (1) the autopilot (the night's repro: its attack got the 409, it never declared again, and nothing attacked)
+        t.turn(C)
+        ap = bot_for(t, C)
+        c, d = ap.declare_attack()
+        tok = [p["id"] for p in kl()]
+        check(c == 200 and len(tok) == 1 and attackers(t, C) == sorted([f"#{lr}", f"#{tok[0]}"]),
+              "the autopilot: beginning of combat makes L'Rell's token, the table sends the attack back once, the bot reads the board again and "
+              "declares L'Rell AND the token", (c, d.get("error") or d.get("said"), tok, attackers(t, C)))
+        take_all(t)
+        # (2) the old choice sent again after the 409 is taken: one 409 a turn, never a loop
+        t.turn(M)
+        t.turn(C)
+        c1, d1 = t.act(C, "attack", assign={f"#{lr}": M})
+        c2, d2 = t.act(C, "attack", assign={f"#{lr}": M})
+        check(c1 == 409 and d1.get("redeclare") and c2 == 200 and attackers(t, C) == [f"#{lr}"],
+              "a pilot sends the same choice after the 409: it is declared (L'Rell alone); the table asked once", (c1, c2, d2.get("error"), attackers(t, C)))
+        take_all(t)
+        # (3) a 409, then End without attacking: the end step still sacrifices the token
+        t.turn(M)
+        t.turn(C)
+        c, d = t.act(C, "attack", assign={f"#{lr}": M})
+        made = [p["id"] for p in kl()]
+        check(c == 409 and d.get("redeclare") and len(made) == 1, "the 409 again (a new turn, a new token)", (c, d.get("error"), made))
+        c, d = t.act(C, "end", text="no attack")
+        t.turn(M, fresh=False)
+        check(not kl(), "…End without declaring: the end step sacrifices the token all the same", (c, d.get("error"), kl()))
+        # (4) the host's own attack (the host token, not a pilot's key) is never sent back
+        t.turn(C)
+        c, d = t.call("POST", "/api/brain/attack", {"seat": C, "assign": {f"#{lr}": M}})
+        check(c == 200 and not d.get("redeclare") and attackers(t, C) == [f"#{lr}"], "a host-token attack from main 1: declared as sent, no 409",
+              (c, d.get("error"), attackers(t, C)))
+        take_all(t)
+        # (5) NEXT into beginning of combat first: the token was there when the attack was chosen, so it is not sent back
+        t.turn(M)
+        t.turn(C)
+        t.next_to(C, "beginning of combat")
+        here = kl()
+        c, d = t.act(C, "attack", assign={f"#{lr}": M})
+        check(len(here) == 1 and c == 200 and not d.get("redeclare") and attackers(t, C) == [f"#{lr}"],
+              "NEXT to beginning of combat (the token is made there, in sight), then attack with L'Rell alone: no 409", (len(here), c, d.get("error"), attackers(t, C)))
+        take_all(t)
+        # (6) the token can't attack (tapped): no 409 for a creature that could not have been declared anyway
+        t.turn(M)
+        t.turn(C)
+        t.call("POST", "/api/phase/windows", {"on": True, "by": "host"}, host=False)   # the attack walks into beginning of combat and waits there
+        c, d = 0, {}
+        for _ in range(80):
+            c, d = t.call("POST", "/api/brain/attack", {"seat": C, "assign": {f"#{lr}": M}}, key=t.keys[C])
+            if kl() or c != 409 or "waiting on" not in str(d.get("error")):
+                break
+            ph = t.call("GET", "/api/phase")[1]
+            t.call("POST", "/api/brain/pass", {"seat": M, "player": ph.get("player"), "step": ph.get("step")}, key=t.keys[M])
+            time.sleep(0.25)
+        new = kl()
+        if new:
+            t.call("POST", "/api/brain/tap", {"seat": C, "ref": f"#{new[0]['id']}"})
+        c, d = act_until(t, C, "attack", assign={f"#{lr}": M})
+        check(len(new) == 1 and c == 200 and not d.get("redeclare") and attackers(t, C) == [f"#{lr}"],
+              "the token made by the walk into combat is tapped (it can't attack): the attack is declared, no 409", (len(new), c, d.get("error"), attackers(t, C)))
+    finally:
+        t.stop()
+
+
+def jace_deck():
+    """Michael's test deck plus a planeswalker (the Star Trek set has none): Jace Beleren, from the card data."""
+    import json
+    o = json.load(open(HERE / ".cache" / "oracle.json"))["Jace Beleren"]
+    d = json.load(open(R.DECK_MICHAEL))
+    d["mainBoard"].append({"name": "Jace Beleren", "count": 2, "manaCost": o["cost"], "manaValue": 3.0, "type": o["type"], "types": ["Planeswalker"],
+                           "subtypes": ["Jace"], "supertypes": ["Legendary"], "text": o["text"], "power": None, "toughness": None, "loyalty": "3",
+                           "colors": ["U"], "colorIdentity": ["U"]})
+    f = Path(R.DECK_MICHAEL).with_name("Michael-1115-jace.json")
+    f.write_text(json.dumps(d))
+    return str(f)
+
+
+def counter_kinds():
+    keep = R.DECK_MICHAEL
+    R.DECK_MICHAEL = jace_deck()
+    try:
+        t = table()
+    finally:
+        R.DECK_MICHAEL = keep
+    try:
+        js = t.onto(M, "Jace Beleren")
+        sm = t.onto(M, "Support Mission")
+        op = t.onto(M, "Tal Shiar Operative")
+        jc = lambda: t.perm(M, "Jace Beleren")
+        before = (jc() or {}).get("counters", 0)
+        c, d = t.call("POST", "/api/brain/counter", {"seat": M, "ref": f"#{js}", "n": 2})
+        check(c == 200 and jc()["counters"] == before + 2 and any("loyalty counter" in x for x in d.get("said") or []),
+              "a planeswalker, no kind named: two LOYALTY counters (said so)", (c, d, jc()))
+        fields = {"+1/+1": "counters", "quest": "quest", "charge": "charge", "lore": "lore", "stun": "stun", "promotion": "promo"}
+        for kind, field in fields.items():
+            p0 = t.perm(M, "Support Mission")
+            c, d = t.call("POST", "/api/brain/counter", {"seat": M, "ref": f"#{sm}", "n": 1, "kind": kind})
+            p1 = t.perm(M, "Support Mission")
+            others = {f: (p0.get(f) or 0, p1.get(f) or 0) for f in set(fields.values()) if f != field}
+            check(c == 200 and (p1.get(field) or 0) == (p0.get(field) or 0) + 1 and all(a == b for a, b in others.values()),
+                  f"kind {kind}: one counter in `{field}`, every other count unchanged", (c, d.get("error"), field, p0.get(field), p1.get(field), others))
+        c, d = t.call("POST", "/api/brain/counter", {"seat": M, "ref": f"#{sm}", "n": 1, "kind": "banana"})
+        check(c == 400 and "unknown counter kind" in str(d.get("error")), "an unknown kind is refused (not filed as a +1/+1)", (c, d))
+        for n in (100, -100, 1000):
+            c, d = t.call("POST", "/api/brain/counter", {"seat": M, "ref": f"#{op}", "n": n})
+            check(c == 400 and t.perm(M, "Tal Shiar Operative")["counters"] == 0, f"n={n}: refused (|n| > 99), nothing changes", (c, d.get("error")))
+        c, d = t.call("POST", "/api/brain/counter", {"seat": M, "ref": f"#{op}", "n": 99})
+        check(c == 200 and t.perm(M, "Tal Shiar Operative")["counters"] == 99, "n=99 is the most at once", (c, d.get("error")))
+        c, d = t.call("POST", "/api/brain/counter", {"seat": M, "ref": f"#{op}", "n": -99})
+        c, d = t.call("POST", "/api/brain/counter", {"seat": M, "ref": f"#{op}", "n": -3})
+        check(c == 200 and t.perm(M, "Tal Shiar Operative")["counters"] == 0 and t.perm(M, "Tal Shiar Operative")["pt"] == "2/2",
+              "taking off more +1/+1 counters than it has: the count stops at 0 (not -3, never a 2/2 shrunk to -1/-1)", (c, d, t.perm(M, "Tal Shiar Operative")))
+        q0 = t.perm(M, "Support Mission")["quest"]
+        c, d = t.call("POST", "/api/brain/counter", {"seat": M, "ref": f"#{sm}", "n": -(q0 + 5), "kind": "quest"})
+        check(c == 200 and t.perm(M, "Support Mission")["quest"] == 0, "…and the same for a quest count", (c, d, t.perm(M, "Support Mission")))
+    finally:
+        t.stop()
+
+
+def mana_sick_haste():
+    t = table()
+    try:
+        xb = t.onto(M, "Xenobotanist")
+        c, d = t.call("POST", "/api/brain/grant", {"seat": M, "ref": f"#{xb}", "keyword": "haste"})
+        c, d = t.call("POST", "/api/brain/tap", {"seat": M, "ref": f"#{xb}", "for_mana": True, "announce": True}, key=t.keys[M])
+        check(c == 200 and t.perm(M, "Xenobotanist")["tapped"], "Xenobotanist the turn it arrives, with haste GRANTED: its {T} mana ability is allowed", (c, d))
+        t.call("POST", "/api/brain/token", {"seat": M, "name": "Hasty Druid", "power": 1, "toughness": 1, "keywords": ["Haste"], "quiet": True})
+        t.call("POST", "/api/brain/token", {"seat": M, "name": "Plain Druid", "power": 1, "toughness": 1, "quiet": True})
+        perms = t.state(M)["permanents"]
+        hd = next(p for p in perms if p["name"].startswith("Hasty Druid"))
+        pd = next(p for p in perms if p["name"].startswith("Plain Druid"))
+        ch, dh = t.call("POST", "/api/brain/tap", {"seat": M, "ref": f"#{hd['id']}", "for_mana": True}, key=t.keys[M])
+        cp, dp = t.call("POST", "/api/brain/tap", {"seat": M, "ref": f"#{pd['id']}", "for_mana": True}, key=t.keys[M])
+        check(ch == 200 and cp == 400 and "summoning sickness" in str(dp.get("error")),
+              "two fresh creatures: the one with PRINTED haste taps for mana, the one without is refused", (ch, dh.get("error"), cp, dp.get("error")))
+    finally:
+        t.stop()
+
+
 SECTIONS = [("1 Support Mission: quest counters and +1/+1 counters", support_mission),
             ("2 counter persists through the opponent's turn (guard)", counter_persists),
             ("3 L'Rell beginning-of-combat token (lrell)", lrell),
@@ -328,7 +531,10 @@ SECTIONS = [("1 Support Mission: quest counters and +1/+1 counters", support_mis
             ("5 Tal Shiar Operative target, host grant, deathtouch (talshiar)", tal_shiar),
             ("7 burn at any target: players are offered and hit (anytarget)", any_target),
             ("8 first strike, printed and granted by an Aura (firststrike)", first_strike),
-            ("9 Captain's Tutelage cast after blocks (tutelage)", tutelage_after_blocks)]
+            ("9 Captain's Tutelage cast after blocks (tutelage)", tutelage_after_blocks),
+            ("10 the redeclare 409: autopilot, one 409, host, NEXT, tapped token, End (redeclare)", redeclare),
+            ("11 host counters by kind, bounds and floor (counterkinds)", counter_kinds),
+            ("12 haste lets a sick creature tap for mana (manahaste)", mana_sick_haste)]
 
 if __name__ == "__main__":
     only = os.environ.get("R1115_ONLY")

@@ -571,34 +571,57 @@ def play_turn():
     station_ships()
     equip_gear()
     # 4. attack: every ready creature that the other side's untapped creatures cannot kill without losing theirs first
+    c, _ = declare_attack()
+    if c is not None:
+        # The defender gets to block: wait until it has answered every attacker (the table moves to combat damage), or 20s.
+        # v6c: the table moves to declare blockers when the blocks are in; `damage` there is this seat's pass, and the table deals
+        # the damage step once the defender has passed too (do() retries while it says "waiting on passes").
+        end_at = time.time() + 20
+        while time.time() < end_at:
+            ph_ = call("GET", "/api/phase")[1]
+            mine_ = next((a for a in (ph_.get("combat") or {}).get("attacks") or [] if a.get("attacker") == SEAT), None)
+            if ph_.get("step") == "combat damage" or ph_.get("game_over") or (mine_ and mine_.get("stage") in ("window", "done")):
+                break
+            time.sleep(1.0)
+        do("damage", {})
+    # 4. end
+    do("end", {"text": "That's my turn."})
+
+
+def pick_attack():
+    """(the opponent attacked, the creatures that go): read the board and the seat afresh, and choose."""
     b3 = call("GET", "/api/board3d")[1]
     teams = call("GET", "/api/phase")[1].get("teams") or {}
     mine = {SEAT} | {n for n, t in teams.items() if teams.get(SEAT) and t == teams.get(SEAT)}   # 2HG: never attack a teammate
     opp = next((s for s in b3.get("seats", []) if s.get("name") not in mine and (s.get("life") or 0) > 0), None)
     st = call("GET", f"/api/brain/state?seat={SEAT}")[1]
-    if opp:
-        blockers = [p for p in opp.get("permanents", []) if p.get("pt") and not p.get("tapped")]
-        ready = [p for p in st.get("permanents") or [] if p.get("pt") and not p.get("tapped") and not p.get("sick")]
-        if any("can_attack" in p for p in st.get("permanents") or []):   # T16: the table says which creatures may attack (an older table doesn't)
-            ready = [p for p in st.get("permanents") or [] if p.get("pt") and p.get("can_attack")]
-        go = choose_attackers(ready, blockers, int(opp.get("life") or 0))
-        if len(go) == 1 and go[0].get("attack_needs_partner") and not st.get("attacked_ids"):
-            go = []                           # it can't attack alone, and nothing else is going with it
-        if go:
-            do("attack", {"assign": {f"#{p['id']}": opp["name"] for p in go}})
-            # The defender gets to block: wait until it has answered every attacker (the table moves to combat damage), or 20s.
-            # v6c: the table moves to declare blockers when the blocks are in; `damage` there is this seat's pass, and the table deals
-            # the damage step once the defender has passed too (do() retries while it says "waiting on passes").
-            end_at = time.time() + 20
-            while time.time() < end_at:
-                ph_ = call("GET", "/api/phase")[1]
-                mine_ = next((a for a in (ph_.get("combat") or {}).get("attacks") or [] if a.get("attacker") == SEAT), None)
-                if ph_.get("step") == "combat damage" or ph_.get("game_over") or (mine_ and mine_.get("stage") in ("window", "done")):
-                    break
-                time.sleep(1.0)
-            do("damage", {})
-    # 4. end
-    do("end", {"text": "That's my turn."})
+    if not opp:
+        return None, []
+    blockers = [p for p in opp.get("permanents", []) if p.get("pt") and not p.get("tapped")]
+    ready = [p for p in st.get("permanents") or [] if p.get("pt") and not p.get("tapped") and not p.get("sick")]
+    if any("can_attack" in p for p in st.get("permanents") or []):   # T16: the table says which creatures may attack (an older table doesn't)
+        ready = [p for p in st.get("permanents") or [] if p.get("pt") and p.get("can_attack")]
+    go = choose_attackers(ready, blockers, int(opp.get("life") or 0))
+    if len(go) == 1 and go[0].get("attack_needs_partner") and not st.get("attacked_ids"):
+        go = []                           # it can't attack alone, and nothing else is going with it
+    return opp, go
+
+
+def declare_attack():
+    """Declare this turn's attack, if any creature goes: (status, body), or (None, {}) when nothing attacks. Beginning of combat can make a
+    creature after the attackers were chosen (L'Rell's hasty Klingon token): the table then answers 409 with "redeclare" and declares nothing.
+    Read the board again, choose again (the new creature is on the list) and send it once more. The table sends that 409 once per turn, so
+    the second answer is the real one."""
+    opp, go = pick_attack()
+    if not go:
+        return None, {}
+    c, d = do("attack", {"assign": {f"#{p['id']}": opp["name"] for p in go}})
+    if c == 409 and d.get("redeclare"):
+        opp, go = pick_attack()
+        if not go:
+            return None, {}
+        c, d = do("attack", {"assign": {f"#{p['id']}": opp["name"] for p in go}})
+    return c, d
 
 
 def my_turn(ph) -> bool:

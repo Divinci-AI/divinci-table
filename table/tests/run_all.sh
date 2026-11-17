@@ -103,6 +103,8 @@ run voices        node table/tests/voices_test.cjs
 run seat-js       node table/tests/seat_js_test.cjs
 run seat-stale    node table/tests/seat_stale_test.cjs
 [ -d "$PW" ] && run retro-1113-hand env PW=$PW node table/tests/retro_1113_hand_e2e.cjs
+[ -d "$PW" ] && run hand-1115   env PW=$PW node table/tests/hand_1115_e2e.cjs
+[ -d "$PW" ] && run hand-1115b  env PW=$PW node table/tests/hand_1115b_e2e.cjs
 run card-physics  node table/tests/cardphysics_test.cjs
 [ -d "$PW" ] && run table-3d env PW=$PW node table/tests/table3d_e2e.cjs
 if [ "${1:-}" = quick ]; then

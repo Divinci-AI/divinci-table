@@ -7,6 +7,12 @@
   2  BACK and host corrections: a BACK that would undo a host correction made since its saved point (a +1/+1 counter from `counter`) is refused
      and names it; the host can force it, and the log then lists the correction to make again
   3  counters by kind on the public board: /api/board3d carries quest, charge and promotion apart from +1/+1 (the pages name each kind)
+  4  (review of the play/draw fix) a chooser the autopilot plays is played for at once; a person who doesn't answer in FIRSTPICK_SECS is played
+     for by the table (and the log says so); a chooser who is out by the time they answer gets a 409, not a 500; the host can't set the first
+     player during a real-dice roll, nor for game 2 of a match (game 1 of a match it can); the pick and its question survive a restore
+     (TABLE_FIRST is not read again) and the next game clears it
+  5  (review of the BACK guard) the refusal never names a hidden card (a quiet `take`); a seat key's force is not the host's; after a forced
+     BACK the corrections it undid no longer block; a host /api/life change, `cant-block` and `draw` are corrections too
 
     PYTHONDONTWRITEBYTECODE=1 TABLE_NO_VOICE=1 NO_GEMMA=1 HF_HUB_OFFLINE=1 python3 table/tests/retro_1115b_test.py
     R1115B_ONLY="first|back"   only the sections whose title names one of these
@@ -15,6 +21,7 @@ from __future__ import annotations
 
 import os
 import sys
+import json
 import time
 import traceback
 from pathlib import Path
@@ -23,6 +30,7 @@ HERE = Path(__file__).resolve().parent.parent
 sys.path[:0] = [str(HERE), str(HERE / "tests")]
 sys.dont_write_bytecode = True
 from v6_harness import R, Table as _Table, check  # noqa: E402
+import match_bo3_test_lib as L  # noqa: E402
 
 LIVE_PORTS = (8800, 8801, 8820, 8830, 8883)
 _free0 = R.free_port
@@ -34,11 +42,11 @@ M, C = "Michael", "Claude"
 
 class Table(_Table):
     """The harness table with extra environment for this one server (restored after it starts)."""
-    def __init__(self, env=None):
+    def __init__(self, env=None, extra=(), human=False):
         old = {k: os.environ.get(k) for k in (env or {})}
         os.environ.update(env or {})
         try:
-            super().__init__()
+            super().__init__(extra=extra, human=human)
         finally:
             for k, v in old.items():
                 os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
@@ -209,11 +217,167 @@ def board_counter_kinds():
         t.stop()
 
 
+def playdraw_autopilot():
+    t = Table(env={"TABLE_FIRST": "Michael:choose", "TABLE_FIRST_REASON": "Michael lost game 1"})
+    try:
+        t.claim()
+        c, d = t.call("POST", "/api/seat/played-by", {"seat": M, "kind": "autopilot"})
+        check(c == 200, "(set-up: the host says the rules autopilot plays Michael's seat)", (c, d))
+        ev0 = t.events(0)[-1]["id"]
+        c, d = t.press_start(C)
+        ph = t.until(lambda p: p.get("player") is not None)
+        ev = says(t, ev0)
+        check(c == 200 and ph.get("player") == M and not (ph.get("first_player") or {}).get("pending"),
+              "START with the autopilot as the chooser: nobody is left waiting on a page; it plays, so Michael goes first", (c, d.get("error"), ph.get("player"), ph.get("first_player")))
+        check(any("Michael chooses to play" in x and "autopilot" in x for x in ev), "…and the log says the table played for the autopilot", ev[-3:])
+    finally:
+        t.stop()
+
+
+def playdraw_timeout():
+    t = Table(env={"TABLE_FIRST": "Michael:choose", "FIRSTPICK_SECS": "2"})
+    try:
+        t.claim()
+        c, d = t.press_start(C)
+        check(c == 202 and (t.phase().get("first_player") or {}).get("pending"), "a person chooses: asked on their page", (c, d.get("error")))
+        ph = t.until(lambda p: p.get("player") is not None, secs=15)
+        ev = says(t)
+        check(ph.get("player") == M, "no answer in FIRSTPICK_SECS (2 s here): the table plays for Michael, who goes first", (ph.get("player"), ph.get("first_player")))
+        check(any("no answer in 2 s" in x and "Michael chooses to play" in x for x in ev), "…and the log says the table did it", ev[-3:])
+    finally:
+        t.stop()
+
+
+def playdraw_seat_out():
+    t = Table(env={"TABLE_FIRST": "Michael:choose"}, human=True)               # three seats (Sam at the table too): one out is not the game over
+    try:
+        t.claim()
+        c, d = t.press_start(C)
+        check(c == 202, "Michael is asked to play or draw", (c, d.get("error")))
+        t.call("POST", "/api/life", {"player": M, "delta": -20, "by": "host"})      # Michael is out (0 life) before the answer comes
+        c, d = t.call("POST", "/api/first-player", {"choice": "play"})               # (the host answers for him: the same settle as his own answer)
+        check(c == 409 and "no longer in the game" in str(d.get("error")) and not t.phase().get("first_player"),
+              "…and the answer comes after he is out: a 409 that says so (not a 500), and the host's pick is cleared", (c, d.get("error"), t.phase().get("first_player")))
+    finally:
+        t.stop()
+
+
+def first_player_refusals():
+    t = Table()
+    try:
+        t.claim()
+        c, d = t.call("POST", "/api/highroll/start", {"mode": "physical", "sides": 20, "by": "host"})
+        check(c == 200, "(set-up: a real-dice high roll is under way)", (c, d.get("error")))
+        c, d = t.call("POST", "/api/first-player", {"seat": M, "reason": "lost game 1"})
+        check(c == 409 and not t.phase().get("first_player"), "the host can't set the first player while the dice are being rolled", (c, d.get("error")))
+    finally:
+        t.stop()
+    t = L.Table(extra=["--match", "bo3", "--match-countdown", "40"], env={"TABLE_FIRST": "Claude"})
+    try:
+        t.claim()
+        c, d = t.call("POST", "/api/first-player", {"seat": M, "reason": "lost the previous round"})
+        check(c == 200, "game 1 of a match: the host may set its first player (it has no loser yet)", (c, d.get("error")))
+        t.call("POST", "/api/phase/next", {"by": C, "key": t.keys[C]}, key=t.keys[C])
+        ph = t.keep_all()
+        check(ph.get("player") == M, "…and game 1 opens with Michael (the host's pick beats the launcher's TABLE_FIRST)", (ph.get("player"), ph.get("first_player")))
+        t.end_game(M)
+        c, d = t.call("POST", "/api/first-player", {"seat": C, "reason": "nope"})
+        check(c == 409 and "match" in str(d.get("error")), "between games 1 and 2: refused, game 2 belongs to the match (the loser chooses)", (c, d.get("error")))
+    finally:
+        t.stop()
+
+
+def firstpick_restore():
+    t = Table(env={"TABLE_FIRST": "Michael:choose", "TABLE_FIRST_REASON": "Michael lost game 1"})
+    try:
+        t.claim()
+        keys = dict(t.keys)
+        c, d = t.press_start(C)
+        check(c == 202, "Michael is asked to play or draw", (c, d.get("error")))
+        t.call("POST", "/api/phase/windows", {"on": False, "by": "host"}, host=False)   # (a change: the table saves)
+        time.sleep(0.5)
+        snap = next(iter(t.dir.rglob("snapshot.pkl")), None)
+    finally:
+        t.stop()
+    check(snap is not None, "(the table saved)", snap)
+    if snap is None:
+        return
+    t = Table(env={"TABLE_FIRST": "Claude"}, extra=["--restore", str(snap)])     # a launcher would pass TABLE_FIRST again: it is not re-read
+    try:
+        t.keys = keys
+        fp = t.phase().get("first_player") or {}
+        check(fp.get("seat") == M and fp.get("pending"), "restored: Michael is still the one asked (TABLE_FIRST=Claude is not applied again)", fp)
+        c, d = t.press_start(C)
+        c, d = t.seat(M, "playdraw", choice="draw")
+        ph = t.until(lambda p: (p.get("mulligan") or {}).get("on") or p.get("player") is not None)
+        hr = t.call("GET", "/api/highroll")[1]
+        check(c == 200 and hr.get("winner") == C, "…Michael answers draw after the restore: Claude goes first", (c, d.get("error"), hr.get("winner")))
+        t.until(lambda p: p.get("player") is not None)
+        c, d = t.call("POST", "/api/brain/new-game", {"seat": C})
+        check(c == 200 and not t.phase().get("first_player"), "the next game clears the pick (it is set again for each game)", (c, d.get("error"), t.phase().get("first_player")))
+    finally:
+        t.stop()
+
+
+def to_a_fresh_step(t):
+    """Michael's turn, moved on from main 1: BACK has a saved point before whatever comes next."""
+    t.turn(C)
+    t.turn(M)
+    c, d = t.act(M, "next")
+    assert c == 200, d
+
+
+def back_guard_review():
+    t = Table()
+    try:
+        t.start()
+        op = t.onto(M, "Tal Shiar Operative")
+        to_a_fresh_step(t)
+        # a quiet take from the other hand: the refusal names the correction, never the card
+        hand_c = [h["name"] for h in t.call("GET", f"/api/brain/state?seat={C}")[1].get("hand") or []]
+        card = next(n for n in hand_c if n not in ("Plains", "Island", "Swamp", "Mountain", "Forest") and "Michael" not in n and "Claude" not in n)
+        c, d = t.call("POST", "/api/brain/take", {"seat": M, "from": C, "name": card, "quiet": True})
+        check(c == 200, f"(set-up: the host quietly takes a card from Claude's hand for Michael)", (c, d.get("error")))
+        c, d = t.call("POST", "/api/phase/back", {"by": M}, key=t.keys[M])
+        err = str(d.get("error") or "")
+        check(c == 409 and "take from Claude's hand" in err and card not in json.dumps(d),
+              "Michael's BACK across it: refused, naming 'take from Claude's hand', and the card's name is nowhere in the answer", (c, err[:200], card in json.dumps(d)))
+        c, d = t.call("POST", "/api/phase/back", {"by": M, "force": True}, key=t.keys[M])
+        check(c == 409 and "correction" in str(d.get("error")), "a seat key with force: true is still refused (force is the host's)", (c, d.get("error")))
+        ev0 = t.events(0)[-1]["id"]
+        c, d = t.call("POST", "/api/phase/back", {"by": "host", "force": True})
+        logged = " ".join(says(t, ev0))
+        check(c == 200 and "take from Claude's hand" in logged and card not in logged, "the host forces it: the log lists the correction by its label, not the card", (c, d.get("error"), logged[-200:]))
+        # after the forced BACK, the correction it undid no longer blocks a later BACK
+        c, d = t.act(M, "next")
+        c, d = t.call("POST", "/api/phase/back", {"by": M}, key=t.keys[M])
+        check(c in (200, 202) and "correction" not in str(d.get("error") or ""), "after the forced BACK, the old correction no longer blocks a BACK", (c, d.get("error")))
+        if c == 202:
+            t.call("POST", "/api/phase/back/confirm", {"by": C}, key=t.keys[C])
+        # the corrections the first review found missing are guarded too
+        for what, call in (("life change for Michael", ("/api/life", {"player": M, "delta": 3, "by": "host"})),
+                           ("can't block", ("/api/brain/cant-block", {"seat": M, "ref": f"#{op}"})),
+                           ("draw", ("/api/brain/draw", {"seat": M, "n": 1, "quiet": True}))):
+            c0, d0 = t.act(M, "next") if t.phase().get("step") == "main 1" else (200, {})
+            c, d = t.call("POST", call[0], call[1])
+            c2, d2 = t.call("POST", "/api/phase/back", {"by": M}, key=t.keys[M])
+            check(c == 200 and c2 == 409 and what in str(d2.get("error")), f"a host {call[0].rsplit('/', 1)[-1]} is a correction BACK won't silently undo", (c, d.get("error"), c2, d2.get("error")))
+            t.call("POST", "/api/phase/back", {"by": "host", "force": True})
+    finally:
+        t.stop()
+
+
 SECTIONS = [("1a who goes first: the loser chooses play or draw (first)", first_player_chooses),
             ("1b who goes first: the host sets it (first host)", first_player_host),
             ("1c who goes first: the host answers play/draw for the chooser (first host answers)", first_player_host_answers),
             ("2 BACK keeps host corrections (back)", back_keeps_host_corrections),
-            ("3 counters by kind on the public board (board)", board_counter_kinds)]
+            ("3 counters by kind on the public board (board)", board_counter_kinds),
+            ("4a play/draw: an autopilot chooser plays at once (playdraw auto)", playdraw_autopilot),
+            ("4b play/draw: no answer in FIRSTPICK_SECS (playdraw timeout)", playdraw_timeout),
+            ("4c play/draw: the chooser is out (playdraw out)", playdraw_seat_out),
+            ("4d first player refused during a real-dice roll and in a match's game 2 (first refusals)", first_player_refusals),
+            ("4e first player survives a restore, cleared by the next game (first restore)", firstpick_restore),
+            ("5 BACK guard: hidden info, force, voided corrections, more kinds (back guard)", back_guard_review)]
 
 if __name__ == "__main__":
     only = os.environ.get("R1115B_ONLY")

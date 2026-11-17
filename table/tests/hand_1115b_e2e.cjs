@@ -4,11 +4,21 @@
 // nothing; (4) counters show with their kind ("quest 5", "+2/+2") on the hand page's mat, the board page and the watch page. A real server on a
 // free port (never a live game's), a real browser, every press through the page.
 //   PW=~/Documents/server/workspace/clients/tests/node_modules/@playwright/test node table/tests/hand_1115b_e2e.cjs
-const { chromium } = require(process.env.PW || "@playwright/test");
-const { spawn, execFileSync } = require("child_process");
+let chromium;
+try { ({ chromium } = require(process.env.PW || "@playwright/test")); }
+catch (e) { console.error("SKIP: needs Playwright (PW=<path to node_modules/@playwright/test>)"); process.exit(77); }
+const { spawn, execFileSync, spawnSync } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), net = require("net");
 const REPO = path.resolve(__dirname, "../..");
 const PY = process.env.PY || path.join(os.homedir(), ".venvs/table/bin/python");
+{ // the card data (rules text, and the Star Trek set the deck is built from): without it this SKIPS (77), as the Python tests do
+  const r = spawnSync(PY, ["-c", "import sys; sys.path.insert(0,'table/tests'); import cards_path; cards_path.need_card_data(); cards_path.cards_json()"],
+    { cwd: REPO, encoding: "utf8", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } });
+  if (r.error || r.status !== 0) {
+    console.error(r.status === 77 ? (r.stderr || "").trim() : `SKIP: no Python to build the test deck with (${PY}; set PY=<python>)`);
+    process.exit(77);
+  }
+}
 const LIVE = [8800, 8801, 8820, 8830, 8883];
 let failed = [];
 const check = (ok, n, d = "") => { console.log(`${ok ? "  ✓" : "  ✗"} ${n}${ok ? "" : " — " + String(d).slice(0, 400)}`); if (!ok) failed.push(n); };
